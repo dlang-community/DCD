@@ -1,0 +1,3 @@
+[submodule "msgpack-d"]
+	path = msgpack-d
+	url = https://github.com/msgpack/msgpack-d.git
