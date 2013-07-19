@@ -12,7 +12,7 @@ int main(string[] args)
 {
     int cursorPos = -1;
     string[] importPaths;
-    ushort port = 9090;
+    ushort port = 9166;
     bool help;
 
     try
@@ -58,9 +58,12 @@ int main(string[] args)
     scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
     socket.connect(new InternetAddress("127.0.0.1", port));
     socket.blocking = true;
-    stderr.writeln("Sending ", message.length, " bytes");
-    auto bytesSent = socket.send(message);
-    stderr.writeln(bytesSent, " bytes sent");
+    socket.setOption(SocketOptionLevel.TCP, SocketOption.TCP_NODELAY, 1);
+    ubyte[] messageBuffer = new ubyte[message.length + message.length.sizeof];
+    auto messageLength = message.length;
+    messageBuffer[0 .. 8] = (cast(ubyte*) &messageLength)[0 .. 8];
+    messageBuffer[8 .. $] = message;
+    auto bytesSent = socket.send(messageBuffer);
 
     // Get response and write it out
     ubyte[1024 * 16] buffer;
@@ -88,7 +91,6 @@ int main(string[] args)
             writeln(completion);
         }
     }
-    stderr.writeln("completed");
     return 0;
 }
 
@@ -119,5 +121,5 @@ Options:
 
     --port PORTNUMBER | -pPORTNUMBER
         Uses PORTNUMBER to communicate with the server instead of the default
-        port 9091.`, programName);
+        port 9166.`, programName);
 }
