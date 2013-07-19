@@ -55,7 +55,7 @@ int main(string[] args)
 
     // Send message to server
     auto socket = new TcpSocket(AddressFamily.INET);
-    scope (exit) socket.close();
+    scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
     socket.connect(new InternetAddress("127.0.0.1", port));
     socket.blocking = true;
     stderr.writeln("Sending ", message.length, " bytes");
