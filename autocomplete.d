@@ -44,6 +44,7 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
                 response.completions ~= scopes[i];
                 response.completionKinds ~= CompletionKind.keyword;
             }
+			break;
         case TokenType.version_:
             response.completionType = CompletionType.identifiers;
             for (size_t i = 0; i < versions.length; i++)

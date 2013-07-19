@@ -62,7 +62,7 @@ int main(string[] args)
     ubyte[] messageBuffer = new ubyte[message.length + message.length.sizeof];
     auto messageLength = message.length;
     messageBuffer[0 .. 8] = (cast(ubyte*) &messageLength)[0 .. 8];
-    messageBuffer[8 .. $] = message;
+    messageBuffer[8 .. $] = message[];
     auto bytesSent = socket.send(messageBuffer);
 
     // Get response and write it out
