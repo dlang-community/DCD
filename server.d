@@ -11,7 +11,7 @@ import autocomplete;
 
 void main(string[] args)
 {
-    ushort port = 9090;
+    ushort port = 9166;
     bool help;
     string[] importPaths;
 
@@ -36,6 +36,19 @@ void main(string[] args)
         s.blocking = true;
         scope (exit) s.close();
         ptrdiff_t bytesReceived = s.receive(buffer);
+        size_t messageLength;
+        // bit magic!
+        (cast(ubyte*) &messageLength)[0..8] = buffer[0..8];
+        while (bytesReceived < messageLength + 8)
+        {
+            auto b = s.receive(buffer[bytesReceived .. $]);
+            if (b == Socket.ERROR)
+            {
+                bytesReceived = Socket.ERROR;
+                break;
+            }
+            bytesReceived += b;
+        }
 
         if (bytesReceived == Socket.ERROR)
         {
@@ -46,7 +59,7 @@ void main(string[] args)
         {
             AutocompleteRequest request;
             writeln("Unpacking ", bytesReceived, "/", buffer.length, " bytes into a request");
-            msgpack.unpack(buffer[0 .. bytesReceived], request);
+            msgpack.unpack(buffer[8 .. bytesReceived], request);
             AutocompleteResponse response = complete(request, importPaths);
             ubyte[] responseBytes = msgpack.pack(response);
             assert(s.send(responseBytes) == responseBytes.length);
@@ -65,5 +78,5 @@ options:
         Includes path in the listing of paths that are searched for file imports
 
     --port PORTNUMBER | -pPORTNUMBER
-        Listens on PORTNUMBER instead of the default port 9091.`, programName);
+        Listens on PORTNUMBER instead of the default port 9166.`, programName);
 }

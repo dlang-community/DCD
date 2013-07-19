@@ -1,9 +1,23 @@
 module constants;
 
+// The lists in this module should be kept sorted.
+
+/**
+ * Pragma arguments
+ */
+immutable string[] pragmas = [
+    "lib",
+    "msg",
+    "startaddress"
+];
+
+/**
+ * Traits arguments
+ */
 immutable string[] traits = [
     "allMembers",
     "classInstanceSize",
-    "compiles"
+    "compiles",
     "derivedMembers",
     "getAttributes",
     "getMember",
@@ -126,5 +140,116 @@ immutable string[] versions = [
     "Win64",
     "Windows",
     "X86",
-    "X86_64",
+    "X86_64"
+];
+
+/**
+ * Properties of all types
+ */
+immutable string[] allProperties = [
+    "alignof",
+    "init",
+    "mangleof",
+    "sizeof",
+    "stringof"
+];
+
+/**
+ * Properties of integer types
+ */
+immutable string[] integerProperties = [
+    "alignof",
+    "init",
+    "mangleof",
+    "max",
+    "min",
+    "sizeof",
+    "stringof"
+];
+
+/**
+ * Properties of floating point types
+ */
+immutable string[] floatProperties = [
+    "alignof",
+    "dig",
+    "epsilon",
+    "im",
+    "infinity",
+    "init",
+    "mangleof",
+    "mant_dig",
+    "max",
+    "max_10_exp",
+    "max_exp",
+    "min_10_exp",
+    "min_exp",
+    "min_normal",
+    "nan",
+    "re",
+    "sizeof",
+    "stringof"
+];
+
+/**
+ * Properties of class types
+ */
+immutable string[] classProperties = [
+    "alignof",
+    "classinfo",
+    "init",
+    "mangleof",
+    "__monitor",
+    "sizeof",
+    "stringof",
+    "tupleof",
+    "__vptr",
+];
+
+/**
+ * Properties of struct types
+ */
+immutable string[] structProperties = [
+    "alignof",
+    "tupleof",
+    "init",
+    "mangleof",
+    "sizeof",
+    "stringof"
+];
+
+/**
+ * Properties of arrays
+ */
+immutable string[] arrayProperties = [
+    "alignof",
+    "dup",
+    "idup",
+    "init",
+    "length",
+    "mangleof",
+    "ptr",
+    "reverse",
+    "sizeof",
+    "sort",
+    "stringof"
+];
+
+/**
+ * Properties of associative arrays
+ */
+immutable string[] associativeArrayProperties = [
+    "alignof",
+    "byKey",
+    "byValue",
+    "dup",
+    "get",
+    "init",
+    "keys",
+    "length",
+    "mangleof",
+    "rehash",
+    "sizeof",
+    "stringof",
+    "values"
 ];
