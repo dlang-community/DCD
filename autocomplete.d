@@ -73,6 +73,14 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
                 response.completionKinds ~= CompletionKind.keyword;
             }
             break;
+		case TokenType.extern_:
+            response.completionType = CompletionType.identifiers;
+            for (size_t i = 0; i < linkages.length; i++)
+            {
+                response.completions ~= linkages[i];
+                response.completionKinds ~= CompletionKind.keyword;
+            }
+            break;
         case TokenType.pragma_:
             response.completionType = CompletionType.identifiers;
             for (size_t i = 0; i < pragmas.length; i++)

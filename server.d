@@ -27,7 +27,7 @@ import msgpack;
 import messages;
 import autocomplete;
 
-void main(string[] args)
+int main(string[] args)
 {
     ushort port = 9166;
     bool help;
@@ -85,6 +85,7 @@ void main(string[] args)
             assert(s.send(responseBytes) == responseBytes.length);
         }
     }
+	return 0;
 }
 
 void printHelp(string programName)

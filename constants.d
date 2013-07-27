@@ -30,6 +30,18 @@ immutable string[] pragmas = [
 ];
 
 /**
+ * Linkage types
+ */
+immutable string[] linkages = [
+	"C",
+	"C++",
+	"D",
+	"Pascal",
+	"System",
+	"Windows",
+];
+
+/**
  * Traits arguments
  */
 immutable string[] traits = [
