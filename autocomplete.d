@@ -148,7 +148,10 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
             }
             break;
         case TokenType.identifier:
-            // TODO: This is a placeholder
+        case TokenType.rParen:
+        case TokenType.rBracket:
+            auto expression = getExpression(beforeTokens[0..$]);
+            writeln("Expression: ", expression.map!"a.value"());
             response.completionType = CompletionType.identifiers;
             for (size_t i = 0; i < allProperties.length; i++)
             {
@@ -163,9 +166,6 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
         case TokenType.colon:
             // TODO: global scope
             break;
-        case TokenType.rParen:
-        case TokenType.rBrace:
-        case TokenType.rBracket:
         default:
             // TODO
             break;
@@ -179,6 +179,64 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
     }
 
     return response;
+}
+
+T getExpression(T)(T beforeTokens)
+{
+	size_t i = beforeTokens.length - 1;
+	TokenType open;
+	TokenType close;
+	bool hasSpecialPrefix = false;
+	expressionLoop: while (true)
+	{
+		with (TokenType) switch (beforeTokens[i].type)
+		{
+		case identifier:
+			if (hasSpecialPrefix)
+			{
+				i++;
+				break expressionLoop;
+			}
+			break;
+		case dot:
+			break;
+		case star:
+		case bitAnd:
+			hasSpecialPrefix = true;
+			break;
+		case rParen:
+			open = rParen;
+			close = lParen;
+			goto skip;
+		case rBracket:
+			open = rBracket;
+			close = lBracket;
+		skip:
+			int depth = 1;
+			do
+			{
+				if (depth == 0 || i == 0)
+					break;
+				else
+					i--;
+				if (beforeTokens[i].type == open)
+					depth++;
+				else if (beforeTokens[i].type == close)
+					depth--;
+			} while (true);
+			break;
+		default:
+			if (hasSpecialPrefix)
+				i++;
+			i++;
+			break expressionLoop;
+		}
+		if (i == 0)
+			break;
+		else
+			i--;
+	}
+	return beforeTokens[i .. $ - 1];
 }
 
 void messageFunction(string fileName, int line, int column, string message)
@@ -231,10 +289,20 @@ class Symbol
 class Scope
 {
 public:
+
+	Symbol[] findSymbolsInCurrentScope(size_t cursorPosition, string name)
+	{
+		auto s = findCurrentScope(cursorPosition);
+		if (s is null)
+			return [];
+		else
+			return s.getSymbolsInScope(name);
+	}
+
     /**
      * @return the innermost Scope that contains the given cursor position.
      */
-    const(Scope) findCurrentScope(size_t cursorPosition) const
+    Scope findCurrentScope(size_t cursorPosition)
     {
         if (cursorPosition < start || cursorPosition > end)
             return null;
@@ -249,11 +317,10 @@ public:
         return this;
     }
 
-    const(Symbol)[] getSymbolsInScope() const
+    Symbol[] getSymbolsInScope()
     {
         return symbols ~ parent.getSymbolsInScope();
     }
-
 
     Symbol[] getSymbolsInScope(string name)
     {
