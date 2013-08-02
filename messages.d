@@ -47,6 +47,9 @@ enum CompletionKind : char
     /// enum name
     enumName = 'g',
 
+	/// enum member
+    enumMember = 'e',
+
     /// package name
     packageName = 'P',
 
@@ -94,7 +97,7 @@ struct AutocompleteRequest
     /**
      * The cursor position
      */
-    int cursorPosition;
+    size_t cursorPosition;
 }
 
 /**

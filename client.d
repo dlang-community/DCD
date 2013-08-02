@@ -28,7 +28,7 @@ import messages;
 
 int main(string[] args)
 {
-    int cursorPos = -1;
+    size_t cursorPos = size_t.max;
     string[] importPaths;
     ushort port = 9166;
     bool help;
@@ -50,7 +50,7 @@ int main(string[] args)
     }
 
     // cursor position is a required argument
-    if (cursorPos == -1)
+    if (cursorPos == size_t.max)
     {
         printHelp(args[0]);
         return 1;

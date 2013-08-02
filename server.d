@@ -48,7 +48,11 @@ int main(string[] args)
     socket.blocking = true;
     socket.bind(new InternetAddress("127.0.0.1", port));
     socket.listen(0);
-    scope (exit) socket.close();
+    scope (exit)
+	{
+		socket.shutdown(SocketShutdown.BOTH);
+		socket.close();
+	}
     ubyte[1024 * 1024 * 4] buffer = void; // 4 megabytes should be enough for anybody...
     while (true)
     {
@@ -78,7 +82,6 @@ int main(string[] args)
         else
         {
             AutocompleteRequest request;
-            writeln("Unpacking ", bytesReceived, "/", buffer.length, " bytes into a request");
             msgpack.unpack(buffer[8 .. bytesReceived], request);
             AutocompleteResponse response = complete(request, importPaths);
             ubyte[] responseBytes = msgpack.pack(response);

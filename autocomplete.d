@@ -23,16 +23,18 @@ module autocomplete;
 import std.algorithm;
 import std.array;
 import std.conv;
-import std.d.ast;
-import std.d.lexer;
-import std.d.parser;
+import stdx.d.ast;
+import stdx.d.lexer;
+import stdx.d.parser;
 import std.range;
 import std.stdio;
 import std.uni;
 
 import messages;
-import importutils;
+import acvisitor;
+import actypes;
 import constants;
+
 
 AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
 {
@@ -47,49 +49,37 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
     auto beforeTokens = sortedTokens.lowerBound(cast(size_t) request.cursorPosition);
     if (beforeTokens[$ - 1] ==  TokenType.lParen && beforeTokens.length >= 2)
     {
+		immutable(string)[] completions;
         switch (beforeTokens[$ - 2].type)
         {
         case TokenType.traits:
-            response.completionType = CompletionType.identifiers;
-            for (size_t i = 0; i < traits.length; i++)
-            {
-                response.completions ~= traits[i];
-                response.completionKinds ~= CompletionKind.keyword;
-            }
-            break;
-        case TokenType.scope_:
-            response.completionType = CompletionType.identifiers;
-            for (size_t i = 0; i < scopes.length; i++)
-            {
-                response.completions ~= scopes[i];
-                response.completionKinds ~= CompletionKind.keyword;
-            }
-			break;
-        case TokenType.version_:
-            response.completionType = CompletionType.identifiers;
-            for (size_t i = 0; i < versions.length; i++)
-            {
-                response.completions ~= versions[i];
-                response.completionKinds ~= CompletionKind.keyword;
-            }
-            break;
+			completions = traits;
+			goto fillResponse;
+		case TokenType.scope_:
+			completions = scopes;
+			goto fillResponse;
+		case TokenType.version_:
+			completions = versions;
+			goto fillResponse;
 		case TokenType.extern_:
+			completions = linkages;
+			goto fillResponse;
+		case TokenType.pragma_:
+			completions = pragmas;
+		fillResponse:
             response.completionType = CompletionType.identifiers;
-            for (size_t i = 0; i < linkages.length; i++)
+            for (size_t i = 0; i < completions.length; i++)
             {
-                response.completions ~= linkages[i];
-                response.completionKinds ~= CompletionKind.keyword;
-            }
-            break;
-        case TokenType.pragma_:
-            response.completionType = CompletionType.identifiers;
-            for (size_t i = 0; i < pragmas.length; i++)
-            {
-                response.completions ~= pragmas[i];
+                response.completions ~= completions[i];
                 response.completionKinds ~= CompletionKind.keyword;
             }
             break;
         case TokenType.identifier:
+		case TokenType.rParen:
+		case TokenType.rBracket:
+			auto expression = getExpression(beforeTokens[0..$]);
+            writeln("Expression: ", expression.map!"a.value"());
+			response.completionType = CompletionType.calltips;
             // TODO
             break;
         default:
@@ -150,14 +140,9 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
         case TokenType.identifier:
         case TokenType.rParen:
         case TokenType.rBracket:
+			auto visitor = processModule(tokenArray);
             auto expression = getExpression(beforeTokens[0..$]);
-            writeln("Expression: ", expression.map!"a.value"());
-            response.completionType = CompletionType.identifiers;
-            for (size_t i = 0; i < allProperties.length; i++)
-            {
-                response.completions ~= allProperties[i];
-                response.completionKinds ~= CompletionKind.keyword;
-            }
+			response.setCompletions(visitor, expression, request.cursorPosition);
             break;
         case TokenType.lParen:
         case TokenType.lBrace:
@@ -171,14 +156,25 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
             break;
         }
     }
-    else if (beforeTokens[$ - 1] == TokenType.identifier)
-    {
-        Module mod = parseModule(tokenArray, request.fileName, &messageFunction);
-
-        writeln("Resolved imports: ", getImportedFiles(mod, importPaths ~ request.importPaths));
-    }
-
     return response;
+}
+
+void setCompletions(T)(ref AutocompleteResponse response,
+	ref const AutoCompleteVisitor visitor, T tokens, size_t cursorPosition)
+{
+	// TODO: Completely hacked together.
+	if (tokens[0] != TokenType.identifier) return;
+	writeln("Getting completions for ", tokens[0].value);
+	auto symbol = visitor.scope_.findSymbolInCurrentScope(cursorPosition, tokens[0].value);
+	if (symbol is null)
+		return;
+	foreach (s; symbol.parts)
+	{
+		writeln("Adding ", s.name, " to the completion list");
+		response.completionKinds ~= s.kind;
+		response.completions ~= s.name;
+	}
+	response.completionType = CompletionType.identifiers;
 }
 
 T getExpression(T)(T beforeTokens)
@@ -239,11 +235,6 @@ T getExpression(T)(T beforeTokens)
 	return beforeTokens[i .. $ - 1];
 }
 
-void messageFunction(string fileName, int line, int column, string message)
-{
-    // does nothing
-}
-
 string createCamelCaseRegex(string input)
 {
     dstring output;
@@ -265,75 +256,4 @@ string createCamelCaseRegex(string input)
 unittest
 {
     assert("ClNa".createCamelCaseRegex() == "Cl.*Na.*");
-}
-
-enum SymbolKind
-{
-    className,
-    interfaceName,
-    enumName,
-    variableName,
-    structName,
-    unionName,
-    functionName
-}
-
-class Symbol
-{
-    Symbol[] parts;
-    string name;
-    SymbolKind kind;
-    Type[string] templateParameters;
-}
-
-class Scope
-{
-public:
-
-	Symbol[] findSymbolsInCurrentScope(size_t cursorPosition, string name)
-	{
-		auto s = findCurrentScope(cursorPosition);
-		if (s is null)
-			return [];
-		else
-			return s.getSymbolsInScope(name);
-	}
-
-    /**
-     * @return the innermost Scope that contains the given cursor position.
-     */
-    Scope findCurrentScope(size_t cursorPosition)
-    {
-        if (cursorPosition < start || cursorPosition > end)
-            return null;
-        foreach (sc; children)
-        {
-            auto s = sc.findCurrentScope(cursorPosition);
-            if (s is null)
-                continue;
-            else
-                return s;
-        }
-        return this;
-    }
-
-    Symbol[] getSymbolsInScope()
-    {
-        return symbols ~ parent.getSymbolsInScope();
-    }
-
-    Symbol[] getSymbolsInScope(string name)
-    {
-        Symbol[] results;
-        symbols.filter!(x => x.name == name)().copy(results);
-        parent.getSymbolsInScope(name).copy(results);
-        return results;
-    }
-
-private:
-    size_t start;
-    size_t end;
-    Symbol[] symbols;
-    Scope parent;
-    Scope[] children;
 }
