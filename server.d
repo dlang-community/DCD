@@ -79,10 +79,19 @@ int main(string[] args)
             writeln("Socket recieve failed");
             break;
         }
-        else
+
+		AutocompleteRequest request;
+		msgpack.unpack(buffer[8 .. bytesReceived], request);
+		if (request.kind == RequestKind.addImport)
+		{
+
+		}
+        else if (request.kind == RequestKind.clearCache)
+		{
+
+		}
+		else
         {
-            AutocompleteRequest request;
-            msgpack.unpack(buffer[8 .. bytesReceived], request);
             AutocompleteResponse response = complete(request, importPaths);
             ubyte[] responseBytes = msgpack.pack(response);
             assert(s.send(responseBytes) == responseBytes.length);

@@ -32,6 +32,9 @@ enum CompletionKind : char
     /// structure names
     structName = 's',
 
+	/// union name
+	unionName = 'u',
+
     /// variable name
     variableName = 'v',
 
@@ -54,7 +57,13 @@ enum CompletionKind : char
     packageName = 'P',
 
     // module name
-    moduleName = 'M'
+    moduleName = 'M',
+
+	// array
+	array = 'a',
+
+	// associative array
+	assocArray = 'A',
 }
 
 /**
@@ -74,6 +83,13 @@ enum CompletionType : string
     calltips = "calltips"
 }
 
+enum RequestKind
+{
+	autocomplete,
+	clearCache,
+	addImport
+}
+
 /**
  * Autocompletion request message
  */
@@ -83,6 +99,11 @@ struct AutocompleteRequest
      * File name used for error reporting
      */
     string fileName;
+
+	/**
+	 * Command coming from the client
+	 */
+	RequestKind kind;
 
     /**
      * Paths to be searched for import files

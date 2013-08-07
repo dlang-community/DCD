@@ -23,26 +23,99 @@ import std.algorithm;
 import std.stdio;
 import messages;
 
+/**
+ * Autocompletion symbol
+ */
 class ACSymbol
 {
 public:
+
+	this()
+	{
+	}
+
+	this(string name)
+	{
+		this.name = name;
+	}
+
+	this(string name, CompletionKind kind)
+	{
+		this.name = name;
+		this.kind = kind;
+	}
+
+	this(string name, CompletionKind kind, ACSymbol resolvedType)
+	{
+		this.name = name;
+		this.kind = kind;
+		this.resolvedType = resolvedType;
+	}
+
+	/**
+	 * Symbols that compose this symbol, such as enum members, class variables,
+	 * methods, etc.
+	 */
     ACSymbol[] parts;
+
+	/**
+	 * Symbol's name
+	 */
     string name;
+
+	size_t location;
+
+	/**
+	 * The kind of symbol
+	 */
     CompletionKind kind;
-    Type[string] templateParameters;
+
+	/**
+	 * The return type if this is a function, or the element type if this is an
+	 * array or associative array, or the variable type if this is a variable.
+	 * This field is null if this symbol is a class
+	 */
+	Type type;
+
+	ACSymbol resolvedType;
+
+	/**
+	 * Finds symbol parts by name
+	 */
+	ACSymbol getPartByName(string name)
+	{
+		foreach (part; parts)
+		{
+			if (part.name == name)
+				return part;
+		}
+		return null;
+	}
 }
 
+/**
+ * Scope such as a block statement, struct body, etc.
+ */
 class Scope
 {
 public:
 
+	/**
+	 * Params:
+	 *     start = the index of the opening brace
+	 *     end = the index of the closing brace
+	 */
 	this(size_t start, size_t end)
 	{
 		this.start = start;
 		this.end = end;
 	}
 
-	const(ACSymbol) findSymbolInCurrentScope(size_t cursorPosition, string name) const
+	/**
+	 * Finds the scope containing the cursor position, then searches for a
+	 * symbol with the given name.
+	 */
+	ACSymbol findSymbolInCurrentScope(size_t cursorPosition, string name)
 	{
 		auto s = findCurrentScope(cursorPosition);
 		if (s is null)
@@ -55,11 +128,11 @@ public:
 	}
 
     /**
-     * @return the innermost Scope that contains the given cursor position.
+     * Returns: the innermost Scope that contains the given cursor position.
      */
-    const(Scope) findCurrentScope(size_t cursorPosition) const
+    Scope findCurrentScope(size_t cursorPosition)
     {
-        if (cursorPosition < start || cursorPosition > end)
+        if (start != size_t.max && (cursorPosition < start || cursorPosition > end))
             return null;
         foreach (sc; children)
         {
@@ -72,7 +145,11 @@ public:
         return this;
     }
 
-    const(ACSymbol) findSymbolInScope(string name) const
+	/**
+	 * Finds a symbol with the given name in this scope or one of its parent
+	 * scopes.
+	 */
+    ACSymbol findSymbolInScope(string name)
     {
 		foreach (symbol; symbols)
 		{
@@ -84,9 +161,28 @@ public:
         return null;
     }
 
-    size_t start;
-    size_t end;
+	/**
+	 * Index of the opening brace
+	 */
+    size_t start = size_t.max;
+
+	/**
+	 * Index of the closing brace
+	 */
+    size_t end = size_t.max;
+
+	/**
+	 * Symbols contained in this scope
+	 */
     ACSymbol[] symbols;
+
+	/**
+	 * The parent scope
+	 */
     Scope parent;
+
+	/**
+	 * Child scopes
+	 */
     Scope[] children;
 }

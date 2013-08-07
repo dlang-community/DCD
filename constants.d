@@ -174,54 +174,6 @@ immutable string[] versions = [
 ];
 
 /**
- * Properties of all types
- */
-immutable string[] allProperties = [
-    "alignof",
-    "init",
-    "mangleof",
-    "sizeof",
-    "stringof"
-];
-
-/**
- * Properties of integer types
- */
-immutable string[] integerProperties = [
-    "alignof",
-    "init",
-    "mangleof",
-    "max",
-    "min",
-    "sizeof",
-    "stringof"
-];
-
-/**
- * Properties of floating point types
- */
-immutable string[] floatProperties = [
-    "alignof",
-    "dig",
-    "epsilon",
-    "im",
-    "infinity",
-    "init",
-    "mangleof",
-    "mant_dig",
-    "max",
-    "max_10_exp",
-    "max_exp",
-    "min_10_exp",
-    "min_exp",
-    "min_normal",
-    "nan",
-    "re",
-    "sizeof",
-    "stringof"
-];
-
-/**
  * Properties of class types
  */
 immutable string[] classProperties = [
@@ -246,40 +198,4 @@ immutable string[] structProperties = [
     "mangleof",
     "sizeof",
     "stringof"
-];
-
-/**
- * Properties of arrays
- */
-immutable string[] arrayProperties = [
-    "alignof",
-    "dup",
-    "idup",
-    "init",
-    "length",
-    "mangleof",
-    "ptr",
-    "reverse",
-    "sizeof",
-    "sort",
-    "stringof"
-];
-
-/**
- * Properties of associative arrays
- */
-immutable string[] associativeArrayProperties = [
-    "alignof",
-    "byKey",
-    "byValue",
-    "dup",
-    "get",
-    "init",
-    "keys",
-    "length",
-    "mangleof",
-    "rehash",
-    "sizeof",
-    "stringof",
-    "values"
 ];
