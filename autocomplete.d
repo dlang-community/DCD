@@ -74,14 +74,14 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
                 response.completionKinds ~= CompletionKind.keyword;
             }
             break;
-        case TokenType.identifier:
+        /+case TokenType.identifier:
 		case TokenType.rParen:
 		case TokenType.rBracket:
 			auto expression = getExpression(beforeTokens[0..$]);
             writeln("Expression: ", expression.map!"a.value"());
 			response.completionType = CompletionType.calltips;
             // TODO
-            break;
+            break;+/
         default:
             break;
         }
@@ -121,6 +121,7 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
         case TokenType.identifier:
         case TokenType.rParen:
         case TokenType.rBracket:
+        case TokenType.this_:
 			auto visitor = processModule(tokenArray);
 			visitor.scope_.symbols ~= builtinSymbols;
             auto expression = getExpression(beforeTokens[0..$]);
@@ -142,10 +143,11 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
 }
 
 void setCompletions(T)(ref AutocompleteResponse response,
-	AutoCompleteVisitor visitor, T tokens, size_t cursorPosition)
+	AutocompleteVisitor visitor, T tokens, size_t cursorPosition)
 {
 	// TODO: Completely hacked together.
 	writeln("Getting completions for ", map!"a.value"(tokens));
+	visitor.scope_.resolveSymbolTypes();
 	ACSymbol symbol = visitor.scope_.findSymbolInCurrentScope(cursorPosition, tokens[0].value);
 	if (symbol is null)
 	{
@@ -153,12 +155,14 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		return;
 	}
 
-	writeln(symbol.kind);
-	if (symbol.kind == CompletionKind.variableName
-		|| symbol.kind == CompletionKind.memberVariableName)
+	if (symbol.kind == CompletionKind.memberVariableName
+		|| symbol.kind == CompletionKind.variableName)
 	{
-		symbol = resolveType(cursorPosition, symbol, visitor.scope_);
+		symbol = symbol.resolvedType;
+		if (symbol is null)
+			return;
 	}
+
 	loop: for (size_t i = 1; i < tokens.length; i++)
 	{
 		TokenType open;
@@ -231,25 +235,6 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		response.completions ~= s.name;
 	}
 	response.completionType = CompletionType.identifiers;
-}
-
-ACSymbol resolveType(size_t cursorPosition, ACSymbol symbol, Scope scope_)
-{
-	writeln("Resolving type of ", symbol.name);
-	Type type = symbol.type;
-
-	// Simple case
-	if (type.type2.builtinType != TokenType.invalid && type.typeSuffixes.length == 0)
-	{
-		return scope_.findSymbolInCurrentScope(cursorPosition, getTokenValue(type.type2.builtinType));
-	}
-	if (type.type2.symbol !is null && type.typeSuffixes.length == 0)
-	{
-		return scope_.findSymbolInCurrentScope(cursorPosition,
-			type.type2.symbol.identifierOrTemplateChain.identifiersOrTemplateInstances[0].identifier.value);
-	}
-
-	return null;
 }
 
 T getExpression(T)(T beforeTokens)

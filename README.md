@@ -1,11 +1,15 @@
 #Overview
 The D Completion Daemon is an auto-complete program for the D programming language.
 
+![Teaser](teaser.png "This is what the future looks like - Jayce, League of Legends")
+
 #Status
 * Working:
-    * Autocomplete class, struct, interface, and enum members if the class, struct, or
-    enum was declared in the current file.
 	* Autocompletion of properties of built-in types such as int, float, double, etc.
+	* Autocompletion of __traits, scope, and extern arguments
+	* Autocompletion of enums
+* Crashes frequently
+    * Autocompletion of class, struct, and interfacae instances.
 * Not working:
 	* Everything else
 
