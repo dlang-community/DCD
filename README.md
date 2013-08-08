@@ -9,7 +9,7 @@ The D Completion Daemon is an auto-complete program for the D programming langua
 	* Autocompletion of __traits, scope, and extern arguments
 	* Autocompletion of enums
 * Crashes frequently
-    * Autocompletion of class, struct, and interfacae instances.
+    * Autocompletion of class, struct, and interface instances.
 * Not working:
 	* Everything else
 
