@@ -20,8 +20,14 @@ module modulecache;
 
 import std.file;
 import std.datetime;
+import stdx.d.lexer;
+import stdx.d.parser;
+import stdx.d.ast;
+import std.stdio;
+import std.array;
 
 import acvisitor;
+import actypes;
 
 struct CacheEntry
 {
@@ -39,56 +45,78 @@ struct ModuleCache
 	/**
 	 * Clears the completion cache
 	 */
-	void clear()
+	static void clear()
 	{
-		cache = [];
+		cache.clear();
 	}
 
 	/**
 	 * Adds the given path to the list of directories checked for imports
 	 */
-	void addImportPath(string path)
+	static void addImportPath(string path)
 	{
 		importPaths ~= path;
 	}
 
 	/**
 	 * Params:
-	 *     moduleName = the name of the module in "a.b.c" form
+	 *     moduleName = the name of the module in "a/b.d" form
 	 * Returns:
 	 *     The symbols defined in the given module
 	 */
-	ACSymbol[] getSymbolsInModule(string moduleName)
+	static ACSymbol[] getSymbolsInModule(string moduleName)
 	{
 		string location = resolveImportLoctation(moduleName);
+		if (location is null)
+			return [];
 		if (!needsReparsing(location))
-			return;
+			return cache[location].symbols;
 
+		File f = File(location);
+		ubyte[] source = uninitializedArray!(ubyte[])(f.size);
+		f.rawRead(source);
+
+		LexerConfig config;
+		auto tokens = source.byToken(config).array();
 		Module mod = parseModule(tokens, location, &doesNothing);
 		auto visitor = new AutocompleteVisitor;
 		visitor.visit(mod);
-		cache[location].mod = visitor.symbols;
+		SysTime access;
+		SysTime modification;
+		getTimes(location, access, modification);
+		if (location !in cache)
+			cache[location] = CacheEntry.init;
+		cache[location].modificationTime = modification;
+		cache[location].symbols = visitor.symbols;
+		return cache[location].symbols;
 	}
 
 	/**
 	 * Params:
-	 *     moduleName the name of the module being imported, in "a.b.c" style
+	 *     moduleName the name of the module being imported, in "a/b/c.d" style
 	 * Returns:
 	 *     The absolute path to the file that contains the module, or null if
 	 *     not found.
 	 */
-	string resolveImportLoctation(string moduleName)
+	static string resolveImportLoctation(string moduleName)
 	{
+		writeln("Resolving location of ", moduleName);
 		foreach (path; importPaths)
 		{
-			string filePath = path ~ "/" ~ imp;
+			string filePath = path ~ "/" ~ moduleName;
 			if (filePath.exists())
 				return filePath;
 			filePath ~= "i"; // check for x.di if x.d isn't found
 			if (filePath.exists())
 				return filePath;
 		}
+		writeln("Could not find ", moduleName);
 		return null;
+	}
+
+	static const(string[]) getImportPaths()
+	{
+		return cast(const(string[])) importPaths;
 	}
 
 private:
@@ -99,7 +127,7 @@ private:
 	 * Returns:
 	 *     true  if the module needs to be reparsed, false otherwise
 	 */
-    bool needsReparsing(string mod)
+    static bool needsReparsing(string mod)
     {
         if (!exists(mod) || mod !in cache)
             return true;
@@ -110,8 +138,8 @@ private:
     }
 
 	// Mapping of file paths to their cached symbols.
-    CacheEntry[string] cache;
+    static CacheEntry[string] cache;
 
 	// Listing of paths to check for imports
-	string[] importPaths;
+	static string[] importPaths;
 }

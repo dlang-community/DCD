@@ -18,6 +18,7 @@
 
 module actypes;
 
+import stdx.d.lexer;
 import stdx.d.ast;
 import std.algorithm;
 import std.stdio;
@@ -160,6 +161,34 @@ public:
 			return parent.findSymbolInScope(name);
         return null;
     }
+
+	void resolveSymbolTypes()
+	{
+		foreach (s; symbols.filter!(a => a.kind == CompletionKind.variableName)())
+		{
+			Type type = s.type;
+			if (type.typeSuffixes.length == 0)
+			{
+				if (type.type2.builtinType != TokenType.invalid)
+				{
+					s.resolvedType = findSymbolInCurrentScope(s.location,
+						getTokenValue(type.type2.builtinType));
+				}
+				else if (type.type2.symbol !is null)
+				{
+					Symbol sym = type.type2.symbol;
+					if (sym.identifierOrTemplateChain.identifiersOrTemplateInstances.length != 1)
+						return;
+					s.resolvedType = findSymbolInCurrentScope(s.location,
+						sym.identifierOrTemplateChain.identifiersOrTemplateInstances[0].identifier.value);
+				}
+			}
+		}
+		foreach (c; children)
+		{
+			c.resolveSymbolTypes();
+		}
+	}
 
 	/**
 	 * Index of the opening brace

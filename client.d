@@ -32,11 +32,12 @@ int main(string[] args)
     string[] importPaths;
     ushort port = 9166;
     bool help;
+	bool shutdown;
 
     try
     {
         getopt(args, "cursorPos|c", &cursorPos, "I", &importPaths,
-            "port|p", &port, "help|h", &help);
+			"port|p", &port, "help|h", &help, "shutdown", &shutdown);
     }
     catch (Exception e)
     {
@@ -47,6 +48,23 @@ int main(string[] args)
     {
         printHelp(args[0]);
         return 0;
+	}
+
+	if (shutdown)
+	{
+		AutocompleteRequest request;
+		request.kind = RequestKind.shutdown;
+		auto socket = new TcpSocket(AddressFamily.INET);
+		scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
+		socket.connect(new InternetAddress("127.0.0.1", port));
+		socket.blocking = true;
+		socket.setOption(SocketOptionLevel.TCP, SocketOption.TCP_NODELAY, 1);
+		ubyte[] message = msgpack.pack(request);
+		ubyte[] messageBuffer = new ubyte[message.length + message.length.sizeof];
+		auto messageLength = message.length;
+		messageBuffer[0 .. 8] = (cast(ubyte*) &messageLength)[0 .. 8];
+		messageBuffer[8 .. $] = message[];
+		return socket.send(messageBuffer) == messageBuffer.length ? 0 : 1;
     }
 
     // cursor position is a required argument
@@ -118,24 +136,32 @@ void printHelp(string programName)
 `
     Usage: %1$s --cursorPos NUMBER [options] [FILENAME]
        or: %1$s -cNUMBER [options] [FILENAME]
+       or: %1$s --clearCache
+       or: %1$s --shutdown
 
     A file name is optional. If it is given, autocomplete information will be
     given for the file specified. If it is missing, input will be read from
     stdin instead.
 
-    Source code is assumed to be UTF-8 encoded.
-
-Mandatory Arguments:
-    --cursorPos | -c position
-        Provides auto-completion at the given cursor position. The cursor
-        position is measured in bytes from the beginning of the source code.
+    Source code is assumed to be UTF-8 encoded and must not exceed 4 megabytes.
 
 Options:
     --help | -h
         Displays this help message
 
+    --cursorPos | -c position
+        Provides auto-completion at the given cursor position. The cursor
+        position is measured in bytes from the beginning of the source code.
+
+    --clearCache
+        Instructs the server to clear out its autocompletion cache.
+
+    --shutdown
+        Instructs the server to shut down.
+
     -IPATH
-        Includes PATH in the listing of paths that are searched for file imports
+        Instructs the server to add PATH to its list of paths searced for
+        imported modules.
 
     --port PORTNUMBER | -pPORTNUMBER
         Uses PORTNUMBER to communicate with the server instead of the default

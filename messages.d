@@ -87,7 +87,8 @@ enum RequestKind
 {
 	autocomplete,
 	clearCache,
-	addImport
+	addImport,
+	shutdown
 }
 
 /**

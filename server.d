@@ -21,11 +21,13 @@ module server;
 import std.socket;
 import std.stdio;
 import std.getopt;
+import std.algorithm;
 
 import msgpack;
 
 import messages;
 import autocomplete;
+import modulecache;
 
 int main(string[] args)
 {
@@ -43,6 +45,18 @@ int main(string[] args)
         printHelp(args[0]);
         return 1;
     }
+
+	// begin hack
+	importPaths ~= "/home/alaran/src/dcd";
+	importPaths ~= "/home/alaran/src/dscanner";
+	importPaths ~= "/usr/include/d2/core";
+	importPaths ~= "/usr/include/d2/phobos";
+	importPaths ~= "/usr/include/d2/druntime/import";
+	// end hack
+
+	foreach (path; importPaths)
+		ModuleCache.addImportPath(path);
+	writeln(ModuleCache.getImportPaths());
 
     auto socket = new TcpSocket(AddressFamily.INET);
     socket.blocking = true;
@@ -84,11 +98,16 @@ int main(string[] args)
 		msgpack.unpack(buffer[8 .. bytesReceived], request);
 		if (request.kind == RequestKind.addImport)
 		{
-
+			//ModuleCache.addImportPath();
 		}
         else if (request.kind == RequestKind.clearCache)
 		{
-
+			ModuleCache.clear();
+		}
+		else if (request.kind == RequestKind.shutdown)
+		{
+			writeln("Shutting down.");
+			break;
 		}
 		else
         {

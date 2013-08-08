@@ -26,8 +26,9 @@ import std.stdio;
 
 import actypes;
 import messages;
+import modulecache;
 
-class AutoCompleteVisitor : ASTVisitor
+class AutocompleteVisitor : ASTVisitor
 {
 	alias ASTVisitor.visit visit;
 
@@ -35,6 +36,7 @@ class AutoCompleteVisitor : ASTVisitor
 	{
 		auto symbol = new ACSymbol;
 		symbol.name = dec.name.value;
+		symbol.location = dec.name.startIndex;
 		symbol.kind = CompletionKind.structName;
 		mixin (visitAndAdd);
 	}
@@ -43,6 +45,7 @@ class AutoCompleteVisitor : ASTVisitor
 	{
 		auto symbol = new ACSymbol;
 		symbol.name = dec.name.value;
+		symbol.location = dec.name.startIndex;
 		symbol.kind = CompletionKind.className;
 		mixin (visitAndAdd);
 	}
@@ -51,6 +54,7 @@ class AutoCompleteVisitor : ASTVisitor
 	{
 		auto symbol = new ACSymbol;
 		symbol.name = dec.name.value;
+		symbol.location = dec.name.startIndex;
 		symbol.kind = CompletionKind.interfaceName;
 		mixin (visitAndAdd);
 	}
@@ -59,6 +63,8 @@ class AutoCompleteVisitor : ASTVisitor
 	{
 		auto s = scope_;
 		scope_ = new Scope(structBody.startLocation, structBody.endLocation);
+		scope_.symbols ~= new ACSymbol("this", CompletionKind.variableName,
+			parentSymbol);
 		scope_.parent = s;
 		structBody.accept(this);
 		scope_ = s;
@@ -68,15 +74,16 @@ class AutoCompleteVisitor : ASTVisitor
 	{
 		auto symbol = new ACSymbol;
 		symbol.name = dec.name.value;
+		symbol.location = dec.name.startIndex;
 		symbol.kind = CompletionKind.enumName;
 		mixin (visitAndAdd);
 	}
 
 	override void visit(FunctionDeclaration dec)
 	{
-		writeln("Found function declaration ", dec.name.value);
 		auto symbol = new ACSymbol;
 		symbol.name = dec.name.value;
+		symbol.location = dec.name.startIndex;
 		symbol.kind = CompletionKind.functionName;
 		mixin (visitAndAdd);
 	}
@@ -86,7 +93,7 @@ class AutoCompleteVisitor : ASTVisitor
 		auto s = new ACSymbol;
 		s.kind = CompletionKind.enumMember;
 		s.name = member.name.value;
-//		writeln("Added enum member ", s.name);
+		s.location = member.name.startIndex;
 		if (parentSymbol !is null)
 			parentSymbol.parts ~= s;
 	}
@@ -95,10 +102,10 @@ class AutoCompleteVisitor : ASTVisitor
 	{
 		foreach (d; dec.declarators)
 		{
-			writeln("Found variable declaration ", d.name.value);
 			auto symbol = new ACSymbol;
 			symbol.type = dec.type;
 			symbol.name = d.name.value;
+			symbol.location = d.name.startIndex;
 			symbol.kind = CompletionKind.variableName;
 			if (parentSymbol is null)
 				symbols ~= symbol;
@@ -110,19 +117,22 @@ class AutoCompleteVisitor : ASTVisitor
 
 	override void visit(ImportDeclaration dec)
 	{
+		if (!currentFile) return;
 		foreach (singleImport; dec.singleImports)
 		{
-			imports ~= convertChainToImportPath(singleImport.identifierChain);
+			scope_.symbols ~= ModuleCache.getSymbolsInModule(
+				convertChainToImportPath(singleImport.identifierChain));
 		}
 		if (dec.importBindings !is null)
 		{
-			imports ~= convertChainToImportPath(dec.importBindings.singleImport.identifierChain);
+			scope_.symbols ~= ModuleCache.getSymbolsInModule(
+				convertChainToImportPath(
+					dec.importBindings.singleImport.identifierChain));
 		}
 	}
 
 	override void visit(BlockStatement blockStatement)
 	{
-		writeln("Processing block statement");
 		auto s = scope_;
 		scope_ = new Scope(blockStatement.startLocation,
 			blockStatement.endLocation);
@@ -157,6 +167,7 @@ class AutoCompleteVisitor : ASTVisitor
 	ACSymbol parentSymbol;
 	Scope scope_;
 	string[] imports = ["object"];
+	bool currentFile = false;
 
 private:
 	static enum string visitAndAdd = q{
@@ -174,10 +185,11 @@ private:
 
 void doesNothing(string, int, int, string) {}
 
-AutoCompleteVisitor processModule(const(Token)[] tokens)
+AutocompleteVisitor processModule(const(Token)[] tokens)
 {
-	Module mod = parseModule(tokens, "", null/*&doesNothing*/);
-	auto visitor = new AutoCompleteVisitor;
+	Module mod = parseModule(tokens, "", &doesNothing);
+	auto visitor = new AutocompleteVisitor;
+	visitor.currentFile = true;
 	visitor.visit(mod);
 	return visitor;
 }
