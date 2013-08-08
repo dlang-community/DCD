@@ -33,11 +33,13 @@ int main(string[] args)
     ushort port = 9166;
     bool help;
 	bool shutdown;
+	bool clearCache;
 
     try
     {
         getopt(args, "cursorPos|c", &cursorPos, "I", &importPaths,
-			"port|p", &port, "help|h", &help, "shutdown", &shutdown);
+			"port|p", &port, "help|h", &help, "shutdown", &shutdown,
+			"clearCache", &clearCache);
     }
     catch (Exception e)
     {
@@ -50,10 +52,13 @@ int main(string[] args)
         return 0;
 	}
 
-	if (shutdown)
+	if (shutdown || clearCache)
 	{
 		AutocompleteRequest request;
+		if (shutdown)
 		request.kind = RequestKind.shutdown;
+		else if (clearCache)
+			request.kind = RequestKind.clearCache;
 		auto socket = new TcpSocket(AddressFamily.INET);
 		scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
 		socket.connect(new InternetAddress("127.0.0.1", port));
@@ -112,7 +117,7 @@ int main(string[] args)
     AutocompleteResponse response;
     msgpack.unpack(buffer[0..bytesReceived], response);
 
-    writeln(response.completionType);
+    //writeln(response.completionType);
     if (response.completionType == CompletionType.identifiers)
     {
         for (size_t i = 0; i < response.completions.length; i++)

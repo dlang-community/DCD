@@ -56,7 +56,7 @@ int main(string[] args)
 
 	foreach (path; importPaths)
 		ModuleCache.addImportPath(path);
-	writeln(ModuleCache.getImportPaths());
+	writeln("Import directories: ", ModuleCache.getImportPaths());
 
     auto socket = new TcpSocket(AddressFamily.INET);
     socket.blocking = true;
@@ -72,7 +72,11 @@ int main(string[] args)
     {
         auto s = socket.accept();
         s.blocking = true;
-        scope (exit) s.close();
+        scope (exit)
+		{
+			s.shutdown(SocketShutdown.BOTH);
+			s.close();
+		}
         ptrdiff_t bytesReceived = s.receive(buffer);
         size_t messageLength;
         // bit magic!
@@ -102,6 +106,7 @@ int main(string[] args)
 		}
         else if (request.kind == RequestKind.clearCache)
 		{
+			writeln("Clearing cache.");
 			ModuleCache.clear();
 		}
 		else if (request.kind == RequestKind.shutdown)

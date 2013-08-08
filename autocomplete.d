@@ -47,7 +47,7 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
     auto sortedTokens = assumeSorted(tokenArray);
 
     auto beforeTokens = sortedTokens.lowerBound(cast(size_t) request.cursorPosition);
-    if (beforeTokens[$ - 1] ==  TokenType.lParen && beforeTokens.length >= 2)
+    if (beforeTokens[$ - 1] == TokenType.lParen && beforeTokens.length >= 2)
     {
 		immutable(string)[] completions;
         switch (beforeTokens[$ - 2].type)
@@ -74,14 +74,15 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
                 response.completionKinds ~= CompletionKind.keyword;
             }
             break;
-        /+case TokenType.identifier:
+        case TokenType.identifier:
 		case TokenType.rParen:
 		case TokenType.rBracket:
-			auto expression = getExpression(beforeTokens[0..$]);
-            writeln("Expression: ", expression.map!"a.value"());
-			response.completionType = CompletionType.calltips;
-            // TODO
-            break;+/
+			auto visitor = processModule(tokenArray);
+			visitor.scope_.symbols ~= builtinSymbols;
+            auto expression = getExpression(beforeTokens[0 .. $ - 1]);
+			response.setCompletions(visitor, expression, request.cursorPosition,
+				CompletionType.calltips);
+            break;
         default:
             break;
         }
@@ -124,8 +125,9 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
         case TokenType.this_:
 			auto visitor = processModule(tokenArray);
 			visitor.scope_.symbols ~= builtinSymbols;
-            auto expression = getExpression(beforeTokens[0..$]);
-			response.setCompletions(visitor, expression, request.cursorPosition);
+            auto expression = getExpression(beforeTokens[0 .. $ - 1]);
+			response.setCompletions(visitor, expression, request.cursorPosition,
+				CompletionType.identifiers);
             break;
         case TokenType.lParen:
         case TokenType.lBrace:
@@ -143,10 +145,11 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
 }
 
 void setCompletions(T)(ref AutocompleteResponse response,
-	AutocompleteVisitor visitor, T tokens, size_t cursorPosition)
+	AutocompleteVisitor visitor, T tokens, size_t cursorPosition,
+	CompletionType completionType)
 {
-	// TODO: Completely hacked together.
 	writeln("Getting completions for ", map!"a.value"(tokens));
+	writeln("Resolving symbols for editor buffer");
 	visitor.scope_.resolveSymbolTypes();
 	ACSymbol symbol = visitor.scope_.findSymbolInCurrentScope(cursorPosition, tokens[0].value);
 	if (symbol is null)
@@ -155,7 +158,8 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		return;
 	}
 
-	if (symbol.kind == CompletionKind.memberVariableName
+	if (completionType == CompletionType.identifiers
+		&& symbol.kind == CompletionKind.memberVariableName
 		|| symbol.kind == CompletionKind.variableName)
 	{
 		symbol = symbol.resolvedType;
@@ -198,9 +202,22 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				break loop;
 			break;
 		case identifier:
+			writeln("looking for ", tokens[i].value, " in ", symbol.name);
 			symbol = symbol.getPartByName(tokens[i].value);
 			if (symbol is null)
+			{
+				writeln("Couldn't find it.");
 				break loop;
+			}
+			if (symbol.kind == CompletionKind.variableName
+				|| symbol.kind == CompletionKind.memberVariableName
+				|| (symbol.kind == CompletionKind.functionName
+				&& (completionType == CompletionType.identifiers
+				|| i + 1 < tokens.length)))
+			{
+
+				symbol = symbol.resolvedType;
+			}
 			break;
 		case lParen:
 			open = TokenType.lParen;
@@ -209,6 +226,17 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		case lBracket:
 			open = TokenType.lBracket;
 			close = TokenType.rBracket;
+			// TODO: handle slicing
+			// TODO: handle opIndex
+			// TODO: handle opSlice
+			if (symbol.qualifier == SymbolQualifier.array
+				|| symbol.qualifier == SymbolQualifier.assocArray)
+			{
+				symbol = symbol.resolvedType;
+				goto skip;
+			}
+			else
+				return;
 		skip:
 			i++;
 			for (int depth = 1; depth > 0 && i < tokens.length; i++)
@@ -223,18 +251,34 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			}
 			break;
 		case dot:
-		default:
 			break;
+		default:
+			break loop;
 		}
 	}
-
-	foreach (s; symbol.parts)
+	if (symbol is null)
 	{
-		//writeln("Adding ", s.name, " to the completion list");
-		response.completionKinds ~= s.kind;
-		response.completions ~= s.name;
+		writeln("Could not get completions");
+		return;
 	}
-	response.completionType = CompletionType.identifiers;
+	if (completionType == CompletionType.identifiers)
+	{
+		writeln("Writing out the parts of ", symbol.name);
+		foreach (s; symbol.parts)
+		{
+			//writeln("Adding ", s.name, " to the completion list");
+			response.completionKinds ~= s.kind;
+			response.completions ~= s.name;
+		}
+		response.completionType = CompletionType.identifiers;
+	}
+	else
+	{
+		writeln("Adding calltip for ", symbol.name, ": ", symbol.calltip);
+		response.completions ~= symbol.calltip;
+		response.completionType = CompletionType.calltips;
+	}
+
 }
 
 T getExpression(T)(T beforeTokens)
@@ -316,7 +360,7 @@ T getExpression(T)(T beforeTokens)
 		else
 			i--;
 	}
-	return beforeTokens[i .. $ - 1];
+	return beforeTokens[i .. $];
 }
 
 string createCamelCaseRegex(string input)
@@ -386,8 +430,8 @@ static this()
 	assocArraySymbols ~= new ACSymbol("length", CompletionKind.keyword, ulong_);
 	assocArraySymbols ~= mangleof_;
 	assocArraySymbols ~= new ACSymbol("rehash", CompletionKind.keyword);
-	arraySymbols ~= sizeof_;
-	arraySymbols ~= stringof_;
+	assocArraySymbols ~= sizeof_;
+	assocArraySymbols ~= stringof_;
 	assocArraySymbols ~= new ACSymbol("values", CompletionKind.keyword);
 
 	foreach (s; [bool_, int_, long_, byte_, dchar_, short_, ubyte_, uint_,

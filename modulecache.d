@@ -66,6 +66,7 @@ struct ModuleCache
 	 */
 	static ACSymbol[] getSymbolsInModule(string moduleName)
 	{
+		writeln("Getting symbols for module", moduleName);
 		string location = resolveImportLoctation(moduleName);
 		if (location is null)
 			return [];
@@ -81,6 +82,7 @@ struct ModuleCache
 		Module mod = parseModule(tokens, location, &doesNothing);
 		auto visitor = new AutocompleteVisitor;
 		visitor.visit(mod);
+		visitor.scope_.resolveSymbolTypes();
 		SysTime access;
 		SysTime modification;
 		getTimes(location, access, modification);

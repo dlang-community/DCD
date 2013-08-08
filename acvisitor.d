@@ -32,6 +32,15 @@ class AutocompleteVisitor : ASTVisitor
 {
 	alias ASTVisitor.visit visit;
 
+	override void visit(Unittest dec)
+	{
+		auto symbol = new ACSymbol("*unittest*");
+		auto p = parentSymbol;
+		parentSymbol = symbol;
+		dec.accept(this);
+		parentSymbol = p;
+	}
+
 	override void visit(StructDeclaration dec)
 	{
 		auto symbol = new ACSymbol;
@@ -66,12 +75,14 @@ class AutocompleteVisitor : ASTVisitor
 		scope_.symbols ~= new ACSymbol("this", CompletionKind.variableName,
 			parentSymbol);
 		scope_.parent = s;
+		s.children ~= scope_;
 		structBody.accept(this);
 		scope_ = s;
 	}
 
 	override void visit(EnumDeclaration dec)
 	{
+		// TODO: Store type
 		auto symbol = new ACSymbol;
 		symbol.name = dec.name.value;
 		symbol.location = dec.name.startIndex;
@@ -81,10 +92,17 @@ class AutocompleteVisitor : ASTVisitor
 
 	override void visit(FunctionDeclaration dec)
 	{
-		auto symbol = new ACSymbol;
+		// TODO: Parameters need to be added to the function body scope
+		ACSymbol symbol = new ACSymbol;
 		symbol.name = dec.name.value;
 		symbol.location = dec.name.startIndex;
 		symbol.kind = CompletionKind.functionName;
+		symbol.type = dec.returnType;
+		if (dec.returnType !is null)
+		{
+			symbol.calltip = format("%s %s%s", dec.returnType.toString(),
+				dec.name.value, dec.parameters.toString());
+		}
 		mixin (visitAndAdd);
 	}
 
@@ -117,6 +135,7 @@ class AutocompleteVisitor : ASTVisitor
 
 	override void visit(ImportDeclaration dec)
 	{
+		// TODO: handle public imports
 		if (!currentFile) return;
 		foreach (singleImport; dec.singleImports)
 		{
