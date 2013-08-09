@@ -3,6 +3,10 @@ The D Completion Daemon is an auto-complete program for the D programming langua
 
 ![Teaser](teaser.png "This is what the future looks like - Jayce, League of Legends")
 
+DCD consists of a client and a server. The client (dcd-client) is used by a text editor script or from the command line.
+The server (dcd-server) is responsible for caching imported files, calculating autocomplete information, and sending it
+back to the client.
+
 #Status
 *This program is still in an alpha state.*
 
@@ -13,6 +17,7 @@ The D Completion Daemon is an auto-complete program for the D programming langua
 	* Autocompletion of class, struct, and interface instances.
 	* Display of call tips (but only for the first overload)
 * Not working:
+	* Windows support (I don't know that it won't work, but this program is not tested on Windows yet)
 	* UFCS
 	* Templates
 	* *auto* declarations
