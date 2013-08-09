@@ -47,7 +47,8 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
     auto sortedTokens = assumeSorted(tokenArray);
 
     auto beforeTokens = sortedTokens.lowerBound(cast(size_t) request.cursorPosition);
-    if (beforeTokens[$ - 1] == TokenType.lParen && beforeTokens.length >= 2)
+
+    if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == TokenType.lParen)
     {
 		immutable(string)[] completions;
         switch (beforeTokens[$ - 2].type)
@@ -87,7 +88,7 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
             break;
         }
     }
-    else if (beforeTokens[$ - 1] ==  TokenType.dot && beforeTokens.length >= 2)
+    else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] ==  TokenType.dot)
     {
         switch (beforeTokens[$ - 2].type)
         {

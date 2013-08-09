@@ -83,8 +83,23 @@ int main(string[] args)
     bool usingStdin = args.length <= 1;
     string fileName = usingStdin ? "stdin" : args[1];
     File f = usingStdin ? stdin : File(args[1]);
-    ubyte[] sourceCode = usingStdin ? cast(ubyte[]) [] : uninitializedArray!(ubyte[])(f.size);
-    f.rawRead(sourceCode);
+    ubyte[] sourceCode;
+    if (usingStdin)
+	{
+		ubyte[4096] buf;
+		while (true)
+		{
+			auto b = f.rawRead(buf);
+			if (b.length == 0)
+				break;
+			sourceCode ~= b;
+		}
+	}
+	else
+	{
+		sourceCode = uninitializedArray!(ubyte[])(f.size);
+		f.rawRead(sourceCode);
+	}
 
     // Create message
     AutocompleteRequest request;

@@ -72,10 +72,8 @@ function M.autocomplete(ch)
 		local fileName = os.tmpname()
 		local tmpFile = io.open(fileName, "w")
 		tmpFile:write(buffer:get_text())
-		local command = M.PATH_TO_DCD_CLIENT .. " -c" .. buffer.current_pos
-			.. " " .. fileName
-		print(command)
-		local p = io.popen(command)
+		local command = M.PATH_TO_DCD_CLIENT .. " -c" .. buffer.current_pos .. " " .. fileName
+		local p = io.popen(command, "r")
 		local r = p:read("*a")
 		print(r)
 		if r ~= "\n" then
