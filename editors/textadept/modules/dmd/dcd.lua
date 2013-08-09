@@ -57,8 +57,10 @@ end
 
 local function showCalltips(calltip)
 	for tip in calltip:gmatch("(.-)\n") do
-		buffer:call_tip_show(buffer.current_pos, tip)
-		break
+		if tip ~= "calltips" then
+			buffer:call_tip_show(buffer.current_pos, tip)
+			break
+		end
 	end
 end
 

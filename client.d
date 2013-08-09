@@ -117,7 +117,7 @@ int main(string[] args)
     AutocompleteResponse response;
     msgpack.unpack(buffer[0..bytesReceived], response);
 
-    //writeln(response.completionType);
+    writeln(response.completionType);
     if (response.completionType == CompletionType.identifiers)
     {
         for (size_t i = 0; i < response.completions.length; i++)
