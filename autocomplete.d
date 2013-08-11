@@ -154,8 +154,6 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	CompletionType completionType)
 {
 
-	writeln("Getting completions for ", map!"a.value"(tokens));
-	writeln("Resolving symbols for editor buffer");
 	visitor.scope_.resolveSymbolTypes();
 	ACSymbol symbol = visitor.scope_.findSymbolInCurrentScope(cursorPosition, tokens[0].value);
 	if (symbol is null)
@@ -166,7 +164,8 @@ void setCompletions(T)(ref AutocompleteResponse response,
 
 	if (completionType == CompletionType.identifiers
 		&& symbol.kind == CompletionKind.memberVariableName
-		|| symbol.kind == CompletionKind.variableName)
+		|| symbol.kind == CompletionKind.variableName
+		|| symbol.kind == CompletionKind.enumMember)
 	{
 		symbol = symbol.resolvedType;
 		if (symbol is null)
@@ -233,6 +232,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			}
 			if (symbol.kind == CompletionKind.variableName
 				|| symbol.kind == CompletionKind.memberVariableName
+				|| symbol.kind == CompletionKind.enumMember
 				|| (symbol.kind == CompletionKind.functionName
 				&& (completionType == CompletionType.identifiers
 				|| i + 1 < tokens.length)))
@@ -248,8 +248,6 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		case lBracket:
 			open = TokenType.lBracket;
 			close = TokenType.rBracket;
-			// TODO: handle opIndex
-			// TODO: handle opSlice
 			if (symbol.qualifier == SymbolQualifier.array)
 			{
 				auto h = i;
@@ -267,7 +265,24 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				skip();
 			}
 			else
-				return;
+			{
+				auto h = i;
+				skip();
+				Parser p;
+				p.setTokens(tokens[h .. i].array());
+				ACSymbol overload;
+				if (p.isSliceExpression())
+					overload = symbol.getPartByName("opSlice");
+				else
+					overload = symbol.getPartByName("opIndex");
+				if (overload !is null)
+				{
+					writeln("opIndex or opSlice used, ", overload.name);
+					symbol = overload.resolvedType;
+				}
+				else
+					return;
+			}
 			break;
 		case dot:
 			break;
@@ -282,10 +297,10 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	}
 	if (completionType == CompletionType.identifiers)
 	{
-		writeln("Writing out the parts of ", symbol.name);
+		writeln("Writing completions for ", symbol.name);
 		foreach (s; symbol.parts)
 		{
-			//writeln("Adding ", s.name, " to the completion list");
+			writeln("Adding ", s.name, " to the completion list");
 			response.completionKinds ~= s.kind;
 			response.completions ~= s.name;
 		}
@@ -293,7 +308,6 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	}
 	else
 	{
-		writeln("Adding calltip for ", symbol.name, ": ", symbol.calltip);
 		response.completions ~= symbol.calltip;
 		response.completionType = CompletionType.calltips;
 	}

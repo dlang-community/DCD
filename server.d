@@ -54,10 +54,6 @@ int main(string[] args)
 
 	importPaths ~= loadConfiguredImportDirs();
 
-	foreach (path; importPaths)
-		ModuleCache.addImportPath(path);
-	writeln("Import directories: ", ModuleCache.getImportPaths());
-
     auto socket = new TcpSocket(AddressFamily.INET);
     socket.blocking = true;
     socket.bind(new InternetAddress("127.0.0.1", port));
@@ -69,7 +65,15 @@ int main(string[] args)
 		socket.close();
 		writeln("Sockets shut down.");
 	}
+
+	foreach (path; importPaths)
+		ModuleCache.addImportPath(path);
+	writeln("Import directories: ", ModuleCache.getImportPaths());
+
     ubyte[1024 * 1024 * 4] buffer = void; // 4 megabytes should be enough for anybody...
+
+	writeln("Startup complete");
+
     while (true)
     {
         auto s = socket.accept();

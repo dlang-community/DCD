@@ -216,35 +216,37 @@ public:
 	 */
 	void resolveSymbolTypes()
 	{
+		// TODO: auto declarations.
+
 		// We only care about resolving types of variables, all other symbols
 		// don't have any indirection
-		// TODO: Resolve types of enum members
 		foreach (ref s; symbols.filter!(a => (a.kind == CompletionKind.variableName
-			|| a.kind == CompletionKind.functionName
-			|| a.kind == CompletionKind.memberVariableName) && a.resolvedType is null)())
+			|| a.kind == CompletionKind.functionName || a.kind == CompletionKind.memberVariableName
+			|| a.kind == CompletionKind.enumMember) && a.resolvedType is null)())
 		{
 			//writeln("Resolving type of symbol ", s.name);
 			Type type = s.type;
 			if (type is null)
 				continue;
-				if (type.type2.builtinType != TokenType.invalid)
-				{
-				// This part is easy. Autocomplete properties of built-in types
-					s.resolvedType = findSymbolInCurrentScope(s.location,
-						getTokenValue(type.type2.builtinType));
-				}
-				else if (type.type2.symbol !is null)
-				{
-				// Look up a type by its name for cases like class, enum,
-				// interface, struct, or union members.
 
-				// TODO: Does not work with qualified names or template instances
-					Symbol sym = type.type2.symbol;
-					if (sym.identifierOrTemplateChain.identifiersOrTemplateInstances.length != 1)
-						return;
-					s.resolvedType = findSymbolInCurrentScope(s.location,
-						sym.identifierOrTemplateChain.identifiersOrTemplateInstances[0].identifier.value);
-				}
+			if (type.type2.builtinType != TokenType.invalid)
+			{
+				// This part is easy. Autocomplete properties of built-in types
+				s.resolvedType = findSymbolInCurrentScope(s.location,
+					getTokenValue(type.type2.builtinType));
+			}
+			else if (type.type2.symbol !is null)
+			{
+			// Look up a type by its name for cases like class, enum,
+			// interface, struct, or union members.
+
+			// TODO: Does not work with qualified names or template instances
+			Symbol sym = type.type2.symbol;
+			if (sym.identifierOrTemplateChain.identifiersOrTemplateInstances.length != 1)
+				return;
+			s.resolvedType = findSymbolInCurrentScope(s.location,
+				sym.identifierOrTemplateChain.identifiersOrTemplateInstances[0].identifier.value);
+			}
 			foreach (suffix; type.typeSuffixes)
 			{
 				// Handle type suffixes for declarations, e.g.:
@@ -264,21 +266,19 @@ public:
 					}
 					else
 					{
-						// ormal array
+						// normal array
 						s.resolvedType.qualifier = SymbolQualifier.array;
 						s.resolvedType.parts ~= arraySymbols;
 					}
 				}
 				else if (suffix.delegateOrFunction.type != TokenType.invalid)
 				{
-					// TODO: figure out how to handle this, if necessary
 					s.resolvedType.qualifier = SymbolQualifier.func;
 				}
 			}
 		}
 		foreach (c; children)
 		{
-			assert (c !is null);
 			c.resolveSymbolTypes();
 		}
 	}

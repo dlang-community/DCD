@@ -91,6 +91,7 @@ class AutocompleteVisitor : ASTVisitor
 
 	override void visit(EnumDeclaration dec)
 	{
+		// TODO: Set enum type based on initializer of first member
 //		writeln("EnumDeclaration visit");
 		auto symbol = new ACSymbol;
 		symbol.name = dec.name.value;
@@ -102,6 +103,8 @@ class AutocompleteVisitor : ASTVisitor
 
 		if (dec.enumBody !is null)
 		{
+			Scope enumBodyScope = new Scope(dec.enumBody.startLocation,
+				dec.enumBody.endLocation);
 			foreach (member; dec.enumBody.enumMembers)
 			{
 				auto s = new ACSymbol;
@@ -114,7 +117,10 @@ class AutocompleteVisitor : ASTVisitor
 					s.type = type;
 				if (parentSymbol !is null)
 					parentSymbol.parts ~= s;
+				enumBodyScope.symbols ~= s;
 			}
+			enumBodyScope.parent = scope_;
+			scope_.children ~= enumBodyScope;
 		}
 
 		parentSymbol = p;

@@ -17,14 +17,13 @@ back to the client.
 	* Autocompletion of class, struct, and interface instances.
 	* Display of call tips (but only for the first overload)
 * Not working:
+	* Automatic starting of the server by the client
 	* Windows support (I don't know that it won't work, but this program is not tested on Windows yet)
 	* UFCS
-	* Templates
+	* Templated declarations
 	* *auto* declarations
-	* Operator overloading (opIndex, opSlice, etc) when autocompleting
-	* Instances of enum types resolve to the enum itself instead of the enum base type
+	* Determining the type of an enum member when no base type is specified, but the first member has an initialaizer
 	* Public imports
-	* Array and associative array indexing in autocompletion
 	* That one feature that you *REALLY* needed
 
 #Setup
