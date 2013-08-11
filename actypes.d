@@ -22,8 +22,10 @@ import stdx.d.lexer;
 import stdx.d.ast;
 import std.algorithm;
 import std.stdio;
+import std.array;
 import messages;
 import autocomplete;
+import std.array;
 
 /**
  * Any special information about a variable declaration symbol.
@@ -131,14 +133,9 @@ public:
 	/**
 	 * Finds symbol parts by name
 	 */
-	ACSymbol getPartByName(string name)
+	ACSymbol[] getPartsByName(string name)
 	{
-		foreach (part; parts)
-		{
-			if (part.name == name)
-				return part;
-		}
-		return null;
+		return parts.filter!(a => a.name == name).array;
 	}
 }
 
@@ -164,7 +161,7 @@ public:
 	 * Finds the scope containing the cursor position, then searches for a
 	 * symbol with the given name.
 	 */
-	ACSymbol findSymbolInCurrentScope(size_t cursorPosition, string name)
+	ACSymbol[] findSymbolsInCurrentScope(size_t cursorPosition, string name)
 	{
 		auto s = findCurrentScope(cursorPosition);
 		if (s is null)
@@ -173,7 +170,7 @@ public:
 			return null;
 		}
 		else
-			return s.findSymbolInScope(name);
+			return s.findSymbolsInScope(name);
 	}
 
     /**
@@ -198,16 +195,12 @@ public:
 	 * Finds a symbol with the given name in this scope or one of its parent
 	 * scopes.
 	 */
-    ACSymbol findSymbolInScope(string name)
+    ACSymbol[] findSymbolsInScope(string name)
     {
-		foreach (symbol; symbols)
-		{
-			if (symbol.name == name)
-				return symbol;
-		}
-		if (parent !is null)
-			return parent.findSymbolInScope(name);
-        return null;
+		ACSymbol[] currentMatches = symbols.filter!(a => a.name == name)().array();
+		if (currentMatches.length == 0 && parent !is null)
+			return parent.findSymbolsInScope(name);
+        return currentMatches;
     }
 
 	/**
@@ -232,8 +225,7 @@ public:
 			if (type.type2.builtinType != TokenType.invalid)
 			{
 				// This part is easy. Autocomplete properties of built-in types
-				s.resolvedType = findSymbolInCurrentScope(s.location,
-					getTokenValue(type.type2.builtinType));
+				s.resolvedType = findSymbolsInScope(getTokenValue(type.type2.builtinType))[0];
 			}
 			else if (type.type2.symbol !is null)
 			{
@@ -244,8 +236,10 @@ public:
 			Symbol sym = type.type2.symbol;
 			if (sym.identifierOrTemplateChain.identifiersOrTemplateInstances.length != 1)
 				return;
-			s.resolvedType = findSymbolInCurrentScope(s.location,
+			ACSymbol[] resolvedType = findSymbolsInCurrentScope(s.location,
 				sym.identifierOrTemplateChain.identifiersOrTemplateInstances[0].identifier.value);
+			if (resolvedType.length > 0)
+				s.resolvedType = resolvedType[0];
 			}
 			foreach (suffix; type.typeSuffixes)
 			{

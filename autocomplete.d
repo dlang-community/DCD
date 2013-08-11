@@ -79,7 +79,6 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
 		case TokenType.rParen:
 		case TokenType.rBracket:
 			auto visitor = processModule(tokenArray);
-			visitor.scope_.symbols ~= builtinSymbols;
 			auto expression = getExpression(beforeTokens[0 .. $ - 1]);
 			response.setCompletions(visitor, expression, request.cursorPosition,
 				CompletionType.calltips);
@@ -130,7 +129,6 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
 		case TokenType.rBracket:
 		case TokenType.this_:
 			auto visitor = processModule(tokenArray);
-			visitor.scope_.symbols ~= builtinSymbols;
 			auto expression = getExpression(beforeTokens[0 .. $ - 1]);
 			response.setCompletions(visitor, expression, request.cursorPosition,
 				CompletionType.identifiers);
@@ -155,20 +153,20 @@ void setCompletions(T)(ref AutocompleteResponse response,
 {
 
 	visitor.scope_.resolveSymbolTypes();
-	ACSymbol symbol = visitor.scope_.findSymbolInCurrentScope(cursorPosition, tokens[0].value);
-	if (symbol is null)
+	ACSymbol[] symbols = visitor.scope_.findSymbolsInCurrentScope(cursorPosition, tokens[0].value);
+	if (symbols.length == 0)
 	{
 		writeln("Could not find declaration of ", tokens[0].value);
 		return;
 	}
 
 	if (completionType == CompletionType.identifiers
-		&& symbol.kind == CompletionKind.memberVariableName
-		|| symbol.kind == CompletionKind.variableName
-		|| symbol.kind == CompletionKind.enumMember)
+		&& symbols[0].kind == CompletionKind.memberVariableName
+		|| symbols[0].kind == CompletionKind.variableName
+		|| symbols[0].kind == CompletionKind.enumMember)
 	{
-		symbol = symbol.resolvedType;
-		if (symbol is null)
+		symbols = [symbols[0].resolvedType];
+		if (symbols.length == 0)
 			return;
 	}
 
@@ -218,26 +216,26 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		case TokenType.ireal_:
 		case TokenType.creal_:
 		case this_:
-			symbol = symbol.getPartByName(getTokenValue(tokens[i].type));
-			if (symbol is null)
+			symbols = symbols[0].getPartsByName(getTokenValue(tokens[i].type));
+			if (symbols.length == 0)
 				break loop;
 			break;
 		case identifier:
 			//writeln("looking for ", tokens[i].value, " in ", symbol.name);
-			symbol = symbol.getPartByName(tokens[i].value);
-			if (symbol is null)
+			symbols = symbols[0].getPartsByName(tokens[i].value);
+			if (symbols.length == 0)
 			{
 				//writeln("Couldn't find it.");
 				break loop;
 			}
-			if (symbol.kind == CompletionKind.variableName
-				|| symbol.kind == CompletionKind.memberVariableName
-				|| symbol.kind == CompletionKind.enumMember
-				|| (symbol.kind == CompletionKind.functionName
+			if (symbols[0].kind == CompletionKind.variableName
+				|| symbols[0].kind == CompletionKind.memberVariableName
+				|| symbols[0].kind == CompletionKind.enumMember
+				|| (symbols[0].kind == CompletionKind.functionName
 				&& (completionType == CompletionType.identifiers
 				|| i + 1 < tokens.length)))
 			{
-				symbol = symbol.resolvedType;
+				symbols = [symbols[0].resolvedType];
 			}
 			break;
 		case lParen:
@@ -248,7 +246,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		case lBracket:
 			open = TokenType.lBracket;
 			close = TokenType.rBracket;
-			if (symbol.qualifier == SymbolQualifier.array)
+			if (symbols[0].qualifier == SymbolQualifier.array)
 			{
 				auto h = i;
 				skip();
@@ -256,12 +254,12 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				p.setTokens(tokens[h .. i].array());
 				if (!p.isSliceExpression())
 				{
-					symbol = symbol.resolvedType;
+					symbols = [symbols[0].resolvedType];
 				}
 			}
-			else if (symbol.qualifier == SymbolQualifier.assocArray)
+			else if (symbols[0].qualifier == SymbolQualifier.assocArray)
 			{
-				symbol = symbol.resolvedType;
+				symbols = [symbols[0].resolvedType];
 				skip();
 			}
 			else
@@ -270,15 +268,15 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				skip();
 				Parser p;
 				p.setTokens(tokens[h .. i].array());
-				ACSymbol overload;
+				ACSymbol[] overloads;
 				if (p.isSliceExpression())
-					overload = symbol.getPartByName("opSlice");
+					overloads = symbols[0].getPartsByName("opSlice");
 				else
-					overload = symbol.getPartByName("opIndex");
-				if (overload !is null)
+					overloads = symbols[0].getPartsByName("opIndex");
+				if (overloads.length > 0)
 				{
-					writeln("opIndex or opSlice used, ", overload.name);
-					symbol = overload.resolvedType;
+					writeln("opIndex or opSlice used, ", overloads[0].name);
+					symbols = [overloads[0].resolvedType];
 				}
 				else
 					return;
@@ -290,44 +288,48 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			break loop;
 		}
 	}
-	if (symbol is null)
+	if (symbols.length == 0)
 	{
 		writeln("Could not get completions");
 		return;
 	}
 	if (completionType == CompletionType.identifiers)
 	{
-		writeln("Writing completions for ", symbol.name);
-		foreach (s; symbol.parts.filter!(a => a.name[0] != '*'))
+//		writeln("Writing completions for ", symbol.name);
+		foreach (s; symbols[0].parts.filter!(a => a.name[0] != '*'))
 		{
-			writeln("Adding ", s.name, " to the completion list");
+//			writeln("Adding ", s.name, " to the completion list");
 			response.completionKinds ~= s.kind;
 			response.completions ~= s.name;
 		}
 		response.completionType = CompletionType.identifiers;
 	}
-	else
+	else if (completionType == CompletionType.calltips)
 	{
-		if (symbol.kind != CompletionKind.functionName)
+		if (symbols[0].kind != CompletionKind.functionName)
 		{
-			auto call = symbol.getPartByName("opCall");
-			if (call !is null)
+			auto call = symbols[0].getPartsByName("opCall");
+			if (call.length == 0)
 			{
-				symbol = call;
+				symbols = call;
 				goto setCallTips;
 			}
-			auto constructor = symbol.getPartByName("*constructor*");
-			if (constructor is null)
+			auto constructor = symbols[0].getPartsByName("*constructor*");
+			if (constructor.length == 0)
 				return;
 			else
 			{
-				symbol = constructor;
+				symbols = constructor;
 				goto setCallTips;
 			}
 		}
 	setCallTips:
-		response.completions ~= symbol.calltip;
 		response.completionType = CompletionType.calltips;
+		foreach (symbol; symbols)
+		{
+			writeln("Adding calltip ", symbol.calltip);
+			response.completions ~= symbol.calltip;
+		}
 	}
 
 }

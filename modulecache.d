@@ -29,6 +29,7 @@ import std.path;
 
 import acvisitor;
 import actypes;
+import autocomplete;
 
 struct CacheEntry
 {

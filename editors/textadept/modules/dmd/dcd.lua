@@ -2,6 +2,9 @@ local M = {}
 
 M.PATH_TO_DCD_CLIENT = "dcd-client"
 
+local calltips = {}
+local currentCalltip = 1
+
 function M.registerImages()
 	buffer:register_image(1, M.FIELD)
 	buffer:register_image(2, M.FUNCTION)
@@ -55,13 +58,37 @@ local function showCompletionList(r)
 	buffer.auto_c_choose_single = setting
 end
 
+
+local function showCurrentCallTip()
+	local tip = calltips[currentCalltip]
+	buffer:call_tip_show(buffer.current_pos,
+		string.format("overload %d of %d\1\2\n%s", currentCalltip, #calltips,
+			calltips[currentCalltip]))
+end
+
 local function showCalltips(calltip)
+	currentCalltip = 1
+	calltips = {}
 	for tip in calltip:gmatch("(.-)\n") do
 		if tip ~= "calltips" then
-			buffer:call_tip_show(buffer.current_pos, tip)
-			break
+			table.insert(calltips, tip)
 		end
 	end
+	if (#calltips > 0) then
+		showCurrentCallTip()
+	end
+end
+
+function M.cycleCalltips(delta)
+	if not buffer:call_tip_active() then
+		return false
+	end
+	if delta > 0 then
+		currentCalltip = math.max(math.min(#calltips, currentCalltip + 1), 1)
+	else
+		currentCalltip = math.min(math.max(1, currentCalltip - 1), #calltips)
+	end
+	showCurrentCallTip()
 end
 
 function M.autocomplete(ch)
