@@ -95,17 +95,28 @@ containing a call tip for an overload of the given function.
 ##Clear server's autocomplete cache
 ```dcd-client --clearCache```
 
-##Specify server port
-```dcd-client -p4242```
-
 ##Add import search path
-```dcd-client -Ipath/to/imports```
-
-##Shut down the server
-```dcd-client --shutdown```
+Import paths can be added to the server without restarting it. To accomplish
+this, run the client with the -I option:
+	dcd-client -Ipath/to/imports
 
 #Server usage
+The server must be running for the DCD client to provide autocomplete information.
+In future versions the client may start the server if it is not running, but for
+now it must be started manually.
+
+## Configuration Files
+The server will attempt to read the file ```~/.config/dcd``` on startup.
+If it exists, each line of the file is interpreted as a path that should be
+searched when looking for module imports.
+
+##Shut down the server
+The server can be shut down by running the client with the correct option:
+	dcd-client --shutdown
+
 ## Import directories
-The ```-I``` option allows you to specify directories to be searched for modules
+Import directories can be specified on the command line at startup:
+	dcd-server -I/home/user/code/one -I/home/user/code/two
+
 ## Port number
-The ```--port``` or ```-p``` option lets you specify the port number that the server will listen on
+The ```--port``` or ```-p``` option lets you specify the port number that the server will listen on.

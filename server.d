@@ -22,12 +22,18 @@ import std.socket;
 import std.stdio;
 import std.getopt;
 import std.algorithm;
+import std.path;
+import std.file;
+import std.array;
 
 import msgpack;
 
 import messages;
 import autocomplete;
 import modulecache;
+
+// TODO: Portability would be nice...
+enum CONFIG_FILE_PATH = "~/.config/dcd";
 
 int main(string[] args)
 {
@@ -46,13 +52,7 @@ int main(string[] args)
         return 1;
     }
 
-	// begin hack
-	importPaths ~= "/home/alaran/src/dcd";
-	importPaths ~= "/home/alaran/src/dscanner";
-	importPaths ~= "/usr/include/d2/core";
-	importPaths ~= "/usr/include/d2/phobos";
-	importPaths ~= "/usr/include/d2/druntime/import";
-	// end hack
+	importPaths ~= loadConfiguredImportDirs();
 
 	foreach (path; importPaths)
 		ModuleCache.addImportPath(path);
@@ -123,6 +123,20 @@ int main(string[] args)
     }
 	return 0;
 }
+
+version(linux)
+{
+string[] loadConfiguredImportDirs()
+{
+	string fullPath = expandTilde(CONFIG_FILE_PATH);
+	if (!exists(fullPath))
+		return [];
+	File f = File(fullPath);
+	return f.byLine(KeepTerminator.no).map!(a => a.idup).filter!(a => a.exists()).array();
+}
+}
+else
+	static assert (false, "Only Linux is supported at the moment");
 
 void printHelp(string programName)
 {
