@@ -23,6 +23,10 @@ import stdx.d.parser;
 import stdx.d.ast;
 import stdx.d.lexer;
 import std.stdio;
+import std.algorithm;
+import std.path;
+import std.range;
+import std.conv;
 
 import actypes;
 import messages;
@@ -34,6 +38,7 @@ class AutocompleteVisitor : ASTVisitor
 
 	override void visit(Unittest dec)
 	{
+//		writeln("Unitttest visit");
 		auto symbol = new ACSymbol("*unittest*");
 		auto p = parentSymbol;
 		parentSymbol = symbol;
@@ -43,6 +48,7 @@ class AutocompleteVisitor : ASTVisitor
 
 	override void visit(StructDeclaration dec)
 	{
+//		writeln("StructDeclaration visit");
 		auto symbol = new ACSymbol;
 		symbol.name = dec.name.value;
 		symbol.location = dec.name.startIndex;
@@ -52,6 +58,7 @@ class AutocompleteVisitor : ASTVisitor
 
 	override void visit(ClassDeclaration dec)
 	{
+//		writeln("ClassDeclaration visit");
 		auto symbol = new ACSymbol;
 		symbol.name = dec.name.value;
 		symbol.location = dec.name.startIndex;
@@ -61,6 +68,7 @@ class AutocompleteVisitor : ASTVisitor
 
 	override void visit(InterfaceDeclaration dec)
 	{
+//		writeln("InterfaceDeclaration visit");
 		auto symbol = new ACSymbol;
 		symbol.name = dec.name.value;
 		symbol.location = dec.name.startIndex;
@@ -70,6 +78,7 @@ class AutocompleteVisitor : ASTVisitor
 
 	override void visit(StructBody structBody)
 	{
+//		writeln("StructBody visit");
 		auto s = scope_;
 		scope_ = new Scope(structBody.startLocation, structBody.endLocation);
 		scope_.symbols ~= new ACSymbol("this", CompletionKind.variableName,
@@ -82,17 +91,43 @@ class AutocompleteVisitor : ASTVisitor
 
 	override void visit(EnumDeclaration dec)
 	{
-		// TODO: Store type
+//		writeln("EnumDeclaration visit");
 		auto symbol = new ACSymbol;
 		symbol.name = dec.name.value;
 		symbol.location = dec.name.startIndex;
 		symbol.kind = CompletionKind.enumName;
-		mixin (visitAndAdd);
+		auto type = dec.type;
+		auto p = parentSymbol;
+		parentSymbol = symbol;
+
+		if (dec.enumBody !is null)
+		{
+			foreach (member; dec.enumBody.enumMembers)
+			{
+				auto s = new ACSymbol;
+				s.kind = CompletionKind.enumMember;
+				s.name = member.name.value;
+				s.location = member.name.startIndex;
+				if (type is null)
+					s.resolvedType = scope_.findSymbolInScope("int");
+				else
+					s.type = type;
+				if (parentSymbol !is null)
+					parentSymbol.parts ~= s;
+			}
+		}
+
+		parentSymbol = p;
+		if (parentSymbol is null)
+			symbols ~= symbol;
+		else
+			parentSymbol.parts ~= symbol;
+		scope_.symbols ~= symbol;
 	}
 
 	override void visit(FunctionDeclaration dec)
 	{
-		// TODO: Parameters need to be added to the function body scope
+//		writeln("FunctionDeclaration visit");
 		ACSymbol symbol = new ACSymbol;
 		symbol.name = dec.name.value;
 		symbol.location = dec.name.startIndex;
@@ -115,13 +150,14 @@ class AutocompleteVisitor : ASTVisitor
 		}
 
 //		writeln("Parameter symbols added");
-		if (dec.returnType !is null)
+		if (dec.returnType !is null && dec.parameters !is null)
 		{
 			symbol.calltip = format("%s %s%s", dec.returnType.toString(),
 				dec.name.value, dec.parameters.toString());
 		}
 		auto p = parentSymbol;
 		parentSymbol = symbol;
+//		writeln("Call tip created");
 
 		BlockStatement functionBody = dec.functionBody is null ? null
 			: (dec.functionBody.bodyStatement !is null
@@ -153,18 +189,9 @@ class AutocompleteVisitor : ASTVisitor
 		scope_.symbols ~= symbol;
 	}
 
-	override void visit(EnumMember member)
-	{
-		auto s = new ACSymbol;
-		s.kind = CompletionKind.enumMember;
-		s.name = member.name.value;
-		s.location = member.name.startIndex;
-		if (parentSymbol !is null)
-			parentSymbol.parts ~= s;
-	}
-
 	override void visit(VariableDeclaration dec)
 	{
+//		writeln("VariableDeclaration visit");
 		foreach (d; dec.declarators)
 		{
 			auto symbol = new ACSymbol;
@@ -216,17 +243,7 @@ class AutocompleteVisitor : ASTVisitor
 
 	private static string convertChainToImportPath(IdentifierChain chain)
 	{
-		string rVal;
-		bool first = true;
-		foreach (identifier; chain.identifiers)
-		{
-			if (!first)
-				rVal ~= "/";
-			rVal ~= identifier.value;
-			first = false;
-		}
-		rVal ~= ".d";
-		return rVal;
+		return to!string(chain.identifiers.map!"a.value"().join(dirSeparator).array) ~ ".d";
 	}
 
 	ACSymbol[] symbols;

@@ -25,6 +25,7 @@ import stdx.d.parser;
 import stdx.d.ast;
 import std.stdio;
 import std.array;
+import std.path;
 
 import acvisitor;
 import actypes;
@@ -56,6 +57,11 @@ struct ModuleCache
 	static void addImportPath(string path)
 	{
 		importPaths ~= path;
+		foreach (fileName; dirEntries(path, "*.{d,di}", SpanMode.depth))
+		{
+			writeln("Loading and caching completions for ", fileName);
+			getSymbolsInModule(fileName);
+		}
 	}
 
 	/**
@@ -66,23 +72,32 @@ struct ModuleCache
 	 */
 	static ACSymbol[] getSymbolsInModule(string moduleName)
 	{
-		writeln("Getting symbols for module", moduleName);
+		writeln("Getting symbols for module ", moduleName);
 		string location = resolveImportLoctation(moduleName);
 		if (location is null)
 			return [];
 		if (!needsReparsing(location))
 			return cache[location].symbols;
 
-		File f = File(location);
-		ubyte[] source = uninitializedArray!(ubyte[])(f.size);
-		f.rawRead(source);
-
-		LexerConfig config;
-		auto tokens = source.byToken(config).array();
-		Module mod = parseModule(tokens, location, &doesNothing);
 		auto visitor = new AutocompleteVisitor;
-		visitor.visit(mod);
-		visitor.scope_.resolveSymbolTypes();
+		try
+		{
+			File f = File(location);
+			ubyte[] source = uninitializedArray!(ubyte[])(f.size);
+			f.rawRead(source);
+
+			LexerConfig config;
+			auto tokens = source.byToken(config).array();
+			Module mod = parseModule(tokens, location, &doesNothing);
+
+			visitor.visit(mod);
+			visitor.scope_.resolveSymbolTypes();
+		}
+		catch (Exception ex)
+		{
+			writeln("Couln't parse ", location);
+			return [];
+		}
 		SysTime access;
 		SysTime modification;
 		getTimes(location, access, modification);
@@ -103,6 +118,9 @@ struct ModuleCache
 	static string resolveImportLoctation(string moduleName)
 	{
 		writeln("Resolving location of ", moduleName);
+		if (isRooted(moduleName))
+			return moduleName;
+
 		foreach (path; importPaths)
 		{
 			string filePath = path ~ "/" ~ moduleName;

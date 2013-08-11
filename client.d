@@ -22,6 +22,9 @@ import std.socket;
 import std.stdio;
 import std.getopt;
 import std.array;
+import std.process;
+import std.algorithm;
+import std.path;
 
 import msgpack;
 import messages;
@@ -51,8 +54,7 @@ int main(string[] args)
         printHelp(args[0]);
         return 0;
 	}
-
-	if (shutdown || clearCache)
+	else if (shutdown || clearCache)
 	{
 		AutocompleteRequest request;
 		if (shutdown)
@@ -71,10 +73,26 @@ int main(string[] args)
 		messageBuffer[8 .. $] = message[];
 		return socket.send(messageBuffer) == messageBuffer.length ? 0 : 1;
     }
-
-    // cursor position is a required argument
-    if (cursorPos == size_t.max)
+	else if (importPaths.length > 0)
+	{
+		AutocompleteRequest request;
+		request.kind = RequestKind.addImport;
+		request.importPaths = importPaths.map!(a => isRooted(a) ? a : absolutePath(a)).array;
+		auto socket = new TcpSocket(AddressFamily.INET);
+		scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
+		socket.connect(new InternetAddress("127.0.0.1", port));
+		socket.blocking = true;
+		socket.setOption(SocketOptionLevel.TCP, SocketOption.TCP_NODELAY, 1);
+		ubyte[] message = msgpack.pack(request);
+		ubyte[] messageBuffer = new ubyte[message.length + message.length.sizeof];
+		auto messageLength = message.length;
+		messageBuffer[0 .. 8] = (cast(ubyte*) &messageLength)[0 .. 8];
+		messageBuffer[8 .. $] = message[];
+		return socket.send(messageBuffer) == messageBuffer.length ? 0 : 1;
+    }
+    else if (cursorPos == size_t.max)
     {
+		// cursor position is a required argument
         printHelp(args[0]);
         return 1;
     }
@@ -112,9 +130,9 @@ int main(string[] args)
     // Send message to server
     auto socket = new TcpSocket(AddressFamily.INET);
     scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
-    socket.connect(new InternetAddress("127.0.0.1", port));
+	socket.connect(new InternetAddress("127.0.0.1", port));
     socket.blocking = true;
-    socket.setOption(SocketOptionLevel.TCP, SocketOption.TCP_NODELAY, 1);
+    //socket.setOption(SocketOptionLevel.TCP, SocketOption.TCP_NODELAY, 1);
     ubyte[] messageBuffer = new ubyte[message.length + message.length.sizeof];
     auto messageLength = message.length;
     messageBuffer[0 .. 8] = (cast(ubyte*) &messageLength)[0 .. 8];

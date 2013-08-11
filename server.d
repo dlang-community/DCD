@@ -64,8 +64,10 @@ int main(string[] args)
     socket.listen(0);
     scope (exit)
 	{
+		writeln("Shutting down sockets...");
 		socket.shutdown(SocketShutdown.BOTH);
 		socket.close();
+		writeln("Sockets shut down.");
 	}
     ubyte[1024 * 1024 * 4] buffer = void; // 4 megabytes should be enough for anybody...
     while (true)
@@ -102,7 +104,11 @@ int main(string[] args)
 		msgpack.unpack(buffer[8 .. bytesReceived], request);
 		if (request.kind == RequestKind.addImport)
 		{
-			//ModuleCache.addImportPath();
+			foreach (path; request.importPaths)
+			{
+				ModuleCache.addImportPath(path);
+			}
+
 		}
         else if (request.kind == RequestKind.clearCache)
 		{

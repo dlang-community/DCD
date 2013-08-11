@@ -75,7 +75,6 @@ function M.autocomplete(ch)
 		local command = M.PATH_TO_DCD_CLIENT .. " -c" .. buffer.current_pos .. " " .. fileName
 		local p = io.popen(command, "r")
 		local r = p:read("*a")
-		print(r)
 		if r ~= "\n" then
 			if r:match("^identifiers.*") then
 				showCompletionList(r)
