@@ -4,7 +4,7 @@ This is a first cut at emacs support.  It is far from complete.
 
 ##Requirements
 * You must have the [auto-complete](https://github.com/auto-complete/auto-complete) package
-* This integration will not automatically start dcd-server, so you'll have to do hat yourself.
+* This integration will not automatically start dcd-server, so you'll have to do that yourself.
 * Make sure dcd-client is in your path
 * Add the following to your .emacs
 

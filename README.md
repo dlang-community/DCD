@@ -23,8 +23,8 @@ back to the client.
 	* *auto* declarations
 	* Operator overloading (opIndex, opSlice, etc) when autocompleting
 	* Instances of enum types resolve to the enum itself instead of the enum base type
-	* Function parameters do not appear in the scope of the function body
 	* Public imports
+	* Array and associative array indexing in autocompletion
 	* That one feature that you *REALLY* needed
 
 #Setup
