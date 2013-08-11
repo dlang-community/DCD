@@ -154,10 +154,7 @@ void printHelp(string programName)
 {
     writefln(
 `
-    Usage: %1$s --cursorPos NUMBER [options] [FILENAME]
-       or: %1$s -cNUMBER [options] [FILENAME]
-       or: %1$s --clearCache
-       or: %1$s --shutdown
+    Usage: %1$s [Options] [FILENAME]
 
     A file name is optional. If it is given, autocomplete information will be
     given for the file specified. If it is missing, input will be read from
