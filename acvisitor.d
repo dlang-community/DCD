@@ -31,6 +31,7 @@ import std.conv;
 import actypes;
 import messages;
 import modulecache;
+import autocomplete;
 
 class AutocompleteVisitor : ASTVisitor
 {
@@ -112,7 +113,7 @@ class AutocompleteVisitor : ASTVisitor
 				s.name = member.name.value;
 				s.location = member.name.startIndex;
 				if (type is null)
-					s.resolvedType = scope_.findSymbolInScope("int");
+					s.resolvedType = scope_.findSymbolsInScope("int")[0];
 				else
 					s.type = type;
 				if (parentSymbol !is null)
@@ -299,6 +300,7 @@ class AutocompleteVisitor : ASTVisitor
 	override void visit(Module mod)
 	{
 		scope_ = new Scope(0, size_t.max);
+		scope_.symbols ~= builtinSymbols;
 		mod.accept(this);
 	}
 

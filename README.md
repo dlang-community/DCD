@@ -15,7 +15,7 @@ back to the client.
 	* Autocompletion of __traits, scope, and extern arguments
 	* Autocompletion of enums
 	* Autocompletion of class, struct, and interface instances.
-	* Display of call tips (but only for the first overload)
+	* Display of call tips for functions and constructors
 * Not working:
 	* Automatic starting of the server by the client
 	* Windows support (I don't know that it won't work, but this program is not tested on Windows yet)
