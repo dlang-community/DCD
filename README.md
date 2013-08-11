@@ -29,12 +29,11 @@ back to the client.
 
 #Setup
 1. Run ```git submodule update --init``` after cloning this repository to grab the MessagePack library.
-1. The build script assumes that the DScanner project is cloned into a sibling folder. (i.e. "../dscanner" should exist).
-1. Modify the server.d file because several import paths are currently hard-coded. (See also: the warning at the beginnig that this is alpha-quality)
-1. Configure your text editor to call the dcd-client program
+1. The build script assumes that the DScanner project is cloned into a sibling folder. (i.e. "../dscanner" should exist)
+1. Configure your text editor to call the dcd-client program. See the *editors* folder for directions on configuring your specific editor.
 1. Start the dcd-server program before editing code.
 
-#Client usage
+#Client
 
 ##Get autocomplete information
 The primary use case of the client is to query the server for autocomplete information.
@@ -100,7 +99,7 @@ Import paths can be added to the server without restarting it. To accomplish
 this, run the client with the -I option:
 	dcd-client -Ipath/to/imports
 
-#Server usage
+#Server
 The server must be running for the DCD client to provide autocomplete information.
 In future versions the client may start the server if it is not running, but for
 now it must be started manually.
