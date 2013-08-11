@@ -39,6 +39,7 @@ back to the client.
 The primary use case of the client is to query the server for autocomplete information.
 To do this, provide the client with the file that the user is editing along with the
 cursor position (in bytes).
+
 ```dcd-client -c123 sourcefile.d```
 
 This will cause the client to print a listing of completions to *stdout*.
@@ -97,6 +98,7 @@ containing a call tip for an overload of the given function.
 ##Add import search path
 Import paths can be added to the server without restarting it. To accomplish
 this, run the client with the -I option:
+
 	dcd-client -Ipath/to/imports
 
 #Server
@@ -111,10 +113,12 @@ searched when looking for module imports.
 
 ##Shut down the server
 The server can be shut down by running the client with the correct option:
+
 	dcd-client --shutdown
 
 ## Import directories
 Import directories can be specified on the command line at startup:
+
 	dcd-server -I/home/user/code/one -I/home/user/code/two
 
 ## Port number
