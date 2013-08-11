@@ -77,7 +77,7 @@ function M.autocomplete(ch)
 		local r = p:read("*a")
 		print(r)
 		if r ~= "\n" then
-			if character == "." then
+			if r:match("^identifiers.*") then
 				showCompletionList(r)
 			else
 				showCalltips(r)

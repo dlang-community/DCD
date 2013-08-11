@@ -47,6 +47,8 @@ The client will print either a listing of function call tips, or a listing of of
 completions depending on if the cursor was directly after a dot character or a
 left parethesis.
 
+The file name is optional. If it is not specified, input will be read from *stdin*.
+
 ###Dot completion
 When the first line of output is "identifiers", the editor should display a
 completion list.
