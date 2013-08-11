@@ -223,7 +223,7 @@ public:
 			|| a.kind == CompletionKind.functionName
 			|| a.kind == CompletionKind.memberVariableName) && a.resolvedType is null)())
 		{
-			writeln("Resolving type of symbol ", s.name);
+			//writeln("Resolving type of symbol ", s.name);
 			Type type = s.type;
 			if (type is null)
 				continue;

@@ -38,22 +38,22 @@ import constants;
 
 AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
 {
-    writeln("Got a completion request");
-    AutocompleteResponse response;
+	writeln("Got a completion request");
+	AutocompleteResponse response;
 
-    LexerConfig config;
-    auto tokens = request.sourceCode.byToken(config);
-    auto tokenArray = tokens.array();
-    auto sortedTokens = assumeSorted(tokenArray);
+	LexerConfig config;
+	auto tokens = request.sourceCode.byToken(config);
+	auto tokenArray = tokens.array();
+	auto sortedTokens = assumeSorted(tokenArray);
 
-    auto beforeTokens = sortedTokens.lowerBound(cast(size_t) request.cursorPosition);
+	auto beforeTokens = sortedTokens.lowerBound(cast(size_t) request.cursorPosition);
 
-    if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == TokenType.lParen)
-    {
+	if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == TokenType.lParen)
+	{
 		immutable(string)[] completions;
-        switch (beforeTokens[$ - 2].type)
-        {
-        case TokenType.traits:
+		switch (beforeTokens[$ - 2].type)
+		{
+		case TokenType.traits:
 			completions = traits;
 			goto fillResponse;
 		case TokenType.scope_:
@@ -68,91 +68,92 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
 		case TokenType.pragma_:
 			completions = pragmas;
 		fillResponse:
-            response.completionType = CompletionType.identifiers;
-            for (size_t i = 0; i < completions.length; i++)
-            {
-                response.completions ~= completions[i];
-                response.completionKinds ~= CompletionKind.keyword;
-            }
-            break;
-        case TokenType.identifier:
+			response.completionType = CompletionType.identifiers;
+			for (size_t i = 0; i < completions.length; i++)
+			{
+				response.completions ~= completions[i];
+				response.completionKinds ~= CompletionKind.keyword;
+			}
+			break;
+		case TokenType.identifier:
 		case TokenType.rParen:
 		case TokenType.rBracket:
 			auto visitor = processModule(tokenArray);
 			visitor.scope_.symbols ~= builtinSymbols;
-            auto expression = getExpression(beforeTokens[0 .. $ - 1]);
+			auto expression = getExpression(beforeTokens[0 .. $ - 1]);
 			response.setCompletions(visitor, expression, request.cursorPosition,
 				CompletionType.calltips);
-            break;
-        default:
-            break;
-        }
-    }
-    else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] ==  TokenType.dot)
-    {
-        switch (beforeTokens[$ - 2].type)
-        {
-        case TokenType.stringLiteral:
-        case TokenType.wstringLiteral:
-        case TokenType.dstringLiteral:
+			break;
+		default:
+			break;
+		}
+	}
+	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] ==  TokenType.dot)
+	{
+		switch (beforeTokens[$ - 2].type)
+		{
+		case TokenType.stringLiteral:
+		case TokenType.wstringLiteral:
+		case TokenType.dstringLiteral:
 			foreach (symbol; arraySymbols)
 			{
 				response.completionKinds ~= symbol.kind;
 				response.completions ~= symbol.name;
 			}
 			response.completionType = CompletionType.identifiers;
-            break;
+			break;
 		case TokenType.int_:
-        case TokenType.uint_:
-        case TokenType.long_:
-        case TokenType.ulong_:
-        case TokenType.char_:
-        case TokenType.wchar_:
-        case TokenType.dchar_:
-        case TokenType.bool_:
-        case TokenType.byte_:
-        case TokenType.ubyte_:
-        case TokenType.short_:
-        case TokenType.ushort_:
-        case TokenType.cent_:
-        case TokenType.ucent_:
-        case TokenType.float_:
-        case TokenType.ifloat_:
-        case TokenType.cfloat_:
-        case TokenType.idouble_:
-        case TokenType.cdouble_:
-        case TokenType.double_:
-        case TokenType.real_:
-        case TokenType.ireal_:
-        case TokenType.creal_:
-        case TokenType.identifier:
-        case TokenType.rParen:
-        case TokenType.rBracket:
-        case TokenType.this_:
+		case TokenType.uint_:
+		case TokenType.long_:
+		case TokenType.ulong_:
+		case TokenType.char_:
+		case TokenType.wchar_:
+		case TokenType.dchar_:
+		case TokenType.bool_:
+		case TokenType.byte_:
+		case TokenType.ubyte_:
+		case TokenType.short_:
+		case TokenType.ushort_:
+		case TokenType.cent_:
+		case TokenType.ucent_:
+		case TokenType.float_:
+		case TokenType.ifloat_:
+		case TokenType.cfloat_:
+		case TokenType.idouble_:
+		case TokenType.cdouble_:
+		case TokenType.double_:
+		case TokenType.real_:
+		case TokenType.ireal_:
+		case TokenType.creal_:
+		case TokenType.identifier:
+		case TokenType.rParen:
+		case TokenType.rBracket:
+		case TokenType.this_:
 			auto visitor = processModule(tokenArray);
 			visitor.scope_.symbols ~= builtinSymbols;
-            auto expression = getExpression(beforeTokens[0 .. $ - 1]);
+			auto expression = getExpression(beforeTokens[0 .. $ - 1]);
 			response.setCompletions(visitor, expression, request.cursorPosition,
 				CompletionType.identifiers);
-            break;
-        case TokenType.lParen:
-        case TokenType.lBrace:
-        case TokenType.lBracket:
-        case TokenType.semicolon:
-        case TokenType.colon:
-            // TODO: global scope
-            break;
-        default:
-            break;
-        }
-    }
-    return response;
+			break;
+		case TokenType.lParen:
+		case TokenType.lBrace:
+		case TokenType.lBracket:
+		case TokenType.semicolon:
+		case TokenType.colon:
+			// TODO: global scope
+			break;
+		default:
+			break;
+		}
+	}
+	return response;
 }
 
 void setCompletions(T)(ref AutocompleteResponse response,
 	AutocompleteVisitor visitor, T tokens, size_t cursorPosition,
 	CompletionType completionType)
 {
+
 	writeln("Getting completions for ", map!"a.value"(tokens));
 	writeln("Resolving symbols for editor buffer");
 	visitor.scope_.resolveSymbolTypes();
@@ -176,73 +177,9 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	{
 		TokenType open;
 		TokenType close;
-		with (TokenType) switch (tokens[i].type)
-		{
-		case TokenType.int_:
-        case TokenType.uint_:
-        case TokenType.long_:
-        case TokenType.ulong_:
-        case TokenType.char_:
-        case TokenType.wchar_:
-        case TokenType.dchar_:
-        case TokenType.bool_:
-        case TokenType.byte_:
-        case TokenType.ubyte_:
-        case TokenType.short_:
-        case TokenType.ushort_:
-        case TokenType.cent_:
-        case TokenType.ucent_:
-        case TokenType.float_:
-        case TokenType.ifloat_:
-        case TokenType.cfloat_:
-        case TokenType.idouble_:
-        case TokenType.cdouble_:
-        case TokenType.double_:
-        case TokenType.real_:
-        case TokenType.ireal_:
-        case TokenType.creal_:
-		case this_:
-			symbol = symbol.getPartByName(getTokenValue(tokens[i].type));
-			if (symbol is null)
-				break loop;
-			break;
-		case identifier:
-			writeln("looking for ", tokens[i].value, " in ", symbol.name);
-			symbol = symbol.getPartByName(tokens[i].value);
-			if (symbol is null)
-			{
-				writeln("Couldn't find it.");
-				break loop;
-			}
-			if (symbol.kind == CompletionKind.variableName
-				|| symbol.kind == CompletionKind.memberVariableName
-				|| (symbol.kind == CompletionKind.functionName
-				&& (completionType == CompletionType.identifiers
-				|| i + 1 < tokens.length)))
-			{
 
-				symbol = symbol.resolvedType;
-			}
-			break;
-		case lParen:
-			open = TokenType.lParen;
-			close = TokenType.rParen;
-			goto skip;
-		case lBracket:
-			open = TokenType.lBracket;
-			close = TokenType.rBracket;
-			// TODO: handle slicing
-			// TODO: handle opIndex
-			// TODO: handle opSlice
-			if (symbol.qualifier == SymbolQualifier.array
-				|| symbol.qualifier == SymbolQualifier.assocArray)
-			{
-				symbol = symbol.resolvedType;
-				goto skip;
-			}
-			else
-				return;
-		skip:
+		void skip()
+		{
 			i++;
 			for (int depth = 1; depth > 0 && i < tokens.length; i++)
 			{
@@ -254,6 +191,83 @@ void setCompletions(T)(ref AutocompleteResponse response,
 					if (depth == 0) break;
 				}
 			}
+		}
+
+		with (TokenType) switch (tokens[i].type)
+		{
+		case TokenType.int_:
+		case TokenType.uint_:
+		case TokenType.long_:
+		case TokenType.ulong_:
+		case TokenType.char_:
+		case TokenType.wchar_:
+		case TokenType.dchar_:
+		case TokenType.bool_:
+		case TokenType.byte_:
+		case TokenType.ubyte_:
+		case TokenType.short_:
+		case TokenType.ushort_:
+		case TokenType.cent_:
+		case TokenType.ucent_:
+		case TokenType.float_:
+		case TokenType.ifloat_:
+		case TokenType.cfloat_:
+		case TokenType.idouble_:
+		case TokenType.cdouble_:
+		case TokenType.double_:
+		case TokenType.real_:
+		case TokenType.ireal_:
+		case TokenType.creal_:
+		case this_:
+			symbol = symbol.getPartByName(getTokenValue(tokens[i].type));
+			if (symbol is null)
+				break loop;
+			break;
+		case identifier:
+			//writeln("looking for ", tokens[i].value, " in ", symbol.name);
+			symbol = symbol.getPartByName(tokens[i].value);
+			if (symbol is null)
+			{
+				//writeln("Couldn't find it.");
+				break loop;
+			}
+			if (symbol.kind == CompletionKind.variableName
+				|| symbol.kind == CompletionKind.memberVariableName
+				|| (symbol.kind == CompletionKind.functionName
+				&& (completionType == CompletionType.identifiers
+				|| i + 1 < tokens.length)))
+			{
+				symbol = symbol.resolvedType;
+			}
+			break;
+		case lParen:
+			open = TokenType.lParen;
+			close = TokenType.rParen;
+			skip();
+			break;
+		case lBracket:
+			open = TokenType.lBracket;
+			close = TokenType.rBracket;
+			// TODO: handle opIndex
+			// TODO: handle opSlice
+			if (symbol.qualifier == SymbolQualifier.array)
+			{
+				auto h = i;
+				skip();
+				Parser p;
+				p.setTokens(tokens[h .. i].array());
+				if (!p.isSliceExpression())
+				{
+					symbol = symbol.resolvedType;
+				}
+			}
+			else if (symbol.qualifier == SymbolQualifier.assocArray)
+			{
+				symbol = symbol.resolvedType;
+				skip();
+			}
+			else
+				return;
 			break;
 		case dot:
 			break;
@@ -297,28 +311,28 @@ T getExpression(T)(T beforeTokens)
 		with (TokenType) switch (beforeTokens[i].type)
 		{
 		case TokenType.int_:
-        case TokenType.uint_:
-        case TokenType.long_:
-        case TokenType.ulong_:
-        case TokenType.char_:
-        case TokenType.wchar_:
-        case TokenType.dchar_:
-        case TokenType.bool_:
-        case TokenType.byte_:
-        case TokenType.ubyte_:
-        case TokenType.short_:
-        case TokenType.ushort_:
-        case TokenType.cent_:
-        case TokenType.ucent_:
-        case TokenType.float_:
-        case TokenType.ifloat_:
-        case TokenType.cfloat_:
-        case TokenType.idouble_:
-        case TokenType.cdouble_:
-        case TokenType.double_:
-        case TokenType.real_:
-        case TokenType.ireal_:
-        case TokenType.creal_:
+		case TokenType.uint_:
+		case TokenType.long_:
+		case TokenType.ulong_:
+		case TokenType.char_:
+		case TokenType.wchar_:
+		case TokenType.dchar_:
+		case TokenType.bool_:
+		case TokenType.byte_:
+		case TokenType.ubyte_:
+		case TokenType.short_:
+		case TokenType.ushort_:
+		case TokenType.cent_:
+		case TokenType.ucent_:
+		case TokenType.float_:
+		case TokenType.ifloat_:
+		case TokenType.cfloat_:
+		case TokenType.idouble_:
+		case TokenType.cdouble_:
+		case TokenType.double_:
+		case TokenType.real_:
+		case TokenType.ireal_:
+		case TokenType.creal_:
 		case this_:
 		case identifier:
 			if (hasSpecialPrefix)
@@ -370,25 +384,25 @@ T getExpression(T)(T beforeTokens)
 
 string createCamelCaseRegex(string input)
 {
-    dstring output;
-    uint i;
-    foreach (dchar d; input)
-    {
-        if (isLower(d))
-            output ~= d;
-        else if (i > 0)
-        {
-            output ~= ".*";
-            output ~= d;
-        }
-        i++;
-    }
-    return to!string(output ~ ".*");
+	dstring output;
+	uint i;
+	foreach (dchar d; input)
+	{
+		if (isLower(d))
+			output ~= d;
+		else if (i > 0)
+		{
+			output ~= ".*";
+			output ~= d;
+		}
+		i++;
+	}
+	return to!string(output ~ ".*");
 }
 
 unittest
 {
-    assert("ClNa".createCamelCaseRegex() == "Cl.*Na.*");
+	assert("ClNa".createCamelCaseRegex() == "Cl.*Na.*");
 }
 
 /**
@@ -399,13 +413,13 @@ static this()
 	auto bool_ = new ACSymbol("bool", CompletionKind.keyword);
 	auto int_ = new ACSymbol("int", CompletionKind.keyword);
 	auto long_ = new ACSymbol("long", CompletionKind.keyword);
-    auto byte_ = new ACSymbol("byte", CompletionKind.keyword);
-    auto dchar_ = new ACSymbol("dchar", CompletionKind.keyword);
-    auto short_ = new ACSymbol("short", CompletionKind.keyword);
-    auto ubyte_ = new ACSymbol("ubyte", CompletionKind.keyword);
-    auto uint_ = new ACSymbol("uint", CompletionKind.keyword);
-    auto ulong_ = new ACSymbol("ulong", CompletionKind.keyword);
-    auto ushort_ = new ACSymbol("ushort", CompletionKind.keyword);
+	auto byte_ = new ACSymbol("byte", CompletionKind.keyword);
+	auto dchar_ = new ACSymbol("dchar", CompletionKind.keyword);
+	auto short_ = new ACSymbol("short", CompletionKind.keyword);
+	auto ubyte_ = new ACSymbol("ubyte", CompletionKind.keyword);
+	auto uint_ = new ACSymbol("uint", CompletionKind.keyword);
+	auto ulong_ = new ACSymbol("ulong", CompletionKind.keyword);
+	auto ushort_ = new ACSymbol("ushort", CompletionKind.keyword);
 	auto wchar_ = new ACSymbol("wchar", CompletionKind.keyword);
 
 	auto alignof_ = new ACSymbol("alignof", CompletionKind.keyword, ulong_);
@@ -452,17 +466,17 @@ static this()
 	}
 
 	auto cdouble_ = new ACSymbol("cdouble", CompletionKind.keyword);
-    auto cent_ = new ACSymbol("cent", CompletionKind.keyword);
-    auto cfloat_ = new ACSymbol("cfloat", CompletionKind.keyword);
-    auto char_ = new ACSymbol("char", CompletionKind.keyword);
-    auto creal_ = new ACSymbol("creal", CompletionKind.keyword);
-    auto double_ = new ACSymbol("double", CompletionKind.keyword);
-    auto float_ = new ACSymbol("float", CompletionKind.keyword);
-    auto idouble_ = new ACSymbol("idouble", CompletionKind.keyword);
-    auto ifloat_ = new ACSymbol("ifloat", CompletionKind.keyword);
-    auto ireal_ = new ACSymbol("ireal", CompletionKind.keyword);
-    auto real_ = new ACSymbol("real", CompletionKind.keyword);
-    auto ucent_ = new ACSymbol("ucent", CompletionKind.keyword);
+	auto cent_ = new ACSymbol("cent", CompletionKind.keyword);
+	auto cfloat_ = new ACSymbol("cfloat", CompletionKind.keyword);
+	auto char_ = new ACSymbol("char", CompletionKind.keyword);
+	auto creal_ = new ACSymbol("creal", CompletionKind.keyword);
+	auto double_ = new ACSymbol("double", CompletionKind.keyword);
+	auto float_ = new ACSymbol("float", CompletionKind.keyword);
+	auto idouble_ = new ACSymbol("idouble", CompletionKind.keyword);
+	auto ifloat_ = new ACSymbol("ifloat", CompletionKind.keyword);
+	auto ireal_ = new ACSymbol("ireal", CompletionKind.keyword);
+	auto real_ = new ACSymbol("real", CompletionKind.keyword);
+	auto ucent_ = new ACSymbol("ucent", CompletionKind.keyword);
 
 	foreach (s; [cdouble_, cent_, cfloat_, char_, creal_, double_, float_,
 		idouble_, ifloat_, ireal_, real_, ucent_])

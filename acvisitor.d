@@ -104,7 +104,7 @@ class AutocompleteVisitor : ASTVisitor
 		{
 			foreach (parameter; dec.parameters.parameters)
 			{
-				writeln("Adding parameter ", parameter.name.value);
+//				writeln("Adding parameter ", parameter.name.value);
 				ACSymbol paramSymbol = new ACSymbol;
 				paramSymbol.name = parameter.name.value;
 				paramSymbol.type = parameter.type;
@@ -114,7 +114,7 @@ class AutocompleteVisitor : ASTVisitor
 			}
 		}
 
-		writeln("Parameter symbols added");
+//		writeln("Parameter symbols added");
 		if (dec.returnType !is null)
 		{
 			symbol.calltip = format("%s %s%s", dec.returnType.toString(),
@@ -129,7 +129,7 @@ class AutocompleteVisitor : ASTVisitor
 
 		if (functionBody !is null)
 		{
-			writeln("Processing function body");
+//			writeln("Processing function body");
 			auto s = scope_;
 			scope_ = new Scope(functionBody.startLocation,
 				functionBody.endLocation);
