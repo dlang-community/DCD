@@ -95,7 +95,12 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
         case TokenType.stringLiteral:
         case TokenType.wstringLiteral:
         case TokenType.dstringLiteral:
-            // TODO
+			foreach (symbol; arraySymbols)
+			{
+				response.completionKinds ~= symbol.kind;
+				response.completions ~= symbol.name;
+			}
+			response.completionType = CompletionType.identifiers;
             break;
 		case TokenType.int_:
         case TokenType.uint_:
@@ -138,7 +143,6 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
             // TODO: global scope
             break;
         default:
-            // TODO
             break;
         }
     }
