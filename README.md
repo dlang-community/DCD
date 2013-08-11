@@ -21,6 +21,7 @@ back to the client.
 	* Windows support (I don't know that it won't work, but this program is not tested on Windows yet)
 	* UFCS
 	* Templated declarations
+	* Fields inherited from super classes or implemented interfaces.
 	* *auto* declarations
 	* alias declarations
 	* Determining the type of an enum member when no base type is specified, but the first member has an initialaizer
