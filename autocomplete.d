@@ -298,7 +298,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	if (completionType == CompletionType.identifiers)
 	{
 		writeln("Writing completions for ", symbol.name);
-		foreach (s; symbol.parts)
+		foreach (s; symbol.parts.filter!(a => a.name[0] != '*'))
 		{
 			writeln("Adding ", s.name, " to the completion list");
 			response.completionKinds ~= s.kind;
@@ -308,6 +308,24 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	}
 	else
 	{
+		if (symbol.kind != CompletionKind.functionName)
+		{
+			auto call = symbol.getPartByName("opCall");
+			if (call !is null)
+			{
+				symbol = call;
+				goto setCallTips;
+			}
+			auto constructor = symbol.getPartByName("*constructor*");
+			if (constructor is null)
+				return;
+			else
+			{
+				symbol = constructor;
+				goto setCallTips;
+			}
+		}
+	setCallTips:
 		response.completions ~= symbol.calltip;
 		response.completionType = CompletionType.calltips;
 	}

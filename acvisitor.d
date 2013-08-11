@@ -131,9 +131,67 @@ class AutocompleteVisitor : ASTVisitor
 		scope_.symbols ~= symbol;
 	}
 
+	override void visit(Constructor dec)
+	{
+		ACSymbol symbol = new ACSymbol("*constructor*");
+		symbol.location = dec.location;
+		symbol.kind = CompletionKind.functionName;
+		//symbol.type = dec.returnType;
+
+		ACSymbol[] parameterSymbols;
+		if (dec.parameters !is null)
+		{
+			foreach (parameter; dec.parameters.parameters)
+			{
+//				writeln("Adding parameter ", parameter.name.value);
+				ACSymbol paramSymbol = new ACSymbol;
+				paramSymbol.name = parameter.name.value;
+				paramSymbol.type = parameter.type;
+				paramSymbol.kind = CompletionKind.variableName;
+				paramSymbol.location = parameter.name.startIndex;
+				parameterSymbols ~= paramSymbol;
+			}
+		}
+
+		if (dec.parameters !is null)
+		{
+			symbol.calltip = format("%s this%s", parentSymbol.name,
+				dec.parameters.toString());
+		}
+		auto p = parentSymbol;
+		parentSymbol = symbol;
+
+		BlockStatement functionBody = dec.functionBody is null ? null
+			: (dec.functionBody.bodyStatement !is null
+			? dec.functionBody.bodyStatement.blockStatement : dec.functionBody.blockStatement);
+
+		if (functionBody !is null)
+		{
+			auto s = scope_;
+			scope_ = new Scope(functionBody.startLocation,
+				functionBody.endLocation);
+			scope_.parent = s;
+			foreach (parameterSymbol; parameterSymbols)
+			{
+				parameterSymbol.location = functionBody.startLocation;
+				scope_.symbols ~= parameterSymbol;
+			}
+			if (functionBody.declarationsAndStatements !is null)
+				functionBody.declarationsAndStatements.accept(this);
+			s.children ~= scope_;
+			scope_ = s;
+		}
+
+		parentSymbol = p;
+		if (parentSymbol is null)
+			symbols ~= symbol;
+		else
+			parentSymbol.parts ~= symbol;
+		scope_.symbols ~= symbol;
+	}
+
 	override void visit(FunctionDeclaration dec)
 	{
-//		writeln("FunctionDeclaration visit");
 		ACSymbol symbol = new ACSymbol;
 		symbol.name = dec.name.value;
 		symbol.location = dec.name.startIndex;
@@ -155,7 +213,6 @@ class AutocompleteVisitor : ASTVisitor
 			}
 		}
 
-//		writeln("Parameter symbols added");
 		if (dec.returnType !is null && dec.parameters !is null)
 		{
 			symbol.calltip = format("%s %s%s", dec.returnType.toString(),
@@ -163,7 +220,6 @@ class AutocompleteVisitor : ASTVisitor
 		}
 		auto p = parentSymbol;
 		parentSymbol = symbol;
-//		writeln("Call tip created");
 
 		BlockStatement functionBody = dec.functionBody is null ? null
 			: (dec.functionBody.bodyStatement !is null
@@ -171,7 +227,6 @@ class AutocompleteVisitor : ASTVisitor
 
 		if (functionBody !is null)
 		{
-//			writeln("Processing function body");
 			auto s = scope_;
 			scope_ = new Scope(functionBody.startLocation,
 				functionBody.endLocation);

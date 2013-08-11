@@ -22,6 +22,7 @@ back to the client.
 	* UFCS
 	* Templated declarations
 	* *auto* declarations
+	* alias declarations
 	* Determining the type of an enum member when no base type is specified, but the first member has an initialaizer
 	* Public imports
 	* That one feature that you *REALLY* needed
