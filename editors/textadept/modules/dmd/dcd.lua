@@ -91,6 +91,15 @@ function M.cycleCalltips(delta)
 	showCurrentCallTip()
 end
 
+events.connect(events.CALL_TIP_CLICK, function(arrow)
+	if buffer:get_lexer() ~= "dmd" then return end
+	if arrow == 1 then
+		M.cycleCalltips(-1)
+	elseif arrow == 2 then
+		M.cycleCalltips(1)
+	end
+end)
+
 function M.autocomplete(ch)
 	if buffer:get_lexer() ~= "dmd" then return end
 	if ch > 255 then return end
