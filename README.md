@@ -21,6 +21,7 @@ back to the client.
 	* Windows support (I don't know that it won't work, but this program is not tested on Windows yet)
 	* UFCS
 	* Templated declarations
+	* import statement completions
 	* Fields inherited from super classes or implemented interfaces.
 	* *auto* declarations
 	* alias declarations
