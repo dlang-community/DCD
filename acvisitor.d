@@ -256,17 +256,77 @@ class AutocompleteVisitor : ASTVisitor
 //		writeln("VariableDeclaration visit");
 		foreach (d; dec.declarators)
 		{
-			auto symbol = new ACSymbol;
+			ACSymbol symbol = new ACSymbol;
+			if (dec.type.typeSuffixes.length > 0
+				&& dec.type.typeSuffixes[$-1].delegateOrFunction != TokenType.invalid)
+			{
+				TypeSuffix suffix = dec.type.typeSuffixes[$ - 1];
+				dec.type.typeSuffixes = dec.type.typeSuffixes[0 .. $ - 1];
+				symbol.calltip = "%s %s%s".format(dec.type,
+					suffix.delegateOrFunction.value,
+					suffix.parameters.toString());
+			}
+			symbol.kind = CompletionKind.variableName;
+
 			symbol.type = dec.type;
 			symbol.name = d.name.value;
 			symbol.location = d.name.startIndex;
-			symbol.kind = CompletionKind.variableName;
+
 			if (parentSymbol is null)
 				symbols ~= symbol;
 			else
 				parentSymbol.parts ~= symbol;
 			scope_.symbols ~= symbol;
 		}
+	}
+
+	override void visit(AliasDeclaration dec)
+	{
+		if (dec.type is null) foreach (aliasPart; dec.initializers)
+		{
+			ACSymbol aliasSymbol = new ACSymbol;
+			aliasSymbol.kind = CompletionKind.aliasName;
+			aliasSymbol.location = aliasPart.name.startIndex;
+			aliasSymbol.type = aliasPart.type;
+			if (aliasPart.type.typeSuffixes.length > 0
+				&& aliasPart.type.typeSuffixes[$-1].delegateOrFunction != TokenType.invalid)
+			{
+				TypeSuffix suffix = aliasPart.type.typeSuffixes[$ - 1];
+				aliasPart.type.typeSuffixes = aliasPart.type.typeSuffixes[0 .. $ - 1];
+				aliasSymbol.calltip = "%s %s%s".format(dec.type,
+					suffix.delegateOrFunction.value,
+					suffix.parameters.toString());
+			}
+			if (parentSymbol is null)
+				symbols ~= aliasSymbol;
+			else
+				parentSymbol.parts ~= aliasSymbol;
+			scope_.symbols ~= aliasSymbol;
+		}
+		else
+		{
+//			writeln("Visiting alias declaration ", dec.name.value);
+			ACSymbol aliasSymbol = new ACSymbol;
+			aliasSymbol.kind = CompletionKind.aliasName;
+			aliasSymbol.name = dec.name.value;
+			aliasSymbol.type = dec.type;
+			if (dec.type.typeSuffixes.length > 0
+				&& dec.type.typeSuffixes[$-1].delegateOrFunction != TokenType.invalid)
+			{
+				TypeSuffix suffix = dec.type.typeSuffixes[$ - 1];
+				dec.type.typeSuffixes = dec.type.typeSuffixes[0 .. $ - 1];
+				aliasSymbol.calltip = "%s %s%s".format(dec.type,
+					suffix.delegateOrFunction.value,
+					suffix.parameters.toString());
+			}
+			aliasSymbol.location = dec.name.startIndex;
+			if (parentSymbol is null)
+				symbols ~= aliasSymbol;
+			else
+				parentSymbol.parts ~= aliasSymbol;
+			scope_.symbols ~= aliasSymbol;
+		}
+
 	}
 
 	override void visit(ImportDeclaration dec)

@@ -88,12 +88,12 @@ public:
 	 * Symbols that compose this symbol, such as enum members, class variables,
 	 * methods, etc.
 	 */
-    ACSymbol[] parts;
+	ACSymbol[] parts;
 
 	/**
 	 * Symbol's name
 	 */
-    string name;
+	string name;
 
 	/**
 	 * Symbol's location in bytes
@@ -108,7 +108,7 @@ public:
 	/**
 	 * The kind of symbol
 	 */
-    CompletionKind kind;
+	CompletionKind kind;
 
 	/**
 	 * The return type if this is a function, or the element type if this is an
@@ -173,35 +173,35 @@ public:
 			return s.findSymbolsInScope(name);
 	}
 
-    /**
-     * Returns: the innermost Scope that contains the given cursor position.
-     */
-    Scope findCurrentScope(size_t cursorPosition)
-    {
-        if (start != size_t.max && (cursorPosition < start || cursorPosition > end))
-            return null;
-        foreach (sc; children)
-        {
-            auto s = sc.findCurrentScope(cursorPosition);
-            if (s is null)
-                continue;
-            else
-                return s;
-        }
-        return this;
-    }
+	/**
+	 * Returns: the innermost Scope that contains the given cursor position.
+	 */
+	Scope findCurrentScope(size_t cursorPosition)
+	{
+		if (start != size_t.max && (cursorPosition < start || cursorPosition > end))
+			return null;
+		foreach (sc; children)
+		{
+			auto s = sc.findCurrentScope(cursorPosition);
+			if (s is null)
+				continue;
+			else
+				return s;
+		}
+		return this;
+	}
 
 	/**
 	 * Finds a symbol with the given name in this scope or one of its parent
 	 * scopes.
 	 */
-    ACSymbol[] findSymbolsInScope(string name)
-    {
+	ACSymbol[] findSymbolsInScope(string name)
+	{
 		ACSymbol[] currentMatches = symbols.filter!(a => a.name == name)().array();
 		if (currentMatches.length == 0 && parent !is null)
 			return parent.findSymbolsInScope(name);
-        return currentMatches;
-    }
+	    return currentMatches;
+	}
 
 	/**
 	 * Fills in the $(D resolvedType) fields of the symbols in this scope and
@@ -215,34 +215,55 @@ public:
 		// don't have any indirection
 		foreach (ref s; symbols.filter!(a => (a.kind == CompletionKind.variableName
 			|| a.kind == CompletionKind.functionName || a.kind == CompletionKind.memberVariableName
-			|| a.kind == CompletionKind.enumMember) && a.resolvedType is null)())
+			|| a.kind == CompletionKind.enumMember || a.kind == CompletionKind.aliasName)
+			&& a.resolvedType is null)())
 		{
-			//writeln("Resolving type of symbol ", s.name);
+			writeln("Resolving type of symbol ", s.name);
 			Type type = s.type;
 			if (type is null)
+			{
+				//writeln("Could not find it due to null type");
 				continue;
+			}
 
 			if (type.type2.builtinType != TokenType.invalid)
 			{
+				//writeln("It was a built-in type");
 				// This part is easy. Autocomplete properties of built-in types
 				s.resolvedType = findSymbolsInScope(getTokenValue(type.type2.builtinType))[0];
 			}
 			else if (type.type2.symbol !is null)
 			{
-			// Look up a type by its name for cases like class, enum,
-			// interface, struct, or union members.
+				// Look up a type by its name for cases like class, enum,
+				// interface, struct, or union members.
 
-			// TODO: Does not work with qualified names or template instances
-			Symbol sym = type.type2.symbol;
-			if (sym.identifierOrTemplateChain.identifiersOrTemplateInstances.length != 1)
-				return;
-			ACSymbol[] resolvedType = findSymbolsInCurrentScope(s.location,
-				sym.identifierOrTemplateChain.identifiersOrTemplateInstances[0].identifier.value);
-			if (resolvedType.length > 0)
-				s.resolvedType = resolvedType[0];
+				// TODO: Does not work with qualified names or template instances
+				Symbol sym = type.type2.symbol;
+				if (sym.identifierOrTemplateChain.identifiersOrTemplateInstances.length != 1)
+				{
+					writeln("Could not resolve type");
+					continue;
+				}
+				ACSymbol[] resolvedType = findSymbolsInCurrentScope(s.location,
+					sym.identifierOrTemplateChain.identifiersOrTemplateInstances[0].identifier.value);
+				if (resolvedType.length > 0 && (resolvedType[0].kind == CompletionKind.interfaceName
+					|| resolvedType[0].kind == CompletionKind.className
+					|| resolvedType[0].kind == CompletionKind.aliasName
+					|| resolvedType[0].kind == CompletionKind.unionName
+					|| resolvedType[0].kind == CompletionKind.structName))
+				{
+					writeln("Type resolved to ", resolvedType[0].name, " which has kind ",
+						resolvedType[0].kind, " and call tip ", resolvedType[0].calltip);
+					s.resolvedType = resolvedType[0];
+				}
+			}
+			else
+			{
+				writeln(type);
 			}
 			foreach (suffix; type.typeSuffixes)
 			{
+				//writeln("Handling type suffix");
 				// Handle type suffixes for declarations, e.g.:
 				// int[] a;
 				// SomeClass[string] b;
@@ -280,25 +301,25 @@ public:
 	/**
 	 * Index of the opening brace
 	 */
-    size_t start = size_t.max;
+	size_t start = size_t.max;
 
 	/**
 	 * Index of the closing brace
 	 */
-    size_t end = size_t.max;
+	size_t end = size_t.max;
 
 	/**
 	 * Symbols contained in this scope
 	 */
-    ACSymbol[] symbols;
+	ACSymbol[] symbols;
 
 	/**
 	 * The parent scope
 	 */
-    Scope parent;
+	Scope parent;
 
 	/**
 	 * Child scopes
 	 */
-    Scope[] children;
+	Scope[] children;
 }

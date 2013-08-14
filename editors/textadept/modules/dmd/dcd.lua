@@ -16,6 +16,7 @@ function M.registerImages()
 	buffer:register_image(8, M.STRUCT)
 	buffer:register_image(9, M.INTERFACE)
 	buffer:register_image(10, M.ENUM)
+	buffer:register_image(11, M.ALIAS)
 end
 
 local function showCompletionList(r)
@@ -50,6 +51,8 @@ local function showCompletionList(r)
 			completion = completion .. "?4"
 		elseif kind == "P" then
 			completion = completion .. "?3"
+		elseif kind == "l" then
+			completion = completion .. "?11"
 		end
 		completions[#completions + 1] = completion
 	end
@@ -111,6 +114,7 @@ function M.autocomplete(ch)
 		local command = M.PATH_TO_DCD_CLIENT .. " -c" .. buffer.current_pos .. " " .. fileName
 		local p = io.popen(command, "r")
 		local r = p:read("*a")
+		--print(r)
 		if r ~= "\n" then
 			if r:match("^identifiers.*") then
 				showCompletionList(r)
@@ -121,6 +125,45 @@ function M.autocomplete(ch)
 		os.remove(fileName)
 	end
 end
+
+M.ALIAS =[[
+/* XPM */
+static char * alias_xpm[] = {
+"16 16 17 1",
+" 	c None",
+".	c #547AA0",
+"+	c #547BA2",
+"@	c #547CA4",
+"#	c #F0F0F0",
+"$	c #547DA6",
+"%	c #F5F5F5",
+"&	c #547EA8",
+"*	c #FBFBFB",
+"=	c #F7F7F7",
+"-	c #F2F2F2",
+";	c #547BA3",
+">	c #ECECEC",
+",	c #547AA1",
+"'	c #E7E7E7",
+")	c #54799F",
+"!	c #54789D",
+"                ",
+"                ",
+"   ..........   ",
+"  ++++++++++++  ",
+"  @@@@@##@@@@@  ",
+"  $$$$%%%%$$$$  ",
+"  &&&&****&&&&  ",
+"  &&&==&&==&&&  ",
+"  $$$==$$==$$$  ",
+"  @@@------@@@  ",
+"  ;;>>>>>>>>;;  ",
+"  ,,'',,,,'',,  ",
+"  ))))))))))))  ",
+"   !!!!!!!!!!   ",
+"                ",
+"                "};
+]]
 
 -- union icon
 M.UNION = [[

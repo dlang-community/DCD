@@ -150,21 +150,24 @@ int main(string[] args)
     AutocompleteResponse response;
     msgpack.unpack(buffer[0..bytesReceived], response);
 
-    writeln(response.completionType);
-    if (response.completionType == CompletionType.identifiers)
-    {
-        for (size_t i = 0; i < response.completions.length; i++)
-        {
-            writefln("%s\t%s", response.completions[i], response.completionKinds[i]);
-        }
-    }
-    else
-    {
-        foreach (completion; response.completions)
-        {
-            writeln(completion);
-        }
-    }
+	if (response.completions.length > 0)
+	{
+		writeln(response.completionType);
+		if (response.completionType == CompletionType.identifiers)
+		{
+			for (size_t i = 0; i < response.completions.length; i++)
+			{
+				writefln("%s\t%s", response.completions[i], response.completionKinds[i]);
+			}
+		}
+		else
+		{
+			foreach (completion; response.completions)
+			{
+				writeln(completion);
+			}
+		}
+	}
     return 0;
 }
 

@@ -56,14 +56,17 @@ enum CompletionKind : char
     /// package name
     packageName = 'P',
 
-    // module name
+    /// module name
     moduleName = 'M',
 
-	// array
+	/// array
 	array = 'a',
 
-	// associative array
+	/// associative array
 	assocArray = 'A',
+
+	/// alias name
+	aliasName = 'l',
 }
 
 /**

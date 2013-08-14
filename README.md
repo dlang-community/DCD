@@ -15,16 +15,16 @@ back to the client.
 	* Autocompletion of __traits, scope, and extern arguments
 	* Autocompletion of enums
 	* Autocompletion of class, struct, and interface instances.
-	* Display of call tips for functions and constructors
+	* Display of call tips for functions, constructors, and variables of function type
+	* alias declarations
 * Not working:
 	* Automatic starting of the server by the client
 	* Windows support (I don't know that it won't work, but this program is not tested on Windows yet)
 	* UFCS
 	* Templated declarations
-	* import statement completions
+	* *import* statement completions
 	* Fields inherited from super classes or implemented interfaces.
 	* *auto* declarations
-	* alias declarations
 	* Determining the type of an enum member when no base type is specified, but the first member has an initialaizer
 	* Public imports
 	* That one feature that you *REALLY* needed

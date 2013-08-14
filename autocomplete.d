@@ -163,11 +163,15 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	if (completionType == CompletionType.identifiers
 		&& symbols[0].kind == CompletionKind.memberVariableName
 		|| symbols[0].kind == CompletionKind.variableName
+		|| symbols[0].kind == CompletionKind.aliasName
 		|| symbols[0].kind == CompletionKind.enumMember)
 	{
 		symbols = symbols[0].resolvedType is null ? [] : [symbols[0].resolvedType];
 		if (symbols.length == 0)
+		{
+			//writeln("Could not figure it out");
 			return;
+		}
 	}
 
 	loop: for (size_t i = 1; i < tokens.length; i++)
@@ -223,7 +227,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			symbols = symbols[0].getPartsByName(tokens[i].value);
 			if (symbols.length == 0)
 			{
-				//writeln("Couldn't find it.");
+//				writeln("Couldn't find it.");
 				break loop;
 			}
 			if (symbols[0].kind == CompletionKind.variableName
@@ -233,7 +237,18 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				&& (completionType == CompletionType.identifiers
 				|| i + 1 < tokens.length)))
 			{
-				symbols = symbols[0].resolvedType is null ? [] :[symbols[0].resolvedType];
+				symbols = symbols[0].resolvedType is null ? [] : [symbols[0].resolvedType];
+			}
+			if (symbols[0].kind == CompletionKind.aliasName
+				&& (completionType == CompletionType.identifiers
+				|| i + 1 < tokens.length))
+			{
+				symbols = symbols[0].resolvedType is null ? [] : [symbols[0].resolvedType];
+			}
+			if (symbols.length == 0)
+			{
+//				writeln("Couldn't find it.");
+				break loop;
 			}
 			break;
 		case lParen:
@@ -303,7 +318,9 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	}
 	else if (completionType == CompletionType.calltips)
 	{
-		if (symbols[0].kind != CompletionKind.functionName)
+		//writeln("Showing call tips for ", symbols[0].name, " of type ", symbols[0].kind);
+		if (symbols[0].kind != CompletionKind.functionName
+			&& symbols[0].calltip is null)
 		{
 			auto call = symbols[0].getPartsByName("opCall");
 			if (call.length == 0)
@@ -386,6 +403,7 @@ T getExpression(T)(T beforeTokens)
 			open = rBracket;
 			close = lBracket;
 		skip:
+			auto bookmark = i;
 			int depth = 1;
 			do
 			{
@@ -398,6 +416,21 @@ T getExpression(T)(T beforeTokens)
 				else if (beforeTokens[i].type == close)
 					depth--;
 			} while (true);
+			// check the current token after skipping parens to the left.
+			// if it's a loop keyword, pretend we never skipped the parens.
+			if (i > 0) switch (beforeTokens[i - 1].type)
+			{
+				case TokenType.if_:
+				case TokenType.while_:
+				case TokenType.for_:
+				case TokenType.foreach_:
+				case TokenType.foreach_reverse_:
+				case TokenType.do_:
+					i = bookmark + 1;
+					break expressionLoop;
+				default:
+					break;
+			}
 			break;
 		default:
 			if (hasSpecialPrefix)
