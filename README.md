@@ -30,8 +30,8 @@ back to the client.
 	* That one feature that you *REALLY* needed
 
 #Setup
-1. Run ```git submodule update --init``` after cloning this repository to grab the MessagePack library.
-1. The build script assumes that the DScanner project is cloned into a sibling folder. (i.e. "../dscanner" should exist)
+1. Run ```git submodule update --init``` after cloning this repository to grab the MessagePack library and the parser from DScanner.
+1. run the ```build.sh``` script to build the client and server.
 1. Configure your text editor to call the dcd-client program. See the *editors* folder for directions on configuring your specific editor.
 1. Start the dcd-server program before editing code.
 
