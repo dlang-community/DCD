@@ -25,6 +25,7 @@ import std.array;
 import std.process;
 import std.algorithm;
 import std.path;
+import std.file;
 
 import msgpack;
 import messages;
@@ -100,6 +101,11 @@ int main(string[] args)
     // Read in the source
     bool usingStdin = args.length <= 1;
     string fileName = usingStdin ? "stdin" : args[1];
+    if (!usingStdin && !exists(args[1]))
+    {
+        stderr.writefln("%s does not exist");
+        return 1;
+    }
     File f = usingStdin ? stdin : File(args[1]);
     ubyte[] sourceCode;
     if (usingStdin)

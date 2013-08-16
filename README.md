@@ -17,21 +17,22 @@ back to the client.
 	* Autocompletion of class, struct, and interface instances.
 	* Display of call tips for functions, constructors, and variables of function type
 	* alias declarations
+	* *import* statement completions
 * Not working:
 	* Automatic starting of the server by the client
 	* Windows support (I don't know that it won't work, but this program is not tested on Windows yet)
 	* UFCS
-	* Templated declarations
-	* *import* statement completions
+	* Autocompletion of declarations with template arguments
 	* Fields inherited from super classes or implemented interfaces.
 	* *auto* declarations
+	* *alias this*
 	* Determining the type of an enum member when no base type is specified, but the first member has an initialaizer
 	* Public imports
 	* That one feature that you *REALLY* needed
 
 #Setup
-1. Run ```git submodule update --init``` after cloning this repository to grab the MessagePack library.
-1. The build script assumes that the DScanner project is cloned into a sibling folder. (i.e. "../dscanner" should exist)
+1. Run ```git submodule update --init``` after cloning this repository to grab the MessagePack library and the parser from DScanner.
+1. run the ```build.sh``` script to build the client and server.
 1. Configure your text editor to call the dcd-client program. See the *editors* folder for directions on configuring your specific editor.
 1. Start the dcd-server program before editing code.
 
@@ -46,8 +47,8 @@ cursor position (in bytes).
 
 This will cause the client to print a listing of completions to *stdout*.
 The client will print either a listing of function call tips, or a listing of of
-completions depending on if the cursor was directly after a dot character or a
-left parethesis.
+completions depending on if the cursor was directly after a dot character or after
+a left parethesis.
 
 The file name is optional. If it is not specified, input will be read from *stdin*.
 

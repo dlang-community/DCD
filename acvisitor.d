@@ -33,6 +33,12 @@ import messages;
 import modulecache;
 import autocomplete;
 
+// TODO: a lot of duplicated code
+
+/**
+ * Converts an AST into a simple symbol and scope heirarchy so that the
+ * autocompletion coed can do its job more easily.
+ */
 class AutocompleteVisitor : ASTVisitor
 {
 	alias ASTVisitor.visit visit;
@@ -67,6 +73,100 @@ class AutocompleteVisitor : ASTVisitor
 		mixin (visitAndAdd);
 	}
 
+	override void visit(ForStatement forStatement)
+	{
+		if (forStatement.declarationOrStatement is null) goto visitBody;
+		if (forStatement.declarationOrStatement.declaration is null) goto visitBody;
+		if (forStatement.declarationOrStatement.declaration.variableDeclaration is null) goto visitBody;
+		if (forStatement.statementNoCaseNoDefault is null) goto visitBody;
+		if (forStatement.statementNoCaseNoDefault.blockStatement is null) goto visitBody;
+
+//		writeln("Visiting for statement");
+
+		ACSymbol[] symbols;
+		VariableDeclaration varDec = forStatement.declarationOrStatement.declaration.variableDeclaration;
+		Type t = varDec.type;
+		foreach (Declarator declarator; varDec.declarators)
+		{
+			ACSymbol symbol = new ACSymbol();
+			symbol.name = declarator.name.value;
+			symbol.type = t;
+			symbol.kind = CompletionKind.variableName;
+			symbols ~= symbol;
+			writeln("For statement variable ", symbol.name, " of type ", symbol.type, " added.");
+		}
+		BlockStatement block = forStatement.statementNoCaseNoDefault.blockStatement;
+		auto s = new Scope(forStatement.startIndex,
+			block.endLocation);
+		s.parent = scope_;
+		scope_.children ~= s;
+		auto p = scope_;
+		scope_ = s;
+
+		foreach (symbol; symbols)
+		{
+			writeln("added ", symbol.name, " to scope");
+			symbol.location = scope_.start;
+			scope_.symbols ~= symbol;
+
+		}
+		if (block.declarationsAndStatements !is null)
+		{
+			writeln("visiting body");
+			visit(block.declarationsAndStatements);
+		}
+		scope_ = p;
+		return;
+
+	visitBody:
+//		writeln("visiting body");
+		if (forStatement.statementNoCaseNoDefault !is null)
+			visit(forStatement.statementNoCaseNoDefault);
+	}
+
+	override void visit(ForeachStatement statement)
+	{
+		ACSymbol[] symbols;
+
+		if (statement.foreachTypeList is null)
+		{
+			statement.statementNoCaseNoDefault.accept(this);
+		}
+		else if (statement.foreachType !is null)
+		{
+			ACSymbol loopVariable = new ACSymbol(statement.foreachType.identifier.value);
+			loopVariable.type = statement.foreachType.type;
+			loopVariable.kind = CompletionKind.variableName;
+			symbols ~= loopVariable;
+		}
+		else foreach (ForeachType feType; statement.foreachTypeList.items.filter!(a => a.type !is null))
+		{
+			ACSymbol loopVariable = new ACSymbol(feType.identifier.value);
+			loopVariable.type = feType.type;
+			loopVariable.kind = CompletionKind.variableName;
+			symbols ~= loopVariable;
+		}
+
+		if (statement.statementNoCaseNoDefault !is null
+			&& statement.statementNoCaseNoDefault.blockStatement !is null)
+		{
+			BlockStatement block = statement.statementNoCaseNoDefault.blockStatement;
+			auto s = scope_;
+			scope_ = new Scope(statement.startIndex,
+				block.endLocation);
+			scope_.parent = s;
+			foreach (symbol; symbols)
+			{
+				symbol.location = block.startLocation;
+				scope_.symbols ~= symbol;
+			}
+			if (block.declarationsAndStatements !is null)
+				block.declarationsAndStatements.accept(this);
+			s.children ~= scope_;
+			scope_ = s;
+		}
+	}
+
 	override void visit(InterfaceDeclaration dec)
 	{
 //		writeln("InterfaceDeclaration visit");
@@ -75,6 +175,15 @@ class AutocompleteVisitor : ASTVisitor
 		symbol.location = dec.name.startIndex;
 		symbol.kind = CompletionKind.interfaceName;
 		mixin (visitAndAdd);
+	}
+
+	override void visit(BaseClass baseClass)
+	{
+		// TODO: handle qualified names
+		if (baseClass.identifierOrTemplateChain is null) return;
+		if (baseClass.identifierOrTemplateChain.identifiersOrTemplateInstances.length != 1) return;
+		if (parentSymbol is null) return;
+		parentSymbol.superClasses ~= baseClass.identifierOrTemplateChain.toString();
 	}
 
 	override void visit(StructBody structBody)
@@ -154,7 +263,7 @@ class AutocompleteVisitor : ASTVisitor
 			}
 		}
 
-		if (dec.parameters !is null)
+		if (dec.parameters !is null && parentSymbol !is null)
 		{
 			symbol.calltip = format("%s this%s", parentSymbol.name,
 				dec.parameters.toString());

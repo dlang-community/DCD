@@ -23,17 +23,20 @@ module autocomplete;
 import std.algorithm;
 import std.array;
 import std.conv;
-import stdx.d.ast;
-import stdx.d.lexer;
-import stdx.d.parser;
+import std.file;
+import std.path;
 import std.range;
 import std.stdio;
 import std.uni;
+import stdx.d.ast;
+import stdx.d.lexer;
+import stdx.d.parser;
 
 import messages;
 import acvisitor;
 import actypes;
 import constants;
+import modulecache;
 
 
 AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
@@ -151,7 +154,14 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	AutocompleteVisitor visitor, T tokens, size_t cursorPosition,
 	CompletionType completionType)
 {
-	assert (visitor.scope_);
+	// Autocomplete module imports instead of symbols
+	if (tokens[0].type == TokenType.import_)
+	{
+		if (completionType == CompletionType.identifiers)
+			setImportCompletions(tokens, response);
+		return;
+	}
+
 	visitor.scope_.resolveSymbolTypes();
 	ACSymbol[] symbols = visitor.scope_.findSymbolsInCurrentScope(cursorPosition, tokens[0].value);
 	if (symbols.length == 0)
@@ -223,11 +233,11 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				break loop;
 			break;
 		case identifier:
-//			stderr.writeln("looking for ", tokens[i].value, " in ", symbols[0].name);
+			writeln("looking for ", tokens[i].value, " in ", symbols[0].name);
 			symbols = symbols[0].getPartsByName(tokens[i].value);
 			if (symbols.length == 0)
 			{
-//				writeln("Couldn't find it.");
+				writeln("Couldn't find it.");
 				break loop;
 			}
 			if (symbols[0].kind == CompletionKind.variableName
@@ -239,6 +249,8 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			{
 				symbols = symbols[0].resolvedType is null ? [] : [symbols[0].resolvedType];
 			}
+			if (symbols.length == 0)
+				break loop;
 			if (symbols[0].kind == CompletionKind.aliasName
 				&& (completionType == CompletionType.identifiers
 				|| i + 1 < tokens.length))
@@ -246,10 +258,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				symbols = symbols[0].resolvedType is null ? [] : [symbols[0].resolvedType];
 			}
 			if (symbols.length == 0)
-			{
-//				writeln("Couldn't find it.");
 				break loop;
-			}
 			break;
 		case lParen:
 			open = TokenType.lParen;
@@ -358,6 +367,8 @@ T getExpression(T)(T beforeTokens)
 	{
 		with (TokenType) switch (beforeTokens[i].type)
 		{
+		case TokenType.import_:
+			break expressionLoop;
 		case TokenType.int_:
 		case TokenType.uint_:
 		case TokenType.long_:
@@ -446,22 +457,36 @@ T getExpression(T)(T beforeTokens)
 	return beforeTokens[i .. $];
 }
 
+void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
+{
+	writeln("Setting import collections");
+	response.completionType = CompletionType.identifiers;
+	string path = buildPath(tokens.filter!(a => a.type == TokenType.identifier).map!("a.value").array());
+	foreach (importDirectory; ModuleCache.getImportPaths())
+	{
+		string p = format("%s%s%s", importDirectory, dirSeparator, path);
+		writeln("Checking for ", p);
+		if (!exists(p))
+			continue;
+		foreach (string name; dirEntries(p, SpanMode.shallow))
+		{
+			if (isFile(name) && (name.endsWith(".d") || name.endsWith(".di")))
+			{
+				response.completions ~= name.baseName(".d").baseName(".di");
+				response.completionKinds ~= CompletionKind.moduleName;
+		}
+			else if (isDir(name))
+			{
+				response.completions ~= name.baseName();
+				response.completionKinds ~= CompletionKind.packageName;
+	}
+		}
+	}
+}
+
 string createCamelCaseRegex(string input)
 {
-	dstring output;
-	uint i;
-	foreach (dchar d; input)
-	{
-		if (isLower(d))
-			output ~= d;
-		else if (i > 0)
-		{
-			output ~= ".*";
-			output ~= d;
-		}
-		i++;
-	}
-	return to!string(output ~ ".*");
+	return to!string(input.map!(a => isLower(a) ? [a] : ".*"d ~ a).join());
 }
 
 unittest

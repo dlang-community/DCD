@@ -57,6 +57,8 @@ struct ModuleCache
 	 */
 	static void addImportPath(string path)
 	{
+		if (!exists(path))
+			return;
 		importPaths ~= path;
 		foreach (fileName; dirEntries(path, "*.{d,di}", SpanMode.depth))
 		{
@@ -96,7 +98,7 @@ struct ModuleCache
 		}
 		catch (Exception ex)
 		{
-			writeln("Couln't parse ", location);
+			writeln("Couln't parse ", location, " due to exception: ", ex.msg);
 			return [];
 		}
 		SysTime access;
@@ -118,7 +120,7 @@ struct ModuleCache
 	 */
 	static string resolveImportLoctation(string moduleName)
 	{
-		writeln("Resolving location of ", moduleName);
+//		writeln("Resolving location of ", moduleName);
 		if (isRooted(moduleName))
 			return moduleName;
 

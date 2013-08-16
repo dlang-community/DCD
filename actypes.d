@@ -90,6 +90,8 @@ public:
 	 */
 	ACSymbol[] parts;
 
+	string[] superClasses;
+
 	/**
 	 * Symbol's name
 	 */
@@ -209,7 +211,19 @@ public:
 	 */
 	void resolveSymbolTypes()
 	{
-		// TODO: auto declarations.
+		foreach (ref ACSymbol c; symbols.filter!(a => a.kind == CompletionKind.className
+			|| a.kind == CompletionKind.interfaceName))
+		{
+			foreach (string sc; c.superClasses)
+			{
+				ACSymbol[] s = findSymbolsInScope(sc);
+				if (s.length > 0)
+				{
+					foreach (part; s[0].parts)
+						c.parts ~= part;
+				}
+			}
+		}
 
 		// We only care about resolving types of variables, all other symbols
 		// don't have any indirection
@@ -218,7 +232,7 @@ public:
 			|| a.kind == CompletionKind.enumMember || a.kind == CompletionKind.aliasName)
 			&& a.resolvedType is null)())
 		{
-			writeln("Resolving type of symbol ", s.name);
+//			writeln("Resolving type of symbol ", s.name);
 			Type type = s.type;
 			if (type is null)
 			{
@@ -252,15 +266,12 @@ public:
 					|| resolvedType[0].kind == CompletionKind.unionName
 					|| resolvedType[0].kind == CompletionKind.structName))
 				{
-					writeln("Type resolved to ", resolvedType[0].name, " which has kind ",
-						resolvedType[0].kind, " and call tip ", resolvedType[0].calltip);
+//					writeln("Type resolved to ", resolvedType[0].name, " which has kind ",
+//						resolvedType[0].kind, " and call tip ", resolvedType[0].calltip);
 					s.resolvedType = resolvedType[0];
 				}
 			}
-			else
-			{
-				writeln(type);
-			}
+
 			foreach (suffix; type.typeSuffixes)
 			{
 				//writeln("Handling type suffix");
