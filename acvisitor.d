@@ -154,8 +154,8 @@ class AutocompleteVisitor : ASTVisitor
 			}
 		}
 
-		if (dec.parameters !is null)
-		{
+		if (dec.parameters !is null && parentSymbol !is null)
+		{           
 			symbol.calltip = format("%s this%s", parentSymbol.name,
 				dec.parameters.toString());
 		}
