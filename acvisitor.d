@@ -177,15 +177,6 @@ class AutocompleteVisitor : ASTVisitor
 		mixin (visitAndAdd);
 	}
 
-	override void visit(BaseClass baseClass)
-	{
-		// TODO: handle qualified names
-		if (baseClass.identifierOrTemplateChain is null) return;
-		if (baseClass.identifierOrTemplateChain.identifiersOrTemplateInstances.length != 1) return;
-		if (parentSymbol is null) return;
-		parentSymbol.superClasses ~= baseClass.identifierOrTemplateChain.toString();
-	}
-
 	override void visit(StructBody structBody)
 	{
 //		writeln("StructBody visit");
