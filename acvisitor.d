@@ -433,12 +433,14 @@ class AutocompleteVisitor : ASTVisitor
 	{
 		// TODO: handle public imports
 		if (!currentFile) return;
-		foreach (singleImport; dec.singleImports)
+		foreach (singleImport; dec.singleImports.filter!(a => a !is null
+			&& a.identifierChain !is null))
 		{
 			scope_.symbols ~= ModuleCache.getSymbolsInModule(
 				convertChainToImportPath(singleImport.identifierChain));
 		}
-		if (dec.importBindings !is null)
+		if (dec.importBindings !is null
+			&& dec.importBindings.singleImport.identifierChain !is null)
 		{
 			scope_.symbols ~= ModuleCache.getSymbolsInModule(
 				convertChainToImportPath(
@@ -466,7 +468,7 @@ class AutocompleteVisitor : ASTVisitor
 
 	private static string convertChainToImportPath(IdentifierChain chain)
 	{
-		return to!string(chain.identifiers.map!"a.value"().join(dirSeparator).array) ~ ".d";
+		return to!string(chain.identifiers.map!(a => a.value).join(dirSeparator).array) ~ ".d";
 	}
 
 	ACSymbol[] symbols;

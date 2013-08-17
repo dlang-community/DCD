@@ -134,11 +134,11 @@ int main(string[] args)
     ubyte[] message = msgpack.pack(request);
 
     // Send message to server
-    auto socket = new TcpSocket(AddressFamily.INET);
+    TcpSocket socket = new TcpSocket(AddressFamily.INET);
+	socket.setOption(SocketOptionLevel.SOCKET, SocketOption.RCVTIMEO, dur!"seconds"(5));
     scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
 	socket.connect(new InternetAddress("127.0.0.1", port));
     socket.blocking = true;
-    //socket.setOption(SocketOptionLevel.TCP, SocketOption.TCP_NODELAY, 1);
     ubyte[] messageBuffer = new ubyte[message.length + message.length.sizeof];
     auto messageLength = message.length;
     messageBuffer[0 .. 8] = (cast(ubyte*) &messageLength)[0 .. 8];
