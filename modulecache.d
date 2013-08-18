@@ -26,6 +26,7 @@ import stdx.d.ast;
 import std.stdio;
 import std.array;
 import std.path;
+import std.algorithm;
 
 import acvisitor;
 import actypes;
@@ -57,7 +58,7 @@ struct ModuleCache
 	 */
 	static void addImportPath(string path)
 	{
-		if (!exists(path))
+		if (!exists(path) || importPaths.canFind(path))
 			return;
 		importPaths ~= path;
 		foreach (fileName; dirEntries(path, "*.{d,di}", SpanMode.depth))
