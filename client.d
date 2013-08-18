@@ -26,6 +26,7 @@ import std.process;
 import std.algorithm;
 import std.path;
 import std.file;
+import std.conv;
 
 import msgpack;
 import messages;
@@ -121,7 +122,7 @@ int main(string[] args)
 	}
 	else
 	{
-		sourceCode = uninitializedArray!(ubyte[])(cast(size_t) f.size);
+		sourceCode = uninitializedArray!(ubyte[])(to!size_t(f.size));
 		f.rawRead(sourceCode);
 	}
 

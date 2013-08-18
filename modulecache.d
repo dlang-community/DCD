@@ -26,6 +26,7 @@ import stdx.d.ast;
 import std.stdio;
 import std.array;
 import std.path;
+import std.conv;
 
 import acvisitor;
 import actypes;
@@ -86,7 +87,7 @@ struct ModuleCache
 		try
 		{
 			File f = File(location);
-			ubyte[] source = uninitializedArray!(ubyte[])(f.size);
+			ubyte[] source = uninitializedArray!(ubyte[])(to!size_t(f.size));
 			f.rawRead(source);
 
 			LexerConfig config;
