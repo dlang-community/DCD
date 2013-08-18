@@ -179,7 +179,7 @@ int main(string[] args)
 
 void printHelp(string programName)
 {
-    writefln(
+	writefln(
 `
     Usage: %1$s [Options] [FILENAME]
 
