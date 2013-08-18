@@ -57,14 +57,18 @@ local function showCompletionList(r)
 		completions[#completions + 1] = completion
 	end
 	table.sort(completions, function(a, b) return string.upper(a) < string.upper(b) end)
-	buffer:auto_c_show(0, table.concat(completions, " "))
+	local charactersEntered = buffer.current_pos - buffer:word_start_position(buffer.current_pos)
+	if buffer.char_at[buffer.current_pos - 1] == string.byte('.') then charactersEntered = 0 end
+	print(charactersEntered)
+	buffer:auto_c_show(charactersEntered, table.concat(completions, " "))
+	--buffer.auto_c_fill_ups = "(.["
 	buffer.auto_c_choose_single = setting
 end
 
 
 local function showCurrentCallTip()
 	local tip = calltips[currentCalltip]
-	buffer:call_tip_show(buffer.current_pos,
+	buffer:call_tip_show(buffer:word_start_position(buffer.current_pos),
 		string.format("overload %d of %d\1\2\n%s", currentCalltip, #calltips,
 			calltips[currentCalltip]))
 end
@@ -109,11 +113,13 @@ function M.autocomplete(ch)
 	local character = string.char(ch)
 	if character == "." or character == "(" then
 		local fileName = os.tmpname()
-		local tmpFile = io.open(fileName, "w")
-		tmpFile:write(buffer:get_text())
-		local command = M.PATH_TO_DCD_CLIENT .. " -c" .. buffer.current_pos .. " " .. fileName
-		local p = io.popen(command, "r")
-		local r = p:read("*a")
+		local command = M.PATH_TO_DCD_CLIENT .. " -c" .. buffer.current_pos .. " > " .. fileName
+		local p = io.popen(command, "w")
+		p:write(buffer:get_text())
+		p:flush()
+		p:close()
+		local tmpFile = io.open(fileName, "r")
+		local r = tmpFile:read("*a")
 		--print(r)
 		if r ~= "\n" then
 			if r:match("^identifiers.*") then

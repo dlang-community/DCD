@@ -48,9 +48,17 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
 	auto tokens = request.sourceCode.byToken(config);
 	auto tokenArray = tokens.array();
 	auto sortedTokens = assumeSorted(tokenArray);
+	string partial;
 
 	auto beforeTokens = sortedTokens.lowerBound(cast(size_t) request.cursorPosition);
 
+	if (beforeTokens.length >= 1 && beforeTokens[$ - 1] == TokenType.identifier)
+	{
+		//writeln("partial completion");
+		partial = beforeTokens[$ - 1].value;
+		beforeTokens = beforeTokens[0 .. $ - 1];
+		goto dotCompletion;
+	}
 	if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == TokenType.lParen)
 	{
 		immutable(string)[] completions;
@@ -92,6 +100,7 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
 	}
 	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] ==  TokenType.dot)
 	{
+dotCompletion:
 		switch (beforeTokens[$ - 2].type)
 		{
 		case TokenType.stringLiteral:
@@ -132,9 +141,10 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
 		case TokenType.rBracket:
 		case TokenType.this_:
 			auto visitor = processModule(tokenArray);
-			auto expression = getExpression(beforeTokens[0 .. $ - 1]);
+			auto expression = getExpression(partial == null ? beforeTokens[0 .. $ - 1]
+				: beforeTokens);
 			response.setCompletions(visitor, expression, request.cursorPosition,
-				CompletionType.identifiers);
+				CompletionType.identifiers, partial);
 			break;
 		case TokenType.lParen:
 		case TokenType.lBrace:
@@ -152,10 +162,10 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
 
 void setCompletions(T)(ref AutocompleteResponse response,
 	AutocompleteVisitor visitor, T tokens, size_t cursorPosition,
-	CompletionType completionType)
+	CompletionType completionType, string partial = null)
 {
 	// Autocomplete module imports instead of symbols
-	if (tokens[0].type == TokenType.import_)
+	if (tokens.length > 0 && tokens[0].type == TokenType.import_)
 	{
 		if (completionType == CompletionType.identifiers)
 			setImportCompletions(tokens, response);
@@ -163,6 +173,26 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	}
 
 	visitor.scope_.resolveSymbolTypes();
+
+	// Handle the simple case where we get all symbols in scope and filter it
+	// based on the currently entered text.
+	if (partial !is null && tokens.length == 0)
+	{
+//		writeln("Showing all symbols in current scope that start with ", partial);
+		foreach (s; visitor.scope_.getSymbolsInCurrentScope(cursorPosition)
+			.filter!(a => a.name.startsWith(partial)))
+		{
+			response.completionKinds ~= s.kind;
+			response.completions ~= s.name;
+		}
+		response.completionType = CompletionType.identifiers;
+		return;
+	}
+
+	if (tokens.length == 0)
+		return;
+
+	// Find the symbol corresponding to the beginning of the chain
 	ACSymbol[] symbols = visitor.scope_.findSymbolsInCurrentScope(cursorPosition, tokens[0].value);
 	if (symbols.length == 0)
 	{
@@ -179,7 +209,6 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		symbols = symbols[0].resolvedType is null ? [] : [symbols[0].resolvedType];
 		if (symbols.length == 0)
 		{
-			//writeln("Could not figure it out");
 			return;
 		}
 	}
@@ -233,11 +262,11 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				break loop;
 			break;
 		case identifier:
-			writeln("looking for ", tokens[i].value, " in ", symbols[0].name);
+//			writeln("looking for ", tokens[i].value, " in ", symbols[0].name);
 			symbols = symbols[0].getPartsByName(tokens[i].value);
 			if (symbols.length == 0)
 			{
-				writeln("Couldn't find it.");
+//				writeln("Couldn't find it.");
 				break loop;
 			}
 			if (symbols[0].kind == CompletionKind.variableName
@@ -317,7 +346,9 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	}
 	if (completionType == CompletionType.identifiers)
 	{
-		foreach (s; symbols[0].parts.filter!(a => a.name !is null && a.name[0] != '*'))
+		foreach (s; symbols[0].parts.filter!(a => a.name !is null
+			&& a.name[0] != '*'
+			&& (partial is null ? true : a.name.startsWith(partial))))
 		{
 //			writeln("Adding ", s.name, " to the completion list");
 			response.completionKinds ~= s.kind;

@@ -159,6 +159,24 @@ public:
 		this.end = end;
 	}
 
+	ACSymbol[] getSymbolsInCurrentScope(size_t cursorPosition)
+	{
+		Scope s = findCurrentScope(cursorPosition);
+		if (s is null)
+			return [];
+		else
+			return s.getSymbols();
+	}
+
+	ACSymbol[] getSymbols()
+	{
+		ACSymbol[] rVal;
+		rVal ~= symbols;
+		if (parent !is null)
+			rVal ~= parent.getSymbols();
+		return rVal;
+	}
+
 	/**
 	 * Finds the scope containing the cursor position, then searches for a
 	 * symbol with the given name.
@@ -169,7 +187,7 @@ public:
 		if (s is null)
 		{
 			writeln("Could not find scope");
-			return null;
+			return [];
 		}
 		else
 			return s.findSymbolsInScope(name);
