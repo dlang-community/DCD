@@ -32,28 +32,28 @@ import messages;
 
 int main(string[] args)
 {
-    size_t cursorPos = size_t.max;
-    string[] importPaths;
-    ushort port = 9166;
-    bool help;
+	size_t cursorPos = size_t.max;
+	string[] importPaths;
+	ushort port = 9166;
+	bool help;
 	bool shutdown;
 	bool clearCache;
 
-    try
-    {
-        getopt(args, "cursorPos|c", &cursorPos, "I", &importPaths,
+	try
+	{
+		getopt(args, "cursorPos|c", &cursorPos, "I", &importPaths,
 			"port|p", &port, "help|h", &help, "shutdown", &shutdown,
 			"clearCache", &clearCache);
-    }
-    catch (Exception e)
-    {
-        stderr.writeln(e.msg);
-    }
+	}
+	catch (Exception e)
+	{
+		stderr.writeln(e.msg);
+	}
 
-    if (help)
-    {
-        printHelp(args[0]);
-        return 0;
+	if (help)
+	{
+		printHelp(args[0]);
+		return 0;
 	}
 	else if (shutdown || clearCache)
 	{
@@ -73,7 +73,7 @@ int main(string[] args)
 		messageBuffer[0 .. 8] = (cast(ubyte*) &messageLength)[0 .. 8];
 		messageBuffer[8 .. $] = message[];
 		return socket.send(messageBuffer) == messageBuffer.length ? 0 : 1;
-    }
+	}
 	else if (importPaths.length > 0)
 	{
 		AutocompleteRequest request;
@@ -90,25 +90,25 @@ int main(string[] args)
 		messageBuffer[0 .. 8] = (cast(ubyte*) &messageLength)[0 .. 8];
 		messageBuffer[8 .. $] = message[];
 		return socket.send(messageBuffer) == messageBuffer.length ? 0 : 1;
-    }
-    else if (cursorPos == size_t.max)
-    {
+	}
+	else if (cursorPos == size_t.max)
+	{
 		// cursor position is a required argument
-        printHelp(args[0]);
-        return 1;
-    }
+		printHelp(args[0]);
+		return 1;
+	}
 
-    // Read in the source
-    bool usingStdin = args.length <= 1;
-    string fileName = usingStdin ? "stdin" : args[1];
-    if (!usingStdin && !exists(args[1]))
-    {
-        stderr.writefln("%s does not exist");
-        return 1;
-    }
-    File f = usingStdin ? stdin : File(args[1]);
-    ubyte[] sourceCode;
-    if (usingStdin)
+	// Read in the source
+	bool usingStdin = args.length <= 1;
+	string fileName = usingStdin ? "stdin" : args[1];
+	if (!usingStdin && !exists(args[1]))
+	{
+		stderr.writefln("%s does not exist");
+		return 1;
+	}
+	File f = usingStdin ? stdin : File(args[1]);
+	ubyte[] sourceCode;
+	if (usingStdin)
 	{
 		ubyte[4096] buf;
 		while (true)
@@ -125,36 +125,36 @@ int main(string[] args)
 		f.rawRead(sourceCode);
 	}
 
-    // Create message
-    AutocompleteRequest request;
-    request.fileName = fileName;
-    request.importPaths = importPaths;
-    request.sourceCode = sourceCode;
-    request.cursorPosition = cursorPos;
-    ubyte[] message = msgpack.pack(request);
+	// Create message
+	AutocompleteRequest request;
+	request.fileName = fileName;
+	request.importPaths = importPaths;
+	request.sourceCode = sourceCode;
+	request.cursorPosition = cursorPos;
+	ubyte[] message = msgpack.pack(request);
 
-    // Send message to server
-    TcpSocket socket = new TcpSocket(AddressFamily.INET);
+	// Send message to server
+	TcpSocket socket = new TcpSocket(AddressFamily.INET);
 	socket.setOption(SocketOptionLevel.SOCKET, SocketOption.RCVTIMEO, dur!"seconds"(5));
-    scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
+	scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
 	socket.connect(new InternetAddress("127.0.0.1", port));
-    socket.blocking = true;
-    ubyte[] messageBuffer = new ubyte[message.length + message.length.sizeof];
-    auto messageLength = message.length;
-    messageBuffer[0 .. 8] = (cast(ubyte*) &messageLength)[0 .. 8];
-    messageBuffer[8 .. $] = message[];
-    auto bytesSent = socket.send(messageBuffer);
+	socket.blocking = true;
+	ubyte[] messageBuffer = new ubyte[message.length + message.length.sizeof];
+	auto messageLength = message.length;
+	messageBuffer[0 .. 8] = (cast(ubyte*) &messageLength)[0 .. 8];
+	messageBuffer[8 .. $] = message[];
+	auto bytesSent = socket.send(messageBuffer);
 
-    // Get response and write it out
-    ubyte[1024 * 16] buffer;
-    auto bytesReceived = socket.receive(buffer);
-    if (bytesReceived == Socket.ERROR)
-    {
-        return 1;
-    }
+	// Get response and write it out
+	ubyte[1024 * 16] buffer;
+	auto bytesReceived = socket.receive(buffer);
+	if (bytesReceived == Socket.ERROR)
+	{
+		return 1;
+	}
 
-    AutocompleteResponse response;
-    msgpack.unpack(buffer[0..bytesReceived], response);
+	AutocompleteResponse response;
+	msgpack.unpack(buffer[0..bytesReceived], response);
 
 	if (response.completions.length > 0)
 	{
@@ -174,7 +174,7 @@ int main(string[] args)
 			}
 		}
 	}
-    return 0;
+	return 0;
 }
 
 void printHelp(string programName)

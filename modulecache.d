@@ -42,7 +42,7 @@ struct CacheEntry
  */
 struct ModuleCache
 {
-    @disable this();
+	@disable this();
 
 	/**
 	 * Clears the completion cache
@@ -150,18 +150,18 @@ private:
 	 * Returns:
 	 *     true  if the module needs to be reparsed, false otherwise
 	 */
-    static bool needsReparsing(string mod)
-    {
-        if (!exists(mod) || mod !in cache)
-            return true;
-        SysTime access;
-        SysTime modification;
-        getTimes(mod, access, modification);
-        return cache[mod].modificationTime != modification;
-    }
+	static bool needsReparsing(string mod)
+	{
+		if (!exists(mod) || mod !in cache)
+			return true;
+		SysTime access;
+		SysTime modification;
+		getTimes(mod, access, modification);
+		return cache[mod].modificationTime != modification;
+	}
 
 	// Mapping of file paths to their cached symbols.
-    static CacheEntry[string] cache;
+	static CacheEntry[string] cache;
 
 	// Listing of paths to check for imports
 	static string[] importPaths;
