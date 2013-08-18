@@ -121,7 +121,7 @@ int main(string[] args)
 	}
 	else
 	{
-		sourceCode = uninitializedArray!(ubyte[])(f.size);
+		sourceCode = uninitializedArray!(ubyte[])(cast(size_t) f.size);
 		f.rawRead(sourceCode);
 	}
 
