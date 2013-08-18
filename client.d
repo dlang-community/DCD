@@ -70,8 +70,8 @@ int main(string[] args)
 		ubyte[] message = msgpack.pack(request);
 		ubyte[] messageBuffer = new ubyte[message.length + message.length.sizeof];
 		auto messageLength = message.length;
-		messageBuffer[0 .. 8] = (cast(ubyte*) &messageLength)[0 .. 8];
-		messageBuffer[8 .. $] = message[];
+		messageBuffer[0 .. size_t.sizeof] = (cast(ubyte*) &messageLength)[0 .. size_t.sizeof];
+		messageBuffer[size_t.sizeof .. $] = message[];
 		return socket.send(messageBuffer) == messageBuffer.length ? 0 : 1;
 	}
 	else if (importPaths.length > 0)
@@ -87,8 +87,8 @@ int main(string[] args)
 		ubyte[] message = msgpack.pack(request);
 		ubyte[] messageBuffer = new ubyte[message.length + message.length.sizeof];
 		auto messageLength = message.length;
-		messageBuffer[0 .. 8] = (cast(ubyte*) &messageLength)[0 .. 8];
-		messageBuffer[8 .. $] = message[];
+		messageBuffer[0 .. size_t.sizeof] = (cast(ubyte*) &messageLength)[0 .. size_t.sizeof];
+		messageBuffer[size_t.sizeof .. $] = message[];
 		return socket.send(messageBuffer) == messageBuffer.length ? 0 : 1;
 	}
 	else if (cursorPos == size_t.max)
@@ -141,8 +141,8 @@ int main(string[] args)
 	socket.blocking = true;
 	ubyte[] messageBuffer = new ubyte[message.length + message.length.sizeof];
 	auto messageLength = message.length;
-	messageBuffer[0 .. 8] = (cast(ubyte*) &messageLength)[0 .. 8];
-	messageBuffer[8 .. $] = message[];
+	messageBuffer[0 .. size_t.sizeof] = (cast(ubyte*) &messageLength)[0 .. size_t.sizeof];
+	messageBuffer[size_t.sizeof .. $] = message[];
 	auto bytesSent = socket.send(messageBuffer);
 
 	// Get response and write it out
