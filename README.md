@@ -110,7 +110,7 @@ In future versions the client may start the server if it is not running, but for
 now it must be started manually.
 
 ## Configuration Files
-The server will attempt to read the file ```~/.config/dcd``` on startup.
+The server will attempt to read the file ```~/.config/dcd``` on Posix systems, or ```dcd.conf``` on Windows in the current working directory on startup.
 If it exists, each line of the file is interpreted as a path that should be
 searched when looking for module imports.
 

@@ -32,8 +32,14 @@ import messages;
 import autocomplete;
 import modulecache;
 
-// TODO: Portability would be nice...
-enum CONFIG_FILE_PATH = "~/.config/dcd";
+version(Posix)
+{
+    enum CONFIG_FILE_PATH = "~/.config/dcd";
+}
+else version(Windows)
+{
+    enum CONFIG_FILE_PATH = "dcd.conf";
+}
 
 int main(string[] args)
 {
@@ -135,19 +141,22 @@ int main(string[] args)
 	return 0;
 }
 
-version(linux)
-{
 string[] loadConfiguredImportDirs()
 {
-	string fullPath = expandTilde(CONFIG_FILE_PATH);
-	if (!exists(fullPath))
-		return [];
-	File f = File(fullPath);
-	return f.byLine(KeepTerminator.no).map!(a => a.idup).filter!(a => a.exists()).array();
+    version(Windows)
+    {
+        string fullPath = buildPath(getcwd(), CONFIG_FILE_PATH);
+    }
+    else version(Posix)
+    {
+        string fullPath = expandTilde(CONFIG_FILE_PATH);
+    }
+
+    if (!exists(fullPath))
+        return [];
+    File f = File(fullPath);
+    return f.byLine(KeepTerminator.no).map!(a => a.idup).filter!(a => a.exists()).array();
 }
-}
-else
-	static assert (false, "Only Linux is supported at the moment");
 
 void printHelp(string programName)
 {
