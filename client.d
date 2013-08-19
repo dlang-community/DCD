@@ -9,11 +9,11 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this program.	 If not, see <http://www.gnu.org/licenses/>.
  */
 
 module client;
@@ -182,33 +182,33 @@ void printHelp(string programName)
 {
 	writefln(
 `
-    Usage: %1$s [Options] [FILENAME]
+	Usage: %1$s [Options] [FILENAME]
 
-    A file name is optional. If it is given, autocomplete information will be
-    given for the file specified. If it is missing, input will be read from
-    stdin instead.
+	A file name is optional. If it is given, autocomplete information will be
+	given for the file specified. If it is missing, input will be read from
+	stdin instead.
 
-    Source code is assumed to be UTF-8 encoded and must not exceed 4 megabytes.
+	Source code is assumed to be UTF-8 encoded and must not exceed 4 megabytes.
 
 Options:
-    --help | -h
-        Displays this help message
+	--help | -h
+		Displays this help message
 
-    --cursorPos | -c position
-        Provides auto-completion at the given cursor position. The cursor
-        position is measured in bytes from the beginning of the source code.
+	--cursorPos | -c position
+		Provides auto-completion at the given cursor position. The cursor
+		position is measured in bytes from the beginning of the source code.
 
-    --clearCache
-        Instructs the server to clear out its autocompletion cache.
+	--clearCache
+		Instructs the server to clear out its autocompletion cache.
 
-    --shutdown
-        Instructs the server to shut down.
+	--shutdown
+		Instructs the server to shut down.
 
-    -IPATH
-        Instructs the server to add PATH to its list of paths searced for
-        imported modules.
+	-IPATH
+		Instructs the server to add PATH to its list of paths searced for
+		imported modules.
 
-    --port PORTNUMBER | -pPORTNUMBER
-        Uses PORTNUMBER to communicate with the server instead of the default
-        port 9166.`, programName);
+	--port PORTNUMBER | -pPORTNUMBER
+		Uses PORTNUMBER to communicate with the server instead of the default
+		port 9166.`, programName);
 }

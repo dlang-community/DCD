@@ -9,11 +9,11 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this program.	 If not, see <http://www.gnu.org/licenses/>.
  */
 
 module actypes;
@@ -53,7 +53,7 @@ public:
 
 	/**
 	 * Params:
-	 *     name = the symbol's name
+	 *	   name = the symbol's name
 	 */
 	this(string name)
 	{
@@ -62,8 +62,8 @@ public:
 
 	/**
 	 * Params:
-	 *     name = the symbol's name
-	 *     kind = the symbol's completion kind
+	 *	   name = the symbol's name
+	 *	   kind = the symbol's completion kind
 	 */
 	this(string name, CompletionKind kind)
 	{
@@ -73,9 +73,9 @@ public:
 
 	/**
 	 * Params:
-	 *     name = the symbol's name
-	 *     kind = the symbol's completion kind
-	 *     resolvedType = the resolved type of the symbol
+	 *	   name = the symbol's name
+	 *	   kind = the symbol's completion kind
+	 *	   resolvedType = the resolved type of the symbol
 	 */
 	this(string name, CompletionKind kind, ACSymbol resolvedType)
 	{
@@ -150,8 +150,8 @@ public:
 
 	/**
 	 * Params:
-	 *     start = the index of the opening brace
-	 *     end = the index of the closing brace
+	 *	   start = the index of the opening brace
+	 *	   end = the index of the closing brace
 	 */
 	this(size_t start, size_t end)
 	{
@@ -220,7 +220,7 @@ public:
 		ACSymbol[] currentMatches = symbols.filter!(a => a.name == name)().array();
 		if (currentMatches.length == 0 && parent !is null)
 			return parent.findSymbolsInScope(name);
-	    return currentMatches;
+		return currentMatches;
 	}
 
 	/**
