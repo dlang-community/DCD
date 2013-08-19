@@ -4,3 +4,6 @@
 [submodule "dscanner"]
 	path = dscanner
 	url = https://github.com/Hackerpilot/Dscanner.git
+[submodule "editors/ktexteditor"]
+	path = editors/ktexteditor
+	url = git://github.com/Dav1dde/lumen.git
