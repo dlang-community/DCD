@@ -88,7 +88,7 @@ struct ModuleCache
 		try
 		{
 			File f = File(location);
-			ubyte[] source = uninitializedArray!(ubyte[])(f.size);
+			ubyte[] source = uninitializedArray!(ubyte[])(cast(size_t)f.size);
 			f.rawRead(source);
 
 			LexerConfig config;
