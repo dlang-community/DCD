@@ -44,7 +44,7 @@ endfunction
 "Get the DCD server command path
 function! dcomplete#DCDserver()
 	if exists('g:dcd_path')
-		return shellescape(g:dcd_path).(has('win32') ? '\' : '/').'dcd-server'
+		return shellescape(g:dcd_path.(has('win32') ? '\' : '/').'dcd-server')
 	else
 		return 'dcd-server'
 	end
@@ -53,10 +53,29 @@ endfunction
 "Get the DCD client command path
 function! dcomplete#DCDclient()
 	if exists('g:dcd_path')
-		return shellescape(g:dcd_path).(has('win32') ? '\' : '/').'dcd-client'
+		return shellescape(g:dcd_path.(has('win32') ? '\' : '/').'dcd-client')
 	else
 		return 'dcd-client'
 	end
+endfunction
+
+"Use Vim's globbing on a path pattern or a list of patterns and translate them
+"to DCD's syntax.
+function! dcomplete#globImportPath(pattern)
+	if(type(a:pattern)==type([]))
+		return join(map(a:pattern,'dcomplete#globImportPath(v:val)'),' ')
+	else
+		return join(map(glob(a:pattern,0,1),'"-I".shellescape(v:val)'),' ')
+	endif
+endfunction
+
+"Get the default import path when starting a server and translate them to
+"DCD's syntax.
+function! dcomplete#initImportPath()
+	if exists('g:dcd_importPath')
+		return dcomplete#globImportPath(g:dcd_importPath)
+	endif
+	return ''
 endfunction
 
 "Run DCD to get autocompletion results
