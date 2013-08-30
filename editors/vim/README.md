@@ -34,5 +34,7 @@ Use the `DCD` command to send arbitary commands to the server via the client.
 The syntax is the same as with `dcd-client`, so you can use it without
 arguments to print the help message.
 
+Use `DCDclearCache` to clear the DCD server cache.
+
 When the server is running, use `CTRL`+`x` `CTRL`+`o` in a D buffer to use DCD
 completion.
