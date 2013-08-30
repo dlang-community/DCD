@@ -73,9 +73,10 @@ endfunction
 "DCD's syntax.
 function! dcomplete#initImportPath()
 	if exists('g:dcd_importPath')
-		return dcomplete#globImportPath(g:dcd_importPath)
+		return dcomplete#globImportPath(copy(g:dcd_importPath))
+	else
+		return ''
 	endif
-	return ''
 endfunction
 
 "Run DCD to get autocompletion results

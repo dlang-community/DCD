@@ -24,13 +24,15 @@ Import paths are globbed with Vim's globbing function.
 Usage
 ===================
 When the filetype is D, use the `DCDstartServer` command to start the server
-and the `DCDstopServer` command to stop the server.
+and the `DCDstopServer` command to stop the server. `DCDstartServer` can
+receive import path(s) as arguments.
 
-Use the `DCDaddPath` command to add an import path to the server. Make sure you
+Use the `DCDaddPath` command to add a import path(s) to the server. Make sure you
 escape spaces! Import paths are globbed with Vim's globbing function.
 
 Use the `DCD` command to send arbitary commands to the server via the client.
 The syntax is the same as with `dcd-client`, so you can use it without
 arguments to print the help message.
 
-When the server is running, use `CTRL`+`x` `CTRL`+`o` to use DCD completion.
+When the server is running, use `CTRL`+`x` `CTRL`+`o` in a D buffer to use DCD
+completion.

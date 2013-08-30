@@ -1,9 +1,11 @@
 setlocal omnifunc=dcomplete#Complete
 
 if has('win32')
-	command! -buffer DCDstartServer execute '!start '.dcomplete#DCDserver().' '.dcomplete#initImportPath()
+	command! -buffer -nargs=* -complete=dir DCDstartServer execute '!start '.dcomplete#DCDserver().' '.dcomplete#initImportPath().
+				\ ' '.dcomplete#globImportPath([<f-args>])
 else
-	command! -buffer DCDstartServer execute '!'.dcomplete#DCDserver().' '.dcomplete#initImportPath().' > /dev/null &'
+	command! -buffer -nargs=* -complete=dir DCDstartServer execute '!'.dcomplete#DCDserver().' '.dcomplete#initImportPath().
+				\ ' '.dcomplete#globImportPath([<f-args>]).' > /dev/null &'
 endif
 command! -buffer -nargs=? DCD execute '!'.dcomplete#DCDclient().' '.<q-args>
 command! -buffer DCDstopServer DCD --shutdown
