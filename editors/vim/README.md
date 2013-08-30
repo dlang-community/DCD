@@ -22,7 +22,7 @@ On windows you need to look for the path in dmd's installation.
 Import paths are globbed with Vim's globbing function.
 
 Usage
-===================
+=====
 When the filetype is D, use the `DCDstartServer` command to start the server
 and the `DCDstopServer` command to stop the server. `DCDstartServer` can
 receive import path(s) as arguments.
@@ -38,3 +38,9 @@ Use `DCDclearCache` to clear the DCD server cache.
 
 When the server is running, use `CTRL`+`x` `CTRL`+`o` in a D buffer to use DCD
 completion.
+
+Conflicts
+=========
+This plugin conflicts with the DScanner plugin, as both use the `dcomplete`
+autoload namespace and the `dcomplete#Complete` function - as per Vim's
+conventions.
