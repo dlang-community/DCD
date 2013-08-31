@@ -9,11 +9,11 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this program.	 If not, see <http://www.gnu.org/licenses/>.
  */
 
 module messages;
@@ -23,41 +23,41 @@ module messages;
  */
 enum CompletionKind : char
 {
-    /// class names
-    className = 'c',
+	/// class names
+	className = 'c',
 
-    /// interface names
-    interfaceName = 'i',
+	/// interface names
+	interfaceName = 'i',
 
-    /// structure names
-    structName = 's',
+	/// structure names
+	structName = 's',
 
 	/// union name
 	unionName = 'u',
 
-    /// variable name
-    variableName = 'v',
+	/// variable name
+	variableName = 'v',
 
-    /// member variable
-    memberVariableName = 'm',
+	/// member variable
+	memberVariableName = 'm',
 
-    /// keyword, built-in version, scope statement
-    keyword = 'k',
+	/// keyword, built-in version, scope statement
+	keyword = 'k',
 
-    /// function or method
-    functionName = 'f',
+	/// function or method
+	functionName = 'f',
 
-    /// enum name
-    enumName = 'g',
+	/// enum name
+	enumName = 'g',
 
 	/// enum member
-    enumMember = 'e',
+	enumMember = 'e',
 
-    /// package name
-    packageName = 'P',
+	/// package name
+	packageName = 'P',
 
-    /// module name
-    moduleName = 'M',
+	/// module name
+	moduleName = 'M',
 
 	/// array
 	array = 'a',
@@ -74,16 +74,16 @@ enum CompletionKind : char
  */
 enum CompletionType : string
 {
-    /**
-     * The completion list contains a listing of identifier/kind pairs.
-     */
-    identifiers = "identifiers",
+	/**
+	 * The completion list contains a listing of identifier/kind pairs.
+	 */
+	identifiers = "identifiers",
 
-    /**
-     * The auto-completion list consists of a listing of functions and their
-     * parameters.
-     */
-    calltips = "calltips"
+	/**
+	 * The auto-completion list consists of a listing of functions and their
+	 * parameters.
+	 */
+	calltips = "calltips"
 }
 
 enum RequestKind
@@ -99,30 +99,30 @@ enum RequestKind
  */
 struct AutocompleteRequest
 {
-    /**
-     * File name used for error reporting
-     */
-    string fileName;
+	/**
+	 * File name used for error reporting
+	 */
+	string fileName;
 
 	/**
 	 * Command coming from the client
 	 */
 	RequestKind kind;
 
-    /**
-     * Paths to be searched for import files
-     */
-    string[] importPaths;
+	/**
+	 * Paths to be searched for import files
+	 */
+	string[] importPaths;
 
-    /**
-     * The source code to auto complete
-     */
-    ubyte[] sourceCode;
+	/**
+	 * The source code to auto complete
+	 */
+	ubyte[] sourceCode;
 
-    /**
-     * The cursor position
-     */
-    size_t cursorPosition;
+	/**
+	 * The cursor position
+	 */
+	size_t cursorPosition;
 }
 
 /**
@@ -130,19 +130,19 @@ struct AutocompleteRequest
  */
 struct AutocompleteResponse
 {
-    /**
-     * The autocompletion type. (Parameters or identifier)
-     */
-    string completionType;
+	/**
+	 * The autocompletion type. (Parameters or identifier)
+	 */
+	string completionType;
 
-    /**
-     * The completions
-     */
-    string[] completions;
+	/**
+	 * The completions
+	 */
+	string[] completions;
 
-    /**
-     * The kinds of the items in the completions array. Will be empty if the
-     * completion type is a function argument list.
-     */
-    char[] completionKinds;
+	/**
+	 * The kinds of the items in the completions array. Will be empty if the
+	 * completion type is a function argument list.
+	 */
+	char[] completionKinds;
 }

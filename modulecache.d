@@ -9,11 +9,11 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this program.	 If not, see <http://www.gnu.org/licenses/>.
  */
 
 module modulecache;
@@ -71,9 +71,9 @@ struct ModuleCache
 
 	/**
 	 * Params:
-	 *     moduleName = the name of the module in "a/b.d" form
+	 *	   moduleName = the name of the module in "a/b.d" form
 	 * Returns:
-	 *     The symbols defined in the given module
+	 *	   The symbols defined in the given module
 	 */
 	static ACSymbol[] getSymbolsInModule(string moduleName)
 	{
@@ -115,10 +115,10 @@ struct ModuleCache
 
 	/**
 	 * Params:
-	 *     moduleName the name of the module being imported, in "a/b/c.d" style
+	 *	   moduleName the name of the module being imported, in "a/b/c.d" style
 	 * Returns:
-	 *     The absolute path to the file that contains the module, or null if
-	 *     not found.
+	 *	   The absolute path to the file that contains the module, or null if
+	 *	   not found.
 	 */
 	static string resolveImportLoctation(string moduleName)
 	{
@@ -148,9 +148,9 @@ private:
 
 	/**
 	 * Params:
-	 *     mod = the path to the module
+	 *	   mod = the path to the module
 	 * Returns:
-	 *     true  if the module needs to be reparsed, false otherwise
+	 *	   true	 if the module needs to be reparsed, false otherwise
 	 */
 	static bool needsReparsing(string mod)
 	{
