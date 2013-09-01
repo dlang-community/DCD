@@ -27,11 +27,48 @@ import std.algorithm;
 import std.path;
 import std.file;
 import std.conv;
-
+//version(Windows)
+//{
+//	import core.runtime;
+//	import core.sys.windows.windows;
+//	import std.string;
+//}
 import msgpack;
 import messages;
 
-int main(string[] args)
+//version(Windows)
+//{
+//	extern(Windows) int WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
+//	{
+//		int result;
+//		void exceptionHandler(Throwable e) {
+//			throw e;
+//		}
+//		try
+//		{
+//			Runtime.
+//			Runtime.initialize(&exceptionHandler);
+//			result = _main(["dcd-client"] ~ to!string(lpCmdLine).split(" ").array());
+//			Runtime.terminate(&exceptionHandler);
+//		}
+//		catch (Throwable e) // catch any uncaught exceptions
+//		{
+//			MessageBoxA(null, e.toString().toStringz(), "Error",
+//						MB_OK | MB_ICONEXCLAMATION);
+//			result = 0;     // failed
+//		}
+//		return result;
+//	}
+//}
+//else
+//{
+//	int main(string[] args)
+//	{
+//		return _main(args);
+//	}
+//}
+
+int /*_*/main(string[] args)
 {
 	size_t cursorPos = size_t.max;
 	string[] importPaths;
@@ -104,7 +141,7 @@ int main(string[] args)
 	string fileName = usingStdin ? "stdin" : args[1];
 	if (!usingStdin && !exists(args[1]))
 	{
-		stderr.writefln("%s does not exist");
+		stderr.writefln("%s does not exist", args[1]);
 		return 1;
 	}
 	File f = usingStdin ? stdin : File(args[1]);

@@ -34,11 +34,11 @@ import modulecache;
 
 version(Posix)
 {
-    enum CONFIG_FILE_PATH = "~/.config/dcd";
+	enum CONFIG_FILE_PATH = "~/.config/dcd";
 }
 else version(Windows)
 {
-    enum CONFIG_FILE_PATH = "dcd.conf";
+	enum CONFIG_FILE_PATH = "dcd.conf";
 }
 
 int main(string[] args)
@@ -143,19 +143,20 @@ int main(string[] args)
 
 string[] loadConfiguredImportDirs()
 {
-    version(Windows)
-    {
-        string fullPath = buildPath(getcwd(), CONFIG_FILE_PATH);
-    }
-    else version(Posix)
-    {
-        string fullPath = expandTilde(CONFIG_FILE_PATH);
-    }
+	version(Windows)
+	{
+		string fullPath = buildPath(getcwd(), CONFIG_FILE_PATH);
+	}
+	else version(Posix)
+	{
+		string fullPath = expandTilde(CONFIG_FILE_PATH);
+	}
 
-    if (!exists(fullPath))
-        return [];
-    File f = File(fullPath);
-    return f.byLine(KeepTerminator.no).map!(a => a.idup).filter!(a => a.exists()).array();
+	if (!exists(fullPath))
+		return [];
+
+	File f = File(fullPath, "rt");
+	return f.byLine(KeepTerminator.no).map!(a => a.idup).filter!(a => a.exists()).array();
 }
 
 void printHelp(string programName)
