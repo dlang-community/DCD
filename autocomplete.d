@@ -594,7 +594,7 @@ static this()
 	{
 		s.parts ~= alignof_;
 		s.parts ~= new ACSymbol("dig", CompletionKind.keyword, s);
-		s.parts ~= new ACSymbol("episilon", CompletionKind.keyword, s);
+		s.parts ~= new ACSymbol("epsilon", CompletionKind.keyword, s);
 		s.parts ~= new ACSymbol("infinity", CompletionKind.keyword, s);
 		s.parts ~= new ACSymbol("init", CompletionKind.keyword, s);
 		s.parts ~= mangleof_;
