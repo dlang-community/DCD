@@ -31,13 +31,13 @@ import std.uni;
 import stdx.d.ast;
 import stdx.d.lexer;
 import stdx.d.parser;
+import std.string;
 
 import messages;
 import acvisitor;
 import actypes;
 import constants;
 import modulecache;
-
 
 AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
 {
@@ -180,7 +180,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	{
 //		writeln("Showing all symbols in current scope that start with ", partial);
 		foreach (s; visitor.scope_.getSymbolsInCurrentScope(cursorPosition)
-			.filter!(a => a.name.startsWith(partial)))
+			.filter!(a => a.name.toUpper().startsWith(partial.toUpper())))
 		{
 			response.completionKinds ~= s.kind;
 			response.completions ~= s.name;
@@ -348,9 +348,10 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	{
 		foreach (s; symbols[0].parts.filter!(a => a.name !is null
 			&& a.name[0] != '*'
-			&& (partial is null ? true : a.name.startsWith(partial))))
+			&& (partial is null ? true : a.name.toUpper().startsWith(partial.toUpper()))
+			&& !response.completions.canFind(a.name)))
 		{
-//			writeln("Adding ", s.name, " to the completion list");
+			//writeln("Adding ", s.name, " to the completion list");
 			response.completionKinds ~= s.kind;
 			response.completions ~= s.name;
 		}
@@ -505,24 +506,14 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
 			{
 				response.completions ~= name.baseName(".d").baseName(".di");
 				response.completionKinds ~= CompletionKind.moduleName;
-		}
+			}
 			else if (isDir(name))
 			{
 				response.completions ~= name.baseName();
 				response.completionKinds ~= CompletionKind.packageName;
-	}
+			}
 		}
 	}
-}
-
-string createCamelCaseRegex(string input)
-{
-	return to!string(input.map!(a => isLower(a) ? [a] : ".*"d ~ a).join());
-}
-
-unittest
-{
-	assert("ClNa".createCamelCaseRegex() == "Cl.*Na.*");
 }
 
 /**

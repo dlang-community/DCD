@@ -25,7 +25,7 @@ local function showCompletionList(r)
 	buffer.auto_c_choose_single = false;
 	buffer.auto_c_max_width = 0
 	local completions = {}
-	for symbol, kind in r:gmatch("([@%w_%p]+)\t(%a)\n") do
+	for symbol, kind in r:gmatch("([^%s]+)\t(%a)\n") do
 		completion = symbol
 		if kind == "k" then
 			completion = completion .. "?5"
@@ -109,27 +109,23 @@ end)
 
 function M.autocomplete(ch)
 	if buffer:get_lexer() ~= "dmd" then return end
-	if ch > 255 then return end
-	local character = string.char(ch)
-	if character == "." or character == "(" then
-		local fileName = os.tmpname()
-		local command = M.PATH_TO_DCD_CLIENT .. " -c" .. buffer.current_pos .. " > " .. fileName
-		local p = io.popen(command, "w")
-		p:write(buffer:get_text())
-		p:flush()
-		p:close()
-		local tmpFile = io.open(fileName, "r")
-		local r = tmpFile:read("*a")
-		--print(r)
-		if r ~= "\n" then
-			if r:match("^identifiers.*") then
-				showCompletionList(r)
-			else
-				showCalltips(r)
-			end
+	local fileName = os.tmpname()
+	local command = M.PATH_TO_DCD_CLIENT .. " -c" .. buffer.current_pos .. " > " .. fileName
+	local p = io.popen(command, "w")
+	p:write(buffer:get_text())
+	p:flush()
+	p:close()
+	local tmpFile = io.open(fileName, "r")
+	local r = tmpFile:read("*a")
+	print(r)
+	if r ~= "\n" then
+		if r:match("^identifiers.*") then
+			showCompletionList(r)
+		else
+			showCalltips(r)
 		end
-		os.remove(fileName)
 	end
+	os.remove(fileName)
 end
 
 M.ALIAS =[[

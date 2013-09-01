@@ -90,6 +90,9 @@ public:
 	 */
 	ACSymbol[] parts;
 
+	/**
+	 * Listing of superclasses
+	 */
 	string[] superClasses;
 
 	/**
@@ -159,6 +162,10 @@ public:
 		this.end = end;
 	}
 
+	/**
+	 * Gets all symbols in the scope that contains the cursor as well as its
+	 * parent scopes.
+	 */
 	ACSymbol[] getSymbolsInCurrentScope(size_t cursorPosition)
 	{
 		Scope s = findCurrentScope(cursorPosition);
@@ -168,6 +175,9 @@ public:
 			return s.getSymbols();
 	}
 
+	/**
+	 * Gets all symbols in this scope and its parent scopes.
+	 */
 	ACSymbol[] getSymbols()
 	{
 		ACSymbol[] rVal;
@@ -229,20 +239,6 @@ public:
 	 */
 	void resolveSymbolTypes()
 	{
-		foreach (ref ACSymbol c; symbols.filter!(a => a.kind == CompletionKind.className
-			|| a.kind == CompletionKind.interfaceName))
-		{
-			foreach (string sc; c.superClasses)
-			{
-				ACSymbol[] s = findSymbolsInScope(sc);
-				if (s.length > 0)
-				{
-					foreach (part; s[0].parts)
-						c.parts ~= part;
-				}
-			}
-		}
-
 		// We only care about resolving types of variables, all other symbols
 		// don't have any indirection
 		foreach (ref s; symbols.filter!(a => (a.kind == CompletionKind.variableName
@@ -321,9 +317,25 @@ public:
 				}
 			}
 		}
+
 		foreach (c; children)
 		{
 			c.resolveSymbolTypes();
+		}
+
+		foreach (ref ACSymbol c; symbols.filter!(a => a.kind == CompletionKind.className
+			|| a.kind == CompletionKind.interfaceName))
+		{
+			foreach (string sc; c.superClasses)
+			{
+				//writeln("Adding inherited fields from ", sc);
+				ACSymbol[] s = findSymbolsInScope(sc);
+				if (s.length > 0)
+				{
+					foreach (part; s[0].parts)
+						c.parts ~= part;
+				}
+			}
 		}
 	}
 

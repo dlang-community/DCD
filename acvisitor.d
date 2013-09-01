@@ -93,7 +93,7 @@ class AutocompleteVisitor : ASTVisitor
 			symbol.type = t;
 			symbol.kind = CompletionKind.variableName;
 			symbols ~= symbol;
-			writeln("For statement variable ", symbol.name, " of type ", symbol.type, " added.");
+			//writeln("For statement variable ", symbol.name, " of type ", symbol.type, " added.");
 		}
 		BlockStatement block = forStatement.statementNoCaseNoDefault.blockStatement;
 		auto s = new Scope(forStatement.startIndex,
@@ -105,14 +105,14 @@ class AutocompleteVisitor : ASTVisitor
 
 		foreach (symbol; symbols)
 		{
-			writeln("added ", symbol.name, " to scope");
+			//writeln("added ", symbol.name, " to scope");
 			symbol.location = scope_.start;
 			scope_.symbols ~= symbol;
 
 		}
 		if (block.declarationsAndStatements !is null)
 		{
-			writeln("visiting body");
+			//writeln("visiting body");
 			visit(block.declarationsAndStatements);
 		}
 		scope_ = p;
@@ -314,9 +314,23 @@ class AutocompleteVisitor : ASTVisitor
 			}
 		}
 
-		if (dec.returnType !is null && dec.parameters !is null)
+		if (dec.parameters !is null)
 		{
-			symbol.calltip = format("%s %s%s", dec.returnType.toString(),
+			string returnType;
+			if (dec.returnType !is null)
+				returnType = dec.returnType.toString();
+			else
+			{
+				if (dec.hasAuto)
+				{
+					returnType = "auto";
+					if (dec.hasRef)
+						returnType = "auto ref";
+				}
+				else if (dec.hasRef)
+					returnType = "ref";
+			}
+			symbol.calltip = format("%s %s%s", returnType,
 				dec.name.value, dec.parameters.toString());
 		}
 		auto p = parentSymbol;
@@ -445,6 +459,23 @@ class AutocompleteVisitor : ASTVisitor
 			scope_.symbols ~= ModuleCache.getSymbolsInModule(
 				convertChainToImportPath(
 					dec.importBindings.singleImport.identifierChain));
+		}
+	}
+
+	override void visit(BaseClassList classList)
+	{
+		if (parentSymbol is null)
+			return;
+		foreach (BaseClass bc; classList.items)
+		{
+			if (bc.identifierOrTemplateChain is null)
+				continue;
+			if (bc.identifierOrTemplateChain.identifiersOrTemplateInstances.length != 1)
+				continue;
+			IdentifierOrTemplateInstance i = bc.identifierOrTemplateChain.identifiersOrTemplateInstances[0];
+			if (i is null || i.identifier == TokenType.invalid)
+				continue;
+			parentSymbol.superClasses ~= i.identifier.value;
 		}
 	}
 

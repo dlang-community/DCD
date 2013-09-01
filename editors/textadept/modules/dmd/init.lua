@@ -11,12 +11,14 @@ if type(_G.keys) == 'table' then
 end
 
 events.connect(events.CHAR_ADDED, function(ch)
-	_M.dcd.autocomplete(ch)
+	if string.char(ch) == '(' or string.char(ch) == '.' then
+		_M.dcd.autocomplete(ch)
+	end
 end)
 
 local function autocomplete()
 	_M.dcd.registerImages()
-	_M.dcd.autocomplete(string.byte('.'))
+	_M.dcd.autocomplete()
 	if not buffer:auto_c_active() then
 		_M.textadept.editing.autocomplete_word(keywords)
 	end
