@@ -100,8 +100,9 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
 	}
 	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] ==  TokenType.dot)
 	{
+		beforeTokens = beforeTokens[0 .. $ - 1];
 dotCompletion:
-		switch (beforeTokens[$ - 2].type)
+		switch (beforeTokens[$ - 1].type)
 		{
 		case TokenType.stringLiteral:
 		case TokenType.wstringLiteral:
@@ -141,8 +142,7 @@ dotCompletion:
 		case TokenType.rBracket:
 		case TokenType.this_:
 			auto visitor = processModule(tokenArray);
-			auto expression = getExpression(partial == null ? beforeTokens[0 .. $ - 1]
-				: beforeTokens);
+			auto expression = getExpression(beforeTokens);
 			response.setCompletions(visitor, expression, request.cursorPosition,
 				CompletionType.identifiers, partial);
 			break;
