@@ -143,19 +143,20 @@ int main(string[] args)
 
 string[] loadConfiguredImportDirs()
 {
-    version(Windows)
-    {
-        string fullPath = buildPath(getcwd(), CONFIG_FILE_PATH);
-    }
-    else version(Posix)
-    {
-        string fullPath = expandTilde(CONFIG_FILE_PATH);
-    }
+	version(Windows)
+	{
+		string fullPath = buildPath(getcwd(), CONFIG_FILE_PATH);
+	}
+	else version(Posix)
+	{
+		string fullPath = expandTilde(CONFIG_FILE_PATH);
+	}
 
-    if (!exists(fullPath))
-        return [];
-    File f = File(fullPath);
-    return f.byLine(KeepTerminator.no).map!(a => a.idup).filter!(a => a.exists()).array();
+	if (!exists(fullPath))
+		return [];
+
+	File f = File(fullPath, "rt");
+	return f.byLine(KeepTerminator.no).map!(a => a.idup).filter!(a => a.exists()).array();
 }
 
 void printHelp(string programName)
