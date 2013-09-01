@@ -34,11 +34,11 @@ import modulecache;
 
 version(Posix)
 {
-    enum CONFIG_FILE_PATH = "~/.config/dcd";
+	enum CONFIG_FILE_PATH = "~/.config/dcd";
 }
 else version(Windows)
 {
-    enum CONFIG_FILE_PATH = "dcd.conf";
+	enum CONFIG_FILE_PATH = "dcd.conf";
 }
 
 int main(string[] args)
