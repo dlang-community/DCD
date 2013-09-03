@@ -58,8 +58,10 @@ local function showCompletionList(r)
 	end
 	table.sort(completions, function(a, b) return string.upper(a) < string.upper(b) end)
 	local charactersEntered = buffer.current_pos - buffer:word_start_position(buffer.current_pos)
-	if buffer.char_at[buffer.current_pos - 1] == string.byte('.') then charactersEntered = 0 end
-	print(charactersEntered)
+	if buffer.char_at[buffer.current_pos - 1] == string.byte('.')
+			or buffer.char_at[buffer.current_pos - 1] == string.byte('(') then
+		charactersEntered = 0
+	end
 	buffer:auto_c_show(charactersEntered, table.concat(completions, " "))
 	--buffer.auto_c_fill_ups = "(.["
 	buffer.auto_c_choose_single = setting
@@ -121,7 +123,6 @@ function M.autocomplete(ch)
 	p:close()
 	local tmpFile = io.open(fileName, "r")
 	local r = tmpFile:read("*a")
-	print(r)
 	if r ~= "\n" then
 		if r:match("^identifiers.*") then
 			showCompletionList(r)
