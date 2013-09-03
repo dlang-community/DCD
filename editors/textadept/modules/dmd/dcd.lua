@@ -111,7 +111,11 @@ function M.autocomplete(ch)
 	if buffer:get_lexer() ~= "dmd" then return end
 	local fileName = os.tmpname()
 	local command = M.PATH_TO_DCD_CLIENT .. " -c" .. buffer.current_pos .. " > " .. fileName
-	local p = io.popen(command, "wb")
+	local mode = "w"
+	if _G.WIN32 then
+		mode = "wb"
+	end
+	local p = io.popen(command, mode)
 	p:write(buffer:get_text())
 	p:flush()
 	p:close()
