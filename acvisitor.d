@@ -257,7 +257,7 @@ class AutocompleteVisitor : ASTVisitor
 		if (dec.parameters !is null && parentSymbol !is null)
 		{
 			symbol.calltip = format("%s this%s", parentSymbol.name,
-				dec.parameters.toString());
+				formatNode(dec.parameters));
 		}
 		auto p = parentSymbol;
 		parentSymbol = symbol;
@@ -318,7 +318,7 @@ class AutocompleteVisitor : ASTVisitor
 		{
 			string returnType;
 			if (dec.returnType !is null)
-				returnType = dec.returnType.toString();
+				returnType = formatNode(dec.returnType);
 			else
 			{
 				if (dec.hasAuto)
@@ -331,7 +331,7 @@ class AutocompleteVisitor : ASTVisitor
 					returnType = "ref";
 			}
 			symbol.calltip = format("%s %s%s", returnType,
-				dec.name.value, dec.parameters.toString());
+				dec.name.value, formatNode(dec.parameters));
 		}
 		auto p = parentSymbol;
 		parentSymbol = symbol;
@@ -378,7 +378,7 @@ class AutocompleteVisitor : ASTVisitor
 				dec.type.typeSuffixes = dec.type.typeSuffixes[0 .. $ - 1];
 				symbol.calltip = "%s %s%s".format(dec.type,
 					suffix.delegateOrFunction.value,
-					suffix.parameters.toString());
+					formatNode(suffix.parameters));
 			}
 			symbol.kind = CompletionKind.variableName;
 
@@ -409,7 +409,7 @@ class AutocompleteVisitor : ASTVisitor
 				aliasPart.type.typeSuffixes = aliasPart.type.typeSuffixes[0 .. $ - 1];
 				aliasSymbol.calltip = "%s %s%s".format(dec.type,
 					suffix.delegateOrFunction.value,
-					suffix.parameters.toString());
+					formatNode(suffix.parameters));
 			}
 			if (parentSymbol is null)
 				symbols ~= aliasSymbol;
@@ -431,7 +431,7 @@ class AutocompleteVisitor : ASTVisitor
 				dec.type.typeSuffixes = dec.type.typeSuffixes[0 .. $ - 1];
 				aliasSymbol.calltip = "%s %s%s".format(dec.type,
 					suffix.delegateOrFunction.value,
-					suffix.parameters.toString());
+					formatNode(suffix.parameters));
 			}
 			aliasSymbol.location = dec.name.startIndex;
 			if (parentSymbol is null)
@@ -509,6 +509,16 @@ class AutocompleteVisitor : ASTVisitor
 	bool currentFile = false;
 
 private:
+
+	static string formatNode(T)(T node)
+	{
+		import formatter;
+		auto app = appender!(char[])();
+		auto f = new Formatter!(typeof(app))(app);
+		f.format(node);
+		return app.data.idup;
+	}
+
 	static enum string visitAndAdd = q{
 		auto p = parentSymbol;
 		parentSymbol = symbol;
