@@ -27,6 +27,7 @@ import std.algorithm;
 import std.path;
 import std.file;
 import std.conv;
+import std.string;
 //version(Windows)
 //{
 //	import core.runtime;
@@ -86,6 +87,7 @@ int /*_*/main(string[] args)
 	catch (Exception e)
 	{
 		stderr.writeln(e.msg);
+		return 1;
 	}
 
 	if (help)
@@ -165,20 +167,22 @@ int /*_*/main(string[] args)
 	if (response.completions.length > 0)
 	{
 		writeln(response.completionType);
+		auto app = appender!(string[])();
 		if (response.completionType == CompletionType.identifiers)
 		{
 			for (size_t i = 0; i < response.completions.length; i++)
-			{
-				writefln("%s\t%s", response.completions[i], response.completionKinds[i]);
-			}
+				app.put(format("%s\t%s", response.completions[i], response.completionKinds[i]));
 		}
 		else
 		{
 			foreach (completion; response.completions)
 			{
-				writeln(completion);
+				app.put(completion);
 			}
 		}
+		// Deduplicate overloaded methods
+		foreach (line; app.data.sort.uniq)
+			writeln(line);
 	}
 	return 0;
 }
