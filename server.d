@@ -63,7 +63,7 @@ int main(string[] args)
 	auto socket = new TcpSocket(AddressFamily.INET);
 	socket.blocking = true;
 	socket.setOption(SocketOptionLevel.SOCKET, SocketOption.REUSEADDR, true);
-	socket.bind(new InternetAddress("127.0.0.1", port));
+	socket.bind(new InternetAddress("localhost", port));
 	socket.listen(0);
 	scope (exit)
 	{
