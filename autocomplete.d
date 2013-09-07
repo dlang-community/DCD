@@ -394,6 +394,8 @@ void setCompletions(T)(ref AutocompleteResponse response,
 
 T getExpression(T)(T beforeTokens)
 {
+	if (beforeTokens.length == 0)
+		return beforeTokens[0 .. 0];
 	size_t i = beforeTokens.length - 1;
 	TokenType open;
 	TokenType close;
