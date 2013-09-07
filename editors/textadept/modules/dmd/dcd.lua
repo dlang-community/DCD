@@ -71,7 +71,7 @@ end
 local function showCurrentCallTip()
 	local tip = calltips[currentCalltip]
 	buffer:call_tip_show(buffer:word_start_position(buffer.current_pos),
-		string.format("overload %d of %d\1\2\n%s", currentCalltip, #calltips,
+		string.format("%d of %d\1\2\n%s", currentCalltip, #calltips,
 			calltips[currentCalltip]))
 end
 

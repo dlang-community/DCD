@@ -330,8 +330,7 @@ class AutocompleteVisitor : ASTVisitor
 				else if (dec.hasRef)
 					returnType = "ref";
 			}
-			symbol.calltip = format("%s %s%s", formatNode(dec.returnType),
-				dec.name.value, formatNode(dec.parameters));
+			symbol.calltip = formatCalltip(dec.returnType, dec.name.value, dec.parameters);
 		}
 		auto p = parentSymbol;
 		parentSymbol = symbol;
@@ -376,9 +375,8 @@ class AutocompleteVisitor : ASTVisitor
 			{
 				TypeSuffix suffix = dec.type.typeSuffixes[$ - 1];
 				dec.type.typeSuffixes = dec.type.typeSuffixes[0 .. $ - 1];
-				symbol.calltip = "%s %s%s".format(formatNode(dec.type),
-					suffix.delegateOrFunction.value,
-					formatNode(suffix.parameters));
+				symbol.calltip = formatCalltip(dec.type,
+					suffix.delegateOrFunction.value, suffix.parameters);
 			}
 			symbol.kind = CompletionKind.variableName;
 
@@ -407,9 +405,7 @@ class AutocompleteVisitor : ASTVisitor
 			{
 				TypeSuffix suffix = aliasPart.type.typeSuffixes[$ - 1];
 				aliasPart.type.typeSuffixes = aliasPart.type.typeSuffixes[0 .. $ - 1];
-				aliasSymbol.calltip = "%s %s%s".format(formatNode(dec.type),
-					suffix.delegateOrFunction.value,
-					formatNode(suffix.parameters));
+				aliasSymbol.calltip = formatCalltip(dec.type, suffix.delegateOrFunction.value, suffix.parameters);
 			}
 			if (parentSymbol is null)
 				symbols ~= aliasSymbol;
@@ -456,9 +452,33 @@ class AutocompleteVisitor : ASTVisitor
 		if (dec.importBindings !is null
 			&& dec.importBindings.singleImport.identifierChain !is null)
 		{
-			scope_.symbols ~= ModuleCache.getSymbolsInModule(
-				convertChainToImportPath(
-					dec.importBindings.singleImport.identifierChain));
+			ACSymbol[] importedSymbols = ModuleCache.getSymbolsInModule(
+				convertChainToImportPath(dec.importBindings.singleImport.identifierChain));
+			foreach (ImportBind b; dec.importBindings.importBinds)
+			{
+				if (b.right == TokenType.invalid)
+				{
+					// Selecive import
+					importedSymbols.filter!(a => a.name == b.left).copy(scope_.symbols);
+				}
+				else
+				{
+					// renamed selective import
+					foreach (ACSymbol symbol; importedSymbols.filter!(a => a.name == b.right))
+					{
+						ACSymbol s = new ACSymbol;
+						s.kind = symbol.kind;
+						s.location = symbol.location;
+						s.name = b.left.value;
+						s.parts = symbol.parts;
+						s.qualifier = symbol.qualifier;
+						s.resolvedType = symbol.resolvedType;
+						s.superClasses = symbol.superClasses;
+						s.type = symbol.type;
+						scope_.symbols ~= s;
+					}
+				}
+			}
 		}
 	}
 
@@ -510,7 +530,13 @@ class AutocompleteVisitor : ASTVisitor
 
 private:
 
-	string formatNode(T)(T node) const
+	static string formatCalltip(Type returnType, string name, Parameters parameters,
+		string doc = null)
+	{
+		return "%s %s%s".format(formatNode(returnType), name, formatNode(parameters));
+	}
+
+	static string formatNode(T)(T node)
 	{
 		if (node is null) return "";
 		import formatter;

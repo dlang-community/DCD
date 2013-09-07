@@ -308,7 +308,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				p.setTokens(tokens[h .. i].array());
 				if (!p.isSliceExpression())
 				{
-					symbols = symbols[0].resolvedType is null ? [] :[symbols[0].resolvedType];
+					symbols = symbols[0].resolvedType is null ? [] : [symbols[0].resolvedType];
 				}
 			}
 			else if (symbols[0].qualifier == SymbolQualifier.assocArray)
