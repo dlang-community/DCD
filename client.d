@@ -27,6 +27,7 @@ import std.algorithm;
 import std.path;
 import std.file;
 import std.conv;
+import std.string;
 //version(Windows)
 //{
 //	import core.runtime;
@@ -86,6 +87,7 @@ int /*_*/main(string[] args)
 	catch (Exception e)
 	{
 		stderr.writeln(e.msg);
+		return 1;
 	}
 
 	if (help)
@@ -100,34 +102,18 @@ int /*_*/main(string[] args)
 		request.kind = RequestKind.shutdown;
 		else if (clearCache)
 			request.kind = RequestKind.clearCache;
-		auto socket = new TcpSocket(AddressFamily.INET);
+		TcpSocket socket = createSocket(port);
 		scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
-		socket.connect(new InternetAddress("127.0.0.1", port));
-		socket.blocking = true;
-		socket.setOption(SocketOptionLevel.TCP, SocketOption.TCP_NODELAY, 1);
-		ubyte[] message = msgpack.pack(request);
-		ubyte[] messageBuffer = new ubyte[message.length + message.length.sizeof];
-		auto messageLength = message.length;
-		messageBuffer[0 .. size_t.sizeof] = (cast(ubyte*) &messageLength)[0 .. size_t.sizeof];
-		messageBuffer[size_t.sizeof .. $] = message[];
-		return socket.send(messageBuffer) == messageBuffer.length ? 0 : 1;
+		return sendRequest(socket, request) ? 0 : 1;
 	}
 	else if (importPaths.length > 0)
 	{
 		AutocompleteRequest request;
 		request.kind = RequestKind.addImport;
 		request.importPaths = importPaths.map!(a => isRooted(a) ? a : absolutePath(a)).array;
-		auto socket = new TcpSocket(AddressFamily.INET);
+		TcpSocket socket = createSocket(port);
 		scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
-		socket.connect(new InternetAddress("127.0.0.1", port));
-		socket.blocking = true;
-		socket.setOption(SocketOptionLevel.TCP, SocketOption.TCP_NODELAY, 1);
-		ubyte[] message = msgpack.pack(request);
-		ubyte[] messageBuffer = new ubyte[message.length + message.length.sizeof];
-		auto messageLength = message.length;
-		messageBuffer[0 .. size_t.sizeof] = (cast(ubyte*) &messageLength)[0 .. size_t.sizeof];
-		messageBuffer[size_t.sizeof .. $] = message[];
-		return socket.send(messageBuffer) == messageBuffer.length ? 0 : 1;
+		return sendRequest(socket, request) ? 0 : 1;
 	}
 	else if (cursorPos == size_t.max)
 	{
@@ -169,48 +155,34 @@ int /*_*/main(string[] args)
 	request.importPaths = importPaths;
 	request.sourceCode = sourceCode;
 	request.cursorPosition = cursorPos;
-	ubyte[] message = msgpack.pack(request);
 
 	// Send message to server
-	TcpSocket socket = new TcpSocket(AddressFamily.INET);
-	socket.setOption(SocketOptionLevel.SOCKET, SocketOption.RCVTIMEO, dur!"seconds"(5));
+	TcpSocket socket = createSocket(port);
 	scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
-	socket.connect(new InternetAddress("127.0.0.1", port));
-	socket.blocking = true;
-	ubyte[] messageBuffer = new ubyte[message.length + message.length.sizeof];
-	auto messageLength = message.length;
-	messageBuffer[0 .. size_t.sizeof] = (cast(ubyte*) &messageLength)[0 .. size_t.sizeof];
-	messageBuffer[size_t.sizeof .. $] = message[];
-	auto bytesSent = socket.send(messageBuffer);
-
-	// Get response and write it out
-	ubyte[1024 * 16] buffer;
-	auto bytesReceived = socket.receive(buffer);
-	if (bytesReceived == Socket.ERROR)
-	{
+	if (!sendRequest(socket, request))
 		return 1;
-	}
 
-	AutocompleteResponse response;
-	msgpack.unpack(buffer[0..bytesReceived], response);
+	AutocompleteResponse response = getResponse(socket);
 
 	if (response.completions.length > 0)
 	{
 		writeln(response.completionType);
+		auto app = appender!(string[])();
 		if (response.completionType == CompletionType.identifiers)
 		{
 			for (size_t i = 0; i < response.completions.length; i++)
-			{
-				writefln("%s\t%s", response.completions[i], response.completionKinds[i]);
-			}
+				app.put(format("%s\t%s", response.completions[i], response.completionKinds[i]));
 		}
 		else
 		{
 			foreach (completion; response.completions)
 			{
-				writeln(completion);
+				app.put(completion);
 			}
 		}
+		// Deduplicate overloaded methods
+		foreach (line; app.data.sort.uniq)
+			writeln(line);
 	}
 	return 0;
 }
@@ -248,4 +220,40 @@ Options:
     --port PORTNUMBER | -pPORTNUMBER
         Uses PORTNUMBER to communicate with the server instead of the default
         port 9166.`, programName);
+}
+
+TcpSocket createSocket(ushort port)
+{
+	TcpSocket socket = new TcpSocket(AddressFamily.INET);
+	socket.setOption(SocketOptionLevel.SOCKET, SocketOption.RCVTIMEO, dur!"seconds"(5));
+	socket.connect(new InternetAddress("localhost", port));
+	socket.blocking = true;
+	return socket;
+}
+
+/**
+ * Returns: true on success
+ */
+bool sendRequest(TcpSocket socket, AutocompleteRequest request)
+{
+	ubyte[] message = msgpack.pack(request);
+	ubyte[] messageBuffer = new ubyte[message.length + message.length.sizeof];
+	auto messageLength = message.length;
+	messageBuffer[0 .. size_t.sizeof] = (cast(ubyte*) &messageLength)[0 .. size_t.sizeof];
+	messageBuffer[size_t.sizeof .. $] = message[];
+	return socket.send(messageBuffer) == messageBuffer.length;
+}
+
+/**
+ * Gets the response from the server
+ */
+AutocompleteResponse getResponse(TcpSocket socket)
+{
+	ubyte[1024 * 16] buffer;
+	auto bytesReceived = socket.receive(buffer);
+	if (bytesReceived == Socket.ERROR)
+		throw new Exception("Incorrect number of bytes received");
+	AutocompleteResponse response;
+	msgpack.unpack(buffer[0..bytesReceived], response);
+	return response;
 }

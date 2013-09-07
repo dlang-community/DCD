@@ -58,8 +58,10 @@ local function showCompletionList(r)
 	end
 	table.sort(completions, function(a, b) return string.upper(a) < string.upper(b) end)
 	local charactersEntered = buffer.current_pos - buffer:word_start_position(buffer.current_pos)
-	if buffer.char_at[buffer.current_pos - 1] == string.byte('.') then charactersEntered = 0 end
-	print(charactersEntered)
+	if buffer.char_at[buffer.current_pos - 1] == string.byte('.')
+			or buffer.char_at[buffer.current_pos - 1] == string.byte('(') then
+		charactersEntered = 0
+	end
 	buffer:auto_c_show(charactersEntered, table.concat(completions, " "))
 	--buffer.auto_c_fill_ups = "(.["
 	buffer.auto_c_choose_single = setting
@@ -111,11 +113,7 @@ function M.autocomplete(ch)
 	if buffer:get_lexer() ~= "dmd" then return end
 	local fileName = os.tmpname()
 	local command = M.PATH_TO_DCD_CLIENT .. " -c" .. buffer.current_pos .. " > " .. fileName
-	local mode = "w"
-	if _G.WIN32 then
-		mode = "wb"
-	end
-	p = io.popen(command, mode)
+	local p = io.popen(command, "wb")
 	p:write(buffer:get_text())
 	p:flush()
 	p:close()

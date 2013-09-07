@@ -257,7 +257,7 @@ class AutocompleteVisitor : ASTVisitor
 		if (dec.parameters !is null && parentSymbol !is null)
 		{
 			symbol.calltip = format("%s this%s", parentSymbol.name,
-				dec.parameters.toString());
+				formatNode(dec.parameters));
 		}
 		auto p = parentSymbol;
 		parentSymbol = symbol;
@@ -318,7 +318,7 @@ class AutocompleteVisitor : ASTVisitor
 		{
 			string returnType;
 			if (dec.returnType !is null)
-				returnType = dec.returnType.toString();
+				returnType = formatNode(dec.returnType);
 			else
 			{
 				if (dec.hasAuto)
