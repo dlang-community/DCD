@@ -52,10 +52,13 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
 
 	auto beforeTokens = sortedTokens.lowerBound(cast(size_t) request.cursorPosition);
 
+	TokenType tokenType;
+
 	if (beforeTokens.length >= 1 && beforeTokens[$ - 1] == TokenType.identifier)
 	{
 		//writeln("partial completion");
 		partial = beforeTokens[$ - 1].value;
+		tokenType = beforeTokens[$ - 1].type;
 		beforeTokens = beforeTokens[0 .. $ - 1];
 		goto dotCompletion;
 	}
@@ -100,9 +103,9 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
 	}
 	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] ==  TokenType.dot)
 	{
-		beforeTokens = beforeTokens[0 .. $ - 1];
+		tokenType = beforeTokens[$ - 2].type;
 dotCompletion:
-		switch (beforeTokens[$ - 1].type)
+		switch (tokenType)
 		{
 		case TokenType.stringLiteral:
 		case TokenType.wstringLiteral:
