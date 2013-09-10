@@ -33,8 +33,6 @@ import messages;
 import modulecache;
 import autocomplete;
 
-// TODO: a lot of duplicated code
-
 /**
  * Converts an AST into a simple symbol and scope heirarchy so that the
  * autocompletion coed can do its job more easily.
