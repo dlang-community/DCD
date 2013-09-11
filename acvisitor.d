@@ -457,7 +457,8 @@ class AutocompleteVisitor : ASTVisitor
 				if (b.right == TokenType.invalid)
 				{
 					// Selecive import
-					importedSymbols.filter!(a => a.name == b.left).copy(scope_.symbols);
+					foreach (ACSymbol symbol; importedSymbols.filter!(a => a.name == b.left))
+						scope_.symbols ~= symbol;
 				}
 				else
 				{

@@ -51,7 +51,7 @@ struct ModuleCache
 	 */
 	static void clear()
 	{
-		cache.clear();
+		cache = cache.init;
 	}
 
 	/**

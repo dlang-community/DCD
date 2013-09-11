@@ -246,19 +246,18 @@ public:
 			|| a.kind == CompletionKind.enumMember || a.kind == CompletionKind.aliasName)
 			&& a.resolvedType is null)())
 		{
-//			writeln("Resolving type of symbol ", s.name);
+			//writeln("Resolving type of symbol ", s.name);
 			Type type = s.type;
 			if (type is null)
 			{
 				//writeln("Could not find it due to null type");
 				continue;
 			}
-
 			if (type.type2.builtinType != TokenType.invalid)
 			{
-				//writeln("It was a built-in type");
 				// This part is easy. Autocomplete properties of built-in types
-				s.resolvedType = findSymbolsInScope(getTokenValue(type.type2.builtinType))[0];
+				auto foundSymbols = findSymbolsInScope(getTokenValue(type.type2.builtinType));
+				s.resolvedType = foundSymbols[0];
 			}
 			else if (type.type2.symbol !is null)
 			{

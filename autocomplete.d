@@ -496,9 +496,11 @@ T getExpression(T)(T beforeTokens)
 
 void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
 {
-	writeln("Setting import collections");
 	response.completionType = CompletionType.identifiers;
-	string path = buildPath(tokens.filter!(a => a.type == TokenType.identifier).map!("a.value").array());
+	auto moduleParts = tokens.filter!(a => a.type == TokenType.identifier).map!("a.value").array();
+	if (moduleParts.length == 0)
+		return;
+	string path = buildPath(moduleParts);
 	foreach (importDirectory; ModuleCache.getImportPaths())
 	{
 		string p = format("%s%s%s", importDirectory, dirSeparator, path);
