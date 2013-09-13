@@ -68,8 +68,11 @@ tab character, followed by a completion kind
 * f - function or method
 * g - enum name
 * e - enum member
-* p - package name
+* P - package name
 * M - module name
+* a - array
+* A - associative array
+* l - alias name
 
 ####Example output
 	identifiers
