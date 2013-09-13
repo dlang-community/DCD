@@ -532,6 +532,7 @@ static this()
 	auto int_ = new ACSymbol("int", CompletionKind.keyword);
 	auto long_ = new ACSymbol("long", CompletionKind.keyword);
 	auto byte_ = new ACSymbol("byte", CompletionKind.keyword);
+	auto char_ = new ACSymbol("char", CompletionKind.keyword);
 	auto dchar_ = new ACSymbol("dchar", CompletionKind.keyword);
 	auto short_ = new ACSymbol("short", CompletionKind.keyword);
 	auto ubyte_ = new ACSymbol("ubyte", CompletionKind.keyword);
@@ -571,7 +572,7 @@ static this()
 	assocArraySymbols ~= stringof_;
 	assocArraySymbols ~= new ACSymbol("values", CompletionKind.keyword);
 
-	foreach (s; [bool_, int_, long_, byte_, dchar_, short_, ubyte_, uint_,
+	foreach (s; [bool_, int_, long_, byte_, char_, dchar_, short_, ubyte_, uint_,
 		ulong_, ushort_, wchar_])
 	{
 		s.parts ~= new ACSymbol("init", CompletionKind.keyword, s);
@@ -586,7 +587,6 @@ static this()
 	auto cdouble_ = new ACSymbol("cdouble", CompletionKind.keyword);
 	auto cent_ = new ACSymbol("cent", CompletionKind.keyword);
 	auto cfloat_ = new ACSymbol("cfloat", CompletionKind.keyword);
-	auto char_ = new ACSymbol("char", CompletionKind.keyword);
 	auto creal_ = new ACSymbol("creal", CompletionKind.keyword);
 	auto double_ = new ACSymbol("double", CompletionKind.keyword);
 	auto float_ = new ACSymbol("float", CompletionKind.keyword);
@@ -596,7 +596,7 @@ static this()
 	auto real_ = new ACSymbol("real", CompletionKind.keyword);
 	auto ucent_ = new ACSymbol("ucent", CompletionKind.keyword);
 
-	foreach (s; [cdouble_, cent_, cfloat_, char_, creal_, double_, float_,
+	foreach (s; [cdouble_, cent_, cfloat_, creal_, double_, float_,
 		idouble_, ifloat_, ireal_, real_, ucent_])
 	{
 		s.parts ~= alignof_;
@@ -627,8 +627,8 @@ static this()
 
 	auto void_ = new ACSymbol("void", CompletionKind.keyword);
 
-	builtinSymbols = [bool_, int_, long_, byte_, dchar_, short_, ubyte_, uint_,
-		ulong_, ushort_, wchar_, cdouble_, cent_, cfloat_, char_, creal_, double_,
+	builtinSymbols = [bool_, int_, long_, byte_, char_, dchar_, short_, ubyte_, uint_,
+		ulong_, ushort_, wchar_, cdouble_, cent_, cfloat_, creal_, double_,
 		float_, idouble_, ifloat_, ireal_, real_, ucent_, void_];
 }
 
