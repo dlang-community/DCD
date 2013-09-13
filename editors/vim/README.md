@@ -1,10 +1,22 @@
 A plugin for using DCD with vim.
 
-Tested on Linux(and a bit on Windows)
+Tested on Linux (and a bit on Windows)
 
-Installation and Configuration
-==============================
+Installation
+============
+
+Vundle
+------
+1. Add `Bundle "Hackerpilot/DCD", {'rtp': 'editors/vim'}` to your vimrc.
+2. `:BundleInstall`
+
+Manual
+------
 Put the autoload and ftplugin folders in your vim runtime path.
+
+
+Configuration
+=============
 
 Compile DCD and put both dcd-client and dcd-server in your path, or set the
 global variable `g:dcd\_path` to where you put DCD.
@@ -17,7 +29,12 @@ DCD does not add them for you. On Linux it should be:
 let g:dcd_importPath=['/usr/include/d','/usr/include/d/druntime/import']
 ```
 
-On windows you need to look for the path in dmd's installation.
+On Windows you need to locate the root of your dmd installation (typically
+`C:\D`). Phobos and DRuntime can be found within under `dmd2\src\phobos` and
+`dmd2\src\druntime\import`, respectively. Example:
+```vim
+let g:dcd_importPath=['C:\D\dmd2\src\phobos','C:\D\dmd2\src\druntime\import']
+```
 
 Import paths are globbed with Vim's globbing function.
 
