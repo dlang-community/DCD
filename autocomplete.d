@@ -440,7 +440,7 @@ T getExpression(T)(T beforeTokens)
 		case dot:
 			break;
 		case star:
-		case bitAnd:
+		case amp:
 			hasSpecialPrefix = true;
 			break;
 		case rParen:
