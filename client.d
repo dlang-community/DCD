@@ -28,48 +28,11 @@ import std.path;
 import std.file;
 import std.conv;
 import std.string;
-//version(Windows)
-//{
-//	import core.runtime;
-//	import core.sys.windows.windows;
-//	import std.string;
-//}
+
 import msgpack;
 import messages;
 
-//version(Windows)
-//{
-//	extern(Windows) int WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
-//	{
-//		int result;
-//		void exceptionHandler(Throwable e) {
-//			throw e;
-//		}
-//		try
-//		{
-//			Runtime.
-//			Runtime.initialize(&exceptionHandler);
-//			result = _main(["dcd-client"] ~ to!string(lpCmdLine).split(" ").array());
-//			Runtime.terminate(&exceptionHandler);
-//		}
-//		catch (Throwable e) // catch any uncaught exceptions
-//		{
-//			MessageBoxA(null, e.toString().toStringz(), "Error",
-//						MB_OK | MB_ICONEXCLAMATION);
-//			result = 0;     // failed
-//		}
-//		return result;
-//	}
-//}
-//else
-//{
-//	int main(string[] args)
-//	{
-//		return _main(args);
-//	}
-//}
-
-int /*_*/main(string[] args)
+int main(string[] args)
 {
 	size_t cursorPos = size_t.max;
 	string[] importPaths;
@@ -110,7 +73,7 @@ int /*_*/main(string[] args)
 	{
 		AutocompleteRequest request;
 		request.kind = RequestKind.addImport;
-		request.importPaths = importPaths.map!(a => isRooted(a) ? a : absolutePath(a)).array;
+		request.importPaths = importPaths.map!(a => absolutePath(a)).array;
 		TcpSocket socket = createSocket(port);
 		scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
 		return sendRequest(socket, request) ? 0 : 1;
