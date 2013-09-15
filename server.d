@@ -59,6 +59,12 @@ int main(string[] args)
 		return 1;
 	}
 
+	if (help)
+	{
+		printHelp(args[0]);
+		return 0;
+	}
+
 	importPaths ~= loadConfiguredImportDirs();
 
 	auto socket = new TcpSocket(AddressFamily.INET);
