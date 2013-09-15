@@ -174,7 +174,8 @@ string getConfigurationLocation()
 
 void warnAboutOldConfigLocation()
 {
-	version (linux) if ("~/.config/dcd".expandTilde().isFile())
+	version (linux) if ("~/.config/dcd".expandTilde().exists()
+		&& "~/.config/dcd".expandTilde().isFile())
 	{
 		writeln("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 		writeln("!! Upgrade warning:");
