@@ -38,6 +38,7 @@ enum CONFIG_FILE_NAME = "dcd.conf";
 version(linux) version = useXDG;
 version(BSD) version = useXDG;
 version(FreeBSD) version = useXDG;
+version(OSX) version = useXDG;
 
 int main(string[] args)
 {
