@@ -34,19 +34,27 @@ import stdx.d.parser;
 import std.string;
 
 import messages;
-import acvisitor;
 import actypes;
 import constants;
 import modulecache;
+import astconverter;
+import stupidlog;
 
 AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
 {
-	writeln("Got a completion request");
+	Log.info("Got a completion request");
 	AutocompleteResponse response;
 
 	LexerConfig config;
-	auto tokens = request.sourceCode.byToken(config);
-	auto tokenArray = tokens.array();
+	config.fileName = "stdin";
+	auto tokens = byToken(cast(ubyte[]) request.sourceCode, config);
+	const(Token)[] tokenArray = void;
+	try {
+		tokenArray = tokens.array();
+	} catch (Exception e) {
+		Log.error("Could not provide autocomplete due to lexing exception: ", e.msg);
+		return response;
+	}
 	auto sortedTokens = assumeSorted(tokenArray);
 	string partial;
 
@@ -56,7 +64,7 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
 
 	if (beforeTokens.length >= 1 && beforeTokens[$ - 1] == TokenType.identifier)
 	{
-		//writeln("partial completion");
+		Log.trace("partial completion");
 		partial = beforeTokens[$ - 1].value;
 		tokenType = beforeTokens[$ - 1].type;
 		beforeTokens = beforeTokens[0 .. $ - 1];
@@ -92,10 +100,10 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
 		case TokenType.identifier:
 		case TokenType.rParen:
 		case TokenType.rBracket:
-			auto visitor = processModule(tokenArray);
+			const(Scope)* completionScope = generateAutocompleteTrees(tokenArray);
 			auto expression = getExpression(beforeTokens[0 .. $ - 1]);
-			response.setCompletions(visitor, expression, request.cursorPosition,
-				CompletionType.calltips);
+			response.setCompletions(completionScope, expression,
+				request.cursorPosition, CompletionType.calltips);
 			break;
 		default:
 			break;
@@ -144,10 +152,10 @@ dotCompletion:
 		case TokenType.rParen:
 		case TokenType.rBracket:
 		case TokenType.this_:
-			auto visitor = processModule(tokenArray);
+			const(Scope)* completionScope = generateAutocompleteTrees(tokenArray);
 			auto expression = getExpression(beforeTokens);
-			response.setCompletions(visitor, expression, request.cursorPosition,
-				CompletionType.identifiers, partial);
+			response.setCompletions(completionScope, expression,
+				request.cursorPosition, CompletionType.identifiers, partial);
 			break;
 		case TokenType.lParen:
 		case TokenType.lBrace:
@@ -164,7 +172,7 @@ dotCompletion:
 }
 
 void setCompletions(T)(ref AutocompleteResponse response,
-	AutocompleteVisitor visitor, T tokens, size_t cursorPosition,
+	const(Scope)* completionScope, T tokens, size_t cursorPosition,
 	CompletionType completionType, string partial = null)
 {
 	// Autocomplete module imports instead of symbols
@@ -175,14 +183,11 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		return;
 	}
 
-	visitor.scope_.resolveSymbolTypes();
-
 	// Handle the simple case where we get all symbols in scope and filter it
 	// based on the currently entered text.
 	if (partial !is null && tokens.length == 0)
 	{
-//		writeln("Showing all symbols in current scope that start with ", partial);
-		foreach (s; visitor.scope_.getSymbolsInCurrentScope(cursorPosition)
+		foreach (s; completionScope.getSymbolsInCursorScope(cursorPosition)
 			.filter!(a => a.name.toUpper().startsWith(partial.toUpper())))
 		{
 			response.completionKinds ~= s.kind;
@@ -196,10 +201,11 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		return;
 
 	// Find the symbol corresponding to the beginning of the chain
-	ACSymbol[] symbols = visitor.scope_.findSymbolsInCurrentScope(cursorPosition, tokens[0].value);
+	const(ACSymbol)*[] symbols = completionScope.getSymbolsByNameAndCursor(
+		tokens[0].value, cursorPosition);
 	if (symbols.length == 0)
 	{
-		writeln("Could not find declaration of ", tokens[0].value);
+		Log.trace("Could not find declaration of ", tokens[0].value);
 		return;
 	}
 
@@ -209,11 +215,9 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		|| symbols[0].kind == CompletionKind.aliasName
 		|| symbols[0].kind == CompletionKind.enumMember)
 	{
-		symbols = symbols[0].resolvedType is null ? [] : [symbols[0].resolvedType];
+		symbols = symbols[0].type is null ? [] : [symbols[0].type];
 		if (symbols.length == 0)
-		{
 			return;
-		}
 	}
 
 	loop: for (size_t i = 1; i < tokens.length; i++)
@@ -236,40 +240,40 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		}
 		with (TokenType) switch (tokens[i].type)
 		{
-		case TokenType.int_:
-		case TokenType.uint_:
-		case TokenType.long_:
-		case TokenType.ulong_:
-		case TokenType.char_:
-		case TokenType.wchar_:
-		case TokenType.dchar_:
-		case TokenType.bool_:
-		case TokenType.byte_:
-		case TokenType.ubyte_:
-		case TokenType.short_:
-		case TokenType.ushort_:
-		case TokenType.cent_:
-		case TokenType.ucent_:
-		case TokenType.float_:
-		case TokenType.ifloat_:
-		case TokenType.cfloat_:
-		case TokenType.idouble_:
-		case TokenType.cdouble_:
-		case TokenType.double_:
-		case TokenType.real_:
-		case TokenType.ireal_:
-		case TokenType.creal_:
+		case int_:
+		case uint_:
+		case long_:
+		case ulong_:
+		case char_:
+		case wchar_:
+		case dchar_:
+		case bool_:
+		case byte_:
+		case ubyte_:
+		case short_:
+		case ushort_:
+		case cent_:
+		case ucent_:
+		case float_:
+		case ifloat_:
+		case cfloat_:
+		case idouble_:
+		case cdouble_:
+		case double_:
+		case real_:
+		case ireal_:
+		case creal_:
 		case this_:
 			symbols = symbols[0].getPartsByName(getTokenValue(tokens[i].type));
 			if (symbols.length == 0)
 				break loop;
 			break;
 		case identifier:
-//			writeln("looking for ", tokens[i].value, " in ", symbols[0].name);
+			Log.trace("looking for ", tokens[i].value, " in ", symbols[0].name);
 			symbols = symbols[0].getPartsByName(tokens[i].value);
 			if (symbols.length == 0)
 			{
-//				writeln("Couldn't find it.");
+				Log.trace("Couldn't find it.");
 				break loop;
 			}
 			if (symbols[0].kind == CompletionKind.variableName
@@ -279,7 +283,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				&& (completionType == CompletionType.identifiers
 				|| i + 1 < tokens.length)))
 			{
-				symbols = symbols[0].resolvedType is null ? [] : [symbols[0].resolvedType];
+				symbols = symbols[0].type is null ? [] : [symbols[0].type];
 			}
 			if (symbols.length == 0)
 				break loop;
@@ -287,7 +291,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				&& (completionType == CompletionType.identifiers
 				|| i + 1 < tokens.length))
 			{
-				symbols = symbols[0].resolvedType is null ? [] : [symbols[0].resolvedType];
+				symbols = symbols[0].type is null ? [] : [symbols[0].type];
 			}
 			if (symbols.length == 0)
 				break loop;
@@ -308,12 +312,12 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				p.setTokens(tokens[h .. i].array());
 				if (!p.isSliceExpression())
 				{
-					symbols = symbols[0].resolvedType is null ? [] : [symbols[0].resolvedType];
+					symbols = symbols[0].type is null ? [] : [symbols[0].type];
 				}
 			}
 			else if (symbols[0].qualifier == SymbolQualifier.assocArray)
 			{
-				symbols = symbols[0].resolvedType is null ? [] :[symbols[0].resolvedType];
+				symbols = symbols[0].type is null ? [] :[symbols[0].type];
 				skip();
 			}
 			else
@@ -322,14 +326,14 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				skip();
 				Parser p;
 				p.setTokens(tokens[h .. i].array());
-				ACSymbol[] overloads;
+				const(ACSymbol)*[] overloads;
 				if (p.isSliceExpression())
 					overloads = symbols[0].getPartsByName("opSlice");
 				else
 					overloads = symbols[0].getPartsByName("opIndex");
 				if (overloads.length > 0)
 				{
-					symbols = overloads[0].resolvedType is null ? [] : [overloads[0].resolvedType];
+					symbols = overloads[0].type is null ? [] : [overloads[0].type];
 				}
 				else
 					return;
@@ -344,7 +348,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 
 	if (symbols.length == 0)
 	{
-		writeln("Could not get completions");
+		Log.error("Could not get completions");
 		return;
 	}
 	if (completionType == CompletionType.identifiers)
@@ -354,7 +358,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			&& (partial is null ? true : a.name.toUpper().startsWith(partial.toUpper()))
 			&& !response.completions.canFind(a.name)))
 		{
-			//writeln("Adding ", s.name, " to the completion list");
+			Log.trace("Adding ", s.name, " to the completion list");
 			response.completionKinds ~= s.kind;
 			response.completions ~= s.name;
 		}
@@ -362,9 +366,9 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	}
 	else if (completionType == CompletionType.calltips)
 	{
-		//writeln("Showing call tips for ", symbols[0].name, " of type ", symbols[0].kind);
+		Log.trace("Showing call tips for ", symbols[0].name, " of type ", symbols[0].kind);
 		if (symbols[0].kind != CompletionKind.functionName
-			&& symbols[0].calltip is null)
+			&& symbols[0].callTip is null)
 		{
 			auto call = symbols[0].getPartsByName("opCall");
 			if (call.length == 0)
@@ -385,8 +389,8 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		response.completionType = CompletionType.calltips;
 		foreach (symbol; symbols)
 		{
-//			writeln("Adding calltip ", symbol.calltip);
-			response.completions ~= symbol.calltip;
+			Log.trace("Adding calltip ", symbol.callTip);
+			response.completions ~= symbol.callTip;
 		}
 	}
 
@@ -522,118 +526,3 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
 		}
 	}
 }
-
-/**
- * Initializes builtin types and the various properties of builtin types
- */
-static this()
-{
-	auto bool_ = new ACSymbol("bool", CompletionKind.keyword);
-	auto int_ = new ACSymbol("int", CompletionKind.keyword);
-	auto long_ = new ACSymbol("long", CompletionKind.keyword);
-	auto byte_ = new ACSymbol("byte", CompletionKind.keyword);
-	auto char_ = new ACSymbol("char", CompletionKind.keyword);
-	auto dchar_ = new ACSymbol("dchar", CompletionKind.keyword);
-	auto short_ = new ACSymbol("short", CompletionKind.keyword);
-	auto ubyte_ = new ACSymbol("ubyte", CompletionKind.keyword);
-	auto uint_ = new ACSymbol("uint", CompletionKind.keyword);
-	auto ulong_ = new ACSymbol("ulong", CompletionKind.keyword);
-	auto ushort_ = new ACSymbol("ushort", CompletionKind.keyword);
-	auto wchar_ = new ACSymbol("wchar", CompletionKind.keyword);
-
-	auto alignof_ = new ACSymbol("alignof", CompletionKind.keyword, ulong_);
-	auto mangleof_ = new ACSymbol("mangleof", CompletionKind.keyword);
-	auto sizeof_ = new ACSymbol("sizeof", CompletionKind.keyword, ulong_);
-	auto stringof_ = new ACSymbol("stringof", CompletionKind.keyword);
-
-	arraySymbols ~= alignof_;
-	arraySymbols ~= new ACSymbol("dup", CompletionKind.keyword);
-	arraySymbols ~= new ACSymbol("idup", CompletionKind.keyword);
-	arraySymbols ~= new ACSymbol("init", CompletionKind.keyword);
-	arraySymbols ~= new ACSymbol("length", CompletionKind.keyword, ulong_);
-	arraySymbols ~= mangleof_;
-	arraySymbols ~= new ACSymbol("ptr", CompletionKind.keyword);
-	arraySymbols ~= new ACSymbol("reverse", CompletionKind.keyword);
-	arraySymbols ~= sizeof_;
-	arraySymbols ~= new ACSymbol("sort", CompletionKind.keyword);
-	arraySymbols ~= stringof_;
-
-	assocArraySymbols ~= alignof_;
-	assocArraySymbols ~= new ACSymbol("byKey", CompletionKind.keyword);
-	assocArraySymbols ~= new ACSymbol("byValue", CompletionKind.keyword);
-	assocArraySymbols ~= new ACSymbol("dup", CompletionKind.keyword);
-	assocArraySymbols ~= new ACSymbol("get", CompletionKind.keyword);
-	assocArraySymbols ~= new ACSymbol("init", CompletionKind.keyword);
-	assocArraySymbols ~= new ACSymbol("keys", CompletionKind.keyword);
-	assocArraySymbols ~= new ACSymbol("length", CompletionKind.keyword, ulong_);
-	assocArraySymbols ~= mangleof_;
-	assocArraySymbols ~= new ACSymbol("rehash", CompletionKind.keyword);
-	assocArraySymbols ~= sizeof_;
-	assocArraySymbols ~= stringof_;
-	assocArraySymbols ~= new ACSymbol("values", CompletionKind.keyword);
-
-	foreach (s; [bool_, int_, long_, byte_, char_, dchar_, short_, ubyte_, uint_,
-		ulong_, ushort_, wchar_])
-	{
-		s.parts ~= new ACSymbol("init", CompletionKind.keyword, s);
-		s.parts ~= new ACSymbol("min", CompletionKind.keyword, s);
-		s.parts ~= new ACSymbol("max", CompletionKind.keyword, s);
-		s.parts ~= alignof_;
-		s.parts ~= sizeof_;
-		s.parts ~= stringof_;
-		s.parts ~= mangleof_;
-	}
-
-	auto cdouble_ = new ACSymbol("cdouble", CompletionKind.keyword);
-	auto cent_ = new ACSymbol("cent", CompletionKind.keyword);
-	auto cfloat_ = new ACSymbol("cfloat", CompletionKind.keyword);
-	auto creal_ = new ACSymbol("creal", CompletionKind.keyword);
-	auto double_ = new ACSymbol("double", CompletionKind.keyword);
-	auto float_ = new ACSymbol("float", CompletionKind.keyword);
-	auto idouble_ = new ACSymbol("idouble", CompletionKind.keyword);
-	auto ifloat_ = new ACSymbol("ifloat", CompletionKind.keyword);
-	auto ireal_ = new ACSymbol("ireal", CompletionKind.keyword);
-	auto real_ = new ACSymbol("real", CompletionKind.keyword);
-	auto ucent_ = new ACSymbol("ucent", CompletionKind.keyword);
-
-	foreach (s; [cdouble_, cent_, cfloat_, creal_, double_, float_,
-		idouble_, ifloat_, ireal_, real_, ucent_])
-	{
-		s.parts ~= alignof_;
-		s.parts ~= new ACSymbol("dig", CompletionKind.keyword, s);
-		s.parts ~= new ACSymbol("epsilon", CompletionKind.keyword, s);
-		s.parts ~= new ACSymbol("infinity", CompletionKind.keyword, s);
-		s.parts ~= new ACSymbol("init", CompletionKind.keyword, s);
-		s.parts ~= mangleof_;
-		s.parts ~= new ACSymbol("mant_dig", CompletionKind.keyword, int_);
-		s.parts ~= new ACSymbol("max", CompletionKind.keyword, s);
-		s.parts ~= new ACSymbol("max_10_exp", CompletionKind.keyword, int_);
-		s.parts ~= new ACSymbol("max_exp", CompletionKind.keyword, int_);
-		s.parts ~= new ACSymbol("min", CompletionKind.keyword, s);
-		s.parts ~= new ACSymbol("min_exp", CompletionKind.keyword, int_);
-		s.parts ~= new ACSymbol("min_10_exp", CompletionKind.keyword, int_);
-		s.parts ~= new ACSymbol("min_normal", CompletionKind.keyword, s);
-		s.parts ~= new ACSymbol("nan", CompletionKind.keyword, s);
-		s.parts ~= sizeof_;
-		s.parts ~= stringof_;
-	}
-
-	ireal_.parts ~= new ACSymbol("im", CompletionKind.keyword, real_);
-	ifloat_.parts ~= new ACSymbol("im", CompletionKind.keyword, float_);
-	idouble_.parts ~= new ACSymbol("im", CompletionKind.keyword, double_);
-	ireal_.parts ~= new ACSymbol("re", CompletionKind.keyword, real_);
-	ifloat_.parts ~= new ACSymbol("re", CompletionKind.keyword, float_);
-	idouble_.parts ~= new ACSymbol("re", CompletionKind.keyword, double_);
-
-	auto void_ = new ACSymbol("void", CompletionKind.keyword);
-
-	builtinSymbols = [bool_, int_, long_, byte_, char_, dchar_, short_, ubyte_, uint_,
-		ulong_, ushort_, wchar_, cdouble_, cent_, cfloat_, creal_, double_,
-		float_, idouble_, ifloat_, ireal_, real_, ucent_, void_];
-}
-
-ACSymbol[] builtinSymbols;
-ACSymbol[] arraySymbols;
-ACSymbol[] assocArraySymbols;
-ACSymbol[] classSymbols;
-ACSymbol[] structSymbols;

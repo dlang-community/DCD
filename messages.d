@@ -23,6 +23,10 @@ module messages;
  */
 enum CompletionKind : char
 {
+    /// Invalid completion kind. This is used internally and will never
+    /// be returned in a completion response.
+    dummy = '?',
+
     /// class names
     className = 'c',
 
@@ -86,11 +90,18 @@ enum CompletionType : string
     calltips = "calltips"
 }
 
-enum RequestKind
+/**
+ * Request kind
+ */
+enum RequestKind : ubyte
 {
+	/// Autocompletion
 	autocomplete,
+	/// Clear the completion cache
 	clearCache,
+	/// Add import directory to server
 	addImport,
+	/// Shut down the server
 	shutdown
 }
 

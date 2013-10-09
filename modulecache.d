@@ -29,14 +29,20 @@ import std.path;
 import std.algorithm;
 import std.conv;
 
-import acvisitor;
 import actypes;
-import autocomplete;
+import semantic;
+import astconverter;
+import stupidlog;
 
 struct CacheEntry
 {
-	ACSymbol[] symbols;
+	const(ACSymbol)*[] symbols;
 	SysTime modificationTime;
+	void opAssign(ref const CacheEntry other)
+	{
+		this.symbols = cast(typeof(symbols)) other.symbols;
+		this.modificationTime = other.modificationTime;
+	}
 }
 
 /**
@@ -64,8 +70,11 @@ struct ModuleCache
 		importPaths ~= path;
 		foreach (fileName; dirEntries(path, "*.{d,di}", SpanMode.depth))
 		{
-			writeln("Loading and caching completions for ", fileName);
+			Log.info("Loading and caching completions for ", fileName);
 			getSymbolsInModule(fileName);
+			import core.memory;
+			GC.collect();
+			GC.minimize();
 		}
 	}
 
@@ -75,16 +84,16 @@ struct ModuleCache
 	 * Returns:
 	 *     The symbols defined in the given module
 	 */
-	static ACSymbol[] getSymbolsInModule(string moduleName)
+	static const(ACSymbol)*[] getSymbolsInModule(string moduleName)
 	{
-		writeln("Getting symbols for module ", moduleName);
+//		Log.info("Getting symbols for module ", moduleName);
 		string location = resolveImportLoctation(moduleName);
 		if (location is null)
 			return [];
 		if (!needsReparsing(location))
 			return cache[location].symbols;
 
-		auto visitor = new AutocompleteVisitor;
+		const(ACSymbol)*[] symbols;
 		try
 		{
 			File f = File(location);
@@ -92,25 +101,23 @@ struct ModuleCache
 			f.rawRead(source);
 
 			LexerConfig config;
+			config.fileName = location;
 			auto tokens = source.byToken(config).array();
 			Module mod = parseModule(tokens, location, &doesNothing);
 
-			visitor.visit(mod);
-			visitor.scope_.resolveSymbolTypes();
+			symbols = convertAstToSymbols(mod);
 		}
 		catch (Exception ex)
 		{
-			writeln("Couln't parse ", location, " due to exception: ", ex.msg);
+			Log.error("Couln't parse ", location, " due to exception: ", ex.msg);
 			return [];
 		}
 		SysTime access;
 		SysTime modification;
 		getTimes(location, access, modification);
-		if (location !in cache)
-			cache[location] = CacheEntry.init;
-		cache[location].modificationTime = modification;
-		cache[location].symbols = visitor.symbols;
-		return cache[location].symbols;
+		CacheEntry c = CacheEntry(symbols, modification);
+		cache[location] = c;
+		return symbols;
 	}
 
 	/**
@@ -122,7 +129,7 @@ struct ModuleCache
 	 */
 	static string resolveImportLoctation(string moduleName)
 	{
-//		writeln("Resolving location of ", moduleName);
+//		Log.trace("Resolving location of ", moduleName);
 		if (isRooted(moduleName))
 			return moduleName;
 
@@ -168,3 +175,5 @@ private:
 	// Listing of paths to check for imports
 	static string[] importPaths;
 }
+
+private void doesNothing(string a, int b, int c, string d) {}
