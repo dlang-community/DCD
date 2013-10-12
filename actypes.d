@@ -138,6 +138,9 @@ public:
 	 */
 	string symbolFile;
 
+	/**
+	 * Gets all parts whose name matches the given string.
+	 */
 	const(ACSymbol)*[] getPartsByName(string name) const
 	{
 		return cast(typeof(return)) parts.filter!(a => a.name == name).array;
@@ -206,6 +209,7 @@ struct Scope
 	}
 
 	ACSymbol*[] symbols;
+	string[][] imports;
 }
 
 

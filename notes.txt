@@ -1,0 +1,31 @@
+AST → Scopes
+	→ SemanticSymbol → ACSymbol
+
+ModuleCache has ACSymbol tree
+Completion Context has Scopes and ACSymbol instances
+
+
+
+Caching
+=======
+
+# Load file
+# Lex
+# Parse
+# BasicSemanticVisitor generates semantic object tree
+# Semantic information used to create ACSymbol tree.
+# ACSymbol tree stored in ModuleCache
+
+Completion
+==========
+
+# Lex source
+# Parse
+# AST Visitor generates semantic objects and scope information
+# Semantic informaton used to create ACSymbol tree. This pass is more involved
+	because it also looks at variables local to functions and other symbols
+	that would not be included in the module cache.
+# Semantic and scope info used to associate ACSymbol nodes and scopes. ACSymbol
+	objects store their location information. Given a blank Scope tree, a method
+	can be wnitten to assign ACSymbol instances to the correct scope.
+# Autocompletion will need to only look at this simplified Scope/ACSymbol tree.

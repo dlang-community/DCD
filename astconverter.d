@@ -18,6 +18,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
 
+/**
+ * AST conversion takes place in several steps
+ * 1. AST is converted to a tree of SemanicSymbols, a tree of ACSymbols, and a
+ * tree of scopes. The following fields are set on the symbols:
+ *     * name
+ *     * location
+ *     * alias this
+ *     * base class names
+ *     * protection level
+ *     * symbol kind
+ *     * function call tip
+ *     * symbol file path
+ * Import statements are recorded in the scope tree.
+ * 2. Scope tree is traversed and all imports are resolved by adding appropriate
+ * ACSymbol instances.
+ * 3. Semantic symbol tree is traversed
+ *     * types are resolved
+ *     * base classes are resolved
+ *     * mixin templates are resolved
+ *     * alias this is resolved
+ */
+
 module astconverter;
 
 import std.array;
@@ -34,22 +56,8 @@ import messages;
 import semantic;
 import stupidlog;
 
-enum SemanticType
+class FirstPass : ASTVisitor
 {
-	partial,
-	full
-}
-
-/**
- * Basic visitor class used for caching completions of imported modules.
- */
-class SemanticVisitor : ASTVisitor
-{
-	this (SemanticType sType)
-	{
-		this.semanticType = sType;
-	}
-
     override void visit(Constructor con)
     {
 //		Log.trace(__FUNCTION__, " ", typeof(con).stringof);
@@ -130,13 +138,13 @@ class SemanticVisitor : ASTVisitor
 		foreach (declarator; dec.declarators)
 		{
 			SemanticSymbol* symbol = new SemanticSymbol;
-			symbol.type = t;
-			symbol.protection = protection;
+			symbol.acSymbol.type = t;
 			symbol.kind = CompletionKind.variableName;
 			symbol.name = declarator.name.value.dup;
 			symbol.location = declarator.name.startIndex;
+			symbol.protection = protection;
 			symbol.parent = currentSymbol;
-			currentSymbol.children ~= symbol;
+			currentSymbol.addChild(symbol);
 		}
 	}
 
@@ -234,7 +242,7 @@ class SemanticVisitor : ASTVisitor
 	// Create scope for block statements
 	override void visit(BlockStatement blockStatement)
 	{
-		Log.trace(__FUNCTION__, " ", typeof(blockStatement).stringof);
+//		Log.trace(__FUNCTION__, " ", typeof(blockStatement).stringof);
 		Scope* s = new Scope;
 		s.startLocation = blockStatement.startLocation;
 		s.endLocation = blockStatement.endLocation;
@@ -243,7 +251,7 @@ class SemanticVisitor : ASTVisitor
 		{
 			foreach (child; currentSymbol.children)
 			{
-				Log.trace("Setting ", child.name, " location");
+//				Log.trace("Setting ", child.name, " location");
 				child.location = s.startLocation + 1;
 			}
 		}
@@ -324,7 +332,7 @@ private:
                     parameter.kind = CompletionKind.variableName;
                     parameter.startLocation = p.name.startIndex;
                     symbol.children ~= parameter;
-					Log.trace("Parameter ", parameter.name, " added to ", symbol.name);
+//					Log.trace("Parameter ", parameter.name, " added to ", symbol.name);
                 }
             }
             else
@@ -393,8 +401,6 @@ private:
 
     /// Current scope
     Scope* currentScope;
-
-	SemanticType semanticType;
 }
 
 
@@ -412,6 +418,11 @@ public:
 	{
 		convertSemanticSymbol(symbol);
 		assert (current !is null);
+		resolveTypes(current);
+	}
+
+	void resolveTypes(const(ACSymbol*) symbol)
+	{
 	}
 
 	ACSymbol* convertSemanticSymbol(const(SemanticSymbol)* symbol)
@@ -545,7 +556,7 @@ private:
 		else if (t.type2.symbol !is null)
 		{
 			if (t.type2.symbol.dot)
-				Log.trace("TODO: global scoped symbol handling");
+				Log.error("TODO: global scoped symbol handling");
 			string[] symbolParts = expandSymbol(
 				t.type2.symbol.identifierOrTemplateChain);
 

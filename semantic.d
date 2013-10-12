@@ -30,20 +30,23 @@ import stdx.d.lexer;
 struct SemanticSymbol
 {
 public:
-	/// Symbol name
-	string name;
+
+	void name(string n) @property { acSymbol.name = n; }
+
+	void addChild(SemanticSymbol* child)
+	{
+		children ~= child;
+		acSymbol.parts ~= child.acSymbol;
+	}
+
+	/// Autocompletion symbol
+	ACSymbol* acSymbol;
 
 	/// Base classes
 	string[][] baseClasses;
 
-	/// Completion kind
-	CompletionKind kind;
-
 	/// Variable type or function return type
 	Type type;
-
-	/// Function call tip. Null if this is not a function
-	string callTip;
 
 	/// Alias this symbols
 	string[] aliasThis;
@@ -53,9 +56,6 @@ public:
 
 	/// Protection level for this symobol
 	TokenType protection;
-
-	/// Symbol location
-	size_t location;
 
 	mixin scopeImplementation!(SemanticSymbol);
 }
