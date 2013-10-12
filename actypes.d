@@ -157,14 +157,9 @@ public:
     }
 }
 
-mixin template scopeImplementation(ScopeType)
+struct Scope
 {
-	ScopeType* parent;
-	ScopeType*[] children;
-	size_t startLocation;
-	size_t endLocation;
-
-	ScopeType* getScopeByCursor(size_t cursorPosition) const
+	Scope* getScopeByCursor(size_t cursorPosition) const
 	{
 		if (cursorPosition < startLocation) return null;
 		if (cursorPosition > endLocation) return null;
@@ -176,11 +171,6 @@ mixin template scopeImplementation(ScopeType)
 		}
 		return cast(typeof(return)) &this;
 	}
-}
-
-struct Scope
-{
-	mixin scopeImplementation!(typeof(this));
 
 	ACSymbol*[] getSymbolsInCursorScope(size_t cursorPosition) const
 	{
@@ -209,7 +199,21 @@ struct Scope
 	}
 
 	ACSymbol*[] symbols;
-	string[][] imports;
+	ImportInformation[] importInformation;
+	Scope* parent;
+	Scope*[] children;
+	size_t startLocation;
+	size_t endLocation;
+}
+
+struct ImportInformation
+{
+	/// module relative path
+	string modulePath;
+	/// symbols to import from this module
+	string[string] importedSymbols;
+	/// true if the import is public
+	bool isPublic;
 }
 
 

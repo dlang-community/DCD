@@ -105,7 +105,7 @@ struct ModuleCache
 			auto tokens = source.byToken(config).array();
 			Module mod = parseModule(tokens, location, &doesNothing);
 
-			symbols = convertAstToSymbols(mod);
+			symbols = convertAstToSymbols(mod, location);
 		}
 		catch (Exception ex)
 		{

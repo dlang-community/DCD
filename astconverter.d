@@ -18,86 +18,102 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
 
-/**
- * AST conversion takes place in several steps
- * 1. AST is converted to a tree of SemanicSymbols, a tree of ACSymbols, and a
- * tree of scopes. The following fields are set on the symbols:
- *     * name
- *     * location
- *     * alias this
- *     * base class names
- *     * protection level
- *     * symbol kind
- *     * function call tip
- *     * symbol file path
- * Import statements are recorded in the scope tree.
- * 2. Scope tree is traversed and all imports are resolved by adding appropriate
- * ACSymbol instances.
- * 3. Semantic symbol tree is traversed
- *     * types are resolved
- *     * base classes are resolved
- *     * mixin templates are resolved
- *     * alias this is resolved
- */
-
 module astconverter;
 
+import std.algorithm;
 import std.array;
 import std.conv;
+import std.path;
 import std.range;
-import std.algorithm;
 
 import stdx.d.ast;
 import stdx.d.lexer;
 import stdx.d.parser;
 
 import actypes;
+import constants;
 import messages;
 import semantic;
 import stupidlog;
 
-class FirstPass : ASTVisitor
+/**
+ * First Pass handles the following:
+ * $(UL
+ *     $(LI symbol name)
+ *     $(LI symbol location)
+ *     $(LI alias this locations)
+ *     $(LI base class names)
+ *     $(LI protection level)
+ *     $(LI symbol kind)
+ *     $(LI function call tip)
+ *     $(LI symbol file path)
+ * )
+ */
+final class FirstPass : ASTVisitor
 {
+	this(Module mod, string symbolFile)
+	{
+		this.symbolFile = symbolFile;
+		this.mod = mod;
+	}
+
+	void run()
+	{
+		visit(mod);
+	}
+
     override void visit(Constructor con)
     {
 //		Log.trace(__FUNCTION__, " ", typeof(con).stringof);
-        visitFunctionDeclaration(con);
+        visitConstructor(con.location, con.parameters, con.functionBody);
     }
 
     override void visit(SharedStaticConstructor con)
     {
 //		Log.trace(__FUNCTION__, " ", typeof(con).stringof);
-        visitFunctionDeclaration(con);
+		visitConstructor(con.location, null, con.functionBody);
     }
 
     override void visit(StaticConstructor con)
     {
 //		Log.trace(__FUNCTION__, " ", typeof(con).stringof);
-        visitFunctionDeclaration(con);
+        visitConstructor(con.location, null, con.functionBody);
     }
 
     override void visit(Destructor des)
     {
 //		Log.trace(__FUNCTION__, " ", typeof(des).stringof);
-        visitFunctionDeclaration(des);
+        visitDestructor(des.location, des.functionBody);
     }
 
     override void visit(SharedStaticDestructor des)
     {
 //		Log.trace(__FUNCTION__, " ", typeof(des).stringof);
-        visitFunctionDeclaration(des);
+        visitDestructor(des.location, des.functionBody);
     }
 
     override void visit(StaticDestructor des)
     {
 //		Log.trace(__FUNCTION__, " ", typeof(des).stringof);
-        visitFunctionDeclaration(des);
+        visitDestructor(des.location, des.functionBody);
     }
 
 	override void visit(FunctionDeclaration dec)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
-        visitFunctionDeclaration(dec);
+        SemanticSymbol* symbol = new SemanticSymbol(dec.name.value.dup,
+			CompletionKind.functionName, symbolFile, dec.name.startIndex);
+		processParameters(symbol, dec.returnType, symbol.acSymbol.name,
+			dec.parameters);
+		symbol.protection = protection;
+		symbol.parent = currentSymbol;
+		currentSymbol.addChild(symbol);
+		if (dec.functionBody !is null)
+		{
+			currentSymbol = symbol;
+			dec.functionBody.accept(this);
+			currentSymbol = symbol.parent;
+		}
 	}
 
 	override void visit(ClassDeclaration dec)
@@ -137,11 +153,12 @@ class FirstPass : ASTVisitor
 		Type t = dec.type;
 		foreach (declarator; dec.declarators)
 		{
-			SemanticSymbol* symbol = new SemanticSymbol;
-			symbol.acSymbol.type = t;
-			symbol.kind = CompletionKind.variableName;
-			symbol.name = declarator.name.value.dup;
-			symbol.location = declarator.name.startIndex;
+			SemanticSymbol* symbol = new SemanticSymbol(
+				declarator.name.value.dup,
+				CompletionKind.variableName,
+				symbolFile,
+				declarator.name.startIndex);
+			symbol.type = t;
 			symbol.protection = protection;
 			symbol.parent = currentSymbol;
 			currentSymbol.addChild(symbol);
@@ -176,14 +193,16 @@ class FirstPass : ASTVisitor
 	override void visit(Module mod)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(mod).stringof);
-		rootSymbol = new SemanticSymbol;
-		rootSymbol.kind = CompletionKind.moduleName;
-		rootSymbol.startLocation = 0;
-		rootSymbol.endLocation = size_t.max;
-		currentSymbol = rootSymbol;
+//
+		currentSymbol = new SemanticSymbol(null, CompletionKind.moduleName,
+			symbolFile);
+		rootSymbol = currentSymbol;
+
 		currentScope = new Scope();
 		currentScope.startLocation = 0;
 		currentScope.endLocation = size_t.max;
+		moduleScope = currentScope;
+
 		mod.accept(this);
 	}
 
@@ -191,29 +210,25 @@ class FirstPass : ASTVisitor
     {
 		assert (currentSymbol);
 //		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
-        SemanticSymbol* symbol = new SemanticSymbol;
-        symbol.name = dec.name.value.dup;
-        symbol.location = dec.name.startIndex;
-        symbol.kind = CompletionKind.enumName;
+        SemanticSymbol* symbol = new SemanticSymbol(dec.name.value.dup,
+			CompletionKind.enumName, symbolFile, dec.name.startIndex);
         symbol.type = dec.type;
         symbol.parent = currentSymbol;
         currentSymbol = symbol;
         if (dec.enumBody !is null)
             dec.enumBody.accept(this);
         currentSymbol = symbol.parent;
-        currentSymbol.children ~= symbol;
+        currentSymbol.addChild(symbol);
     }
 
     override void visit(EnumMember member)
     {
 //		Log.trace(__FUNCTION__, " ", typeof(member).stringof);
-        SemanticSymbol* symbol = new SemanticSymbol;
-		symbol.kind = CompletionKind.enumMember;
-        symbol.name = member.name.value.dup;
-		symbol.location = member.name.startIndex;
+        SemanticSymbol* symbol = new SemanticSymbol(member.name.value.dup,
+			CompletionKind.enumMember, symbolFile, member.name.startIndex);
         symbol.type = member.type;
         symbol.parent = currentSymbol;
-        currentSymbol.children ~= symbol;
+        currentSymbol.addChild(symbol);
     }
 
 	override void visit(ModuleDeclaration dec)
@@ -239,31 +254,63 @@ class FirstPass : ASTVisitor
 		currentScope.children ~= s;
 	}
 
+	override void visit(ImportDeclaration importDeclaration)
+	{
+		Log.trace(__FUNCTION__, " ImportDeclaration");
+
+
+		foreach (single; importDeclaration.singleImports.filter!(
+			a => a !is null && a.identifierChain !is null))
+		{
+			ImportInformation info;
+			info.modulePath = convertChainToImportPath(single.identifierChain);
+			currentScope.importInformation ~= info;
+		}
+		if (importDeclaration.importBindings is null) return;
+		if (importDeclaration.importBindings.singleImport.identifierChain is null) return;
+		ImportInformation info;
+		info.modulePath = convertChainToImportPath(
+			importDeclaration.importBindings.singleImport.identifierChain);
+		foreach (bind; importDeclaration.importBindings.importBinds)
+		{
+			if (bind.right == TokenType.invalid)
+				info.importedSymbols[bind.left.value] = null;
+			else
+				info.importedSymbols[bind.left.value] = bind.right.value;
+		}
+		currentScope.importInformation ~= info;
+	}
+
 	// Create scope for block statements
 	override void visit(BlockStatement blockStatement)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(blockStatement).stringof);
 		Scope* s = new Scope;
+		s.parent = currentScope;
+		currentScope.children ~= s;
 		s.startLocation = blockStatement.startLocation;
 		s.endLocation = blockStatement.endLocation;
 
-		if (currentSymbol.kind == CompletionKind.functionName)
+		if (currentSymbol.acSymbol.kind == CompletionKind.functionName)
 		{
 			foreach (child; currentSymbol.children)
 			{
-//				Log.trace("Setting ", child.name, " location");
-				child.location = s.startLocation + 1;
+				child.acSymbol.location = s.startLocation + 1;
 			}
 		}
-//		Log.trace("Added scope ", s.startLocation, " ", s.endLocation);
-		s.parent = currentScope;
 		if (blockStatement.declarationsAndStatements !is null)
 		{
 			currentScope = s;
 			visit (blockStatement.declarationsAndStatements);
 			currentScope = s.parent;
 		}
-		currentScope.children ~= s;
+	}
+
+	override void visit(VersionCondition versionCondition)
+	{
+		// TODO: This is a bit of a hack
+		if (predefinedVersions.canFind(versionCondition.token.value))
+			versionCondition.accept(this);
 	}
 
 	alias ASTVisitor.visit visit;
@@ -272,109 +319,88 @@ private:
 
 	void visitAggregateDeclaration(AggType)(AggType dec, CompletionKind kind)
 	{
-		SemanticSymbol* symbol = new SemanticSymbol;
+
 //		Log.trace("visiting aggregate declaration ", dec.name.value);
-		symbol.name = dec.name.value.dup;
-		symbol.location = dec.name.startIndex;
-		symbol.kind = kind;
+		CompletionKind k;
+		static if (is (AggType == ClassDeclaration))
+			k = CompletionKind.className;
+		else static if (is (AggType == InterfaceDeclaration))
+			k = CompletionKind.interfaceName;
+		else static if (is (AggType == StructDeclaration))
+			k = CompletionKind.structName;
+		else static if (is (AggType == UnionDeclaration))
+			k = CompletionKind.unionName;
+		else static assert (false, "Unhandled aggregate type " ~ AggType.stringof);
+
+		SemanticSymbol* symbol = new SemanticSymbol(dec.name.value.dup,
+			kind, symbolFile, dec.name.startIndex);
 		symbol.parent = currentSymbol;
 		symbol.protection = protection;
 		currentSymbol = symbol;
 		dec.accept(this);
 		currentSymbol = symbol.parent;
-		currentSymbol.children ~= symbol;
+		currentSymbol.addChild(symbol);
 	}
 
-	void visitFunctionDeclaration(DeclarationType)(DeclarationType dec)
-    {
-        SemanticSymbol* symbol = new SemanticSymbol;
-
-        static if (is (DeclarationType == FunctionDeclaration))
-        {
-            symbol.name = dec.name.value.dup;
-            symbol.location = dec.name.startIndex;
-        }
-        else static if (is (DeclarationType == Destructor)
-            || is (DeclarationType == StaticDestructor)
-            || is (DeclarationType == SharedStaticDestructor))
-        {
-            symbol.name = "*destructor*";
-            symbol.location = dec.location;
-        }
-        else
-        {
-            symbol.name = "*constructor*";
-            symbol.location = dec.location;
-        }
-
-        static if (is (DeclarationType == Destructor)
-            || is (DeclarationType == StaticDestructor)
-            || is (DeclarationType == SharedStaticDestructor))
-        {
-            symbol.callTip = "~this()";
-        }
-        else static if (is (DeclarationType == StaticConstructor)
-            || is (DeclarationType == SharedStaticConstructor))
-        {
-            symbol.callTip = "this()";
-        }
-        else
-        {
-            string parameterString;
-            if (dec.parameters !is null)
-            {
-                parameterString = formatNode(dec.parameters);
-                foreach (Parameter p; dec.parameters.parameters)
-                {
-                    SemanticSymbol* parameter = new SemanticSymbol;
-                    parameter.name = p.name.value.dup;
-                    parameter.type = p.type;
-                    parameter.kind = CompletionKind.variableName;
-                    parameter.startLocation = p.name.startIndex;
-                    symbol.children ~= parameter;
-//					Log.trace("Parameter ", parameter.name, " added to ", symbol.name);
-                }
-            }
-            else
-                parameterString = "()";
-
-            static if (is (DeclarationType == FunctionDeclaration))
-                symbol.callTip = "%s %s%s".format(formatNode(dec.returnType),
-					dec.name.value, parameterString);
-            else
-                symbol.callTip = "this%s".format(parameterString);
-        }
-
-		symbol.protection = protection;
-		symbol.kind = CompletionKind.functionName;
-		symbol.parent = currentSymbol;
-		currentSymbol = symbol;
-
-		if (dec.functionBody !is null)
-		{
-			dec.functionBody.accept(this);
-		}
-		currentSymbol = symbol.parent;
-		currentSymbol.children ~= symbol;
-    }
-
-	static string[] iotcToStringArray(const IdentifierOrTemplateChain iotc)
+	void visitConstructor(size_t location, Parameters parameters,
+		FunctionBody functionBody)
 	{
-		string[] parts;
-		foreach (ioti; iotc.identifiersOrTemplateInstances)
+		SemanticSymbol* symbol = new SemanticSymbol("this",
+			CompletionKind.functionName, symbolFile, location);
+		processParameters(symbol, null, "this", parameters);
+		symbol.protection = protection;
+		symbol.parent = currentSymbol;
+		currentSymbol.addChild(symbol);
+		if (functionBody !is null)
 		{
-			if (ioti.identifier != TokenType.invalid)
-				parts ~= ioti.identifier.value.dup;
-			else
-				parts ~= ioti.templateInstance.identifier.value.dup;
+			currentSymbol = symbol;
+			functionBody.accept(this);
+			currentSymbol = symbol.parent;
 		}
-		return parts;
 	}
 
-	static string formatCalltip(Type returnType, string name, Parameters parameters,
+	void visitDestructor(size_t location, FunctionBody functionBody)
+	{
+		SemanticSymbol* symbol = new SemanticSymbol("~this",
+			CompletionKind.functionName, symbolFile, location);
+		symbol.acSymbol.callTip = "~this()";
+		symbol.protection = protection;
+		symbol.parent = currentSymbol;
+		currentSymbol.addChild(symbol);
+		if (functionBody !is null)
+		{
+			currentSymbol = symbol;
+			functionBody.accept(this);
+			currentSymbol = symbol.parent;
+		}
+	}
+
+	void processParameters(SemanticSymbol* symbol, Type returnType,
+		string functionName, Parameters parameters) const
+	{
+		if (parameters !is null)
+		{
+			foreach (Parameter p; parameters.parameters)
+			{
+				SemanticSymbol* parameter = new SemanticSymbol(p.name.value.dup,
+					CompletionKind.variableName, symbolFile, p.name.startIndex);
+				parameter.type = p.type;
+				symbol.addChild(parameter);
+				parameter.parent = symbol;
+			}
+		}
+		symbol.acSymbol.callTip = formatCallTip(returnType, functionName,
+			parameters);
+	}
+
+	static string formatCallTip(Type returnType, string name, Parameters parameters,
 		string doc = null)
 	{
-		return "%s %s%s".format(formatNode(returnType), name, formatNode(parameters));
+		string parameterString = parameters is null ? "()"
+			: formatNode(parameters);
+		if (returnType is null)
+			return "%s%s".format(name, parameterString);
+		return "%s %s%s".format(formatNode(returnType), name, parameterString);
 	}
 
 	static string formatNode(T)(T node)
@@ -401,144 +427,116 @@ private:
 
     /// Current scope
     Scope* currentScope;
+
+	/// Module scope
+	Scope* moduleScope;
+
+	/// Path to the file being converted
+	string symbolFile;
+
+	Module mod;
 }
 
-
-struct SemanticConverter
+/**
+ * Second pass handles the following:
+ * $(UL
+ *     $(LI Import statements)
+ *     $(LI assigning symbols to scopes)
+ * )
+ */
+struct SecondPass
 {
 public:
 
-	this(const(SemanticSymbol)* symbol, Scope* scopes)
+	this(SemanticSymbol* rootSymbol, Scope* moduleScope)
 	{
-		this.sc = scopes;
-		this.symbol = symbol;
+		this.rootSymbol = rootSymbol;
+		this.moduleScope = moduleScope;
 	}
 
-	void convertModule()
+	void run()
 	{
-		convertSemanticSymbol(symbol);
-		assert (current !is null);
-		resolveTypes(current);
+		assignToScopes(rootSymbol.acSymbol);
+		resolveImports(moduleScope);
 	}
-
-	void resolveTypes(const(ACSymbol*) symbol)
-	{
-	}
-
-	ACSymbol* convertSemanticSymbol(const(SemanticSymbol)* symbol)
-	{
-		ACSymbol* s = null;
-		with (CompletionKind) final switch (symbol.kind)
-		{
-		case moduleName:
-			s = convertAggregateDeclaration(symbol);
-			current = s;
-			break;
-		case className:
-		case interfaceName:
-		case structName:
-		case unionName:
-		case enumName:
-			s = convertAggregateDeclaration(symbol);
-			break;
-		case enumMember:
-			s = convertEnumMember(symbol);
-			break;
-		case variableName:
-		case memberVariableName:
-			s = convertVariableDeclaration(symbol);
-			break;
-		case functionName:
-			s = convertFunctionDeclaration(symbol);
-			break;
-		case aliasName:
-			s = convertAliasDeclaration(symbol);
-			break;
-		case packageName:
-			assert (false, "Not implemented");
-		case keyword:
-		case array:
-		case assocArray:
-        case dummy:
-			assert (false, "This should never be reached");
-		}
-		if (sc !is null && symbol.kind != CompletionKind.moduleName)
-		{
-			sc.getScopeByCursor(s.location).symbols ~= s;
-//			Log.trace("Set scope location");
-		}
-		return s;
-	}
-
-	ACSymbol* convertAliasDeclaration(const(SemanticSymbol)* symbol)
-	{
-		ACSymbol* ac = new ACSymbol;
-		ac.name = symbol.name;
-		ac.kind = symbol.kind;
-		ac.location = symbol.location;
-		// TODO: Set type
-		return ac;
-	}
-
-	ACSymbol* convertVariableDeclaration(const(SemanticSymbol)* symbol)
-	{
-		ACSymbol* ac = new ACSymbol;
-		ac.name = symbol.name;
-		ac.kind = CompletionKind.variableName;
-		ac.location = symbol.location;
-		if (symbol.type !is null)
-			ac.type = resolveType(symbol.type);
-		// TODO: Handle auto
-		return ac;
-	}
-
-	ACSymbol* convertEnumMember(const(SemanticSymbol)* symbol)
-	{
-		ACSymbol* ac = new ACSymbol;
-		ac.name = symbol.name;
-		ac.kind = symbol.kind;
-		ac.location = symbol.location;
-		// TODO: type
-		return ac;
-	}
-
-	ACSymbol* convertFunctionDeclaration(const(SemanticSymbol)* symbol)
-	{
-//		Log.trace("Converted ", symbol.name, " ", symbol.kind, " ", symbol.location);
-		ACSymbol* ac = new ACSymbol;
-		ac.name = symbol.name;
-		ac.kind = symbol.kind;
-		ac.location = symbol.location;
-		ac.callTip = symbol.callTip;
-		if (symbol.type !is null)
-			ac.type = resolveType(symbol.type);
-		return ac;
-	}
-
-    ACSymbol* convertAggregateDeclaration(const(SemanticSymbol)* symbol)
-    {
-//		Log.trace("Converted ", symbol.name, " ", symbol.kind, " ", symbol.location);
-		ACSymbol* ac = new ACSymbol;
-		ac.name = symbol.name;
-		ac.kind = symbol.kind;
-		ac.location = symbol.location;
-		if (symbol.kind == CompletionKind.className
-			|| symbol.kind == CompletionKind.structName)
-		{
-			ACSymbol* thisSymbol = new ACSymbol("this",
-				CompletionKind.variableName, ac);
-			ac.parts ~= thisSymbol;
-		}
-		auto temp = current;
-		current = ac;
-		foreach (child; symbol.children)
-			current.parts ~= convertSemanticSymbol(child);
-		current = temp;
-        return ac;
-    }
 
 private:
 
+	void assignToScopes(ACSymbol* currentSymbol)
+	{
+		moduleScope.getScopeByCursor(currentSymbol.location).symbols
+			~= currentSymbol;
+		foreach (part; currentSymbol.parts)
+			assignToScopes(part);
+	}
+
+	void resolveImports(Scope* currentScope)
+	{
+		foreach (importInfo; currentScope.importInformation)
+		{
+			// TODO: actually process imports here
+		}
+	}
+
+	SemanticSymbol* rootSymbol;
+	Scope* moduleScope;
+}
+
+/**
+ * Third pass handles the following:
+ * $(UL
+ *      $(LI types)
+ *      $(LI base classes)
+ *      $(LI mixin templates)
+ *      $(LI alias this)
+ * )
+ */
+struct ThirdPass
+{
+public:
+	this(SemanticSymbol* rootSymbol, Scope* moduleScope)
+	{
+		this.rootSymbol = rootSymbol;
+		this.moduleScope = moduleScope;
+	}
+
+	void run()
+	{
+		thirdPass(rootSymbol);
+	}
+
+private:
+
+	void thirdPass(SemanticSymbol* currentSymbol)
+	{
+		with (CompletionKind) final switch (currentSymbol.acSymbol.kind)
+		{
+		case className:
+		case interfaceName:
+			// resolve inheritance
+			goto case structName;
+		case structName:
+		case unionName:
+			break;
+		case variableName:
+		case memberVariableName:
+			break;
+		case functionName:
+			break;
+		case enumName:
+			break;
+		case keyword:
+		case enumMember:
+		case packageName:
+		case moduleName:
+		case dummy:
+		case array:
+		case assocArray:
+		case aliasName:
+		case templateName:
+		case mixinTemplateName:
+		}
+	}
 
 	ACSymbol* resolveType(const Type t)
 	in
@@ -610,29 +608,30 @@ private:
 		return null;
 	}
 
-	ACSymbol* current;
-	Scope* sc;
-	const(SemanticSymbol)* symbol;
+	SemanticSymbol* rootSymbol;
+	Scope* moduleScope;
 }
 
-const(ACSymbol)*[] convertAstToSymbols(Module m)
+const(ACSymbol)*[] convertAstToSymbols(Module m, string symbolFile)
 {
-    SemanticVisitor visitor = new SemanticVisitor(SemanticType.partial);
-	visitor.visit(m);
-    SemanticConverter converter = SemanticConverter(visitor.rootSymbol, null);
-	converter.convertModule();
-    return cast(typeof(return)) converter.current.parts;
+    FirstPass first = new FirstPass(m, symbolFile);
+	first.run();
+    SecondPass second = SecondPass(first.rootSymbol, first.moduleScope);
+	second.run();
+	ThirdPass third = ThirdPass(second.rootSymbol, second.moduleScope);
+    return cast(typeof(return)) third.rootSymbol.acSymbol.parts;
 }
 
-const(Scope)* generateAutocompleteTrees(const(Token)[] tokens)
+const(Scope)* generateAutocompleteTrees(const(Token)[] tokens, string symbolFile)
 {
 	Module m = parseModule(tokens, null);
-	SemanticVisitor visitor = new SemanticVisitor(SemanticType.full);
-	visitor.visit(m);
-	SemanticConverter converter = SemanticConverter(visitor.rootSymbol,
-		visitor.currentScope);
-	converter.convertModule();
-	return converter.sc;
+	FirstPass first = new FirstPass(m, symbolFile);
+	first.run();
+	SecondPass second = SecondPass(first.rootSymbol, first.currentScope);
+	second.run();
+	ThirdPass third = ThirdPass(second.rootSymbol, second.moduleScope);
+	third.run();
+	return cast(typeof(return)) third.moduleScope;
 }
 
 version(unittest) Module parseTestCode(string code)
@@ -648,20 +647,22 @@ version(unittest) Module parseTestCode(string code)
 	return m;
 }
 
-unittest
-{
-	auto source = q{
-		module foo;
+private:
 
-		struct Bar { int x; int y;}
-	}c;
-	Module m = parseTestCode(source);
-	BasicSemanticVisitor visitor = new BasicSemanticVisitor;
-	visitor.visit(m);
-	assert (visitor.rootSymbol !is null);
-	assert (visitor.rootSymbol.name == "foo");
-	SemanticSymbol* bar = visitor.root.getPartByName("Bar");
-	assert (bar !is null);
-	assert (bar.getPartByName("x") !is null);
-	assert (bar.getPartByName("y") !is null);
+string[] iotcToStringArray(const IdentifierOrTemplateChain iotc)
+{
+	string[] parts;
+	foreach (ioti; iotc.identifiersOrTemplateInstances)
+	{
+		if (ioti.identifier != TokenType.invalid)
+			parts ~= ioti.identifier.value.dup;
+		else
+			parts ~= ioti.templateInstance.identifier.value.dup;
+	}
+	return parts;
+}
+
+private static string convertChainToImportPath(IdentifierChain chain)
+{
+	return to!string(chain.identifiers.map!(a => a.value).join(dirSeparator).array) ~ ".d";
 }

@@ -23,4 +23,5 @@ dmd \
 	-Imsgpack-d/src\
 	-Idscanner\
 	-wi\
+	-g\
 	-ofdcd-server

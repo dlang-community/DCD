@@ -31,7 +31,15 @@ struct SemanticSymbol
 {
 public:
 
-	void name(string n) @property { acSymbol.name = n; }
+	@disable this();
+
+	this(string name, CompletionKind kind, string symbolFile,
+		size_t location = size_t.max)
+	{
+		acSymbol = new ACSymbol(name, kind);
+		acSymbol.location = location;
+		acSymbol.symbolFile = symbolFile;
+	}
 
 	void addChild(SemanticSymbol* child)
 	{
@@ -57,5 +65,7 @@ public:
 	/// Protection level for this symobol
 	TokenType protection;
 
-	mixin scopeImplementation!(SemanticSymbol);
+	SemanticSymbol* parent;
+
+	SemanticSymbol*[] children;
 }

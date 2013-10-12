@@ -71,6 +71,12 @@ enum CompletionKind : char
 
 	/// alias name
 	aliasName = 'l',
+
+	/// template name
+	templateName = 't',
+
+	/// mixin template name
+	mixinTemplateName = 'T'
 }
 
 /**

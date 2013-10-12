@@ -100,7 +100,8 @@ AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
 		case TokenType.identifier:
 		case TokenType.rParen:
 		case TokenType.rBracket:
-			const(Scope)* completionScope = generateAutocompleteTrees(tokenArray);
+			const(Scope)* completionScope = generateAutocompleteTrees(tokenArray,
+				"stdin");
 			auto expression = getExpression(beforeTokens[0 .. $ - 1]);
 			response.setCompletions(completionScope, expression,
 				request.cursorPosition, CompletionType.calltips);
@@ -152,7 +153,8 @@ dotCompletion:
 		case TokenType.rParen:
 		case TokenType.rBracket:
 		case TokenType.this_:
-			const(Scope)* completionScope = generateAutocompleteTrees(tokenArray);
+			const(Scope)* completionScope = generateAutocompleteTrees(tokenArray,
+				"stdin");
 			auto expression = getExpression(beforeTokens);
 			response.setCompletions(completionScope, expression,
 				request.cursorPosition, CompletionType.identifiers, partial);
