@@ -25,6 +25,7 @@ import std.array;
 import std.conv;
 import std.path;
 import std.range;
+import std.typecons;
 
 import stdx.d.ast;
 import stdx.d.lexer;
@@ -35,6 +36,7 @@ import constants;
 import messages;
 import semantic;
 import stupidlog;
+import modulecache; // circular import
 
 /**
  * First Pass handles the following:
@@ -256,9 +258,7 @@ final class FirstPass : ASTVisitor
 
 	override void visit(ImportDeclaration importDeclaration)
 	{
-		Log.trace(__FUNCTION__, " ImportDeclaration");
-
-
+//		Log.trace(__FUNCTION__, " ImportDeclaration");
 		foreach (single; importDeclaration.singleImports.filter!(
 			a => a !is null && a.identifierChain !is null))
 		{
@@ -273,10 +273,10 @@ final class FirstPass : ASTVisitor
 			importDeclaration.importBindings.singleImport.identifierChain);
 		foreach (bind; importDeclaration.importBindings.importBinds)
 		{
-			if (bind.right == TokenType.invalid)
-				info.importedSymbols[bind.left.value] = null;
-			else
-				info.importedSymbols[bind.left.value] = bind.right.value;
+			Tuple!(string, string) bindTuple;
+			bindTuple[0] = bind.left.value.dup;
+			bindTuple[1] = bind.right == TokenType.invalid ? null : bind.right.value.dup;
+			info.importedSymbols ~= bindTuple;
 		}
 		currentScope.importInformation ~= info;
 	}
@@ -462,7 +462,7 @@ public:
 
 private:
 
-	void assignToScopes(ACSymbol* currentSymbol)
+	void assignToScopes(const(ACSymbol)* currentSymbol)
 	{
 		moduleScope.getScopeByCursor(currentSymbol.location).symbols
 			~= currentSymbol;
@@ -474,7 +474,35 @@ private:
 	{
 		foreach (importInfo; currentScope.importInformation)
 		{
-			// TODO: actually process imports here
+			auto symbols = ModuleCache.getSymbolsInModule(importInfo.modulePath);
+			if (importInfo.importedSymbols.length == 0)
+			{
+				currentScope.symbols ~= symbols;
+				continue;
+			}
+			symbolLoop: foreach (symbol; symbols)
+			{
+				foreach (tup; importInfo.importedSymbols)
+				{
+					if (tup[0] != symbol.name)
+						continue symbolLoop;
+					if (tup[1] !is null)
+					{
+						ACSymbol* s = new ACSymbol(tup[1],
+							symbol.kind, symbol.type);
+						// TODO: Compiler gets confused here, so cast the types.
+						s.parts = cast(typeof(s.parts)) symbol.parts;
+						// TODO: Re-format callTip with new name?
+						s.callTip = symbol.callTip;
+						s.qualifier = symbol.qualifier;
+						s.location = symbol.location;
+						s.symbolFile = symbol.symbolFile;
+						currentScope.symbols ~= s;
+					}
+					else
+						currentScope.symbols ~= symbol;
+				}
+			}
 		}
 	}
 
@@ -509,22 +537,26 @@ private:
 
 	void thirdPass(SemanticSymbol* currentSymbol)
 	{
+//		Log.trace("third pass on ", currentSymbol.acSymbol.name);
 		with (CompletionKind) final switch (currentSymbol.acSymbol.kind)
 		{
 		case className:
 		case interfaceName:
-			// resolve inheritance
+			resolveInheritance(currentSymbol);
 			goto case structName;
 		case structName:
 		case unionName:
+			resolveAliasThis(currentSymbol);
+			resolveMixinTemplates(currentSymbol);
 			break;
 		case variableName:
 		case memberVariableName:
-			break;
 		case functionName:
+//			Log.trace("Resolving type of ", currentSymbol.acSymbol.name);
+			currentSymbol.acSymbol.type = resolveType(currentSymbol.type,
+				currentSymbol.acSymbol.location);
 			break;
 		case enumName:
-			break;
 		case keyword:
 		case enumMember:
 		case packageName:
@@ -535,33 +567,78 @@ private:
 		case aliasName:
 		case templateName:
 		case mixinTemplateName:
+			break;
+		}
+
+		foreach (child; currentSymbol.children)
+			thirdPass(child);
+	}
+
+	void resolveInheritance(SemanticSymbol* currentSymbol)
+	{
+//		Log.trace("Resolving inheritance for ", currentSymbol.acSymbol.name);
+		outer: foreach (string[] base; currentSymbol.baseClasses)
+		{
+			const(ACSymbol)* baseClass;
+			if (base.length == 0)
+				continue;
+			auto symbols = moduleScope.getSymbolsByNameAndCursor(
+				base[0], currentSymbol.acSymbol.location);
+			if (symbols.length == 0)
+				continue;
+			baseClass = symbols[0];
+			foreach (part; base[1..$])
+			{
+				symbols = baseClass.getPartsByName(part);
+				if (symbols.length == 0)
+					continue outer;
+				baseClass = symbols[0];
+			}
+			currentSymbol.acSymbol.parts ~= baseClass.parts;
 		}
 	}
 
-	ACSymbol* resolveType(const Type t)
-	in
+	void resolveAliasThis(SemanticSymbol* currentSymbol)
 	{
-		assert (t !is null);
-		assert (t.type2 !is null);
+		// TODO:
 	}
-	body
+
+	void resolveMixinTemplates(SemanticSymbol* currentSymbol)
 	{
-		ACSymbol* s;
+		// TODO:
+	}
+
+	const(ACSymbol)* resolveType(Type t, size_t location)
+	{
+		if (t is null) return null;
+		if (t.type2 is null) return null;
+		const(ACSymbol)* s;
 		if (t.type2.builtinType != TokenType.invalid)
 			s = convertBuiltinType(t.type2);
 		else if (t.type2.typeConstructor != TokenType.invalid)
-			s = resolveType(t.type2.type);
+			s = resolveType(t.type2.type, location);
 		else if (t.type2.symbol !is null)
 		{
-			if (t.type2.symbol.dot)
-				Log.error("TODO: global scoped symbol handling");
+			// TODO: global scoped symbol handling
 			string[] symbolParts = expandSymbol(
 				t.type2.symbol.identifierOrTemplateChain);
-
+			auto symbols = moduleScope.getSymbolsByNameAndCursor(
+				symbolParts[0], location);
+			if (symbols.length == 0)
+				goto resolveSuffixes;
+			s = symbols[0];
+			foreach (symbolPart; symbolParts[1..$])
+			{
+				auto parts = s.getPartsByName(symbolPart);
+				if (parts.length == 0)
+					goto resolveSuffixes;
+				s = parts[0];
+			}
 		}
+	resolveSuffixes:
 		foreach (suffix; t.typeSuffixes)
 			s = processSuffix(s, suffix);
-		return null;
+		return s;
 	}
 
 	static string[] expandSymbol(const IdentifierOrTemplateChain chain)
@@ -570,6 +647,8 @@ private:
 		for (size_t i = 0; i != chain.identifiersOrTemplateInstances.length; ++i)
 		{
 			auto identOrTemplate = chain.identifiersOrTemplateInstances[i];
+			if (identOrTemplate is null)
+				continue;
 			strings[i] = identOrTemplate.templateInstance is null ?
 				identOrTemplate.identifier.value.dup
 				: identOrTemplate.identifier.value.dup;
@@ -577,14 +656,14 @@ private:
 		return strings;
 	}
 
-	static ACSymbol* processSuffix(ACSymbol* symbol, const TypeSuffix suffix)
+	static const(ACSymbol)* processSuffix(const(ACSymbol)* symbol, const TypeSuffix suffix)
 	{
 		if (suffix.star)
 			return symbol;
 		if (suffix.array || suffix.type)
 		{
 			ACSymbol* s = new ACSymbol;
-			s.parts = arraySymbols;
+			s.parts = suffix.array ? arraySymbols : assocArraySymbols;
 			s.type = symbol;
 			s.qualifier = suffix.array ? SymbolQualifier.array : SymbolQualifier.assocArray;
 			return s;
@@ -597,7 +676,7 @@ private:
 		return null;
 	}
 
-	static ACSymbol* convertBuiltinType(const Type2 type2)
+	static const(ACSymbol)* convertBuiltinType(const Type2 type2)
 	{
 		string stringRepresentation = getTokenValue(type2.builtinType);
 		if (stringRepresentation is null) return null;
@@ -619,6 +698,7 @@ const(ACSymbol)*[] convertAstToSymbols(Module m, string symbolFile)
     SecondPass second = SecondPass(first.rootSymbol, first.moduleScope);
 	second.run();
 	ThirdPass third = ThirdPass(second.rootSymbol, second.moduleScope);
+	third.run();
     return cast(typeof(return)) third.rootSymbol.acSymbol.parts;
 }
 
@@ -632,19 +712,6 @@ const(Scope)* generateAutocompleteTrees(const(Token)[] tokens, string symbolFile
 	ThirdPass third = ThirdPass(second.rootSymbol, second.moduleScope);
 	third.run();
 	return cast(typeof(return)) third.moduleScope;
-}
-
-version(unittest) Module parseTestCode(string code)
-{
-	LexerConfig config;
-	const(Token)[] tokens = byToken(cast(ubyte[]) code, config);
-	Parser p = new Parser;
-	p.fileName = "unittest";
-	p.tokens = tokens;
-	Module m = p.parseModule();
-	assert (p.errorCount == 0);
-	assert (p.warningCount == 0);
-	return m;
 }
 
 private:
@@ -664,5 +731,18 @@ string[] iotcToStringArray(const IdentifierOrTemplateChain iotc)
 
 private static string convertChainToImportPath(IdentifierChain chain)
 {
-	return to!string(chain.identifiers.map!(a => a.value).join(dirSeparator).array) ~ ".d";
+	return to!string(chain.identifiers.map!(a => a.value.dup).join(dirSeparator).array) ~ ".d";
+}
+
+version(unittest) Module parseTestCode(string code)
+{
+	LexerConfig config;
+	const(Token)[] tokens = byToken(cast(ubyte[]) code, config);
+	Parser p = new Parser;
+	p.fileName = "unittest";
+	p.tokens = tokens;
+	Module m = p.parseModule();
+	assert (p.errorCount == 0);
+	assert (p.warningCount == 0);
+	return m;
 }

@@ -25,6 +25,7 @@ import std.stdio;
 import std.array;
 import messages;
 import std.array;
+import std.typecons;
 
 /**
  * Any special information about a variable declaration symbol.
@@ -74,7 +75,7 @@ public:
 	 *     kind = the symbol's completion kind
 	 *     resolvedType = the resolved type of the symbol
 	 */
-	this(string name, CompletionKind kind, ACSymbol* type)
+	this(string name, CompletionKind kind, const(ACSymbol)* type)
 	{
 		this.name = name;
 		this.kind = kind;
@@ -101,7 +102,7 @@ public:
 	 * Symbols that compose this symbol, such as enum members, class variables,
 	 * methods, etc.
 	 */
-	ACSymbol*[] parts;
+	const(ACSymbol)*[] parts;
 
 	/**
 	 * Symbol's name
@@ -111,7 +112,7 @@ public:
 	/**
 	 * The symbol that represents the type.
 	 */
-	ACSymbol* type;
+	const(ACSymbol)* type;
 
 	/**
 	 * Calltip to display if this is a function
@@ -145,16 +146,6 @@ public:
 	{
 		return cast(typeof(return)) parts.filter!(a => a.name == name).array;
 	}
-
-    /**
-     * Sorts the parts array, and the parts array of each part, and so on.
-     */
-    void sortParts()
-    {
-        parts.sort();
-        foreach (p; parts)
-            p.sortParts();
-    }
 }
 
 struct Scope
@@ -198,7 +189,7 @@ struct Scope
 		return s.getSymbolsByName(name);
 	}
 
-	ACSymbol*[] symbols;
+	const(ACSymbol)*[] symbols;
 	ImportInformation[] importInformation;
 	Scope* parent;
 	Scope*[] children;
@@ -211,7 +202,7 @@ struct ImportInformation
 	/// module relative path
 	string modulePath;
 	/// symbols to import from this module
-	string[string] importedSymbols;
+	Tuple!(string, string)[] importedSymbols;
 	/// true if the import is public
 	bool isPublic;
 }
@@ -279,7 +270,6 @@ static this()
 		s.parts ~= sizeof_;
 		s.parts ~= stringof_;
 		s.parts ~= mangleof_;
-        s.sortParts();
 	}
 
 	auto cdouble_ = new ACSymbol("cdouble", CompletionKind.keyword);
@@ -314,7 +304,6 @@ static this()
 		s.parts ~= new ACSymbol("nan", CompletionKind.keyword, s);
 		s.parts ~= sizeof_;
 		s.parts ~= stringof_;
-        s.sortParts();
 	}
 
 	ireal_.parts ~= new ACSymbol("im", CompletionKind.keyword, real_);
@@ -331,8 +320,8 @@ static this()
 		float_, idouble_, ifloat_, ireal_, real_, ucent_, void_];
 }
 
-ACSymbol*[] builtinSymbols;
-ACSymbol*[] arraySymbols;
-ACSymbol*[] assocArraySymbols;
-ACSymbol*[] classSymbols;
-ACSymbol*[] structSymbols;
+const(ACSymbol)*[] builtinSymbols;
+const(ACSymbol)*[] arraySymbols;
+const(ACSymbol)*[] assocArraySymbols;
+const(ACSymbol)*[] classSymbols;
+const(ACSymbol)*[] structSymbols;

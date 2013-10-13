@@ -22,6 +22,7 @@ import messages;
 import actypes;
 import stdx.d.ast;
 import stdx.d.lexer;
+import stupidlog;
 
 /**
  * Intermediate form between ACSymbol and the AST classes. Stores enough
@@ -39,6 +40,11 @@ public:
 		acSymbol = new ACSymbol(name, kind);
 		acSymbol.location = location;
 		acSymbol.symbolFile = symbolFile;
+	}
+
+	~this()
+	{
+		Log.trace(acSymbol.name, " destructor");
 	}
 
 	void addChild(SemanticSymbol* child)

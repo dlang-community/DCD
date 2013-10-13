@@ -91,8 +91,7 @@ int main(string[] args)
 		Log.info("Sockets shut down.");
 	}
 
-	foreach (path; importPaths)
-		ModuleCache.addImportPath(path);
+	ModuleCache.addImportPaths(importPaths);
 	Log.info("Import directories: ", ModuleCache.getImportPaths());
 
 	ubyte[] buffer = new ubyte[1024 * 1024 * 4]; // 4 megabytes should be enough for anybody...
@@ -150,11 +149,7 @@ int main(string[] args)
 		msgpack.unpack(buffer[size_t.sizeof .. bytesReceived], request);
 		if (request.kind == RequestKind.addImport)
 		{
-			foreach (path; request.importPaths)
-			{
-				ModuleCache.addImportPath(path);
-			}
-
+			ModuleCache.addImportPaths(request.importPaths);
 		}
 		else if (request.kind == RequestKind.clearCache)
 		{

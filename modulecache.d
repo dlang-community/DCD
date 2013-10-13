@@ -63,18 +63,24 @@ struct ModuleCache
 	/**
 	 * Adds the given path to the list of directories checked for imports
 	 */
-	static void addImportPath(string path)
+	static void addImportPaths(string[] paths)
 	{
-		if (!exists(path))
-			return;
-		importPaths ~= path;
-		foreach (fileName; dirEntries(path, "*.{d,di}", SpanMode.depth))
+		foreach (path; paths)
 		{
-			Log.info("Loading and caching completions for ", fileName);
-			getSymbolsInModule(fileName);
-			import core.memory;
-			GC.collect();
-			GC.minimize();
+			if (!exists(path))
+			{
+				Log.error("Cannot cache modules in ", path, " because it does not exist");
+				continue;
+			}
+			importPaths ~= path;
+		}
+		foreach (path; paths)
+		{
+			foreach (fileName; dirEntries(path, "*.{d,di}", SpanMode.depth))
+			{
+				Log.info("Loading and caching completions for ", fileName);
+				getSymbolsInModule(fileName);
+			}
 		}
 	}
 
@@ -90,8 +96,15 @@ struct ModuleCache
 		string location = resolveImportLoctation(moduleName);
 		if (location is null)
 			return [];
+
 		if (!needsReparsing(location))
-			return cache[location].symbols;
+		{
+			if (location in cache)
+				return cache[location].symbols;
+			return [];
+		}
+
+		recursionGuard[location] = true;
 
 		const(ACSymbol)*[] symbols;
 		try
@@ -117,6 +130,10 @@ struct ModuleCache
 		getTimes(location, access, modification);
 		CacheEntry c = CacheEntry(symbols, modification);
 		cache[location] = c;
+		recursionGuard[location] = false;
+		import core.memory;
+		GC.collect();
+		GC.minimize();
 		return symbols;
 	}
 
@@ -142,7 +159,7 @@ struct ModuleCache
 			if (filePath.exists())
 				return filePath;
 		}
-		writeln("Could not find ", moduleName);
+		Log.error("Could not find ", moduleName);
 		return null;
 	}
 
@@ -161,6 +178,10 @@ private:
 	 */
 	static bool needsReparsing(string mod)
 	{
+		if (mod !in recursionGuard)
+			return true;
+		if (recursionGuard[mod])
+			return false;
 		if (!exists(mod) || mod !in cache)
 			return true;
 		SysTime access;
@@ -171,6 +192,8 @@ private:
 
 	// Mapping of file paths to their cached symbols.
 	static CacheEntry[string] cache;
+
+	static bool[string] recursionGuard;
 
 	// Listing of paths to check for imports
 	static string[] importPaths;
