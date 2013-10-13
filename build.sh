@@ -2,6 +2,10 @@ dmd -wi client.d\
 	messages.d\
 	msgpack-d/src/msgpack.d\
 	-Imsgpack-d/src\
+	-release\
+	-inline\
+	-noboundscheck\
+	-O\
 	-ofdcd-client
 
 dmd \

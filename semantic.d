@@ -42,11 +42,6 @@ public:
 		acSymbol.symbolFile = symbolFile;
 	}
 
-	~this()
-	{
-		Log.trace(acSymbol.name, " destructor");
-	}
-
 	void addChild(SemanticSymbol* child)
 	{
 		children ~= child;

@@ -62,6 +62,19 @@ final class FirstPass : ASTVisitor
 	void run()
 	{
 		visit(mod);
+		mod = null;
+	}
+
+	override void visit(Unittest u)
+	{
+		// Create a dummy symbol because we don't want unit test symbols leaking
+		// into the symbol they're declared in.
+		SemanticSymbol* s = new SemanticSymbol("*unittest*",
+			CompletionKind.dummy, null, 0);
+		s.parent = currentSymbol;
+		currentSymbol = s;
+		u.accept(this);
+		currentSymbol = s.parent;
 	}
 
     override void visit(Constructor con)
@@ -388,6 +401,20 @@ private:
 				symbol.addChild(parameter);
 				parameter.parent = symbol;
 			}
+			if (parameters.hasVarargs)
+			{
+				SemanticSymbol* argptr = new SemanticSymbol("_argptr",
+					CompletionKind.variableName, null, 0);
+				argptr.type = argptrType;
+				argptr.parent = symbol;
+				symbol.addChild(argptr);
+
+				SemanticSymbol* arguments = new SemanticSymbol("_arguments",
+					CompletionKind.variableName, null, 0);
+				arguments.type = argumentsType;
+				arguments.parent = symbol;
+				symbol.addChild(arguments);
+			}
 		}
 		symbol.acSymbol.callTip = formatCallTip(returnType, functionName,
 			parameters);
@@ -695,22 +722,29 @@ const(ACSymbol)*[] convertAstToSymbols(Module m, string symbolFile)
 {
     FirstPass first = new FirstPass(m, symbolFile);
 	first.run();
+
     SecondPass second = SecondPass(first.rootSymbol, first.moduleScope);
 	second.run();
+
 	ThirdPass third = ThirdPass(second.rootSymbol, second.moduleScope);
 	third.run();
+
     return cast(typeof(return)) third.rootSymbol.acSymbol.parts;
 }
 
 const(Scope)* generateAutocompleteTrees(const(Token)[] tokens, string symbolFile)
 {
 	Module m = parseModule(tokens, null);
+
 	FirstPass first = new FirstPass(m, symbolFile);
 	first.run();
+
 	SecondPass second = SecondPass(first.rootSymbol, first.currentScope);
 	second.run();
+
 	ThirdPass third = ThirdPass(second.rootSymbol, second.moduleScope);
 	third.run();
+
 	return cast(typeof(return)) third.moduleScope;
 }
 
@@ -731,7 +765,7 @@ string[] iotcToStringArray(const IdentifierOrTemplateChain iotc)
 
 private static string convertChainToImportPath(IdentifierChain chain)
 {
-	return to!string(chain.identifiers.map!(a => a.value.dup).join(dirSeparator).array) ~ ".d";
+	return to!string(chain.identifiers.map!(a => a.value).join(dirSeparator).array) ~ ".d";
 }
 
 version(unittest) Module parseTestCode(string code)

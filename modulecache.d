@@ -60,6 +60,18 @@ struct ModuleCache
 		cache = cache.init;
 	}
 
+	static void estimateMemory()
+	{
+		size_t estimate = 0;
+		foreach (c; cache)
+		{
+			foreach (symbol; c.symbols)
+				estimate = symbol.estimateMemory(estimate);
+		}
+		double megabytes = estimate / (1024.0F * 1024.0F);
+		Log.info("Memory use estimated at ", megabytes, " megabytes");
+	}
+
 	/**
 	 * Adds the given path to the list of directories checked for imports
 	 */
@@ -78,7 +90,6 @@ struct ModuleCache
 		{
 			foreach (fileName; dirEntries(path, "*.{d,di}", SpanMode.depth))
 			{
-				Log.info("Loading and caching completions for ", fileName);
 				getSymbolsInModule(fileName);
 			}
 		}
@@ -92,7 +103,7 @@ struct ModuleCache
 	 */
 	static const(ACSymbol)*[] getSymbolsInModule(string moduleName)
 	{
-//		Log.info("Getting symbols for module ", moduleName);
+
 		string location = resolveImportLoctation(moduleName);
 		if (location is null)
 			return [];
@@ -103,6 +114,8 @@ struct ModuleCache
 				return cache[location].symbols;
 			return [];
 		}
+
+		Log.info("Getting symbols for module ", moduleName);
 
 		recursionGuard[location] = true;
 
@@ -131,9 +144,6 @@ struct ModuleCache
 		CacheEntry c = CacheEntry(symbols, modification);
 		cache[location] = c;
 		recursionGuard[location] = false;
-		import core.memory;
-		GC.collect();
-		GC.minimize();
 		return symbols;
 	}
 

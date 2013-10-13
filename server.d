@@ -98,6 +98,7 @@ int main(string[] args)
 
 	sw.stop();
 	Log.info("Startup completed in ", sw.peek().to!("msecs", float), " milliseconds");
+	ModuleCache.estimateMemory();
 
 	while (true)
 	{
@@ -113,8 +114,6 @@ int main(string[] args)
             s.close();
             continue;
         }
-
-        // TODO: Only process connections from localhost
 
 		scope (exit)
 		{

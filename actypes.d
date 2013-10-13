@@ -99,6 +99,23 @@ public:
     }
 
 	/**
+	 * Gets all parts whose name matches the given string.
+	 */
+	const(ACSymbol)*[] getPartsByName(string name) const
+	{
+		return cast(typeof(return)) parts.filter!(a => a.name == name).array;
+	}
+
+	size_t estimateMemory(size_t runningTotal) const
+	{
+		runningTotal = runningTotal + name.length + callTip.length
+			+ ACSymbol.sizeof;
+		foreach (part; parts)
+			runningTotal = part.estimateMemory(runningTotal);
+		return runningTotal;
+	}
+
+	/**
 	 * Symbols that compose this symbol, such as enum members, class variables,
 	 * methods, etc.
 	 */
@@ -110,14 +127,24 @@ public:
 	string name;
 
 	/**
+	 * Calltip to display if this is a function
+	 */
+	string callTip;
+
+	/**
+	 * Module containing the symbol.
+	 */
+	string symbolFile;
+
+	/**
 	 * The symbol that represents the type.
 	 */
 	const(ACSymbol)* type;
 
 	/**
-	 * Calltip to display if this is a function
+	 * Symbol location
 	 */
-	string callTip;
+	size_t location;
 
 	/**
 	 * The kind of symbol
@@ -128,24 +155,6 @@ public:
 	 * Symbol qualifier
 	 */
 	SymbolQualifier qualifier;
-
-	/**
-	 * Symbol location
-	 */
-	size_t location;
-
-	/**
-	 * Module containing the symbol.
-	 */
-	string symbolFile;
-
-	/**
-	 * Gets all parts whose name matches the given string.
-	 */
-	const(ACSymbol)*[] getPartsByName(string name) const
-	{
-		return cast(typeof(return)) parts.filter!(a => a.name == name).array;
-	}
 }
 
 struct Scope
@@ -318,6 +327,28 @@ static this()
 	builtinSymbols = [bool_, int_, long_, byte_, char_, dchar_, short_, ubyte_, uint_,
 		ulong_, ushort_, wchar_, cdouble_, cent_, cfloat_, creal_, double_,
 		float_, idouble_, ifloat_, ireal_, real_, ucent_, void_];
+
+	// _argptr has type void*
+	argptrType = new Type;
+	argptrType.type2 = new Type2;
+	argptrType.type2.builtinType = TokenType.void_;
+	TypeSuffix argptrTypeSuffix = new TypeSuffix;
+	argptrTypeSuffix.star = true;
+	argptrType.typeSuffixes ~= argptrTypeSuffix;
+
+	// _arguments has type TypeInfo[]
+	argumentsType = new Type;
+	argumentsType = new Type;
+	argumentsType.type2 = new Type2;
+	argumentsType.type2.symbol = new Symbol;
+	argumentsType.type2.symbol.identifierOrTemplateChain = new IdentifierOrTemplateChain;
+	IdentifierOrTemplateInstance i = new IdentifierOrTemplateInstance;
+	i.identifier.value = "TypeInfo";
+	i.identifier.type = TokenType.identifier;
+	argumentsType.type2.symbol.identifierOrTemplateChain.identifiersOrTemplateInstances ~= i;
+	TypeSuffix argumentsTypeSuffix = new TypeSuffix;
+	argumentsTypeSuffix.array = true;
+	argumentsType.typeSuffixes ~= argptrTypeSuffix;
 }
 
 const(ACSymbol)*[] builtinSymbols;
@@ -325,3 +356,5 @@ const(ACSymbol)*[] arraySymbols;
 const(ACSymbol)*[] assocArraySymbols;
 const(ACSymbol)*[] classSymbols;
 const(ACSymbol)*[] structSymbols;
+Type argptrType;
+Type argumentsType;
