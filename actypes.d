@@ -229,7 +229,6 @@ struct ImportInformation
  */
 static this()
 {
-    // TODO: make sure all parts are sorted.
 	auto bool_ = new ACSymbol("bool", CompletionKind.keyword);
 	auto int_ = new ACSymbol("int", CompletionKind.keyword);
 	auto long_ = new ACSymbol("long", CompletionKind.keyword);
@@ -246,12 +245,13 @@ static this()
 	auto alignof_ = new ACSymbol("alignof", CompletionKind.keyword, ulong_);
 	auto mangleof_ = new ACSymbol("mangleof", CompletionKind.keyword);
 	auto sizeof_ = new ACSymbol("sizeof", CompletionKind.keyword, ulong_);
-	auto stringof_ = new ACSymbol("stringof", CompletionKind.keyword);
+	auto stringof_ = new ACSymbol("init", CompletionKind.keyword);
+	auto init = new ACSymbol("stringof", CompletionKind.keyword);
 
 	arraySymbols ~= alignof_;
 	arraySymbols ~= new ACSymbol("dup", CompletionKind.keyword);
 	arraySymbols ~= new ACSymbol("idup", CompletionKind.keyword);
-	arraySymbols ~= new ACSymbol("init", CompletionKind.keyword);
+	arraySymbols ~= init;
 	arraySymbols ~= new ACSymbol("length", CompletionKind.keyword, ulong_);
 	arraySymbols ~= mangleof_;
 	arraySymbols ~= new ACSymbol("ptr", CompletionKind.keyword);
@@ -273,6 +273,7 @@ static this()
 	assocArraySymbols ~= new ACSymbol("rehash", CompletionKind.keyword);
 	assocArraySymbols ~= sizeof_;
 	assocArraySymbols ~= stringof_;
+	assocArraySymbols ~= init;
 	assocArraySymbols ~= new ACSymbol("values", CompletionKind.keyword);
 	assocArraySymbols.sort();
 
@@ -286,6 +287,7 @@ static this()
 		s.parts ~= sizeof_;
 		s.parts ~= stringof_;
 		s.parts ~= mangleof_;
+		s.parts ~= init;
 	}
 
 	auto cdouble_ = new ACSymbol("cdouble", CompletionKind.keyword);
@@ -321,6 +323,15 @@ static this()
 		s.parts ~= sizeof_;
 		s.parts ~= stringof_;
 	}
+
+	classSymbols ~= new ACSymbol("classInfo", CompletionKind.variableName);
+	classSymbols ~= new ACSymbol("tupleof", CompletionKind.variableName);
+	classSymbols ~= new ACSymbol("__vptr", CompletionKind.variableName);
+	classSymbols ~= new ACSymbol("__monitor", CompletionKind.variableName);
+	classSymbols ~= mangleof_;
+	classSymbols ~= alignof_;
+	classSymbols ~= sizeof_;
+	classSymbols ~= init;
 
 	ireal_.parts ~= new ACSymbol("im", CompletionKind.keyword, real_);
 	ifloat_.parts ~= new ACSymbol("im", CompletionKind.keyword, float_);
@@ -362,6 +373,5 @@ const(ACSymbol)*[] builtinSymbols;
 const(ACSymbol)*[] arraySymbols;
 const(ACSymbol)*[] assocArraySymbols;
 const(ACSymbol)*[] classSymbols;
-const(ACSymbol)*[] structSymbols;
 Type argptrType;
 Type argumentsType;

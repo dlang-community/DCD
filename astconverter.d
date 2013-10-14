@@ -341,19 +341,9 @@ private:
 	{
 
 //		Log.trace("visiting aggregate declaration ", dec.name.value);
-		CompletionKind k;
-		static if (is (AggType == ClassDeclaration))
-			k = CompletionKind.className;
-		else static if (is (AggType == InterfaceDeclaration))
-			k = CompletionKind.interfaceName;
-		else static if (is (AggType == StructDeclaration))
-			k = CompletionKind.structName;
-		else static if (is (AggType == UnionDeclaration))
-			k = CompletionKind.unionName;
-		else static assert (false, "Unhandled aggregate type " ~ AggType.stringof);
-
 		SemanticSymbol* symbol = new SemanticSymbol(dec.name.value.dup,
 			kind, symbolFile, dec.name.startIndex);
+		symbol.acSymbol.parts ~= classSymbols;
 		symbol.parent = currentSymbol;
 		symbol.protection = protection;
 		currentSymbol = symbol;
