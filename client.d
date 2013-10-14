@@ -40,12 +40,13 @@ int main(string[] args)
 	bool help;
 	bool shutdown;
 	bool clearCache;
+	bool symbolLocation;
 
 	try
 	{
 		getopt(args, "cursorPos|c", &cursorPos, "I", &importPaths,
 			"port|p", &port, "help|h", &help, "shutdown", &shutdown,
-			"clearCache", &clearCache);
+			"clearCache", &clearCache, "symbolLocation", &symbolLocation);
 	}
 	catch (Exception e)
 	{
@@ -175,6 +176,10 @@ Options:
 
     --shutdown
         Instructs the server to shut down.
+
+    --symbolLocation
+        Get the file name and position that the symbol at the cursor location
+        was defined.
 
     -IPATH
         Instructs the server to add PATH to its list of paths searced for

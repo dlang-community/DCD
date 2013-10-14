@@ -108,7 +108,9 @@ enum RequestKind : ubyte
 	/// Add import directory to server
 	addImport,
 	/// Shut down the server
-	shutdown
+	shutdown,
+	/// Get declaration location of given symbol
+	symbolLocation
 }
 
 /**
