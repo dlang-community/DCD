@@ -172,12 +172,19 @@ struct Scope
 		return cast(typeof(return)) &this;
 	}
 
-	ACSymbol*[] getSymbolsInCursorScope(size_t cursorPosition) const
+	const(ACSymbol)*[] getSymbolsInCursorScope(size_t cursorPosition) const
 	{
 		auto s = getScopeByCursor(cursorPosition);
 		if (s is null)
 			return [];
-		return cast(typeof(return)) s.symbols;
+		const(ACSymbol)*[] symbols = cast(typeof(return)) s.symbols;
+		Scope* sc = s.parent;
+		while (sc !is null)
+		{
+			symbols ~= sc.symbols;
+			sc = sc.parent;
+		}
+		return symbols;
 	}
 
 	const(ACSymbol)*[] getSymbolsByName(string name) const
