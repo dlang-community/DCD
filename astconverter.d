@@ -116,7 +116,7 @@ final class FirstPass : ASTVisitor
 	override void visit(FunctionDeclaration dec)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
-        SemanticSymbol* symbol = new SemanticSymbol(dec.name.value.dup,
+		SemanticSymbol* symbol = new SemanticSymbol(dec.name.value.dup,
 			CompletionKind.functionName, symbolFile, dec.name.startIndex);
 		processParameters(symbol, dec.returnType, symbol.acSymbol.name,
 			dec.parameters);
@@ -261,11 +261,18 @@ final class FirstPass : ASTVisitor
 		s.startLocation = structBody.startLocation;
 		s.endLocation = structBody.endLocation;
 //		Log.trace("Added scope ", s.startLocation, " ", s.endLocation);
+
+		ACSymbol* thisSymbol = new ACSymbol("this", CompletionKind.variableName,
+			currentSymbol.acSymbol);
+		thisSymbol.location = s.startLocation;
+		thisSymbol.symbolFile = symbolFile;
+		currentSymbol.acSymbol.parts ~= thisSymbol;
+
 		s.parent = currentScope;
-        currentScope = s;
-        foreach (dec; structBody.declarations)
-            visit(dec);
-        currentScope = s.parent;
+		currentScope = s;
+		foreach (dec; structBody.declarations)
+			visit(dec);
+		currentScope = s.parent;
 		currentScope.children ~= s;
 	}
 
@@ -549,7 +556,7 @@ private:
 struct ThirdPass
 {
 public:
-	this(SemanticSymbol* rootSymbol, Scope* moduleScope)
+	this(SemanticSymbol* rootSymbol, Scope* moduleScope) pure
 	{
 		this.rootSymbol = rootSymbol;
 		this.moduleScope = moduleScope;
@@ -668,7 +675,7 @@ private:
 		return s;
 	}
 
-	static string[] expandSymbol(const IdentifierOrTemplateChain chain)
+	static string[] expandSymbol(const IdentifierOrTemplateChain chain) pure
 	{
 		string[] strings = new string[chain.identifiersOrTemplateInstances.length];
 		for (size_t i = 0; i != chain.identifiersOrTemplateInstances.length; ++i)
