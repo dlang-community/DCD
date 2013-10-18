@@ -129,9 +129,14 @@ struct ModuleCache
 			LexerConfig config;
 			config.fileName = location;
 			auto tokens = source.byToken(config).array();
-			Module mod = parseModule(tokens, location, &doesNothing);
+			symbols = convertAstToSymbols(tokens, location);
 
-			symbols = convertAstToSymbols(mod, location);
+			// Parsing allocates a lot of AST nodes. We can greatly reduce the
+			// program's idle memory use by running the GC here.
+			// TODO: Re-visit this when D gets a precise GC.
+			import core.memory;
+			GC.collect();
+			GC.minimize();
 		}
 		catch (Exception ex)
 		{
@@ -208,5 +213,3 @@ private:
 	// Listing of paths to check for imports
 	static string[] importPaths;
 }
-
-private void doesNothing(string a, int b, int c, string d) {}
