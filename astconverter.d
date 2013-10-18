@@ -715,8 +715,10 @@ private:
 	Scope* moduleScope;
 }
 
-const(ACSymbol)*[] convertAstToSymbols(Module m, string symbolFile)
+const(ACSymbol)*[] convertAstToSymbols(const(Token)[] tokens, string symbolFile)
 {
+    Module m = parseModuleSimple(tokens, null);
+
     FirstPass first = new FirstPass(m, symbolFile);
 	first.run();
 
@@ -731,7 +733,7 @@ const(ACSymbol)*[] convertAstToSymbols(Module m, string symbolFile)
 
 const(Scope)* generateAutocompleteTrees(const(Token)[] tokens, string symbolFile)
 {
-	Module m = parseModule(tokens, null);
+	Module m = parseModule(tokens, "editor buffer", &doesNothing);
 
 	FirstPass first = new FirstPass(m, symbolFile);
 	first.run();
@@ -746,6 +748,64 @@ const(Scope)* generateAutocompleteTrees(const(Token)[] tokens, string symbolFile
 }
 
 private:
+
+Module parseModuleSimple(const(Token)[] tokens, string fileName)
+{
+    auto parser = new SimpleParser();
+    parser.fileName = fileName;
+    parser.tokens = tokens;
+    parser.messageFunction = &doesNothing;
+    auto mod = parser.parseModule();
+    return mod;
+}
+
+class SimpleParser : Parser
+{
+    override Unittest parseUnittest()
+    {
+        expect(TokenType.unittest_);
+        skipBraces();
+        return null;
+    }
+
+    override FunctionBody parseFunctionBody()
+    {
+        if (currentIs(TokenType.semicolon))
+            advance();
+        else if (currentIs(TokenType.lBrace))
+            skipBraces();
+        else
+        {
+            if (currentIs(TokenType.in_))
+            {
+                advance();
+                skipBraces();
+                if (currentIs(TokenType.out_))
+                {
+                    advance();
+                    if (currentIs(TokenType.lParen))
+                        skipParens();
+                    skipBraces();
+                }
+            }
+            else if (currentIs(TokenType.out_))
+            {
+                advance();
+                if (currentIs(TokenType.lParen))
+                    skipParens();
+                skipBraces();
+                if (currentIs(TokenType.in_))
+                {
+                    advance();
+                    skipBraces();
+                }
+            }
+            expect(TokenType.body_);
+            skipBraces();
+        }
+        return null;
+    }
+}
 
 string[] iotcToStringArray(const IdentifierOrTemplateChain iotc)
 {
@@ -777,3 +837,5 @@ version(unittest) Module parseTestCode(string code)
 	assert (p.warningCount == 0);
 	return m;
 }
+
+private void doesNothing(string a, int b, int c, string d) {}
