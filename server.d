@@ -105,15 +105,7 @@ int main(string[] args)
 		auto s = socket.accept();
 		s.blocking = true;
 
-        if (s.remoteAddress.toHostNameString() != "localhost")
-        {
-            Log.error("Warning: Connection attempt from ",
-                s.remoteAddress.toHostNameString(), "ignored. DCD only accepts "
-                ~ " requests from localhost");
-            s.shutdown(SocketShutdown.BOTH);
-            s.close();
-            continue;
-        }
+		// TODO: Restrict connections to localhost
 
 		scope (exit)
 		{
