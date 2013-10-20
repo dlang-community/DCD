@@ -154,7 +154,7 @@ int main(string[] args)
 		}
 		else
 		{
-			AutocompleteResponse response = complete(request, importPaths);
+			AutocompleteResponse response = complete(request);
 			ubyte[] responseBytes = msgpack.pack(response);
 			assert(s.send(responseBytes) == responseBytes.length);
 		}

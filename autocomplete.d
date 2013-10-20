@@ -40,7 +40,15 @@ import modulecache;
 import astconverter;
 import stupidlog;
 
-AutocompleteResponse complete(AutocompleteRequest request, string[] importPaths)
+AutocompleteResponse findDeclaration(const AutocompleteRequest request)
+{
+    AutocompleteResponse response;
+
+
+    return response;
+}
+
+AutocompleteResponse complete(const AutocompleteRequest request)
 {
 	Log.info("Got a completion request");
 	AutocompleteResponse response;
