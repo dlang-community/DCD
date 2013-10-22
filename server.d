@@ -154,9 +154,12 @@ int main(string[] args)
 		}
 		else
 		{
-			AutocompleteResponse response = complete(request);
+			AutocompleteResponse response =
+                request.kind == RequestKind.autocomplete
+                ? complete(request)
+                : findDeclaration(request);
 			ubyte[] responseBytes = msgpack.pack(response);
-			assert(s.send(responseBytes) == responseBytes.length);
+			s.send(responseBytes);
 		}
 		Log.info("Request processed in ", requestWatch.peek().to!("msecs", float), " milliseconds");
 	}

@@ -43,9 +43,191 @@ import stupidlog;
 AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 {
     AutocompleteResponse response;
+    LexerConfig config;
+	config.fileName = "stdin";
+	auto tokens = byToken(cast(ubyte[]) request.sourceCode, config);
+	const(Token)[] tokenArray = void;
+	try {
+		tokenArray = tokens.array();
+	} catch (Exception e) {
+		Log.error("Could not provide autocomplete due to lexing exception: ", e.msg);
+		return response;
+	}
+	auto sortedTokens = assumeSorted(tokenArray);
+	string partial;
 
+	auto beforeTokens = sortedTokens.lowerBound(cast(size_t) request.cursorPosition);
+
+    Log.info("Token at cursor: ", beforeTokens[$ - 1]);
+
+    const(Scope)* completionScope = generateAutocompleteTrees(tokenArray, "stdin");
+    auto expression = getExpression(beforeTokens);
+
+    writeln(expression);
+
+    const(ACSymbol)*[] symbols = getSymbolsByTokenChain(completionScope, expression,
+        request.cursorPosition, CompletionType.identifiers);
+
+    if (symbols.length > 0)
+    {
+        response.symbolLocation = symbols[0].location;
+        response.symbolFilePath = symbols[0].symbolFile;
+        Log.info(beforeTokens[$ - 1].value, " declared in ",
+            response.symbolFilePath, " at ", response.symbolLocation);
+    }
 
     return response;
+}
+
+const(ACSymbol)*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
+    T tokens, size_t cursorPosition, CompletionType completionType)
+{
+    // Find the symbol corresponding to the beginning of the chain
+	const(ACSymbol)*[] symbols = completionScope.getSymbolsByNameAndCursor(
+		tokens[0].value, cursorPosition);
+	if (symbols.length == 0)
+	{
+		Log.trace("Could not find declaration of ", tokens[0].value);
+		return [];
+	}
+
+	if (completionType == CompletionType.identifiers
+		&& symbols[0].kind == CompletionKind.memberVariableName
+		|| symbols[0].kind == CompletionKind.variableName
+		|| symbols[0].kind == CompletionKind.aliasName
+		|| symbols[0].kind == CompletionKind.enumMember)
+	{
+		symbols = symbols[0].type is null ? [] : [symbols[0].type];
+		if (symbols.length == 0)
+			return symbols;
+	}
+
+	loop: for (size_t i = 1; i < tokens.length; i++)
+	{
+		TokenType open;
+		TokenType close;
+		void skip()
+		{
+			i++;
+			for (int depth = 1; depth > 0 && i < tokens.length; i++)
+			{
+				if (tokens[i].type == open)
+					depth++;
+				else if (tokens[i].type == close)
+				{
+					depth--;
+					if (depth == 0) break;
+				}
+			}
+		}
+		with (TokenType) switch (tokens[i].type)
+		{
+		case int_:
+		case uint_:
+		case long_:
+		case ulong_:
+		case char_:
+		case wchar_:
+		case dchar_:
+		case bool_:
+		case byte_:
+		case ubyte_:
+		case short_:
+		case ushort_:
+		case cent_:
+		case ucent_:
+		case float_:
+		case ifloat_:
+		case cfloat_:
+		case idouble_:
+		case cdouble_:
+		case double_:
+		case real_:
+		case ireal_:
+		case creal_:
+		case this_:
+			symbols = symbols[0].getPartsByName(getTokenValue(tokens[i].type));
+			if (symbols.length == 0)
+				break loop;
+			break;
+		case identifier:
+			Log.trace("looking for ", tokens[i].value, " in ", symbols[0].name);
+			symbols = symbols[0].getPartsByName(tokens[i].value);
+			if (symbols.length == 0)
+			{
+				Log.trace("Couldn't find it.");
+				break loop;
+			}
+			if (symbols[0].kind == CompletionKind.variableName
+				|| symbols[0].kind == CompletionKind.memberVariableName
+				|| symbols[0].kind == CompletionKind.enumMember
+				|| (symbols[0].kind == CompletionKind.functionName
+				&& (completionType == CompletionType.identifiers
+				|| i + 1 < tokens.length)))
+			{
+				symbols = symbols[0].type is null ? [] : [symbols[0].type];
+			}
+			if (symbols.length == 0)
+				break loop;
+			if (symbols[0].kind == CompletionKind.aliasName
+				&& (completionType == CompletionType.identifiers
+				|| i + 1 < tokens.length))
+			{
+				symbols = symbols[0].type is null ? [] : [symbols[0].type];
+			}
+			if (symbols.length == 0)
+				break loop;
+			break;
+		case lParen:
+			open = TokenType.lParen;
+			close = TokenType.rParen;
+			skip();
+			break;
+		case lBracket:
+			open = TokenType.lBracket;
+			close = TokenType.rBracket;
+			if (symbols[0].qualifier == SymbolQualifier.array)
+			{
+				auto h = i;
+				skip();
+				Parser p;
+				p.setTokens(tokens[h .. i].array());
+				if (!p.isSliceExpression())
+				{
+					symbols = symbols[0].type is null ? [] : [symbols[0].type];
+				}
+			}
+			else if (symbols[0].qualifier == SymbolQualifier.assocArray)
+			{
+				symbols = symbols[0].type is null ? [] :[symbols[0].type];
+				skip();
+			}
+			else
+			{
+				auto h = i;
+				skip();
+				Parser p;
+				p.setTokens(tokens[h .. i].array());
+				const(ACSymbol)*[] overloads;
+				if (p.isSliceExpression())
+					overloads = symbols[0].getPartsByName("opSlice");
+				else
+					overloads = symbols[0].getPartsByName("opIndex");
+				if (overloads.length > 0)
+				{
+					symbols = overloads[0].type is null ? [] : [overloads[0].type];
+				}
+				else
+					return [];
+			}
+			break;
+		case dot:
+			break;
+		default:
+			break loop;
+		}
+	}
+    return symbols;
 }
 
 AutocompleteResponse complete(const AutocompleteRequest request)
@@ -210,157 +392,12 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	if (tokens.length == 0)
 		return;
 
-	// Find the symbol corresponding to the beginning of the chain
-	const(ACSymbol)*[] symbols = completionScope.getSymbolsByNameAndCursor(
-		tokens[0].value, cursorPosition);
-	if (symbols.length == 0)
-	{
-		Log.trace("Could not find declaration of ", tokens[0].value);
-		return;
-	}
+    const(ACSymbol)*[] symbols = getSymbolsByTokenChain(completionScope, tokens,
+        cursorPosition, completionType);
 
-	if (completionType == CompletionType.identifiers
-		&& symbols[0].kind == CompletionKind.memberVariableName
-		|| symbols[0].kind == CompletionKind.variableName
-		|| symbols[0].kind == CompletionKind.aliasName
-		|| symbols[0].kind == CompletionKind.enumMember)
-	{
-		symbols = symbols[0].type is null ? [] : [symbols[0].type];
-		if (symbols.length == 0)
-			return;
-	}
+    if (symbols.length == 0)
+        return;
 
-	loop: for (size_t i = 1; i < tokens.length; i++)
-	{
-		TokenType open;
-		TokenType close;
-		void skip()
-		{
-			i++;
-			for (int depth = 1; depth > 0 && i < tokens.length; i++)
-			{
-				if (tokens[i].type == open)
-					depth++;
-				else if (tokens[i].type == close)
-				{
-					depth--;
-					if (depth == 0) break;
-				}
-			}
-		}
-		with (TokenType) switch (tokens[i].type)
-		{
-		case int_:
-		case uint_:
-		case long_:
-		case ulong_:
-		case char_:
-		case wchar_:
-		case dchar_:
-		case bool_:
-		case byte_:
-		case ubyte_:
-		case short_:
-		case ushort_:
-		case cent_:
-		case ucent_:
-		case float_:
-		case ifloat_:
-		case cfloat_:
-		case idouble_:
-		case cdouble_:
-		case double_:
-		case real_:
-		case ireal_:
-		case creal_:
-		case this_:
-			symbols = symbols[0].getPartsByName(getTokenValue(tokens[i].type));
-			if (symbols.length == 0)
-				break loop;
-			break;
-		case identifier:
-			Log.trace("looking for ", tokens[i].value, " in ", symbols[0].name);
-			symbols = symbols[0].getPartsByName(tokens[i].value);
-			if (symbols.length == 0)
-			{
-				Log.trace("Couldn't find it.");
-				break loop;
-			}
-			if (symbols[0].kind == CompletionKind.variableName
-				|| symbols[0].kind == CompletionKind.memberVariableName
-				|| symbols[0].kind == CompletionKind.enumMember
-				|| (symbols[0].kind == CompletionKind.functionName
-				&& (completionType == CompletionType.identifiers
-				|| i + 1 < tokens.length)))
-			{
-				symbols = symbols[0].type is null ? [] : [symbols[0].type];
-			}
-			if (symbols.length == 0)
-				break loop;
-			if (symbols[0].kind == CompletionKind.aliasName
-				&& (completionType == CompletionType.identifiers
-				|| i + 1 < tokens.length))
-			{
-				symbols = symbols[0].type is null ? [] : [symbols[0].type];
-			}
-			if (symbols.length == 0)
-				break loop;
-			break;
-		case lParen:
-			open = TokenType.lParen;
-			close = TokenType.rParen;
-			skip();
-			break;
-		case lBracket:
-			open = TokenType.lBracket;
-			close = TokenType.rBracket;
-			if (symbols[0].qualifier == SymbolQualifier.array)
-			{
-				auto h = i;
-				skip();
-				Parser p;
-				p.setTokens(tokens[h .. i].array());
-				if (!p.isSliceExpression())
-				{
-					symbols = symbols[0].type is null ? [] : [symbols[0].type];
-				}
-			}
-			else if (symbols[0].qualifier == SymbolQualifier.assocArray)
-			{
-				symbols = symbols[0].type is null ? [] :[symbols[0].type];
-				skip();
-			}
-			else
-			{
-				auto h = i;
-				skip();
-				Parser p;
-				p.setTokens(tokens[h .. i].array());
-				const(ACSymbol)*[] overloads;
-				if (p.isSliceExpression())
-					overloads = symbols[0].getPartsByName("opSlice");
-				else
-					overloads = symbols[0].getPartsByName("opIndex");
-				if (overloads.length > 0)
-				{
-					symbols = overloads[0].type is null ? [] : [overloads[0].type];
-				}
-				else
-					return;
-			}
-			break;
-		case dot:
-			break;
-		default:
-			break loop;
-		}
-	}
-
-	if (symbols.length == 0)
-	{
-		Log.error("Could not get completions");
-		return;
-	}
 	if (completionType == CompletionType.identifiers)
 	{
 		foreach (s; symbols[0].parts.filter!(a => a.name !is null
@@ -403,7 +440,6 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			response.completions ~= symbol.callTip;
 		}
 	}
-
 }
 
 T getExpression(T)(T beforeTokens)

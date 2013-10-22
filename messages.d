@@ -93,7 +93,12 @@ enum CompletionType : string
      * The auto-completion list consists of a listing of functions and their
      * parameters.
      */
-    calltips = "calltips"
+    calltips = "calltips",
+
+    /**
+     * The response contains the location of a symbol declaration.
+     */
+    location = "location"
 }
 
 /**
@@ -153,6 +158,16 @@ struct AutocompleteResponse
      * The autocompletion type. (Parameters or identifier)
      */
     string completionType;
+
+    /**
+     * The path to the file that contains the symbol.
+     */
+    string symbolFilePath;
+
+    /**
+     * The byte offset at which the symbol is located.
+     */
+    size_t symbolLocation;
 
     /**
      * The completions

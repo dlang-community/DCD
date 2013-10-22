@@ -46,7 +46,7 @@ int main(string[] args)
 	{
 		getopt(args, "cursorPos|c", &cursorPos, "I", &importPaths,
 			"port|p", &port, "help|h", &help, "shutdown", &shutdown,
-			"clearCache", &clearCache, "symbolLocation", &symbolLocation);
+			"clearCache", &clearCache, "symbolLocation|l", &symbolLocation);
 	}
 	catch (Exception e)
 	{
@@ -119,6 +119,7 @@ int main(string[] args)
 	request.importPaths = importPaths;
 	request.sourceCode = sourceCode;
 	request.cursorPosition = cursorPos;
+    request.kind = symbolLocation ? RequestKind.symbolLocation : RequestKind.autocomplete;
 
 	// Send message to server
 	TcpSocket socket = createSocket(port);
@@ -128,26 +129,11 @@ int main(string[] args)
 
 	AutocompleteResponse response = getResponse(socket);
 
-	if (response.completions.length > 0)
-	{
-		writeln(response.completionType);
-		auto app = appender!(string[])();
-		if (response.completionType == CompletionType.identifiers)
-		{
-			for (size_t i = 0; i < response.completions.length; i++)
-				app.put(format("%s\t%s", response.completions[i], response.completionKinds[i]));
-		}
-		else
-		{
-			foreach (completion; response.completions)
-			{
-				app.put(completion);
-			}
-		}
-		// Deduplicate overloaded methods
-		foreach (line; app.data.sort.uniq)
-			writeln(line);
-	}
+    if (symbolLocation)
+        printLocationResponse(response);
+    else
+        printCompletionResponse(response);
+
 	return 0;
 }
 
@@ -177,7 +163,7 @@ Options:
     --shutdown
         Instructs the server to shut down.
 
-    --symbolLocation
+    --symbolLocation | -l
         Get the file name and position that the symbol at the cursor location
         was defined.
 
@@ -224,4 +210,33 @@ AutocompleteResponse getResponse(TcpSocket socket)
 	AutocompleteResponse response;
 	msgpack.unpack(buffer[0..bytesReceived], response);
 	return response;
+}
+
+void printLocationResponse(AutocompleteResponse response)
+{
+    writefln("%s\t%d", response.symbolFilePath, response.symbolLocation);
+}
+
+void printCompletionResponse(AutocompleteResponse response)
+{
+    if (response.completions.length > 0)
+	{
+		writeln(response.completionType);
+		auto app = appender!(string[])();
+		if (response.completionType == CompletionType.identifiers)
+		{
+			for (size_t i = 0; i < response.completions.length; i++)
+				app.put(format("%s\t%s", response.completions[i], response.completionKinds[i]));
+		}
+		else
+		{
+			foreach (completion; response.completions)
+			{
+				app.put(completion);
+			}
+		}
+		// Deduplicate overloaded methods
+		foreach (line; app.data.sort.uniq)
+			writeln(line);
+	}
 }
