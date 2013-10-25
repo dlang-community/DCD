@@ -42,8 +42,9 @@ import stupidlog;
 
 AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 {
-    AutocompleteResponse response;
-    LexerConfig config;
+	Log.info("Finding declaration");
+	AutocompleteResponse response;
+	LexerConfig config;
 	config.fileName = "stdin";
 	auto tokens = byToken(cast(ubyte[]) request.sourceCode, config);
 	const(Token)[] tokenArray = void;
@@ -58,31 +59,33 @@ AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 
 	auto beforeTokens = sortedTokens.lowerBound(cast(size_t) request.cursorPosition);
 
-    Log.info("Token at cursor: ", beforeTokens[$ - 1]);
+	Log.info("Token at cursor: ", beforeTokens[$ - 1]);
 
-    const(Scope)* completionScope = generateAutocompleteTrees(tokenArray, "stdin");
-    auto expression = getExpression(beforeTokens);
+	const(Scope)* completionScope = generateAutocompleteTrees(tokenArray, "stdin");
+	auto expression = getExpression(beforeTokens);
 
-    writeln(expression);
+	const(ACSymbol)*[] symbols = getSymbolsByTokenChain(completionScope, expression,
+		request.cursorPosition, CompletionType.identifiers);
 
-    const(ACSymbol)*[] symbols = getSymbolsByTokenChain(completionScope, expression,
-        request.cursorPosition, CompletionType.identifiers);
+	if (symbols.length > 0)
+	{
+		response.symbolLocation = symbols[0].location;
+		response.symbolFilePath = symbols[0].symbolFile;
+		Log.info(beforeTokens[$ - 1].value, " declared in ",
+			response.symbolFilePath, " at ", response.symbolLocation);
+	}
+	else
+	{
+		Log.error("Could not find symbol");
+	}
 
-    if (symbols.length > 0)
-    {
-        response.symbolLocation = symbols[0].location;
-        response.symbolFilePath = symbols[0].symbolFile;
-        Log.info(beforeTokens[$ - 1].value, " declared in ",
-            response.symbolFilePath, " at ", response.symbolLocation);
-    }
-
-    return response;
+	return response;
 }
 
 const(ACSymbol)*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
-    T tokens, size_t cursorPosition, CompletionType completionType)
+	T tokens, size_t cursorPosition, CompletionType completionType)
 {
-    // Find the symbol corresponding to the beginning of the chain
+	// Find the symbol corresponding to the beginning of the chain
 	const(ACSymbol)*[] symbols = completionScope.getSymbolsByNameAndCursor(
 		tokens[0].value, cursorPosition);
 	if (symbols.length == 0)
@@ -227,7 +230,7 @@ const(ACSymbol)*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
 			break loop;
 		}
 	}
-    return symbols;
+	return symbols;
 }
 
 AutocompleteResponse complete(const AutocompleteRequest request)
@@ -392,11 +395,11 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	if (tokens.length == 0)
 		return;
 
-    const(ACSymbol)*[] symbols = getSymbolsByTokenChain(completionScope, tokens,
-        cursorPosition, completionType);
+	const(ACSymbol)*[] symbols = getSymbolsByTokenChain(completionScope, tokens,
+		cursorPosition, completionType);
 
-    if (symbols.length == 0)
-        return;
+	if (symbols.length == 0)
+		return;
 
 	if (completionType == CompletionType.identifiers)
 	{
@@ -554,7 +557,7 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
 	foreach (importDirectory; ModuleCache.getImportPaths())
 	{
 		string p = format("%s%s%s", importDirectory, dirSeparator, path);
-		writeln("Checking for ", p);
+		Log.trace("Checking for ", p);
 		if (!exists(p))
 			continue;
 		foreach (string name; dirEntries(p, SpanMode.shallow))

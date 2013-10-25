@@ -119,7 +119,7 @@ int main(string[] args)
 	request.importPaths = importPaths;
 	request.sourceCode = sourceCode;
 	request.cursorPosition = cursorPos;
-    request.kind = symbolLocation ? RequestKind.symbolLocation : RequestKind.autocomplete;
+	request.kind = symbolLocation ? RequestKind.symbolLocation : RequestKind.autocomplete;
 
 	// Send message to server
 	TcpSocket socket = createSocket(port);
@@ -129,10 +129,10 @@ int main(string[] args)
 
 	AutocompleteResponse response = getResponse(socket);
 
-    if (symbolLocation)
-        printLocationResponse(response);
-    else
-        printCompletionResponse(response);
+	if (symbolLocation)
+		printLocationResponse(response);
+	else
+	printCompletionResponse(response);
 
 	return 0;
 }
@@ -214,12 +214,15 @@ AutocompleteResponse getResponse(TcpSocket socket)
 
 void printLocationResponse(AutocompleteResponse response)
 {
-    writefln("%s\t%d", response.symbolFilePath, response.symbolLocation);
+	if (response.symbolFilePath is null)
+		writeln("Not found");
+	else
+		writefln("%s\t%d", response.symbolFilePath, response.symbolLocation);
 }
 
 void printCompletionResponse(AutocompleteResponse response)
 {
-    if (response.completions.length > 0)
+	if (response.completions.length > 0)
 	{
 		writeln(response.completionType);
 		auto app = appender!(string[])();

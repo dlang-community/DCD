@@ -113,8 +113,15 @@ function M.gotoDeclaration()
 	p:close()
 	local tmpFile = io.open(fileName, "r")
 	local r = tmpFile:read("*a")
-	if r ~= "\n" then
-		-- TODO: Go to declaration
+	if r ~= "Not found\n" then
+		path, position = r:match("^(.-)\t(%d+)")
+		if (path ~= nil and position ~= nil) then
+			if (path ~= "stdin") then
+				io.open_file(path)
+			end
+			buffer:goto_pos(tonumber(position))
+			buffer:word_right_end_extend()
+		end
 	end
 	os.remove(fileName)
 end
