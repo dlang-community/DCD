@@ -304,7 +304,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			{
 				auto h = i;
 				skip();
-				Parser p;
+				Parser p = new Parser();
 				p.setTokens(tokens[h .. i].array());
 				if (!p.isSliceExpression())
 				{
@@ -320,7 +320,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			{
 				auto h = i;
 				skip();
-				Parser p;
+				Parser p = new Parser();
 				p.setTokens(tokens[h .. i].array());
 				ACSymbol[] overloads;
 				if (p.isSliceExpression())
