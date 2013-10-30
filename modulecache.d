@@ -69,7 +69,7 @@ struct ModuleCache
 				estimate = symbol.estimateMemory(estimate);
 		}
 		double megabytes = estimate / (1024.0F * 1024.0F);
-		Log.info("Memory use estimated at ", megabytes, " megabytes");
+		Log.trace("Memory use estimated at ", megabytes, " megabytes");
 	}
 
 	/**

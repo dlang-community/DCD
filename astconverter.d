@@ -77,41 +77,41 @@ final class FirstPass : ASTVisitor
 		currentSymbol = s.parent;
 	}
 
-    override void visit(Constructor con)
-    {
+	override void visit(Constructor con)
+	{
 //		Log.trace(__FUNCTION__, " ", typeof(con).stringof);
-        visitConstructor(con.location, con.parameters, con.functionBody);
-    }
+		visitConstructor(con.location, con.parameters, con.functionBody);
+	}
 
-    override void visit(SharedStaticConstructor con)
-    {
+	override void visit(SharedStaticConstructor con)
+	{
 //		Log.trace(__FUNCTION__, " ", typeof(con).stringof);
 		visitConstructor(con.location, null, con.functionBody);
-    }
+	}
 
-    override void visit(StaticConstructor con)
-    {
+	override void visit(StaticConstructor con)
+	{
 //		Log.trace(__FUNCTION__, " ", typeof(con).stringof);
-        visitConstructor(con.location, null, con.functionBody);
-    }
+		visitConstructor(con.location, null, con.functionBody);
+	}
 
-    override void visit(Destructor des)
-    {
+	override void visit(Destructor des)
+	{
 //		Log.trace(__FUNCTION__, " ", typeof(des).stringof);
-        visitDestructor(des.location, des.functionBody);
-    }
+		visitDestructor(des.location, des.functionBody);
+	}
 
-    override void visit(SharedStaticDestructor des)
-    {
+	override void visit(SharedStaticDestructor des)
+	{
 //		Log.trace(__FUNCTION__, " ", typeof(des).stringof);
-        visitDestructor(des.location, des.functionBody);
-    }
+		visitDestructor(des.location, des.functionBody);
+	}
 
-    override void visit(StaticDestructor des)
-    {
+	override void visit(StaticDestructor des)
+	{
 //		Log.trace(__FUNCTION__, " ", typeof(des).stringof);
-        visitDestructor(des.location, des.functionBody);
-    }
+		visitDestructor(des.location, des.functionBody);
+	}
 
 	override void visit(FunctionDeclaration dec)
 	{
@@ -199,7 +199,7 @@ final class FirstPass : ASTVisitor
 		foreach (Attribute attr; dec.attributes)
 		{
 			if (isProtection(attr.attribute))
-				p = attr.attribute;
+				protection = attr.attribute;
 		}
 		dec.accept(this);
 		protection = p;
@@ -221,30 +221,30 @@ final class FirstPass : ASTVisitor
 		mod.accept(this);
 	}
 
-    override void visit(EnumDeclaration dec)
-    {
+	override void visit(EnumDeclaration dec)
+	{
 		assert (currentSymbol);
 //		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
-        SemanticSymbol* symbol = new SemanticSymbol(dec.name.value.dup,
+		SemanticSymbol* symbol = new SemanticSymbol(dec.name.value.dup,
 			CompletionKind.enumName, symbolFile, dec.name.startIndex);
-        symbol.type = dec.type;
-        symbol.parent = currentSymbol;
-        currentSymbol = symbol;
-        if (dec.enumBody !is null)
-            dec.enumBody.accept(this);
-        currentSymbol = symbol.parent;
-        currentSymbol.addChild(symbol);
-    }
+		symbol.type = dec.type;
+		symbol.parent = currentSymbol;
+		currentSymbol = symbol;
+		if (dec.enumBody !is null)
+			dec.enumBody.accept(this);
+		currentSymbol = symbol.parent;
+		currentSymbol.addChild(symbol);
+	}
 
-    override void visit(EnumMember member)
-    {
+	override void visit(EnumMember member)
+	{
 //		Log.trace(__FUNCTION__, " ", typeof(member).stringof);
-        SemanticSymbol* symbol = new SemanticSymbol(member.name.value.dup,
+		SemanticSymbol* symbol = new SemanticSymbol(member.name.value.dup,
 			CompletionKind.enumMember, symbolFile, member.name.startIndex);
-        symbol.type = member.type;
-        symbol.parent = currentSymbol;
-        currentSymbol.addChild(symbol);
-    }
+		symbol.type = member.type;
+		symbol.parent = currentSymbol;
+		currentSymbol.addChild(symbol);
+	}
 
 	override void visit(ModuleDeclaration dec)
 	{
@@ -284,6 +284,7 @@ final class FirstPass : ASTVisitor
 		{
 			ImportInformation info;
 			info.modulePath = convertChainToImportPath(single.identifierChain);
+			info.isPublic = protection == TokenType.public_;
 			currentScope.importInformation ~= info;
 		}
 		if (importDeclaration.importBindings is null) return;
@@ -298,6 +299,7 @@ final class FirstPass : ASTVisitor
 			bindTuple[1] = bind.right == TokenType.invalid ? null : bind.right.value.dup;
 			info.importedSymbols ~= bindTuple;
 		}
+		info.isPublic = protection == TokenType.public_;
 		currentScope.importInformation ~= info;
 	}
 
@@ -339,7 +341,6 @@ private:
 
 	void visitAggregateDeclaration(AggType)(AggType dec, CompletionKind kind)
 	{
-
 //		Log.trace("visiting aggregate declaration ", dec.name.value);
 		SemanticSymbol* symbol = new SemanticSymbol(dec.name.value.dup,
 			kind, symbolFile, dec.name.startIndex);
@@ -449,8 +450,8 @@ private:
 	/// Package and module name
 	string[] moduleName;
 
-    /// Current scope
-    Scope* currentScope;
+	/// Current scope
+	Scope* currentScope;
 
 	/// Module scope
 	Scope* moduleScope;
@@ -502,6 +503,11 @@ private:
 			if (importInfo.importedSymbols.length == 0)
 			{
 				currentScope.symbols ~= symbols;
+				if (importInfo.isPublic && currentScope.parent is null)
+				{
+					Log.trace("Public import");
+					rootSymbol.acSymbol.parts ~= symbols;
+				}
 				continue;
 			}
 			symbolLoop: foreach (symbol; symbols)
@@ -522,9 +528,15 @@ private:
 						s.location = symbol.location;
 						s.symbolFile = symbol.symbolFile;
 						currentScope.symbols ~= s;
+						if (importInfo.isPublic && currentScope.parent is null)
+							rootSymbol.acSymbol.parts ~= s;
 					}
 					else
+					{
 						currentScope.symbols ~= symbol;
+						if (importInfo.isPublic && currentScope.parent is null)
+							rootSymbol.acSymbol.parts ~= symbol;
+					}
 				}
 			}
 		}
@@ -717,18 +729,18 @@ private:
 
 const(ACSymbol)*[] convertAstToSymbols(const(Token)[] tokens, string symbolFile)
 {
-    Module m = parseModuleSimple(tokens, null);
+	Module m = parseModuleSimple(tokens, symbolFile);
 
-    FirstPass first = new FirstPass(m, symbolFile);
+	FirstPass first = new FirstPass(m, symbolFile);
 	first.run();
 
-    SecondPass second = SecondPass(first.rootSymbol, first.moduleScope);
+	SecondPass second = SecondPass(first.rootSymbol, first.moduleScope);
 	second.run();
 
 	ThirdPass third = ThirdPass(second.rootSymbol, second.moduleScope);
 	third.run();
 
-    return cast(typeof(return)) third.rootSymbol.acSymbol.parts;
+	return cast(typeof(return)) third.rootSymbol.acSymbol.parts;
 }
 
 const(Scope)* generateAutocompleteTrees(const(Token)[] tokens, string symbolFile)
@@ -751,60 +763,60 @@ private:
 
 Module parseModuleSimple(const(Token)[] tokens, string fileName)
 {
-    auto parser = new SimpleParser();
-    parser.fileName = fileName;
-    parser.tokens = tokens;
-    parser.messageFunction = &doesNothing;
-    auto mod = parser.parseModule();
-    return mod;
+	auto parser = new SimpleParser();
+	parser.fileName = fileName;
+	parser.tokens = tokens;
+	parser.messageFunction = &doesNothing;
+	auto mod = parser.parseModule();
+	return mod;
 }
 
 class SimpleParser : Parser
 {
-    override Unittest parseUnittest()
-    {
-        expect(TokenType.unittest_);
-        skipBraces();
-        return null;
-    }
+	override Unittest parseUnittest()
+	{
+		expect(TokenType.unittest_);
+		skipBraces();
+		return null;
+	}
 
-    override FunctionBody parseFunctionBody()
-    {
-        if (currentIs(TokenType.semicolon))
-            advance();
-        else if (currentIs(TokenType.lBrace))
-            skipBraces();
-        else
-        {
-            if (currentIs(TokenType.in_))
-            {
-                advance();
-                skipBraces();
-                if (currentIs(TokenType.out_))
-                {
-                    advance();
-                    if (currentIs(TokenType.lParen))
-                        skipParens();
-                    skipBraces();
-                }
-            }
-            else if (currentIs(TokenType.out_))
-            {
-                advance();
-                if (currentIs(TokenType.lParen))
-                    skipParens();
-                skipBraces();
-                if (currentIs(TokenType.in_))
-                {
-                    advance();
-                    skipBraces();
-                }
-            }
-            expect(TokenType.body_);
-            skipBraces();
-        }
-        return null;
-    }
+	override FunctionBody parseFunctionBody()
+	{
+		if (currentIs(TokenType.semicolon))
+			advance();
+		else if (currentIs(TokenType.lBrace))
+			skipBraces();
+		else
+		{
+			if (currentIs(TokenType.in_))
+			{
+				advance();
+				skipBraces();
+				if (currentIs(TokenType.out_))
+				{
+					advance();
+					if (currentIs(TokenType.lParen))
+						skipParens();
+					skipBraces();
+				}
+			}
+			else if (currentIs(TokenType.out_))
+			{
+				advance();
+				if (currentIs(TokenType.lParen))
+					skipParens();
+				skipBraces();
+				if (currentIs(TokenType.in_))
+				{
+					advance();
+					skipBraces();
+				}
+			}
+			expect(TokenType.body_);
+			skipBraces();
+		}
+		return null;
+	}
 }
 
 string[] iotcToStringArray(const IdentifierOrTemplateChain iotc)
