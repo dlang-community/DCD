@@ -49,8 +49,6 @@ int main(string[] args)
 
 	Log.info("Starting up...");
 	StopWatch sw = StopWatch(AutoStart.yes);
-	// No relative paths
-	version (Posix) chdir("/");
 
 	Log.output = stdout;
 	Log.level = LogLevel.trace;
@@ -99,6 +97,9 @@ int main(string[] args)
 	sw.stop();
 	Log.info("Startup completed in ", sw.peek().to!("msecs", float), " milliseconds");
 	ModuleCache.estimateMemory();
+
+    // No relative paths
+	version (Posix) chdir("/");
 
 	while (true)
 	{
