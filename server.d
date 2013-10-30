@@ -42,9 +42,6 @@ version(OSX) version = useXDG;
 
 int main(string[] args)
 {
-	// No relative paths
-	version (Posix) chdir("/");
-
 	ushort port = 9166;
 	bool help;
 	string[] importPaths;
@@ -86,6 +83,9 @@ int main(string[] args)
 	writeln("Import directories: ", ModuleCache.getImportPaths());
 
 	ubyte[] buffer = new ubyte[1024 * 1024 * 4]; // 4 megabytes should be enough for anybody...
+
+    // No relative paths
+	version (Posix) chdir("/");
 
 	writeln("Startup complete");
 
