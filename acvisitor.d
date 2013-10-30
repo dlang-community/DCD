@@ -128,7 +128,7 @@ class AutocompleteVisitor : ASTVisitor
 
 		if (statement.foreachTypeList is null)
 		{
-			statement.statementNoCaseNoDefault.accept(this);
+			statement.declarationOrStatement.accept(this);
 		}
 		else if (statement.foreachType !is null)
 		{
@@ -145,10 +145,13 @@ class AutocompleteVisitor : ASTVisitor
 			symbols ~= loopVariable;
 		}
 
-		if (statement.statementNoCaseNoDefault !is null
-			&& statement.statementNoCaseNoDefault.blockStatement !is null)
+        // This is much prettier on the 0.2.0-dev branch
+		if (statement.declarationOrStatement !is null
+			&& statement.declarationOrStatement.statement !is null
+			&& statement.declarationOrStatement.statement.statementNoCaseNoDefault !is null
+			&& statement.declarationOrStatement.statement.statementNoCaseNoDefault.blockStatement !is null)
 		{
-			BlockStatement block = statement.statementNoCaseNoDefault.blockStatement;
+			BlockStatement block = statement.declarationOrStatement.statement.statementNoCaseNoDefault.blockStatement;
 			auto s = scope_;
 			scope_ = new Scope(statement.startIndex,
 				block.endLocation);
