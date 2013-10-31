@@ -540,6 +540,8 @@ private:
 				}
 			}
 		}
+		foreach (childScope; currentScope.children)
+			resolveImports(childScope);
 	}
 
 	SemanticSymbol* rootSymbol;
