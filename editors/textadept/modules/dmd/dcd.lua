@@ -123,6 +123,7 @@ function M.autocomplete(ch)
 	p:close()
 	local tmpFile = io.open(fileName, "r")
 	local r = tmpFile:read("*a")
+  io.close(tmpFile)
 	if r ~= "\n" then
 		if r:match("^identifiers.*") then
 			showCompletionList(r)
