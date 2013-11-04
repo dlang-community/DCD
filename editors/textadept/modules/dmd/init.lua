@@ -20,7 +20,7 @@ local function autocomplete()
 	_M.dcd.registerImages()
 	_M.dcd.autocomplete()
 	if not buffer:auto_c_active() then
-		_M.textadept.editing.autocomplete_word(keywords)
+		textadept.editing.autocomplete_word(keywords)
 	end
 end
 
