@@ -180,6 +180,37 @@ final class FirstPass : ASTVisitor
 		}
 	}
 
+	override void visit(AliasDeclaration aliasDeclaration)
+	{
+		if (aliasDeclaration.initializers.length == 0)
+		{
+			SemanticSymbol* symbol = new SemanticSymbol(
+				aliasDeclaration.name.value.dup,
+				CompletionKind.aliasName,
+				symbolFile,
+				aliasDeclaration.name.startIndex);
+			symbol.type = aliasDeclaration.type;
+			symbol.protection = protection;
+			symbol.parent = currentSymbol;
+			currentSymbol.addChild(symbol);
+		}
+		else
+		{
+			foreach (initializer; aliasDeclaration.initializers)
+			{
+				SemanticSymbol* symbol = new SemanticSymbol(
+					initializer.name.value.dup,
+					CompletionKind.aliasName,
+					symbolFile,
+					initializer.name.startIndex);
+				symbol.type = initializer.type;
+				symbol.protection = protection;
+				symbol.parent = currentSymbol;
+				currentSymbol.addChild(symbol);
+			}
+		}
+	}
+
 	override void visit(AliasThisDeclaration dec)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
@@ -192,8 +223,8 @@ final class FirstPass : ASTVisitor
 		if (dec.attributeDeclaration !is null
 			&& isProtection(dec.attributeDeclaration.attribute.attribute))
 		{
-				protection = dec.attributeDeclaration.attribute.attribute;
-				return;
+			protection = dec.attributeDeclaration.attribute.attribute;
+			return;
 		}
 		TokenType p = protection;
 		foreach (Attribute attr; dec.attributes)
@@ -545,6 +576,7 @@ private:
  *      $(LI base classes)
  *      $(LI mixin templates)
  *      $(LI alias this)
+ *      $(LI alias declarations)
  * )
  */
 struct ThirdPass
@@ -584,6 +616,9 @@ private:
 			currentSymbol.acSymbol.type = resolveType(currentSymbol.type,
 				currentSymbol.acSymbol.location);
 			break;
+		case aliasName:
+			// TODO
+			break;
 		case enumName:
 		case keyword:
 		case enumMember:
@@ -592,7 +627,6 @@ private:
 		case dummy:
 		case array:
 		case assocArray:
-		case aliasName:
 		case templateName:
 		case mixinTemplateName:
 			break;
