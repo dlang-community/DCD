@@ -428,16 +428,6 @@ private:
 		return "%s %s%s".format(formatNode(returnType), name, parameterString);
 	}
 
-	static string formatNode(T)(T node)
-	{
-		if (node is null) return "";
-		import formatter;
-		auto app = appender!(char[])();
-		auto f = new Formatter!(typeof(app))(app);
-		f.format(node);
-		return to!string(app.data);
-	}
-
 	/// Current protection type
 	TokenType protection;
 
@@ -499,13 +489,13 @@ private:
 	{
 		foreach (importInfo; currentScope.importInformation)
 		{
-			auto symbols = ModuleCache.getSymbolsInModule(importInfo.modulePath);
+			auto symbols = ModuleCache.getSymbolsInModule(
+				ModuleCache.resolveImportLoctation(importInfo.modulePath));
 			if (importInfo.importedSymbols.length == 0)
 			{
 				currentScope.symbols ~= symbols;
 				if (importInfo.isPublic && currentScope.parent is null)
 				{
-					Log.trace("Public import");
 					rootSymbol.acSymbol.parts ~= symbols;
 				}
 				continue;
@@ -708,8 +698,11 @@ private:
 		}
 		if (suffix.parameters)
 		{
-			Log.error("TODO: Function type suffix");
-			return null;
+			ACSymbol* s = new ACSymbol;
+			s.type = symbol;
+			s.qualifier = SymbolQualifier.func;
+			s.callTip = suffix.delegateOrFunction.value ~ formatNode(suffix.parameters);
+			return s;
 		}
 		return null;
 	}
@@ -836,7 +829,7 @@ string[] iotcToStringArray(const IdentifierOrTemplateChain iotc)
 
 private static string convertChainToImportPath(IdentifierChain chain)
 {
-	return to!string(chain.identifiers.map!(a => a.value).join(dirSeparator).array) ~ ".d";
+	return to!string(chain.identifiers.map!(a => a.value).join(dirSeparator).array);
 }
 
 version(unittest) Module parseTestCode(string code)
@@ -850,6 +843,16 @@ version(unittest) Module parseTestCode(string code)
 	assert (p.errorCount == 0);
 	assert (p.warningCount == 0);
 	return m;
+}
+
+string formatNode(T)(T node)
+{
+	if (node is null) return "";
+	import formatter;
+	auto app = appender!(char[])();
+	auto f = new Formatter!(typeof(app))(app);
+	f.format(node);
+	return to!string(app.data);
 }
 
 private void doesNothing(string a, int b, int c, string d) {}

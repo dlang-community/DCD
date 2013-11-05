@@ -97,14 +97,12 @@ struct ModuleCache
 
 	/**
 	 * Params:
-	 *     moduleName = the name of the module in "a/b.d" form
+	 *     moduleName = the name of the module in "a/b/c" form
 	 * Returns:
 	 *     The symbols defined in the given module
 	 */
-	static const(ACSymbol)*[] getSymbolsInModule(string moduleName)
+	static const(ACSymbol)*[] getSymbolsInModule(string location)
 	{
-
-		string location = resolveImportLoctation(moduleName);
 		if (location is null)
 			return [];
 
@@ -115,7 +113,7 @@ struct ModuleCache
 			return [];
 		}
 
-		Log.info("Getting symbols for module ", moduleName);
+		Log.info("Getting symbols for ", location);
 
 		recursionGuard[location] = true;
 
@@ -154,28 +152,37 @@ struct ModuleCache
 
 	/**
 	 * Params:
-	 *     moduleName the name of the module being imported, in "a/b/c.d" style
+	 *     moduleName the name of the module being imported, in "a/b/c" style
 	 * Returns:
 	 *     The absolute path to the file that contains the module, or null if
 	 *     not found.
 	 */
 	static string resolveImportLoctation(string moduleName)
 	{
-//		Log.trace("Resolving location of ", moduleName);
 		if (isRooted(moduleName))
 			return moduleName;
-
+		string[] alternatives;
 		foreach (path; importPaths)
 		{
-			string filePath = path ~ "/" ~ moduleName;
-			if (filePath.exists())
-				return filePath;
-			filePath ~= "i"; // check for x.di if x.d isn't found
-			if (filePath.exists())
-				return filePath;
+			string filePath = buildPath(path, moduleName);
+			if (exists(filePath ~ ".d") && isFile(filePath ~ ".d"))
+				alternatives = (filePath ~ ".d") ~ alternatives;
+			else if (exists(filePath ~ ".di") && isFile(filePath ~ ".di"))
+				alternatives = (filePath ~ ".di") ~ alternatives;
+			else if (exists(filePath) && isDir(filePath))
+			{
+				string packagePath = buildPath(filePath, "package.d");
+				if (exists(packagePath) && isFile(packagePath))
+				{
+					alternatives ~= packagePath;
+					continue;
+				}
+				packagePath ~= "i";
+				if (exists(packagePath) && isFile(packagePath))
+					alternatives ~= packagePath;
+			}
 		}
-		Log.error("Could not find ", moduleName);
-		return null;
+		return alternatives.length > 0 ? alternatives[0] : null;
 	}
 
 	static const(string[]) getImportPaths()

@@ -570,7 +570,9 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
 			else if (isDir(name))
 			{
 				response.completions ~= name.baseName();
-				response.completionKinds ~= CompletionKind.packageName;
+				response.completionKinds ~=
+                    exists(buildPath(name, "package.d")) || exists(buildPath(name, "package.di"))
+                    ? CompletionKind.packageName : CompletionKind.moduleName;
 			}
 		}
 	}
