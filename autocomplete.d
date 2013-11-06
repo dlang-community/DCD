@@ -154,6 +154,15 @@ const(ACSymbol)*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
 				break loop;
 			break;
 		case identifier:
+			// Use function return type instead of the function itself
+			if (symbols[0].qualifier == SymbolQualifier.func
+				|| symbols[0].kind == CompletionKind.functionName)
+			{
+				symbols = symbols[0].type is null ? [] :[symbols[0].type];
+				if (symbols.length == 0)
+					break loop;
+			}
+
 			Log.trace("looking for ", tokens[i].value, " in ", symbols[0].name);
 			symbols = symbols[0].getPartsByName(tokens[i].value);
 			if (symbols.length == 0)
@@ -193,7 +202,7 @@ const(ACSymbol)*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
 			{
 				auto h = i;
 				skip();
-				Parser p;
+				Parser p = new Parser();
 				p.setTokens(tokens[h .. i].array());
 				if (!p.isSliceExpression())
 				{
@@ -209,7 +218,7 @@ const(ACSymbol)*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
 			{
 				auto h = i;
 				skip();
-				Parser p;
+				Parser p = new Parser();
 				p.setTokens(tokens[h .. i].array());
 				const(ACSymbol)*[] overloads;
 				if (p.isSliceExpression())
@@ -403,6 +412,14 @@ void setCompletions(T)(ref AutocompleteResponse response,
 
 	if (completionType == CompletionType.identifiers)
 	{
+		if (symbols[0].qualifier == SymbolQualifier.func
+			|| symbols[0].kind == CompletionKind.functionName)
+		{
+			Log.trace("Completion list for return type of function ", symbols[0].name);
+			symbols = symbols[0].type is null ? [] : [symbols[0].type];
+			if (symbols.length == 0)
+				return;
+		}
 		foreach (s; symbols[0].parts.filter!(a => a.name !is null
 			&& a.name[0] != '*'
 			&& (partial is null ? true : a.name.toUpper().startsWith(partial.toUpper()))

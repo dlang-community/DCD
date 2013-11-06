@@ -447,6 +447,7 @@ private:
 		}
 		symbol.acSymbol.callTip = formatCallTip(returnType, functionName,
 			parameters);
+		symbol.type = returnType;
 	}
 
 	static string formatCallTip(Type returnType, string name, Parameters parameters,
@@ -612,10 +613,6 @@ private:
 		case variableName:
 		case memberVariableName:
 		case functionName:
-//			Log.trace("Resolving type of ", currentSymbol.acSymbol.name);
-			currentSymbol.acSymbol.type = resolveType(currentSymbol.type,
-				currentSymbol.acSymbol.location);
-			break;
 		case aliasName:
 			const(ACSymbol)* t = resolveType(currentSymbol.type,
 				currentSymbol.acSymbol.location);
