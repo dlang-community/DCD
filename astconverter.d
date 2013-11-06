@@ -387,7 +387,7 @@ private:
 	void visitConstructor(size_t location, Parameters parameters,
 		FunctionBody functionBody)
 	{
-		SemanticSymbol* symbol = new SemanticSymbol("this",
+		SemanticSymbol* symbol = new SemanticSymbol("*constructor*",
 			CompletionKind.functionName, symbolFile, location);
 		processParameters(symbol, null, "this", parameters);
 		symbol.protection = protection;
@@ -617,7 +617,11 @@ private:
 				currentSymbol.acSymbol.location);
 			break;
 		case aliasName:
-			// TODO
+			const(ACSymbol)* t = resolveType(currentSymbol.type,
+				currentSymbol.acSymbol.location);
+			while (t !is null && t.kind == CompletionKind.aliasName)
+				t = t.type;
+			currentSymbol.acSymbol.type = t;
 			break;
 		case enumName:
 		case keyword:

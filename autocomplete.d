@@ -421,7 +421,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			&& symbols[0].callTip is null)
 		{
 			auto call = symbols[0].getPartsByName("opCall");
-			if (call.length == 0)
+			if (call.length > 0)
 			{
 				symbols = call;
 				goto setCallTips;
@@ -431,6 +431,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				return;
 			else
 			{
+				Log.trace("Not a function, but it has a constructor");
 				symbols = constructor;
 				goto setCallTips;
 			}
@@ -440,7 +441,8 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		foreach (symbol; symbols)
 		{
 			Log.trace("Adding calltip ", symbol.callTip);
-			response.completions ~= symbol.callTip;
+			if (symbol.kind != CompletionKind.aliasName)
+				response.completions ~= symbol.callTip;
 		}
 	}
 }
@@ -571,8 +573,8 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
 			{
 				response.completions ~= name.baseName();
 				response.completionKinds ~=
-                    exists(buildPath(name, "package.d")) || exists(buildPath(name, "package.di"))
-                    ? CompletionKind.packageName : CompletionKind.moduleName;
+					exists(buildPath(name, "package.d")) || exists(buildPath(name, "package.di"))
+					? CompletionKind.packageName : CompletionKind.moduleName;
 			}
 		}
 	}
