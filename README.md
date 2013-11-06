@@ -17,6 +17,8 @@ back to the client.
 	* Autocompletion of class, struct, and interface instances.
 	* Display of call tips for functions, constructors, and variables of function type
 	* alias declarations
+	* Public imports
+	* Finding the declaration location of a symbol at the cursor
 	* *import* statement completions
 * Not working:
 	* Automatic starting of the server by the client
@@ -25,7 +27,6 @@ back to the client.
 	* *auto* declarations
 	* *alias this*
 	* Determining the type of an enum member when no base type is specified, but the first member has an initialaizer
-	* Public imports
 	* That one feature that you *REALLY* needed
 
 #Setup
@@ -104,6 +105,18 @@ Import paths can be added to the server without restarting it. To accomplish
 this, run the client with the -I option:
 
 	dcd-client -Ipath/to/imports
+
+
+##Find declaration of symbol at cursor
+```dcd-client --symbolLocation -c 123```
+
+The "--symbolLocation" or "-l" flags cause the client to instruct the server
+to return the path to the file and the byte offset of the declaration of the
+symbol at the given cursor position.
+
+The output consists of the absolute path to the file followed by a tab character
+followed by the byte offset, folled by a newline character. For example
+	/home/example/src/project/bar.d	3482
 
 #Server
 The server must be running for the DCD client to provide autocomplete information.
