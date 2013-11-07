@@ -36,37 +36,70 @@ struct Log
 	static void trace(T...)(T args)
 	{
 		if (level < LogLevel.trace) return;
-		if (output is stdout)
-			output.writeln("[\033[01;36mtrace\033[0m] ", args);
-		else
+		version(Windows)
+		{
 			output.writeln("[trace] ", args);
+			return;
+		}
+		else
+		{
+			if (output is stdout)
+				output.writeln("[\033[01;36mtrace\033[0m] ", args);
+			else
+				output.writeln("[trace] ", args);
+		}
 	}
 
 	static void info(T...)(T args)
 	{
 		if (level < LogLevel.info) return;
-		if (output is stdout)
-			output.writeln("[\033[01;32minfo\033[0m ] ", args);
-		else
+		version (Windows)
+		{
 			output.writeln("[info ] ", args);
+			return;
+		}
+		else
+		{
+			if (output is stdout)
+				output.writeln("[\033[01;32minfo\033[0m ] ", args);
+			else
+				output.writeln("[info ] ", args);
+		}
 	}
 
 	static void error(T...)(T args)
 	{
 		if (level < LogLevel.error) return;
-		if (output is stdout)
-			output.writeln("[\033[01;31merror\033[0m] ", args);
-		else
+		version(Windows)
+		{
 			output.writeln("[error] ", args);
+			return;
+		}
+		else
+		{
+			if (output is stdout)
+				output.writeln("[\033[01;31merror\033[0m] ", args);
+			else
+				output.writeln("[error] ", args);
+		}
 	}
 
 	static void fatal(T...)(T args)
 	{
-		if (output is stdout)
-			output.writeln("[\033[01;35mfatal\033[0m] ", args);
-		else
+		version(Windows)
+		{
 			output.writeln("[fatal] ", args);
+			return;
+		}
+		else
+		{
+			if (output is stdout)
+				output.writeln("[\033[01;35mfatal\033[0m] ", args);
+			else
+				output.writeln("[fatal] ", args);
+		}
 	}
+
 	static LogLevel level;
 	static File output;
 }

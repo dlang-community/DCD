@@ -115,7 +115,8 @@ to return the path to the file and the byte offset of the declaration of the
 symbol at the given cursor position.
 
 The output consists of the absolute path to the file followed by a tab character
-followed by the byte offset, followed by a newline character. For example
+followed by the byte offset, followed by a newline character. For example:
+
 	/home/example/src/project/bar.d	3482
 
 #Server

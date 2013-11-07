@@ -113,6 +113,7 @@ function M.gotoDeclaration()
 	p:close()
 	local tmpFile = io.open(fileName, "r")
 	local r = tmpFile:read("*a")
+	io.close(tmpFile)
 	if r ~= "Not found\n" then
 		path, position = r:match("^(.-)\t(%d+)")
 		if (path ~= nil and position ~= nil) then
