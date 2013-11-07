@@ -100,6 +100,32 @@ function M.cycleCalltips(delta)
 	showCurrentCallTip()
 end
 
+function M.gotoDeclaration()
+	local fileName = os.tmpname()
+	local command = M.PATH_TO_DCD_CLIENT .. " -l -c" .. buffer.current_pos .. " > " .. fileName
+	local mode = "w"
+	if _G.WIN32 then
+		mode = "wb"
+	end
+	local p = io.popen(command, mode)
+	p:write(buffer:get_text())
+	p:flush()
+	p:close()
+	local tmpFile = io.open(fileName, "r")
+	local r = tmpFile:read("*a")
+	if r ~= "Not found\n" then
+		path, position = r:match("^(.-)\t(%d+)")
+		if (path ~= nil and position ~= nil) then
+			if (path ~= "stdin") then
+				io.open_file(path)
+			end
+			buffer:goto_pos(tonumber(position))
+			buffer:word_right_end_extend()
+		end
+	end
+	os.remove(fileName)
+end
+
 events.connect(events.CALL_TIP_CLICK, function(arrow)
 	if buffer:get_lexer() ~= "dmd" then return end
 	if arrow == 1 then

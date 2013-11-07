@@ -23,6 +23,10 @@ module messages;
  */
 enum CompletionKind : char
 {
+    /// Invalid completion kind. This is used internally and will never
+    /// be returned in a completion response.
+    dummy = '?',
+
     /// class names
     className = 'c',
 
@@ -67,6 +71,12 @@ enum CompletionKind : char
 
 	/// alias name
 	aliasName = 'l',
+
+	/// template name
+	templateName = 't',
+
+	/// mixin template name
+	mixinTemplateName = 'T'
 }
 
 /**
@@ -83,15 +93,29 @@ enum CompletionType : string
      * The auto-completion list consists of a listing of functions and their
      * parameters.
      */
-    calltips = "calltips"
+    calltips = "calltips",
+
+    /**
+     * The response contains the location of a symbol declaration.
+     */
+    location = "location"
 }
 
-enum RequestKind
+/**
+ * Request kind
+ */
+enum RequestKind : ubyte
 {
+	/// Autocompletion
 	autocomplete,
+	/// Clear the completion cache
 	clearCache,
+	/// Add import directory to server
 	addImport,
-	shutdown
+	/// Shut down the server
+	shutdown,
+	/// Get declaration location of given symbol
+	symbolLocation
 }
 
 /**
@@ -134,6 +158,16 @@ struct AutocompleteResponse
      * The autocompletion type. (Parameters or identifier)
      */
     string completionType;
+
+    /**
+     * The path to the file that contains the symbol.
+     */
+    string symbolFilePath;
+
+    /**
+     * The byte offset at which the symbol is located.
+     */
+    size_t symbolLocation;
 
     /**
      * The completions

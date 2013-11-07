@@ -26,12 +26,16 @@ import std.path;
 import std.file;
 import std.array;
 import std.process;
+import std.datetime;
 
 import msgpack;
 
 import messages;
 import autocomplete;
 import modulecache;
+import stupidlog;
+import actypes;
+import core.memory;
 
 enum CONFIG_FILE_NAME = "dcd.conf";
 
@@ -42,6 +46,13 @@ version(OSX) version = useXDG;
 
 int main(string[] args)
 {
+
+	Log.info("Starting up...");
+	StopWatch sw = StopWatch(AutoStart.yes);
+
+	Log.output = stdout;
+	Log.level = LogLevel.trace;
+
 	ushort port = 9166;
 	bool help;
 	string[] importPaths;
@@ -72,33 +83,40 @@ int main(string[] args)
 	socket.listen(0);
 	scope (exit)
 	{
-		writeln("Shutting down sockets...");
+		Log.info("Shutting down sockets...");
 		socket.shutdown(SocketShutdown.BOTH);
 		socket.close();
-		writeln("Sockets shut down.");
+		Log.info("Sockets shut down.");
 	}
 
-	foreach (path; importPaths)
-		ModuleCache.addImportPath(path);
-	writeln("Import directories: ", ModuleCache.getImportPaths());
+	ModuleCache.addImportPaths(importPaths);
+	Log.info("Import directories: ", ModuleCache.getImportPaths());
 
 	ubyte[] buffer = new ubyte[1024 * 1024 * 4]; // 4 megabytes should be enough for anybody...
 
+	sw.stop();
+	Log.info("Startup completed in ", sw.peek().to!("msecs", float), " milliseconds");
+	ModuleCache.estimateMemory();
+
     // No relative paths
 	version (Posix) chdir("/");
-
-	writeln("Startup complete");
 
 	while (true)
 	{
 		auto s = socket.accept();
 		s.blocking = true;
+
+		// TODO: Restrict connections to localhost
+
 		scope (exit)
 		{
 			s.shutdown(SocketShutdown.BOTH);
 			s.close();
 		}
 		ptrdiff_t bytesReceived = s.receive(buffer);
+
+		auto requestWatch = StopWatch(AutoStart.yes);
+
 		size_t messageLength;
 		// bit magic!
 		(cast(ubyte*) &messageLength)[0..size_t.sizeof] = buffer[0..size_t.sizeof];
@@ -115,7 +133,7 @@ int main(string[] args)
 
 		if (bytesReceived == Socket.ERROR)
 		{
-			writeln("Socket recieve failed");
+			Log.error("Socket recieve failed");
 			break;
 		}
 
@@ -123,28 +141,28 @@ int main(string[] args)
 		msgpack.unpack(buffer[size_t.sizeof .. bytesReceived], request);
 		if (request.kind == RequestKind.addImport)
 		{
-			foreach (path; request.importPaths)
-			{
-				ModuleCache.addImportPath(path);
-			}
-
+			ModuleCache.addImportPaths(request.importPaths);
 		}
 		else if (request.kind == RequestKind.clearCache)
 		{
-			writeln("Clearing cache.");
+			Log.info("Clearing cache.");
 			ModuleCache.clear();
 		}
 		else if (request.kind == RequestKind.shutdown)
 		{
-			writeln("Shutting down.");
+			Log.info("Shutting down.");
 			break;
 		}
 		else
 		{
-			AutocompleteResponse response = complete(request, importPaths);
+			AutocompleteResponse response =
+				request.kind == RequestKind.autocomplete
+				? complete(request)
+				: findDeclaration(request);
 			ubyte[] responseBytes = msgpack.pack(response);
-			assert(s.send(responseBytes) == responseBytes.length);
+			s.send(responseBytes);
 		}
+		Log.info("Request processed in ", requestWatch.peek().to!("msecs", float), " milliseconds");
 	}
 	return 0;
 }
@@ -178,11 +196,11 @@ void warnAboutOldConfigLocation()
 	version (linux) if ("~/.config/dcd".expandTilde().exists()
 		&& "~/.config/dcd".expandTilde().isFile())
 	{
-		writeln("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-		writeln("!! Upgrade warning:");
-		writeln("!! '~/.config/dcd' should be moved to '$XDG_CONFIG_HOME/dcd/dcd.conf'");
-		writeln("!! or '$HOME/.config/dcd/dcd.conf'");
-		writeln("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+		Log.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+		Log.error("!! Upgrade warning:");
+		Log.error("!! '~/.config/dcd' should be moved to '$XDG_CONFIG_HOME/dcd/dcd.conf'");
+		Log.error("!! or '$HOME/.config/dcd/dcd.conf'");
+		Log.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 	}
 }
 
@@ -192,7 +210,7 @@ string[] loadConfiguredImportDirs()
 	immutable string configLocation = getConfigurationLocation();
 	if (!configLocation.exists())
 		return [];
-	writeln("Loading configuration from ", configLocation);
+	Log.info("Loading configuration from ", configLocation);
 	File f = File(configLocation, "rt");
 	return f.byLine(KeepTerminator.no).map!(a => a.idup).filter!(a => a.exists()).array();
 }

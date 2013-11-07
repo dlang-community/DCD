@@ -29,14 +29,20 @@ import std.path;
 import std.algorithm;
 import std.conv;
 
-import acvisitor;
 import actypes;
-import autocomplete;
+import semantic;
+import astconverter;
+import stupidlog;
 
 struct CacheEntry
 {
-	ACSymbol[] symbols;
+	const(ACSymbol)*[] symbols;
 	SysTime modificationTime;
+	void opAssign(ref const CacheEntry other)
+	{
+		this.symbols = cast(typeof(symbols)) other.symbols;
+		this.modificationTime = other.modificationTime;
+	}
 }
 
 /**
@@ -54,37 +60,64 @@ struct ModuleCache
 		cache = cache.init;
 	}
 
+	static void estimateMemory()
+	{
+		size_t estimate = 0;
+		foreach (c; cache)
+		{
+			foreach (symbol; c.symbols)
+				estimate = symbol.estimateMemory(estimate);
+		}
+		double megabytes = estimate / (1024.0F * 1024.0F);
+		Log.trace("Memory use estimated at ", megabytes, " megabytes");
+	}
+
 	/**
 	 * Adds the given path to the list of directories checked for imports
 	 */
-	static void addImportPath(string path)
+	static void addImportPaths(string[] paths)
 	{
-		if (!exists(path))
-			return;
-		importPaths ~= path;
-		foreach (fileName; dirEntries(path, "*.{d,di}", SpanMode.depth))
+		foreach (path; paths)
 		{
-			writeln("Loading and caching completions for ", fileName);
-			getSymbolsInModule(fileName);
+			if (!exists(path))
+			{
+				Log.error("Cannot cache modules in ", path, " because it does not exist");
+				continue;
+			}
+			importPaths ~= path;
+		}
+		foreach (path; paths)
+		{
+			foreach (fileName; dirEntries(path, "*.{d,di}", SpanMode.depth))
+			{
+				getSymbolsInModule(fileName);
+			}
 		}
 	}
 
 	/**
 	 * Params:
-	 *     moduleName = the name of the module in "a/b.d" form
+	 *     moduleName = the name of the module in "a/b/c" form
 	 * Returns:
 	 *     The symbols defined in the given module
 	 */
-	static ACSymbol[] getSymbolsInModule(string moduleName)
+	static const(ACSymbol)*[] getSymbolsInModule(string location)
 	{
-		writeln("Getting symbols for module ", moduleName);
-		string location = resolveImportLoctation(moduleName);
 		if (location is null)
 			return [];
-		if (!needsReparsing(location))
-			return cache[location].symbols;
 
-		auto visitor = new AutocompleteVisitor;
+		if (!needsReparsing(location))
+		{
+			if (location in cache)
+				return cache[location].symbols;
+			return [];
+		}
+
+		Log.info("Getting symbols for ", location);
+
+		recursionGuard[location] = true;
+
+		const(ACSymbol)*[] symbols;
 		try
 		{
 			File f = File(location);
@@ -92,51 +125,64 @@ struct ModuleCache
 			f.rawRead(source);
 
 			LexerConfig config;
+			config.fileName = location;
 			auto tokens = source.byToken(config).array();
-			Module mod = parseModule(tokens, location, &doesNothing);
+			symbols = convertAstToSymbols(tokens, location);
 
-			visitor.visit(mod);
-			visitor.scope_.resolveSymbolTypes();
+			// Parsing allocates a lot of AST nodes. We can greatly reduce the
+			// program's idle memory use by running the GC here.
+			// TODO: Re-visit this when D gets a precise GC.
+			import core.memory;
+			GC.collect();
+			GC.minimize();
 		}
 		catch (Exception ex)
 		{
-			writeln("Couln't parse ", location, " due to exception: ", ex.msg);
+			Log.error("Couln't parse ", location, " due to exception: ", ex.msg);
 			return [];
 		}
 		SysTime access;
 		SysTime modification;
 		getTimes(location, access, modification);
-		if (location !in cache)
-			cache[location] = CacheEntry.init;
-		cache[location].modificationTime = modification;
-		cache[location].symbols = visitor.symbols;
-		return cache[location].symbols;
+		CacheEntry c = CacheEntry(symbols, modification);
+		cache[location] = c;
+		recursionGuard[location] = false;
+		return symbols;
 	}
 
 	/**
 	 * Params:
-	 *     moduleName the name of the module being imported, in "a/b/c.d" style
+	 *     moduleName the name of the module being imported, in "a/b/c" style
 	 * Returns:
 	 *     The absolute path to the file that contains the module, or null if
 	 *     not found.
 	 */
 	static string resolveImportLoctation(string moduleName)
 	{
-//		writeln("Resolving location of ", moduleName);
 		if (isRooted(moduleName))
 			return moduleName;
-
+		string[] alternatives;
 		foreach (path; importPaths)
 		{
-			string filePath = path ~ "/" ~ moduleName;
-			if (filePath.exists())
-				return filePath;
-			filePath ~= "i"; // check for x.di if x.d isn't found
-			if (filePath.exists())
-				return filePath;
+			string filePath = buildPath(path, moduleName);
+			if (exists(filePath ~ ".d") && isFile(filePath ~ ".d"))
+				alternatives = (filePath ~ ".d") ~ alternatives;
+			else if (exists(filePath ~ ".di") && isFile(filePath ~ ".di"))
+				alternatives = (filePath ~ ".di") ~ alternatives;
+			else if (exists(filePath) && isDir(filePath))
+			{
+				string packagePath = buildPath(filePath, "package.d");
+				if (exists(packagePath) && isFile(packagePath))
+				{
+					alternatives ~= packagePath;
+					continue;
+				}
+				packagePath ~= "i";
+				if (exists(packagePath) && isFile(packagePath))
+					alternatives ~= packagePath;
+			}
 		}
-		writeln("Could not find ", moduleName);
-		return null;
+		return alternatives.length > 0 ? alternatives[0] : null;
 	}
 
 	static const(string[]) getImportPaths()
@@ -154,6 +200,10 @@ private:
 	 */
 	static bool needsReparsing(string mod)
 	{
+		if (mod !in recursionGuard)
+			return true;
+		if (recursionGuard[mod])
+			return false;
 		if (!exists(mod) || mod !in cache)
 			return true;
 		SysTime access;
@@ -164,6 +214,8 @@ private:
 
 	// Mapping of file paths to their cached symbols.
 	static CacheEntry[string] cache;
+
+	static bool[string] recursionGuard;
 
 	// Listing of paths to check for imports
 	static string[] importPaths;

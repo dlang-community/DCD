@@ -31,6 +31,7 @@ keys.dmd = {
 		(_USERHOME..'/modules/dmd/init.lua'):iconv('UTF-8', _CHARSET) },
 	},
 	['c\n'] = {autocomplete},
+	['cG'] = {_M.dcd.gotoDeclaration},
 	['down'] = {_M.dcd.cycleCalltips, 1},
 	['up'] = {_M.dcd.cycleCalltips, -1},
 }
