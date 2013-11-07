@@ -348,7 +348,11 @@ final class FirstPass : ASTVisitor
 		{
 			foreach (child; currentSymbol.children)
 			{
-				child.acSymbol.location = s.startLocation + 1;
+				if (child.acSymbol.location == size_t.max)
+				{
+//					Log.trace("Reassigning location of ", child.acSymbol.name);
+					child.acSymbol.location = s.startLocation + 1;
+				}
 			}
 		}
 		if (blockStatement.declarationsAndStatements !is null)
@@ -425,7 +429,7 @@ private:
 			foreach (Parameter p; parameters.parameters)
 			{
 				SemanticSymbol* parameter = new SemanticSymbol(p.name.value.dup,
-					CompletionKind.variableName, symbolFile, p.name.startIndex);
+					CompletionKind.variableName, symbolFile, size_t.max);
 				parameter.type = p.type;
 				symbol.addChild(parameter);
 				parameter.parent = symbol;
@@ -433,13 +437,13 @@ private:
 			if (parameters.hasVarargs)
 			{
 				SemanticSymbol* argptr = new SemanticSymbol("_argptr",
-					CompletionKind.variableName, null, 0);
+					CompletionKind.variableName, null, size_t.max);
 				argptr.type = argptrType;
 				argptr.parent = symbol;
 				symbol.addChild(argptr);
 
 				SemanticSymbol* arguments = new SemanticSymbol("_arguments",
-					CompletionKind.variableName, null, 0);
+					CompletionKind.variableName, null, size_t.max);
 				arguments.type = argumentsType;
 				arguments.parent = symbol;
 				symbol.addChild(arguments);
@@ -511,8 +515,8 @@ private:
 
 	void assignToScopes(const(ACSymbol)* currentSymbol)
 	{
-		moduleScope.getScopeByCursor(currentSymbol.location).symbols
-			~= currentSymbol;
+		Scope* s = moduleScope.getScopeByCursor(currentSymbol.location);
+		s.symbols ~= currentSymbol;
 		foreach (part; currentSymbol.parts)
 			assignToScopes(part);
 	}

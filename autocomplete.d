@@ -42,7 +42,7 @@ import stupidlog;
 
 AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 {
-	Log.info("Finding declaration");
+	Log.trace("Finding declaration");
 	AutocompleteResponse response;
 	LexerConfig config;
 	config.fileName = "stdin";
@@ -59,7 +59,7 @@ AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 
 	auto beforeTokens = sortedTokens.lowerBound(cast(size_t) request.cursorPosition);
 
-	Log.info("Token at cursor: ", beforeTokens[$ - 1]);
+	Log.trace("Token at cursor: ", beforeTokens[$ - 1]);
 
 	const(Scope)* completionScope = generateAutocompleteTrees(tokenArray, "stdin");
 	auto expression = getExpression(beforeTokens);
@@ -85,13 +85,20 @@ AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 const(ACSymbol)*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
 	T tokens, size_t cursorPosition, CompletionType completionType)
 {
+	Log.trace("Getting symbols from token chain", tokens);
 	// Find the symbol corresponding to the beginning of the chain
 	const(ACSymbol)*[] symbols = completionScope.getSymbolsByNameAndCursor(
 		tokens[0].value, cursorPosition);
 	if (symbols.length == 0)
 	{
-		Log.trace("Could not find declaration of ", tokens[0].value);
+		Log.error("Could not find declaration of ", tokens[0].value,
+			" from position ", cursorPosition);
 		return [];
+	}
+	else
+	{
+		Log.trace("Found ", symbols[0].name, " at ", symbols[0].location,
+			" with type ", symbols[0].type);
 	}
 
 	if (completionType == CompletionType.identifiers
