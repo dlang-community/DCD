@@ -56,7 +56,7 @@ When the first line of output is "identifiers", the editor should display a
 completion list.
 ####Output format
 A line containing the string "identifiers" followed by the completions that are
-available, one per line. Each line consists of the completion name folled by a
+available, one per line. Each line consists of the completion name followed by a
 tab character, followed by a completion kind
 #####Completion kinds
 * c - class name
@@ -115,7 +115,7 @@ to return the path to the file and the byte offset of the declaration of the
 symbol at the given cursor position.
 
 The output consists of the absolute path to the file followed by a tab character
-followed by the byte offset, folled by a newline character. For example
+followed by the byte offset, followed by a newline character. For example
 	/home/example/src/project/bar.d	3482
 
 #Server
