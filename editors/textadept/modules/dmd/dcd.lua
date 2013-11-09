@@ -102,18 +102,20 @@ end
 
 function M.gotoDeclaration()
 	local fileName = os.tmpname()
-	local command = M.PATH_TO_DCD_CLIENT .. " -l -c" .. buffer.current_pos .. " > " .. fileName
 	local mode = "w"
 	if _G.WIN32 then
+		fileName = os.getenv('TEMP') .. fileName
 		mode = "wb"
 	end
+	local command = M.PATH_TO_DCD_CLIENT .. " -l -c" .. buffer.current_pos ..
+	                " > \"" .. fileName .. "\""
 	local p = io.popen(command, mode)
 	p:write(buffer:get_text())
 	p:flush()
 	p:close()
 	local tmpFile = io.open(fileName, "r")
 	local r = tmpFile:read("*a")
-	io.close(tmpFile)
+	tmpFile:close()
 	if r ~= "Not found\n" then
 		path, position = r:match("^(.-)\t(%d+)")
 		if (path ~= nil and position ~= nil) then
@@ -139,18 +141,20 @@ end)
 function M.autocomplete(ch)
 	if buffer:get_lexer() ~= "dmd" then return end
 	local fileName = os.tmpname()
-	local command = M.PATH_TO_DCD_CLIENT .. " -c" .. buffer.current_pos .. " > " .. fileName
 	local mode = "w"
 	if _G.WIN32 then
+		fileName = os.getenv('TEMP') .. fileName
 		mode = "wb"
 	end
+	local command = M.PATH_TO_DCD_CLIENT .. " -c" .. buffer.current_pos ..
+	                " > \"" .. fileName .. "\""
 	local p = io.popen(command, mode)
 	p:write(buffer:get_text())
 	p:flush()
 	p:close()
 	local tmpFile = io.open(fileName, "r")
 	local r = tmpFile:read("*a")
-	io.close(tmpFile)
+	tmpFile:close()
 	if r ~= "\n" then
 		if r:match("^identifiers.*") then
 			showCompletionList(r)
