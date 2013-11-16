@@ -825,13 +825,15 @@ class SimpleParser : Parser
 			if (currentIs(TokenType.in_))
 			{
 				advance();
-				skipBraces();
+				if (currentIs(TokenType.lBrace))
+					skipBraces();
 				if (currentIs(TokenType.out_))
 				{
 					advance();
 					if (currentIs(TokenType.lParen))
 						skipParens();
-					skipBraces();
+					if (currentIs(TokenType.lBrace))
+						skipBraces();
 				}
 			}
 			else if (currentIs(TokenType.out_))
@@ -839,15 +841,18 @@ class SimpleParser : Parser
 				advance();
 				if (currentIs(TokenType.lParen))
 					skipParens();
-				skipBraces();
+				if (currentIs(TokenType.lBrace))
+					skipBraces();
 				if (currentIs(TokenType.in_))
 				{
 					advance();
-					skipBraces();
+					if (currentIs(TokenType.lBrace))
+						skipBraces();
 				}
 			}
 			expect(TokenType.body_);
-			skipBraces();
+			if (currentIs(TokenType.lBrace))
+				skipBraces();
 		}
 		return null;
 	}
