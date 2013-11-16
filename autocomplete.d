@@ -98,7 +98,7 @@ const(ACSymbol)*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
 	else
 	{
 		Log.trace("Found ", symbols[0].name, " at ", symbols[0].location,
-			" with type ", symbols[0].type.name);
+			" with type", symbols[0].type is null ? "null" : symbols[0].type.name);
 	}
 
 	if (completionType == CompletionType.identifiers
