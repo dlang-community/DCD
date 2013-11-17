@@ -547,6 +547,7 @@ T getExpression(T)(T beforeTokens)
 			// if it's a loop keyword, pretend we never skipped the parens.
 			if (i > 0) switch (beforeTokens[i - 1].type)
 			{
+				case TokenType.scope_:
 				case TokenType.if_:
 				case TokenType.while_:
 				case TokenType.for_:
