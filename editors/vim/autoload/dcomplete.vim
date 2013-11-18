@@ -11,21 +11,30 @@ function! dcomplete#Complete(findstart,base)
 		let parenPos=searchpos("(","bn",line('.'))
 		if parenPos[0]
 			if getline('.')[parenPos[1]:col('.')-2]=~'^\s*\w*$'
-				let b:completionColumn=parenPos[1]+1
+				let b:completionColumn=parenPos[1]
 				return parenPos[1]
 			endif
 		endif
 		"If we can't find either, look for the beginning of the word
-		if line('.')==prePos[0] && getline(prePos[0])[prePos[1]]=~'\w'
-			return prePos[1]
+		"if line('.')==prePos[0] && getline(prePos[0])[prePos[1]]=~'\w'
+			"return prePos[1]
+		"endif
+		"If we can't find any of the above - just look for the begining of
+		"the identifier
+		let wordStartPos=searchpos('\w\+',"bn")
+		if line('.')==wordStartPos[0]
+			let b:completionColumn=wordStartPos[1]+2
+			return wordStartPos[1]-1
 		endif
-		"If we can't find any of the above, DCD can't help us.
+
 		return -2
 	else
+		let b:base=a:base
 		"Run DCD
 		let scanResult=s:runDCDToGetAutocompletion()
 		"Split the result text to lines.
 		let resultLines=split(scanResult,"\n")
+		let b:res=resultLines
 
 		"if we have less than one line - something wen wrong
 		if empty(resultLines)
@@ -86,12 +95,11 @@ function! s:runDCDToGetAutocompletion()
 	"Save the temp file in unix format for better reading of byte position.
 	let l:oldFileFormat=&fileformat
 	set fileformat=unix
-	let l:bytePosition=line2byte('.')+b:completionColumn-2
+	let l:bytePosition=line2byte('.')+b:completionColumn-1
 	exec "write ".l:tmpFileName
 	let &fileformat=l:oldFileFormat
 	let scanResult=system(dcomplete#DCDclient().' --cursorPos '.l:bytePosition.' <'.shellescape(l:tmpFileName))
 	call delete(l:tmpFileName)
-
 	return scanResult
 endfunction
 
