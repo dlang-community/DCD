@@ -273,7 +273,6 @@ AutocompleteResponse complete(const AutocompleteRequest request)
 
 	if (beforeTokens.length >= 1 && beforeTokens[$ - 1] == TokenType.identifier)
 	{
-		Log.trace("partial completion");
 		partial = beforeTokens[$ - 1].value;
 		tokenType = beforeTokens[$ - 1].type;
 		beforeTokens = beforeTokens[0 .. $ - 1];
