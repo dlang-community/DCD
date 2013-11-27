@@ -61,3 +61,11 @@ Conflicts
 This plugin conflicts with the DScanner plugin, as both use the `dcomplete`
 autoload namespace and the `dcomplete#Complete` function - as per Vim's
 conventions.
+
+Configuration
+=============
+
+If you want to never add the closing paren in calltips completions, add this to you vimrc:
+```vim
+let g:dcd_neverAddClosingParen=1
+```
