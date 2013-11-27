@@ -1,6 +1,10 @@
 "The completion function
 function! dcomplete#Complete(findstart,base)
 	if a:findstart
+
+		"We might need it for paren completion:
+		let b:closingParenExists=getline('.')[col('.')-1:-1]=~'^\s*)'
+
 		let prePos=searchpos('\W',"bn")
 		let preChar=getline(prePos[0])[prePos[1]-1]
 		if '.'==preChar
@@ -131,7 +135,10 @@ function! s:parseCalltips(base,resultLines)
 					call add(funcArgs,'')
 				endif
 			endfor
-			let funcArgsString=join(funcArgs,', ').')'
+			let funcArgsString=join(funcArgs,', ')
+			if !b:closingParenExists && !(exists('g:dcd_neverAddClosingParen') && g:dcd_neverAddClosingParen)
+				let funcArgsString=funcArgsString.')'
+			endif
 			call add(result,{'word':funcArgsString,'abbr':substitute(resultLine,'\\n\\t','','g'),'dup':1})
 		end
 	endfor
