@@ -20,6 +20,7 @@ back to the client.
 	* Public imports
 	* Finding the declaration location of a symbol at the cursor
 	* *import* statement completions
+	* Display of documentation comments in function call tips
 * Not working:
 	* Automatic starting of the server by the client
 	* UFCS
@@ -30,8 +31,8 @@ back to the client.
 	* That one feature that you *REALLY* needed
 
 #Setup
-1. Run ```git submodule update --init``` after cloning this repository to grab the MessagePack library and the parser from DScanner.
-1. run the ```build.sh``` script to build the client and server.
+1. Run ```git submodule update --init``` after cloning this repository to grab the MessagePack and Datapacked libraries and the parser from DScanner.
+1. run the ```build.sh``` script to build the client and server. (Or build.bat on Windows)
 1. Configure your text editor to call the dcd-client program. See the *editors* folder for directions on configuring your specific editor.
 1. Start the dcd-server program before editing code.
 
@@ -87,15 +88,22 @@ tab character, followed by a completion kind
 	calltip	v
 	getPartByName	f
 
-####Parenthesis completion
+####Note
+DCD's output will start with "identifiers" when completing at a left paren
+character if the keywords *pragma*, *scope*, *__traits*, *extern*, or *version*
+were just before the paren.
+
+###Parenthesis completion
 When the first line of output is "calltips", the editor should display a function
 call tip.
 #####Output format
 A line containing the string "calltips", followed by zero or more lines, each
-containing a call tip for an overload of the given function.
+containing a call tip for an overload of the given function as well as its
+DDoc comment, if available. Be sure to escape the \n sequences to newlines
+when implementing an editor plugin.
 #####Example output
 	calltips
-	ACSymbol findSymbolInCurrentScope(size_t cursorPosition, string name)
+	Some DDoc comment\nspread over two lines\n\nACSymbol findSymbolInCurrentScope(size_t cursorPosition, string name)
 
 ##Clear server's autocomplete cache
 ```dcd-client --clearCache```

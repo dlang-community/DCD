@@ -71,7 +71,7 @@ AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 	{
 		response.symbolLocation = symbols[0].location;
 		response.symbolFilePath = symbols[0].symbolFile;
-		Log.info(beforeTokens[$ - 1].value, " declared in ",
+		Log.info(beforeTokens[$ - 1].text, " declared in ",
 			response.symbolFilePath, " at ", response.symbolLocation);
 	}
 	else
@@ -88,10 +88,10 @@ const(ACSymbol)*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
 	Log.trace("Getting symbols from token chain", tokens);
 	// Find the symbol corresponding to the beginning of the chain
 	const(ACSymbol)*[] symbols = completionScope.getSymbolsByNameAndCursor(
-		tokens[0].value, cursorPosition);
+		tokens[0].text, cursorPosition);
 	if (symbols.length == 0)
 	{
-		Log.error("Could not find declaration of ", tokens[0].value,
+		Log.error("Could not find declaration of ", tokens[0].text,
 			" from position ", cursorPosition);
 		return [];
 	}
@@ -114,8 +114,8 @@ const(ACSymbol)*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
 
 	loop: for (size_t i = 1; i < tokens.length; i++)
 	{
-		TokenType open;
-		TokenType close;
+		IdType open;
+		IdType close;
 		void skip()
 		{
 			i++;
@@ -130,37 +130,37 @@ const(ACSymbol)*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
 				}
 			}
 		}
-		with (TokenType) switch (tokens[i].type)
+		switch (tokens[i].type)
 		{
-		case int_:
-		case uint_:
-		case long_:
-		case ulong_:
-		case char_:
-		case wchar_:
-		case dchar_:
-		case bool_:
-		case byte_:
-		case ubyte_:
-		case short_:
-		case ushort_:
-		case cent_:
-		case ucent_:
-		case float_:
-		case ifloat_:
-		case cfloat_:
-		case idouble_:
-		case cdouble_:
-		case double_:
-		case real_:
-		case ireal_:
-		case creal_:
-		case this_:
-			symbols = symbols[0].getPartsByName(getTokenValue(tokens[i].type));
+		case tok!"int":
+		case tok!"uint":
+		case tok!"long":
+		case tok!"ulong":
+		case tok!"char":
+		case tok!"wchar":
+		case tok!"dchar":
+		case tok!"bool":
+		case tok!"byte":
+		case tok!"ubyte":
+		case tok!"short":
+		case tok!"ushort":
+		case tok!"cent":
+		case tok!"ucent":
+		case tok!"float":
+		case tok!"ifloat":
+		case tok!"cfloat":
+		case tok!"idouble":
+		case tok!"cdouble":
+		case tok!"double":
+		case tok!"real":
+		case tok!"ireal":
+		case tok!"creal":
+		case tok!"this":
+			symbols = symbols[0].getPartsByName(str(tokens[i].type));
 			if (symbols.length == 0)
 				break loop;
 			break;
-		case identifier:
+		case tok!"identifier":
 			// Use function return type instead of the function itself
 			if (symbols[0].qualifier == SymbolQualifier.func
 				|| symbols[0].kind == CompletionKind.functionName)
@@ -170,8 +170,8 @@ const(ACSymbol)*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
 					break loop;
 			}
 
-			Log.trace("looking for ", tokens[i].value, " in ", symbols[0].name);
-			symbols = symbols[0].getPartsByName(tokens[i].value);
+			Log.trace("looking for ", tokens[i].text, " in ", symbols[0].name);
+			symbols = symbols[0].getPartsByName(tokens[i].text);
 			if (symbols.length == 0)
 			{
 				Log.trace("Couldn't find it.");
@@ -197,14 +197,14 @@ const(ACSymbol)*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
 			if (symbols.length == 0)
 				break loop;
 			break;
-		case lParen:
-			open = TokenType.lParen;
-			close = TokenType.rParen;
+		case tok!"(":
+			open = tok!"(";
+			close = tok!")";
 			skip();
 			break;
-		case lBracket:
-			open = TokenType.lBracket;
-			close = TokenType.rBracket;
+		case tok!"[":
+			open = tok!"[";
+			close = tok!"]";
 			if (symbols[0].qualifier == SymbolQualifier.array)
 			{
 				auto h = i;
@@ -240,7 +240,7 @@ const(ACSymbol)*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
 					return [];
 			}
 			break;
-		case dot:
+		case tok!".":
 			break;
 		default:
 			break loop;
@@ -269,33 +269,33 @@ AutocompleteResponse complete(const AutocompleteRequest request)
 
 	auto beforeTokens = sortedTokens.lowerBound(cast(size_t) request.cursorPosition);
 
-	TokenType tokenType;
+	IdType tokenType;
 
-	if (beforeTokens.length >= 1 && beforeTokens[$ - 1] == TokenType.identifier)
+	if (beforeTokens.length >= 1 && beforeTokens[$ - 1] == tok!"identifier")
 	{
-		partial = beforeTokens[$ - 1].value;
+		partial = beforeTokens[$ - 1].text;
 		tokenType = beforeTokens[$ - 1].type;
 		beforeTokens = beforeTokens[0 .. $ - 1];
 		goto dotCompletion;
 	}
-	if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == TokenType.lParen)
+	if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == tok!"(")
 	{
 		immutable(string)[] completions;
 		switch (beforeTokens[$ - 2].type)
 		{
-		case TokenType.traits:
+		case tok!"__traits":
 			completions = traits;
 			goto fillResponse;
-		case TokenType.scope_:
+		case tok!"scope":
 			completions = scopes;
 			goto fillResponse;
-		case TokenType.version_:
+		case tok!"version":
 			completions = versions;
 			goto fillResponse;
-		case TokenType.extern_:
+		case tok!"extern":
 			completions = linkages;
 			goto fillResponse;
-		case TokenType.pragma_:
+		case tok!"pragma":
 			completions = pragmas;
 		fillResponse:
 			response.completionType = CompletionType.identifiers;
@@ -305,9 +305,9 @@ AutocompleteResponse complete(const AutocompleteRequest request)
 				response.completionKinds ~= CompletionKind.keyword;
 			}
 			break;
-		case TokenType.identifier:
-		case TokenType.rParen:
-		case TokenType.rBracket:
+		case tok!"identifier":
+		case tok!")":
+		case tok!"]":
 			const(Scope)* completionScope = generateAutocompleteTrees(tokenArray,
 				"stdin");
 			auto expression = getExpression(beforeTokens[0 .. $ - 1]);
@@ -318,15 +318,15 @@ AutocompleteResponse complete(const AutocompleteRequest request)
 			break;
 		}
 	}
-	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] ==  TokenType.dot)
+	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] ==  tok!".")
 	{
 		tokenType = beforeTokens[$ - 2].type;
 dotCompletion:
 		switch (tokenType)
 		{
-		case TokenType.stringLiteral:
-		case TokenType.wstringLiteral:
-		case TokenType.dstringLiteral:
+		case tok!"stringLiteral":
+		case tok!"wstringLiteral":
+		case tok!"dstringLiteral":
 			foreach (symbol; arraySymbols)
 			{
 				response.completionKinds ~= symbol.kind;
@@ -334,44 +334,44 @@ dotCompletion:
 			}
 			response.completionType = CompletionType.identifiers;
 			break;
-		case TokenType.int_:
-		case TokenType.uint_:
-		case TokenType.long_:
-		case TokenType.ulong_:
-		case TokenType.char_:
-		case TokenType.wchar_:
-		case TokenType.dchar_:
-		case TokenType.bool_:
-		case TokenType.byte_:
-		case TokenType.ubyte_:
-		case TokenType.short_:
-		case TokenType.ushort_:
-		case TokenType.cent_:
-		case TokenType.ucent_:
-		case TokenType.float_:
-		case TokenType.ifloat_:
-		case TokenType.cfloat_:
-		case TokenType.idouble_:
-		case TokenType.cdouble_:
-		case TokenType.double_:
-		case TokenType.real_:
-		case TokenType.ireal_:
-		case TokenType.creal_:
-		case TokenType.identifier:
-		case TokenType.rParen:
-		case TokenType.rBracket:
-		case TokenType.this_:
+		case tok!"int":
+		case tok!"uint":
+		case tok!"long":
+		case tok!"ulong":
+		case tok!"char":
+		case tok!"wchar":
+		case tok!"dchar":
+		case tok!"bool":
+		case tok!"byte":
+		case tok!"ubyte":
+		case tok!"short":
+		case tok!"ushort":
+		case tok!"cent":
+		case tok!"ucent":
+		case tok!"float":
+		case tok!"ifloat":
+		case tok!"cfloat":
+		case tok!"idouble":
+		case tok!"cdouble":
+		case tok!"double":
+		case tok!"real":
+		case tok!"ireal":
+		case tok!"creal":
+		case tok!"identifier":
+		case tok!")":
+		case tok!"]":
+		case tok!"this":
 			const(Scope)* completionScope = generateAutocompleteTrees(tokenArray,
 				"stdin");
 			auto expression = getExpression(beforeTokens);
 			response.setCompletions(completionScope, expression,
 				request.cursorPosition, CompletionType.identifiers, partial);
 			break;
-		case TokenType.lParen:
-		case TokenType.lBrace:
-		case TokenType.lBracket:
-		case TokenType.semicolon:
-		case TokenType.colon:
+		case tok!"(":
+		case tok!"{":
+		case tok!"[":
+		case tok!";":
+		case tok!":":
 			// TODO: global scope
 			break;
 		default:
@@ -386,7 +386,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	CompletionType completionType, string partial = null)
 {
 	// Autocomplete module imports instead of symbols
-	if (tokens.length > 0 && tokens[0].type == TokenType.import_)
+	if (tokens.length > 0 && tokens[0].type == tok!"import")
 	{
 		if (completionType == CompletionType.identifiers)
 			setImportCompletions(tokens, response);
@@ -475,59 +475,59 @@ T getExpression(T)(T beforeTokens)
 	if (beforeTokens.length == 0)
 		return beforeTokens[0 .. 0];
 	size_t i = beforeTokens.length - 1;
-	TokenType open;
-	TokenType close;
+	IdType open;
+	IdType close;
 	bool hasSpecialPrefix = false;
 	expressionLoop: while (true)
 	{
-		with (TokenType) switch (beforeTokens[i].type)
+		switch (beforeTokens[i].type)
 		{
-		case TokenType.import_:
+		case tok!"import":
 			break expressionLoop;
-		case TokenType.int_:
-		case TokenType.uint_:
-		case TokenType.long_:
-		case TokenType.ulong_:
-		case TokenType.char_:
-		case TokenType.wchar_:
-		case TokenType.dchar_:
-		case TokenType.bool_:
-		case TokenType.byte_:
-		case TokenType.ubyte_:
-		case TokenType.short_:
-		case TokenType.ushort_:
-		case TokenType.cent_:
-		case TokenType.ucent_:
-		case TokenType.float_:
-		case TokenType.ifloat_:
-		case TokenType.cfloat_:
-		case TokenType.idouble_:
-		case TokenType.cdouble_:
-		case TokenType.double_:
-		case TokenType.real_:
-		case TokenType.ireal_:
-		case TokenType.creal_:
-		case this_:
-		case identifier:
+		case tok!"int":
+		case tok!"uint":
+		case tok!"long":
+		case tok!"ulong":
+		case tok!"char":
+		case tok!"wchar":
+		case tok!"dchar":
+		case tok!"bool":
+		case tok!"byte":
+		case tok!"ubyte":
+		case tok!"short":
+		case tok!"ushort":
+		case tok!"cent":
+		case tok!"ucent":
+		case tok!"float":
+		case tok!"ifloat":
+		case tok!"cfloat":
+		case tok!"idouble":
+		case tok!"cdouble":
+		case tok!"double":
+		case tok!"real":
+		case tok!"ireal":
+		case tok!"creal":
+		case tok!"this":
+		case tok!"identifier":
 			if (hasSpecialPrefix)
 			{
 				i++;
 				break expressionLoop;
 			}
 			break;
-		case dot:
+		case tok!".":
 			break;
-		case star:
-		case amp:
+		case tok!"*":
+		case tok!"&":
 			hasSpecialPrefix = true;
 			break;
-		case rParen:
-			open = rParen;
-			close = lParen;
+		case tok!")":
+			open = tok!")";
+			close = tok!"(";
 			goto skip;
-		case rBracket:
-			open = rBracket;
-			close = lBracket;
+		case tok!"]":
+			open = tok!"]";
+			close = tok!"[";
 		skip:
 			auto bookmark = i;
 			int depth = 1;
@@ -546,13 +546,13 @@ T getExpression(T)(T beforeTokens)
 			// if it's a loop keyword, pretend we never skipped the parens.
 			if (i > 0) switch (beforeTokens[i - 1].type)
 			{
-				case TokenType.scope_:
-				case TokenType.if_:
-				case TokenType.while_:
-				case TokenType.for_:
-				case TokenType.foreach_:
-				case TokenType.foreach_reverse_:
-				case TokenType.do_:
+				case tok!"scope":
+				case tok!"if":
+				case tok!"while":
+				case tok!"for":
+				case tok!"foreach":
+				case tok!"foreach_reverse":
+				case tok!"do":
 					i = bookmark + 1;
 					break expressionLoop;
 				default:
@@ -576,7 +576,7 @@ T getExpression(T)(T beforeTokens)
 void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
 {
 	response.completionType = CompletionType.identifiers;
-	auto moduleParts = tokens.filter!(a => a.type == TokenType.identifier).map!("a.value").array();
+	auto moduleParts = tokens.filter!(a => a.type == tok!"identifier").map!("a.text").array();
 	if (moduleParts.length == 0)
 		return;
 	string path = buildPath(moduleParts);
