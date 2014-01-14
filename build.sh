@@ -20,12 +20,17 @@ dmd \
 	stupidlog.d\
 	dscanner/stdx/d/ast.d\
 	dscanner/stdx/d/parser.d\
+	dscanner/stdx/lexer.d\
 	dscanner/stdx/d/lexer.d\
 	dscanner/stdx/d/entities.d\
 	dscanner/formatter.d\
+	datapicked/dpick/buffer/buffer.d\
+	datapicked/dpick/buffer/traits.d\
 	msgpack-d/src/msgpack.d\
 	-Imsgpack-d/src\
 	-Idscanner\
+	-Idatapicked\
 	-wi\
 	-g\
 	-ofdcd-server
+	

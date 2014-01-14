@@ -64,7 +64,7 @@ public:
 	string[] mixinTemplates;
 
 	/// Protection level for this symobol
-	TokenType protection;
+	IdType protection;
 
 	SemanticSymbol* parent;
 

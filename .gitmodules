@@ -7,3 +7,6 @@
 [submodule "editors/ktexteditor"]
 	path = editors/ktexteditor
 	url = git://github.com/Dav1dde/lumen.git
+[submodule "datapicked"]
+	path = datapicked
+	url = ./datapicked/

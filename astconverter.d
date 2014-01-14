@@ -80,46 +80,46 @@ final class FirstPass : ASTVisitor
 	override void visit(Constructor con)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(con).stringof);
-		visitConstructor(con.location, con.parameters, con.functionBody);
+		visitConstructor(con.location, con.parameters, con.functionBody, con.comment);
 	}
 
 	override void visit(SharedStaticConstructor con)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(con).stringof);
-		visitConstructor(con.location, null, con.functionBody);
+		visitConstructor(con.location, null, con.functionBody, con.comment);
 	}
 
 	override void visit(StaticConstructor con)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(con).stringof);
-		visitConstructor(con.location, null, con.functionBody);
+		visitConstructor(con.location, null, con.functionBody, con.comment);
 	}
 
 	override void visit(Destructor des)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(des).stringof);
-		visitDestructor(des.location, des.functionBody);
+		visitDestructor(des.location, des.functionBody, des.comment);
 	}
 
 	override void visit(SharedStaticDestructor des)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(des).stringof);
-		visitDestructor(des.location, des.functionBody);
+		visitDestructor(des.location, des.functionBody, des.comment);
 	}
 
 	override void visit(StaticDestructor des)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(des).stringof);
-		visitDestructor(des.location, des.functionBody);
+		visitDestructor(des.location, des.functionBody, des.comment);
 	}
 
 	override void visit(FunctionDeclaration dec)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
-		SemanticSymbol* symbol = new SemanticSymbol(dec.name.value.dup,
-			CompletionKind.functionName, symbolFile, dec.name.startIndex);
+		SemanticSymbol* symbol = new SemanticSymbol(dec.name.text.dup,
+			CompletionKind.functionName, symbolFile, dec.name.index);
 		processParameters(symbol, dec.returnType, symbol.acSymbol.name,
-			dec.parameters);
+			dec.parameters, dec.comment);
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
 		currentSymbol.addChild(symbol);
@@ -169,10 +169,10 @@ final class FirstPass : ASTVisitor
 		foreach (declarator; dec.declarators)
 		{
 			SemanticSymbol* symbol = new SemanticSymbol(
-				declarator.name.value.dup,
+				declarator.name.text.dup,
 				CompletionKind.variableName,
 				symbolFile,
-				declarator.name.startIndex);
+				declarator.name.index);
 			symbol.type = t;
 			symbol.protection = protection;
 			symbol.parent = currentSymbol;
@@ -185,10 +185,10 @@ final class FirstPass : ASTVisitor
 		if (aliasDeclaration.initializers.length == 0)
 		{
 			SemanticSymbol* symbol = new SemanticSymbol(
-				aliasDeclaration.name.value.dup,
+				aliasDeclaration.name.text.dup,
 				CompletionKind.aliasName,
 				symbolFile,
-				aliasDeclaration.name.startIndex);
+				aliasDeclaration.name.index);
 			symbol.type = aliasDeclaration.type;
 			symbol.protection = protection;
 			symbol.parent = currentSymbol;
@@ -199,10 +199,10 @@ final class FirstPass : ASTVisitor
 			foreach (initializer; aliasDeclaration.initializers)
 			{
 				SemanticSymbol* symbol = new SemanticSymbol(
-					initializer.name.value.dup,
+					initializer.name.text.dup,
 					CompletionKind.aliasName,
 					symbolFile,
-					initializer.name.startIndex);
+					initializer.name.index);
 				symbol.type = initializer.type;
 				symbol.protection = protection;
 				symbol.parent = currentSymbol;
@@ -214,7 +214,7 @@ final class FirstPass : ASTVisitor
 	override void visit(AliasThisDeclaration dec)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
-		currentSymbol.aliasThis ~= dec.identifier.value.dup;
+		currentSymbol.aliasThis ~= dec.identifier.text.dup;
 	}
 
 	override void visit(Declaration dec)
@@ -226,7 +226,7 @@ final class FirstPass : ASTVisitor
 			protection = dec.attributeDeclaration.attribute.attribute;
 			return;
 		}
-		TokenType p = protection;
+		IdType p = protection;
 		foreach (Attribute attr; dec.attributes)
 		{
 			if (isProtection(attr.attribute))
@@ -256,8 +256,8 @@ final class FirstPass : ASTVisitor
 	{
 		assert (currentSymbol);
 //		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
-		SemanticSymbol* symbol = new SemanticSymbol(dec.name.value.dup,
-			CompletionKind.enumName, symbolFile, dec.name.startIndex);
+		SemanticSymbol* symbol = new SemanticSymbol(dec.name.text.dup,
+			CompletionKind.enumName, symbolFile, dec.name.index);
 		symbol.type = dec.type;
 		symbol.parent = currentSymbol;
 		currentSymbol = symbol;
@@ -270,8 +270,8 @@ final class FirstPass : ASTVisitor
 	override void visit(EnumMember member)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(member).stringof);
-		SemanticSymbol* symbol = new SemanticSymbol(member.name.value.dup,
-			CompletionKind.enumMember, symbolFile, member.name.startIndex);
+		SemanticSymbol* symbol = new SemanticSymbol(member.name.text.dup,
+			CompletionKind.enumMember, symbolFile, member.name.index);
 		symbol.type = member.type;
 		symbol.parent = currentSymbol;
 		currentSymbol.addChild(symbol);
@@ -281,7 +281,7 @@ final class FirstPass : ASTVisitor
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
 		foreach (Token t; dec.moduleName.identifiers)
-			moduleName ~= t.value.dup;
+			moduleName ~= t.text.dup;
 	}
 
 	// creates scopes for
@@ -315,7 +315,7 @@ final class FirstPass : ASTVisitor
 		{
 			ImportInformation info;
 			info.modulePath = convertChainToImportPath(single.identifierChain);
-			info.isPublic = protection == TokenType.public_;
+			info.isPublic = protection == tok!"public";
 			currentScope.importInformation ~= info;
 		}
 		if (importDeclaration.importBindings is null) return;
@@ -326,11 +326,11 @@ final class FirstPass : ASTVisitor
 		foreach (bind; importDeclaration.importBindings.importBinds)
 		{
 			Tuple!(string, string) bindTuple;
-			bindTuple[0] = bind.left.value.dup;
-			bindTuple[1] = bind.right == TokenType.invalid ? null : bind.right.value.dup;
+			bindTuple[0] = bind.left.text.dup;
+			bindTuple[1] = bind.right == tok!"" ? null : bind.right.text.dup;
 			info.importedSymbols ~= bindTuple;
 		}
-		info.isPublic = protection == TokenType.public_;
+		info.isPublic = protection == tok!"public";
 		currentScope.importInformation ~= info;
 	}
 
@@ -366,7 +366,7 @@ final class FirstPass : ASTVisitor
 	override void visit(VersionCondition versionCondition)
 	{
 		// TODO: This is a bit of a hack
-		if (predefinedVersions.canFind(versionCondition.token.value))
+		if (predefinedVersions.canFind(versionCondition.token.text))
 			versionCondition.accept(this);
 	}
 
@@ -376,9 +376,9 @@ private:
 
 	void visitAggregateDeclaration(AggType)(AggType dec, CompletionKind kind)
 	{
-//		Log.trace("visiting aggregate declaration ", dec.name.value);
-		SemanticSymbol* symbol = new SemanticSymbol(dec.name.value.dup,
-			kind, symbolFile, dec.name.startIndex);
+//		Log.trace("visiting aggregate declaration ", dec.name.text);
+		SemanticSymbol* symbol = new SemanticSymbol(dec.name.text.dup,
+			kind, symbolFile, dec.name.index);
 		symbol.acSymbol.parts ~= classSymbols;
 		symbol.parent = currentSymbol;
 		symbol.protection = protection;
@@ -389,11 +389,11 @@ private:
 	}
 
 	void visitConstructor(size_t location, Parameters parameters,
-		FunctionBody functionBody)
+		FunctionBody functionBody, string doc)
 	{
 		SemanticSymbol* symbol = new SemanticSymbol("*constructor*",
 			CompletionKind.functionName, symbolFile, location);
-		processParameters(symbol, null, "this", parameters);
+		processParameters(symbol, null, "this", parameters, doc);
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
 		currentSymbol.addChild(symbol);
@@ -405,11 +405,11 @@ private:
 		}
 	}
 
-	void visitDestructor(size_t location, FunctionBody functionBody)
+	void visitDestructor(size_t location, FunctionBody functionBody, string doc)
 	{
 		SemanticSymbol* symbol = new SemanticSymbol("~this",
 			CompletionKind.functionName, symbolFile, location);
-		symbol.acSymbol.callTip = "~this()";
+		symbol.acSymbol.callTip = formatComment(doc) ~ "~this()";
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
 		currentSymbol.addChild(symbol);
@@ -422,13 +422,13 @@ private:
 	}
 
 	void processParameters(SemanticSymbol* symbol, Type returnType,
-		string functionName, Parameters parameters) const
+		string functionName, Parameters parameters, string doc) const
 	{
 		if (parameters !is null)
 		{
 			foreach (Parameter p; parameters.parameters)
 			{
-				SemanticSymbol* parameter = new SemanticSymbol(p.name.value.dup,
+				SemanticSymbol* parameter = new SemanticSymbol(p.name.text.dup,
 					CompletionKind.variableName, symbolFile, size_t.max);
 				parameter.type = p.type;
 				symbol.addChild(parameter);
@@ -450,7 +450,7 @@ private:
 			}
 		}
 		symbol.acSymbol.callTip = formatCallTip(returnType, functionName,
-			parameters);
+			parameters, doc);
 		symbol.type = returnType;
 	}
 
@@ -460,12 +460,12 @@ private:
 		string parameterString = parameters is null ? "()"
 			: formatNode(parameters);
 		if (returnType is null)
-			return "%s%s".format(name, parameterString);
-		return "%s %s%s".format(formatNode(returnType), name, parameterString);
+			return "%s%s%s".format(formatComment(doc), name, parameterString);
+		return "%s%s %s%s".format(formatComment(doc), formatNode(returnType), name, parameterString);
 	}
 
 	/// Current protection type
-	TokenType protection;
+	IdType protection;
 
 	/// Current symbol
 	SemanticSymbol* currentSymbol;
@@ -680,9 +680,9 @@ private:
 		if (t is null) return null;
 		if (t.type2 is null) return null;
 		const(ACSymbol)* s;
-		if (t.type2.builtinType != TokenType.invalid)
+		if (t.type2.builtinType != tok!"")
 			s = convertBuiltinType(t.type2);
-		else if (t.type2.typeConstructor != TokenType.invalid)
+		else if (t.type2.typeConstructor != tok!"")
 			s = resolveType(t.type2.type, location);
 		else if (t.type2.symbol !is null)
 		{
@@ -717,8 +717,8 @@ private:
 			if (identOrTemplate is null)
 				continue;
 			strings[i] = identOrTemplate.templateInstance is null ?
-				identOrTemplate.identifier.value.dup
-				: identOrTemplate.identifier.value.dup;
+				identOrTemplate.identifier.text.dup
+				: identOrTemplate.identifier.text.dup;
 		}
 		return strings;
 	}
@@ -740,7 +740,7 @@ private:
 			ACSymbol* s = new ACSymbol;
 			s.type = symbol;
 			s.qualifier = SymbolQualifier.func;
-			s.callTip = suffix.delegateOrFunction.value ~ formatNode(suffix.parameters);
+			s.callTip = suffix.delegateOrFunction.text ~ formatNode(suffix.parameters);
 			return s;
 		}
 		return null;
@@ -748,7 +748,7 @@ private:
 
 	static const(ACSymbol)* convertBuiltinType(const Type2 type2)
 	{
-		string stringRepresentation = getTokenValue(type2.builtinType);
+		string stringRepresentation = str(type2.builtinType);
 		if (stringRepresentation is null) return null;
 		// TODO: Make this use binary search instead
 		foreach (s; builtinSymbols)
@@ -809,49 +809,49 @@ class SimpleParser : Parser
 {
 	override Unittest parseUnittest()
 	{
-		expect(TokenType.unittest_);
+		expect(tok!"unittest");
 		skipBraces();
 		return null;
 	}
 
 	override FunctionBody parseFunctionBody()
 	{
-		if (currentIs(TokenType.semicolon))
+		if (currentIs(tok!";"))
 			advance();
-		else if (currentIs(TokenType.lBrace))
+		else if (currentIs(tok!"{"))
 			skipBraces();
 		else
 		{
-			if (currentIs(TokenType.in_))
+			if (currentIs(tok!"in"))
 			{
 				advance();
-				if (currentIs(TokenType.lBrace))
+				if (currentIs(tok!"{"))
 					skipBraces();
-				if (currentIs(TokenType.out_))
+				if (currentIs(tok!"out"))
 				{
 					advance();
-					if (currentIs(TokenType.lParen))
+					if (currentIs(tok!"("))
 						skipParens();
-					if (currentIs(TokenType.lBrace))
+					if (currentIs(tok!"{"))
 						skipBraces();
 				}
 			}
-			else if (currentIs(TokenType.out_))
+			else if (currentIs(tok!"out"))
 			{
 				advance();
-				if (currentIs(TokenType.lParen))
+				if (currentIs(tok!"("))
 					skipParens();
-				if (currentIs(TokenType.lBrace))
+				if (currentIs(tok!"{"))
 					skipBraces();
-				if (currentIs(TokenType.in_))
+				if (currentIs(tok!"in"))
 				{
 					advance();
-					if (currentIs(TokenType.lBrace))
+					if (currentIs(tok!"{"))
 						skipBraces();
 				}
 			}
-			expect(TokenType.body_);
-			if (currentIs(TokenType.lBrace))
+			expect(tok!"body");
+			if (currentIs(tok!"{"))
 				skipBraces();
 		}
 		return null;
@@ -863,29 +863,24 @@ string[] iotcToStringArray(const IdentifierOrTemplateChain iotc)
 	string[] parts;
 	foreach (ioti; iotc.identifiersOrTemplateInstances)
 	{
-		if (ioti.identifier != TokenType.invalid)
-			parts ~= ioti.identifier.value.dup;
+		if (ioti.identifier != tok!"")
+			parts ~= ioti.identifier.text.dup;
 		else
-			parts ~= ioti.templateInstance.identifier.value.dup;
+			parts ~= ioti.templateInstance.identifier.text.dup;
 	}
 	return parts;
 }
 
 private static string convertChainToImportPath(IdentifierChain chain)
 {
-	return to!string(chain.identifiers.map!(a => a.value).join(dirSeparator).array);
+	return to!string(chain.identifiers.map!(a => a.text).join(dirSeparator).array);
 }
 
 version(unittest) Module parseTestCode(string code)
 {
 	LexerConfig config;
-	const(Token)[] tokens = byToken(cast(ubyte[]) code, config);
-	Parser p = new Parser;
-	p.fileName = "unittest";
-	p.tokens = tokens;
-	Module m = p.parseModule();
-	assert (p.errorCount == 0);
-	assert (p.warningCount == 0);
+	const(Token)[] tokens = byToken(cast(ubyte[]) code, config).array();
+	Module m = parseModule(tokens, "unittest");
 	return m;
 }
 
@@ -899,4 +894,37 @@ string formatNode(T)(T node)
 	return to!string(app.data);
 }
 
-private void doesNothing(string a, int b, int c, string d) {}
+private void doesNothing(string a, size_t b, size_t c, string d, bool e) {}
+
+string formatComment(string comment)
+{
+	import std.string;
+	import std.regex;
+	enum tripleSlashRegex = `(?:\t )*///`;
+	enum slashStarRegex = `(?:^/\*\*+)|(?:\n?\s*\*+/$)|(?:(?<=\n)\s*\* ?)`;
+	enum slashPlusRegex = `(?:^/\+\++)|(?:\n?\s*\++/$)|(?:(?<=\n)\s*\+ ?)`;
+	if (comment is null)
+		return null;
+	string re;
+	if (comment[0 .. 3] == "///")
+		re = tripleSlashRegex;
+	else if (comment[1] == '+')
+		re = slashPlusRegex;
+	else
+		re = slashStarRegex;
+	return (comment.replaceAll(regex(re), "") ~ "\n\n")
+		.replaceFirst(regex("^\n"), "")
+		.replaceAll(regex(`\\`), `\\`)
+		.replaceAll(regex("\n"), `\n`).outdent();
+}
+
+//unittest
+//{
+//	auto comment1 = "/**\n * This is some text\n */";
+//	auto result1 = formatComment(comment1);
+//	assert (result1 == `This is some text\n\n`, result1);
+//	
+//	auto comment2 = "///some\n///text";
+//	auto result2 = formatComment(comment2);
+//	assert (result2 == `some\ntext\n\n`, result2);
+//}

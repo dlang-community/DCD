@@ -349,7 +349,7 @@ static this()
 	// _argptr has type void*
 	argptrType = new Type;
 	argptrType.type2 = new Type2;
-	argptrType.type2.builtinType = TokenType.void_;
+	argptrType.type2.builtinType = tok!"void";
 	TypeSuffix argptrTypeSuffix = new TypeSuffix;
 	argptrTypeSuffix.star = true;
 	argptrType.typeSuffixes ~= argptrTypeSuffix;
@@ -361,8 +361,8 @@ static this()
 	argumentsType.type2.symbol = new Symbol;
 	argumentsType.type2.symbol.identifierOrTemplateChain = new IdentifierOrTemplateChain;
 	IdentifierOrTemplateInstance i = new IdentifierOrTemplateInstance;
-	i.identifier.value = "TypeInfo";
-	i.identifier.type = TokenType.identifier;
+	i.identifier.text = "TypeInfo";
+	i.identifier.type = tok!"identifier";
 	argumentsType.type2.symbol.identifierOrTemplateChain.identifiersOrTemplateInstances ~= i;
 	TypeSuffix argumentsTypeSuffix = new TypeSuffix;
 	argumentsTypeSuffix.array = true;

@@ -72,7 +72,8 @@ local function showCurrentCallTip()
 	local tip = calltips[currentCalltip]
 	buffer:call_tip_show(buffer:word_start_position(buffer.current_pos),
 		string.format("%d of %d\1\2\n%s", currentCalltip, #calltips,
-			calltips[currentCalltip]))
+			calltips[currentCalltip]:gsub("(%f[\\])\\n", "%1\n")
+			:gsub("\\\\n", "\\n")))
 end
 
 local function showCalltips(calltip)
