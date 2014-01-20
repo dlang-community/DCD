@@ -176,6 +176,10 @@ Options:
         Get the file name and position that the symbol at the cursor location
         was defined.
 
+    --doc | -d
+        Gets documentation comments associated with the symbol at the cursor
+        location.
+
     -IPATH
         Instructs the server to add PATH to its list of paths searced for
         imported modules.

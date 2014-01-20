@@ -99,12 +99,21 @@ When the first line of output is "calltips", the editor should display a functio
 call tip.
 #####Output format
 A line containing the string "calltips", followed by zero or more lines, each
-containing a call tip for an overload of the given function as well as its
-DDoc comment, if available. Be sure to escape the \n sequences to newlines
-when implementing an editor plugin.
+containing a call tip for an overload of the given function.
 #####Example output
 	calltips
-	Some DDoc comment\nspread over two lines\n\nACSymbol findSymbolInCurrentScope(size_t cursorPosition, string name)
+	ACSymbol findSymbolInCurrentScope(size_t cursorPosition, string name)
+
+## Doc comment display
+```dcd-client --doc
+When run with the --doc or -d option, DCD will attempt to display documentation
+comments associated with the symbol at the cursor position. In the case of
+functions there can be more than one documentation comment associated with a
+symbol. One doc comment will be printed per line. Newlines within the doc
+comments will be replaced with "\n".
+####Example output
+	An example doc comment\nParams: a = first param\n    Returns: nothing
+	An example doc comment\nParams: a = first param\n     b = second param\n    Returns: nothing
 
 ##Clear server's autocomplete cache
 ```dcd-client --clearCache```
