@@ -20,6 +20,7 @@ module modulecache;
 
 import std.file;
 import std.datetime;
+import stdx.lexer;
 import stdx.d.lexer;
 import stdx.d.parser;
 import stdx.d.ast;
@@ -126,7 +127,8 @@ struct ModuleCache
 
 			LexerConfig config;
 			config.fileName = location;
-			auto tokens = source.byToken(config).array();
+			StringCache* cache = new StringCache(StringCache.defaultBucketCount);
+			auto tokens = source.byToken(config, cache).array();
 			symbols = convertAstToSymbols(tokens, location);
 
 			// Parsing allocates a lot of AST nodes. We can greatly reduce the
@@ -189,6 +191,13 @@ struct ModuleCache
 	{
 		return cast(const(string[])) importPaths;
 	}
+
+	static this()
+	{
+		stringCache = new StringCache(StringCache.defaultBucketCount);
+	}
+
+	static StringCache* stringCache;
 
 private:
 

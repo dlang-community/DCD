@@ -116,7 +116,7 @@ final class FirstPass : ASTVisitor
 	override void visit(FunctionDeclaration dec)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
-		SemanticSymbol* symbol = new SemanticSymbol(dec.name.text.dup,
+		SemanticSymbol* symbol = new SemanticSymbol(getCached(dec.name.text),
 			CompletionKind.functionName, symbolFile, dec.name.index);
 		processParameters(symbol, dec.returnType, symbol.acSymbol.name,
 			dec.parameters, dec.comment);
@@ -169,7 +169,7 @@ final class FirstPass : ASTVisitor
 		foreach (declarator; dec.declarators)
 		{
 			SemanticSymbol* symbol = new SemanticSymbol(
-				declarator.name.text.dup,
+				getCached(declarator.name.text),
 				CompletionKind.variableName,
 				symbolFile,
 				declarator.name.index);
@@ -185,7 +185,7 @@ final class FirstPass : ASTVisitor
 		if (aliasDeclaration.initializers.length == 0)
 		{
 			SemanticSymbol* symbol = new SemanticSymbol(
-				aliasDeclaration.name.text.dup,
+				getCached(aliasDeclaration.name.text),
 				CompletionKind.aliasName,
 				symbolFile,
 				aliasDeclaration.name.index);
@@ -199,7 +199,7 @@ final class FirstPass : ASTVisitor
 			foreach (initializer; aliasDeclaration.initializers)
 			{
 				SemanticSymbol* symbol = new SemanticSymbol(
-					initializer.name.text.dup,
+					getCached(initializer.name.text),
 					CompletionKind.aliasName,
 					symbolFile,
 					initializer.name.index);
@@ -214,7 +214,7 @@ final class FirstPass : ASTVisitor
 	override void visit(AliasThisDeclaration dec)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
-		currentSymbol.aliasThis ~= dec.identifier.text.dup;
+		currentSymbol.aliasThis ~= getCached(dec.identifier.text);
 	}
 
 	override void visit(Declaration dec)
@@ -256,7 +256,7 @@ final class FirstPass : ASTVisitor
 	{
 		assert (currentSymbol);
 //		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
-		SemanticSymbol* symbol = new SemanticSymbol(dec.name.text.dup,
+		SemanticSymbol* symbol = new SemanticSymbol(getCached(dec.name.text),
 			CompletionKind.enumName, symbolFile, dec.name.index);
 		symbol.type = dec.type;
 		symbol.parent = currentSymbol;
@@ -270,7 +270,7 @@ final class FirstPass : ASTVisitor
 	override void visit(EnumMember member)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(member).stringof);
-		SemanticSymbol* symbol = new SemanticSymbol(member.name.text.dup,
+		SemanticSymbol* symbol = new SemanticSymbol(getCached(member.name.text),
 			CompletionKind.enumMember, symbolFile, member.name.index);
 		symbol.type = member.type;
 		symbol.parent = currentSymbol;
@@ -281,7 +281,7 @@ final class FirstPass : ASTVisitor
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
 		foreach (Token t; dec.moduleName.identifiers)
-			moduleName ~= t.text.dup;
+			moduleName ~= getCached(t.text);
 	}
 
 	// creates scopes for
@@ -326,8 +326,8 @@ final class FirstPass : ASTVisitor
 		foreach (bind; importDeclaration.importBindings.importBinds)
 		{
 			Tuple!(string, string) bindTuple;
-			bindTuple[0] = bind.left.text.dup;
-			bindTuple[1] = bind.right == tok!"" ? null : bind.right.text.dup;
+			bindTuple[0] = getCached(bind.left.text);
+			bindTuple[1] = bind.right == tok!"" ? null : getCached(bind.right.text);
 			info.importedSymbols ~= bindTuple;
 		}
 		info.isPublic = protection == tok!"public";
@@ -377,7 +377,7 @@ private:
 	void visitAggregateDeclaration(AggType)(AggType dec, CompletionKind kind)
 	{
 //		Log.trace("visiting aggregate declaration ", dec.name.text);
-		SemanticSymbol* symbol = new SemanticSymbol(dec.name.text.dup,
+		SemanticSymbol* symbol = new SemanticSymbol(getCached(dec.name.text),
 			kind, symbolFile, dec.name.index);
 		symbol.acSymbol.parts ~= classSymbols;
 		symbol.parent = currentSymbol;
@@ -409,7 +409,7 @@ private:
 	{
 		SemanticSymbol* symbol = new SemanticSymbol("~this",
 			CompletionKind.functionName, symbolFile, location);
-		symbol.acSymbol.callTip = formatComment(doc) ~ "~this()";
+		symbol.acSymbol.callTip = /*formatComment(doc) ~*/ "~this()";
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
 		currentSymbol.addChild(symbol);
@@ -428,7 +428,7 @@ private:
 		{
 			foreach (Parameter p; parameters.parameters)
 			{
-				SemanticSymbol* parameter = new SemanticSymbol(p.name.text.dup,
+				SemanticSymbol* parameter = new SemanticSymbol(getCached(p.name.text),
 					CompletionKind.variableName, symbolFile, size_t.max);
 				parameter.type = p.type;
 				symbol.addChild(parameter);
@@ -460,8 +460,11 @@ private:
 		string parameterString = parameters is null ? "()"
 			: formatNode(parameters);
 		if (returnType is null)
-			return "%s%s%s".format(formatComment(doc), name, parameterString);
-		return "%s%s %s%s".format(formatComment(doc), formatNode(returnType), name, parameterString);
+			return "%s%s".format(name, parameterString);
+		return "%s %s%s".format(formatNode(returnType), name, parameterString);
+//		if (returnType is null)
+//			return "%s%s%s".format(formatComment(doc), name, parameterString);
+//		return "%s%s %s%s".format(formatComment(doc), formatNode(returnType), name, parameterString);
 	}
 
 	/// Current protection type
@@ -708,7 +711,7 @@ private:
 		return s;
 	}
 
-	static string[] expandSymbol(const IdentifierOrTemplateChain chain) pure
+	static string[] expandSymbol(const IdentifierOrTemplateChain chain)
 	{
 		string[] strings = new string[chain.identifiersOrTemplateInstances.length];
 		for (size_t i = 0; i != chain.identifiersOrTemplateInstances.length; ++i)
@@ -716,9 +719,9 @@ private:
 			auto identOrTemplate = chain.identifiersOrTemplateInstances[i];
 			if (identOrTemplate is null)
 				continue;
-			strings[i] = identOrTemplate.templateInstance is null ?
-				identOrTemplate.identifier.text.dup
-				: identOrTemplate.identifier.text.dup;
+			strings[i] = getCached(identOrTemplate.templateInstance is null ?
+				identOrTemplate.identifier.text
+				: identOrTemplate.templateInstance.identifier.text);
 		}
 		return strings;
 	}
@@ -864,9 +867,9 @@ string[] iotcToStringArray(const IdentifierOrTemplateChain iotc)
 	foreach (ioti; iotc.identifiersOrTemplateInstances)
 	{
 		if (ioti.identifier != tok!"")
-			parts ~= ioti.identifier.text.dup;
+			parts ~= getCached(ioti.identifier.text);
 		else
-			parts ~= ioti.templateInstance.identifier.text.dup;
+			parts ~= getCached(ioti.templateInstance.identifier.text);
 	}
 	return parts;
 }
@@ -918,12 +921,18 @@ string formatComment(string comment)
 		.replaceAll(regex("\n"), `\n`).outdent();
 }
 
+string getCached(string s)
+{
+	return s.length == 0 ? ""
+		: ModuleCache.stringCache.cacheGet(cast(const(ubyte)[]) s);
+}
+
 //unittest
 //{
 //	auto comment1 = "/**\n * This is some text\n */";
 //	auto result1 = formatComment(comment1);
 //	assert (result1 == `This is some text\n\n`, result1);
-//	
+//
 //	auto comment2 = "///some\n///text";
 //	auto result2 = formatComment(comment2);
 //	assert (result2 == `some\ntext\n\n`, result2);

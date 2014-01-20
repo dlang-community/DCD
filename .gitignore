@@ -1,3 +1,10 @@
 # Windows binaries
 *.exe
 *.obj
+
+# *nix binaries
+dcd-client
+dcd-server
+
+# Perf reports
+perf.data

@@ -24,13 +24,10 @@ dmd \
 	dscanner/stdx/d/lexer.d\
 	dscanner/stdx/d/entities.d\
 	dscanner/formatter.d\
-	datapicked/dpick/buffer/buffer.d\
-	datapicked/dpick/buffer/traits.d\
 	msgpack-d/src/msgpack.d\
 	-Imsgpack-d/src\
 	-Idscanner\
-	-Idatapicked\
 	-wi\
-	-g\
+	-O -release -noboundscheck -inline\
 	-ofdcd-server
-	
+

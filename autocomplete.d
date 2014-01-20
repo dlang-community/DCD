@@ -46,7 +46,8 @@ AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 	AutocompleteResponse response;
 	LexerConfig config;
 	config.fileName = "stdin";
-	auto tokens = byToken(cast(ubyte[]) request.sourceCode, config);
+	StringCache* cache = new StringCache(StringCache.defaultBucketCount);
+	auto tokens = byToken(cast(ubyte[]) request.sourceCode, config, cache);
 	const(Token)[] tokenArray = void;
 	try {
 		tokenArray = tokens.array();
@@ -256,7 +257,9 @@ AutocompleteResponse complete(const AutocompleteRequest request)
 
 	LexerConfig config;
 	config.fileName = "stdin";
-	auto tokens = byToken(cast(ubyte[]) request.sourceCode, config);
+	StringCache* cache = new StringCache(StringCache.defaultBucketCount);
+	auto tokens = byToken(cast(ubyte[]) request.sourceCode, config,
+		cache);
 	const(Token)[] tokenArray = void;
 	try {
 		tokenArray = tokens.array();
