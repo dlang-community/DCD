@@ -41,12 +41,14 @@ int main(string[] args)
 	bool shutdown;
 	bool clearCache;
 	bool symbolLocation;
+	bool doc;
 
 	try
 	{
 		getopt(args, "cursorPos|c", &cursorPos, "I", &importPaths,
 			"port|p", &port, "help|h", &help, "shutdown", &shutdown,
-			"clearCache", &clearCache, "symbolLocation|l", &symbolLocation);
+			"clearCache", &clearCache, "symbolLocation|l", &symbolLocation,
+			"doc|d", &doc);
 	}
 	catch (Exception e)
 	{
@@ -119,7 +121,12 @@ int main(string[] args)
 	request.importPaths = importPaths;
 	request.sourceCode = sourceCode;
 	request.cursorPosition = cursorPos;
-	request.kind = symbolLocation ? RequestKind.symbolLocation : RequestKind.autocomplete;
+	if (symbolLocation)
+		request.kind = RequestKind.symbolLocation;
+	else if (doc)
+		request.kind = RequestKind.doc;
+	else
+		request.kind = RequestKind.autocomplete;
 
 	// Send message to server
 	TcpSocket socket = createSocket(port);
@@ -131,8 +138,10 @@ int main(string[] args)
 
 	if (symbolLocation)
 		printLocationResponse(response);
+	else if (doc)
+		printDocResponse(response);
 	else
-	printCompletionResponse(response);
+		printCompletionResponse(response);
 
 	return 0;
 }
@@ -210,6 +219,12 @@ AutocompleteResponse getResponse(TcpSocket socket)
 	AutocompleteResponse response;
 	msgpack.unpack(buffer[0..bytesReceived], response);
 	return response;
+}
+
+void printDocResponse(AutocompleteResponse response)
+{
+	foreach (doc; response.docComments)
+		writeln(doc);
 }
 
 void printLocationResponse(AutocompleteResponse response)

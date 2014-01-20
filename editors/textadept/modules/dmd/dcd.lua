@@ -101,15 +101,15 @@ function M.cycleCalltips(delta)
 	showCurrentCallTip()
 end
 
-function M.gotoDeclaration()
+local function runDCDClient(args)
 	local fileName = os.tmpname()
 	local mode = "w"
 	if _G.WIN32 then
 		fileName = os.getenv('TEMP') .. fileName
 		mode = "wb"
 	end
-	local command = M.PATH_TO_DCD_CLIENT .. " -l -c" .. buffer.current_pos ..
-	                " > \"" .. fileName .. "\""
+	local command = M.PATH_TO_DCD_CLIENT .. " " .. args
+		.. " -c" .. buffer.current_pos .. " > \"" .. fileName .. "\""
 	local p = io.popen(command, mode)
 	p:write(buffer:get_text())
 	p:flush()
@@ -117,6 +117,20 @@ function M.gotoDeclaration()
 	local tmpFile = io.open(fileName, "r")
 	local r = tmpFile:read("*a")
 	tmpFile:close()
+	os.remove(fileName)
+	return r
+end
+
+function M.showDoc()
+	local r = runDCDClient("-d")
+	if r ~= "\n" then
+		print(r)
+		showCalltips(r)
+	end
+end
+
+function M.gotoDeclaration()
+	local r = runDCDClient("-l")
 	if r ~= "Not found\n" then
 		path, position = r:match("^(.-)\t(%d+)")
 		if (path ~= nil and position ~= nil) then
@@ -127,7 +141,6 @@ function M.gotoDeclaration()
 			buffer:word_right_end_extend()
 		end
 	end
-	os.remove(fileName)
 end
 
 events.connect(events.CALL_TIP_CLICK, function(arrow)
@@ -139,23 +152,9 @@ events.connect(events.CALL_TIP_CLICK, function(arrow)
 	end
 end)
 
-function M.autocomplete(ch)
+function M.autocomplete()
 	if buffer:get_lexer() ~= "dmd" then return end
-	local fileName = os.tmpname()
-	local mode = "w"
-	if _G.WIN32 then
-		fileName = os.getenv('TEMP') .. fileName
-		mode = "wb"
-	end
-	local command = M.PATH_TO_DCD_CLIENT .. " -c" .. buffer.current_pos ..
-	                " > \"" .. fileName .. "\""
-	local p = io.popen(command, mode)
-	p:write(buffer:get_text())
-	p:flush()
-	p:close()
-	local tmpFile = io.open(fileName, "r")
-	local r = tmpFile:read("*a")
-	tmpFile:close()
+	local r = runDCDClient("")
 	if r ~= "\n" then
 		if r:match("^identifiers.*") then
 			showCompletionList(r)
@@ -163,7 +162,6 @@ function M.autocomplete(ch)
 			showCalltips(r)
 		end
 	end
-	os.remove(fileName)
 end
 
 M.ALIAS =[[

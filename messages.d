@@ -98,7 +98,12 @@ enum CompletionType : string
     /**
      * The response contains the location of a symbol declaration.
      */
-    location = "location"
+    location = "location",
+
+	/**
+	 * The response contains documentation comments for the symbol.
+	 */
+	ddoc = "ddoc"
 }
 
 /**
@@ -115,7 +120,9 @@ enum RequestKind : ubyte
 	/// Shut down the server
 	shutdown,
 	/// Get declaration location of given symbol
-	symbolLocation
+	symbolLocation,
+	/// Get the doc comments for the symbol
+	doc
 }
 
 /**
@@ -168,6 +175,11 @@ struct AutocompleteResponse
      * The byte offset at which the symbol is located.
      */
     size_t symbolLocation;
+
+	/**
+	 * The documentation comment
+	 */
+	string[] docComments;
 
     /**
      * The completions

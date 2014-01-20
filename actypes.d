@@ -137,6 +137,11 @@ public:
 	string symbolFile;
 
 	/**
+	 * Documentation for the symbol.
+	 */
+	string doc;
+
+	/**
 	 * The symbol that represents the type.
 	 */
 	const(ACSymbol)* type;

@@ -102,7 +102,7 @@ int main(string[] args)
     // No relative paths
 	version (Posix) chdir("/");
 
-	while (true)
+	serverLoop: while (true)
 	{
 		auto s = socket.accept();
 		s.blocking = true;
@@ -140,28 +140,33 @@ int main(string[] args)
 
 		AutocompleteRequest request;
 		msgpack.unpack(buffer[size_t.sizeof .. bytesReceived], request);
-		if (request.kind == RequestKind.addImport)
+		final switch (request.kind)
 		{
+		case RequestKind.addImport:
 			ModuleCache.addImportPaths(request.importPaths);
-		}
-		else if (request.kind == RequestKind.clearCache)
-		{
+			break;
+		case RequestKind.clearCache:
 			Log.info("Clearing cache.");
 			ModuleCache.clear();
-		}
-		else if (request.kind == RequestKind.shutdown)
-		{
-			Log.info("Shutting down.");
 			break;
-		}
-		else
-		{
-			AutocompleteResponse response =
-				request.kind == RequestKind.autocomplete
-				? complete(request)
-				: findDeclaration(request);
+		case RequestKind.shutdown:
+			Log.info("Shutting down.");
+			break serverLoop;
+		case RequestKind.autocomplete:
+			AutocompleteResponse response = complete(request);
 			ubyte[] responseBytes = msgpack.pack(response);
 			s.send(responseBytes);
+			break;
+		case RequestKind.doc:
+			AutocompleteResponse response = getDoc(request);
+			ubyte[] responseBytes = msgpack.pack(response);
+			s.send(responseBytes);
+			break;
+		case RequestKind.symbolLocation:
+			AutocompleteResponse response = findDeclaration(request);
+			ubyte[] responseBytes = msgpack.pack(response);
+			s.send(responseBytes);
+			break;
 		}
 		Log.info("Request processed in ", requestWatch.peek().to!("msecs", float), " milliseconds");
 	}

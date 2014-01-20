@@ -122,6 +122,7 @@ final class FirstPass : ASTVisitor
 			dec.parameters, dec.comment);
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
+		symbol.acSymbol.doc = formatComment(dec.comment);
 		currentSymbol.addChild(symbol);
 		if (dec.functionBody !is null)
 		{
@@ -176,6 +177,7 @@ final class FirstPass : ASTVisitor
 			symbol.type = t;
 			symbol.protection = protection;
 			symbol.parent = currentSymbol;
+			symbol.acSymbol.doc = formatComment(dec.comment);
 			currentSymbol.addChild(symbol);
 		}
 	}
@@ -260,6 +262,7 @@ final class FirstPass : ASTVisitor
 			CompletionKind.enumName, symbolFile, dec.name.index);
 		symbol.type = dec.type;
 		symbol.parent = currentSymbol;
+		symbol.acSymbol.doc = formatComment(dec.comment);
 		currentSymbol = symbol;
 		if (dec.enumBody !is null)
 			dec.enumBody.accept(this);
@@ -274,6 +277,7 @@ final class FirstPass : ASTVisitor
 			CompletionKind.enumMember, symbolFile, member.name.index);
 		symbol.type = member.type;
 		symbol.parent = currentSymbol;
+		symbol.acSymbol.doc = formatComment(member.comment);
 		currentSymbol.addChild(symbol);
 	}
 
@@ -370,7 +374,7 @@ final class FirstPass : ASTVisitor
 			versionCondition.accept(this);
 	}
 
-	alias ASTVisitor.visit visit;
+	alias visit = ASTVisitor.visit;
 
 private:
 
@@ -382,6 +386,7 @@ private:
 		symbol.acSymbol.parts ~= classSymbols;
 		symbol.parent = currentSymbol;
 		symbol.protection = protection;
+		symbol.acSymbol.doc = formatComment(dec.comment);
 		currentSymbol = symbol;
 		dec.accept(this);
 		currentSymbol = symbol.parent;
@@ -396,6 +401,7 @@ private:
 		processParameters(symbol, null, "this", parameters, doc);
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
+		symbol.acSymbol.doc = formatComment(doc);
 		currentSymbol.addChild(symbol);
 		if (functionBody !is null)
 		{
@@ -412,6 +418,7 @@ private:
 		symbol.acSymbol.callTip = /*formatComment(doc) ~*/ "~this()";
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
+		symbol.acSymbol.doc = formatComment(doc);
 		currentSymbol.addChild(symbol);
 		if (functionBody !is null)
 		{
@@ -553,6 +560,7 @@ private:
 						s.parts = cast(typeof(s.parts)) symbol.parts;
 						// TODO: Re-format callTip with new name?
 						s.callTip = symbol.callTip;
+						s.doc = symbol.doc;
 						s.qualifier = symbol.qualifier;
 						s.location = symbol.location;
 						s.symbolFile = symbol.symbolFile;
@@ -915,12 +923,15 @@ string formatComment(string comment)
 		re = slashPlusRegex;
 	else
 		re = slashStarRegex;
-	return (comment.replaceAll(regex(re), "") ~ "\n\n")
+	return (comment.replaceAll(regex(re), ""))
 		.replaceFirst(regex("^\n"), "")
 		.replaceAll(regex(`\\`), `\\`)
 		.replaceAll(regex("\n"), `\n`).outdent();
 }
 
+/**
+ * Dummy doc comment for getCached
+ */
 string getCached(string s)
 {
 	return s.length == 0 ? ""

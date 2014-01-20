@@ -5,6 +5,8 @@
 # *nix binaries
 dcd-client
 dcd-server
+dcd-client.o
+dcd-server.o
 
 # Perf reports
 perf.data

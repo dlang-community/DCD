@@ -40,6 +40,48 @@ import modulecache;
 import astconverter;
 import stupidlog;
 
+AutocompleteResponse getDoc(const AutocompleteRequest request)
+{
+	Log.trace("Getting doc comments");
+
+	AutocompleteResponse response;
+	LexerConfig config;
+	config.fileName = "stdin";
+	StringCache* cache = new StringCache(StringCache.defaultBucketCount);
+	auto tokens = byToken(cast(ubyte[]) request.sourceCode, config, cache);
+	const(Token)[] tokenArray = void;
+	try {
+		tokenArray = tokens.array();
+	} catch (Exception e) {
+		Log.error("Could not provide autocomplete due to lexing exception: ", e.msg);
+		return response;
+	}
+	auto sortedTokens = assumeSorted(tokenArray);
+	string partial;
+
+	auto beforeTokens = sortedTokens.lowerBound(cast(size_t) request.cursorPosition);
+
+	Log.trace("Token at cursor: ", beforeTokens[$ - 1].text);
+
+	const(Scope)* completionScope = generateAutocompleteTrees(tokenArray, "stdin");
+	auto expression = getExpression(beforeTokens);
+
+	const(ACSymbol)*[] symbols = getSymbolsByTokenChain(completionScope, expression,
+		request.cursorPosition, CompletionType.ddoc);
+
+	if (symbols.length == 0)
+		Log.error("Could not find symbol");
+	else foreach (symbol; symbols)
+	{
+		Log.trace("Adding doc comment for ", symbol.name, ": ", symbol.doc);
+		response.docComments ~= symbol.doc;
+	}
+	return response;
+}
+
+/**
+ * Finds the declaration of the symbol at the cursor position.
+ */
 AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 {
 	Log.trace("Finding declaration");
@@ -86,7 +128,7 @@ AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 const(ACSymbol)*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
 	T tokens, size_t cursorPosition, CompletionType completionType)
 {
-	Log.trace("Getting symbols from token chain", tokens);
+	Log.trace("Getting symbols from token chain", tokens.map!"a.text");
 	// Find the symbol corresponding to the beginning of the chain
 	const(ACSymbol)*[] symbols = completionScope.getSymbolsByNameAndCursor(
 		tokens[0].text, cursorPosition);
@@ -178,12 +220,12 @@ const(ACSymbol)*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
 				Log.trace("Couldn't find it.");
 				break loop;
 			}
-			if (symbols[0].kind == CompletionKind.variableName
+			if ((symbols[0].kind == CompletionKind.variableName
 				|| symbols[0].kind == CompletionKind.memberVariableName
 				|| symbols[0].kind == CompletionKind.enumMember
-				|| (symbols[0].kind == CompletionKind.functionName
+				|| symbols[0].kind == CompletionKind.functionName)
 				&& (completionType == CompletionType.identifiers
-				|| i + 1 < tokens.length)))
+				|| i + 1 < tokens.length))
 			{
 				symbols = symbols[0].type is null ? [] : [symbols[0].type];
 			}
