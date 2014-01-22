@@ -27,6 +27,7 @@ import std.file;
 import std.array;
 import std.process;
 import std.datetime;
+import std.conv;
 
 import msgpack;
 
@@ -46,7 +47,6 @@ version(OSX) version = useXDG;
 
 int main(string[] args)
 {
-
 	Log.info("Starting up...");
 	StopWatch sw = StopWatch(AutoStart.yes);
 
@@ -61,7 +61,7 @@ int main(string[] args)
 	{
 		getopt(args, "port|p", &port, "I", &importPaths, "help|h", &help);
 	}
-	catch (Exception e)
+	catch (ConvException e)
 	{
 		stderr.writeln(e.msg);
 		printHelp(args[0]);
@@ -96,7 +96,7 @@ int main(string[] args)
 
 	sw.stop();
 	Log.info("Startup completed in ", sw.peek().to!("msecs", float), " milliseconds");
-	ModuleCache.estimateMemory();
+//	ModuleCache.estimateMemory();
 
 
     // No relative paths

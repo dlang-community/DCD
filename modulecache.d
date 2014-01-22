@@ -61,18 +61,6 @@ struct ModuleCache
 		cache = cache.init;
 	}
 
-	static void estimateMemory()
-	{
-		size_t estimate = 0;
-		foreach (c; cache)
-		{
-			foreach (symbol; c.symbols)
-				estimate = symbol.estimateMemory(estimate);
-		}
-		double megabytes = estimate / (1024.0F * 1024.0F);
-		Log.trace("Memory use estimated at ", megabytes, " megabytes");
-	}
-
 	/**
 	 * Adds the given path to the list of directories checked for imports
 	 */
