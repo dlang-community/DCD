@@ -105,7 +105,7 @@ containing a call tip for an overload of the given function.
 	ACSymbol findSymbolInCurrentScope(size_t cursorPosition, string name)
 
 ## Doc comment display
-```dcd-client --doc
+```dcd-client --doc```
 When run with the --doc or -d option, DCD will attempt to display documentation
 comments associated with the symbol at the cursor position. In the case of
 functions there can be more than one documentation comment associated with a
