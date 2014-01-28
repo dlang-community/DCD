@@ -17,6 +17,7 @@ function M.registerImages()
 	buffer:register_image(9, M.INTERFACE)
 	buffer:register_image(10, M.ENUM)
 	buffer:register_image(11, M.ALIAS)
+	buffer:register_image(12, M.TEMPLATE)
 end
 
 local function showCompletionList(r)
@@ -53,6 +54,8 @@ local function showCompletionList(r)
 			completion = completion .. "?3"
 		elseif kind == "l" then
 			completion = completion .. "?11"
+		elseif kind == "t" or kind == "T" then
+			completion = completion .. "?12"
 		end
 		completions[#completions + 1] = completion
 	end
@@ -517,6 +520,7 @@ static char * module_xpm[] = {
 "                "};
 ]]
 
+-- enum icon
 M.ENUM = [[
 /* XPM */
 static char * enum_dec_xpm[] = {
@@ -602,6 +606,44 @@ static char * keyword_xpm[] = {
 "   __________   ",
 "                ",
 "                "};
+]]
+
+-- template icon
+M.TEMPLATE = [[
+/* XPM */
+static char * template_xpm[] = {
+"16 16 14 1",
+" 	c None",
+".	c #00A2A4",
+"+	c #00A9AB",
+"@	c #E1FFFF",
+"#	c #EBFFFF",
+"$	c #F7FFFF",
+"%	c #FBFFFF",
+"&	c #EFFFFF",
+"*	c #E5FFFF",
+"=	c #D9FFFF",
+"-	c #00A5A7",
+";	c #CFFEFF",
+">	c #00A0A3",
+",	c #009A9C",
+"                ",
+"                ",
+"   ..........   ",
+"  ++++++++++++  ",
+"  +++@@@@@@+++  ",
+"  +++######+++  ",
+"  +++++$$+++++  ",
+"  +++++%%+++++  ",
+"  +++++&&+++++  ",
+"  +++++**+++++  ",
+"  +++++==+++++  ",
+"  -----;;-----  ",
+"  >>>>>>>>>>>>  ",
+"   ,,,,,,,,,,   ",
+"                ",
+"                "};
+
 ]]
 
 return M

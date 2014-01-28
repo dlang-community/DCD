@@ -220,6 +220,8 @@ struct Scope
 
 struct ImportInformation
 {
+	/// Import statement parts
+	string[] importParts;
 	/// module relative path
 	string modulePath;
 	/// symbols to import from this module

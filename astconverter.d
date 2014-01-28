@@ -36,7 +36,7 @@ import constants;
 import messages;
 import semantic;
 import stupidlog;
-import modulecache; // circular import
+import modulecache;
 
 /**
  * First Pass handles the following:
@@ -136,6 +136,12 @@ final class FirstPass : ASTVisitor
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
 		visitAggregateDeclaration(dec, CompletionKind.className);
+	}
+
+	override void visit(TemplateDeclaration dec)
+	{
+//		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
+		visitAggregateDeclaration(dec, CompletionKind.templateName);
 	}
 
 	override void visit(InterfaceDeclaration dec)
@@ -281,11 +287,13 @@ final class FirstPass : ASTVisitor
 		currentSymbol.addChild(symbol);
 	}
 
-	override void visit(ModuleDeclaration dec)
+	override void visit(ModuleDeclaration moduleDeclaration)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
-		foreach (Token t; dec.moduleName.identifiers)
-			moduleName ~= getCached(t.text);
+		foreach (identifier; moduleDeclaration.moduleName.identifiers)
+		{
+			moduleName ~= getCached(identifier.text);
+		}
 	}
 
 	// creates scopes for
@@ -318,6 +326,7 @@ final class FirstPass : ASTVisitor
 			a => a !is null && a.identifierChain !is null))
 		{
 			ImportInformation info;
+			info.importParts = single.identifierChain.identifiers.map!(a => a.text).array;
 			info.modulePath = convertChainToImportPath(single.identifierChain);
 			info.isPublic = protection == tok!"public";
 			currentScope.importInformation ~= info;
@@ -327,6 +336,8 @@ final class FirstPass : ASTVisitor
 		ImportInformation info;
 		info.modulePath = convertChainToImportPath(
 			importDeclaration.importBindings.singleImport.identifierChain);
+		info.importParts = importDeclaration.importBindings.singleImport
+			.identifierChain.identifiers.map!(a => a.text).array;
 		foreach (bind; importDeclaration.importBindings.importBinds)
 		{
 			Tuple!(string, string) bindTuple;
@@ -540,6 +551,26 @@ private:
 			if (importInfo.importedSymbols.length == 0)
 			{
 				currentScope.symbols ~= symbols;
+				ACSymbol* a;
+				ACSymbol* b;
+				foreach (i, s; importInfo.importParts)
+				{
+					immutable kind = i + 1 < importInfo.importParts.length
+						? CompletionKind.packageName : CompletionKind.moduleName;
+					ACSymbol* modPart = new ACSymbol(s, kind);
+					if (a is null)
+					{
+						a = modPart;
+						b = a;
+					}
+					else
+					{
+						b.parts ~= modPart;
+						b = modPart;
+					}
+				}
+				b.parts ~= symbols;
+				currentScope.symbols ~= a;
 				if (importInfo.isPublic && currentScope.parent is null)
 				{
 					rootSymbol.acSymbol.parts ~= symbols;
@@ -649,7 +680,9 @@ private:
 		}
 
 		foreach (child; currentSymbol.children)
+		{
 			thirdPass(child);
+		}
 	}
 
 	void resolveInheritance(SemanticSymbol* currentSymbol)

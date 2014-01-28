@@ -643,7 +643,7 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
 				response.completions ~= name.baseName();
 				response.completionKinds ~=
 					exists(buildPath(name, "package.d")) || exists(buildPath(name, "package.di"))
-					? CompletionKind.packageName : CompletionKind.moduleName;
+					? CompletionKind.moduleName : CompletionKind.packageName;
 			}
 		}
 	}
