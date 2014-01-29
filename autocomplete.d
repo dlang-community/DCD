@@ -128,13 +128,19 @@ AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 bool shouldSwapWithType(CompletionType completionType, CompletionKind kind,
 	size_t current, size_t max) pure nothrow @safe
 {
+	// Modules and packages never have types, so always return false
+	if (kind == CompletionKind.moduleName || kind == CompletionKind.packageName)
+		return false;
+	// Swap out every part of a chain with its type except the last part
+	if (current < max && completionType == CompletionType.location)
+		return true;
+	// Only swap out types for these kinds
 	immutable bool isInteresting =
 		kind == CompletionKind.variableName
 		|| kind == CompletionKind.memberVariableName
 		|| kind == CompletionKind.enumMember
 		|| kind == CompletionKind.functionName;
-	return (current < max && completionType == CompletionType.location)
-		|| (completionType == CompletionType.identifiers && isInteresting);
+	return completionType == CompletionType.identifiers && isInteresting;
 }
 
 const(ACSymbol)*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
@@ -327,7 +333,7 @@ AutocompleteResponse complete(const AutocompleteRequest request)
 		beforeTokens = beforeTokens[0 .. $ - 1];
 		goto dotCompletion;
 	}
-	if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == tok!"(")
+	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == tok!"(")
 	{
 		immutable(string)[] completions;
 		switch (beforeTokens[$ - 2].type)
@@ -476,7 +482,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				return;
 		}
 		foreach (s; symbols[0].parts.filter!(a => a.name !is null
-			&& a.name[0] != '*'
+			&& a.name.length > 0 && a.name[0] != '*'
 			&& (partial is null ? true : a.name.toUpper().startsWith(partial.toUpper()))
 			&& !response.completions.canFind(a.name)))
 		{
