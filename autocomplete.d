@@ -108,7 +108,7 @@ AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 	auto expression = getExpression(beforeTokens);
 
 	const(ACSymbol)*[] symbols = getSymbolsByTokenChain(completionScope, expression,
-		request.cursorPosition, CompletionType.identifiers);
+		request.cursorPosition, CompletionType.location);
 
 	if (symbols.length > 0)
 	{
@@ -123,6 +123,18 @@ AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 	}
 
 	return response;
+}
+
+bool shouldSwapWithType(CompletionType completionType, CompletionKind kind,
+	size_t current, size_t max) pure nothrow @safe
+{
+	immutable bool isInteresting =
+		kind == CompletionKind.variableName
+		|| kind == CompletionKind.memberVariableName
+		|| kind == CompletionKind.enumMember
+		|| kind == CompletionKind.functionName;
+	return (current < max && completionType == CompletionType.location)
+		|| (completionType == CompletionType.identifiers && isInteresting);
 }
 
 const(ACSymbol)*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
@@ -144,11 +156,7 @@ const(ACSymbol)*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
 			" with type ", symbols[0].type is null ? "null" : symbols[0].type.name);
 	}
 
-	if (completionType == CompletionType.identifiers
-		&& symbols[0].kind == CompletionKind.memberVariableName
-		|| symbols[0].kind == CompletionKind.variableName
-		|| symbols[0].kind == CompletionKind.aliasName
-		|| symbols[0].kind == CompletionKind.enumMember)
+	if (shouldSwapWithType(completionType, symbols[0].kind, 0, tokens.length - 1))
 	{
 		symbols = symbols[0].type is null ? [] : [symbols[0].type];
 		if (symbols.length == 0)
@@ -220,12 +228,8 @@ const(ACSymbol)*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
 				Log.trace("Couldn't find it.");
 				break loop;
 			}
-			if ((symbols[0].kind == CompletionKind.variableName
-				|| symbols[0].kind == CompletionKind.memberVariableName
-				|| symbols[0].kind == CompletionKind.enumMember
-				|| symbols[0].kind == CompletionKind.functionName)
-				&& (completionType == CompletionType.identifiers
-				|| i + 1 < tokens.length))
+			if (shouldSwapWithType(completionType, symbols[0].kind, i,
+				tokens.length - 1))
 			{
 				symbols = symbols[0].type is null ? [] : [symbols[0].type];
 			}
