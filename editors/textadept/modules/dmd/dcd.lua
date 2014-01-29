@@ -114,8 +114,7 @@ local function runDCDClient(args)
 	local command = M.PATH_TO_DCD_CLIENT .. " " .. args
 		.. " -c" .. buffer.current_pos .. " > \"" .. fileName .. "\""
 	local p = io.popen(command, mode)
-
-	p:write(buffer:get_text():gsub(string.format("%s$", buffer.length), ""))
+	p:write(buffer:get_text():sub(1, buffer.length))
 	p:flush()
 	p:close()
 	local tmpFile = io.open(fileName, "r")
