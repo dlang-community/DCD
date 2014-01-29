@@ -76,6 +76,8 @@ tab character, followed by a completion kind
 * a - array
 * A - associative array
 * l - alias name
+* t - template name
+* T - mixin template name
 
 ####Example output
 	identifiers
