@@ -557,6 +557,10 @@ private:
 				{
 					immutable kind = i + 1 < importInfo.importParts.length
 						? CompletionKind.packageName : CompletionKind.moduleName;
+					// Begin compiler bug workaround
+					if (kind == 'L')
+						std.stdio.writeln("ERROR ", kind);
+					// End compiler bug workaround
 					ACSymbol* modPart = new ACSymbol(s, kind);
 					if (a is null)
 					{
