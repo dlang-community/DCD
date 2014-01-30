@@ -132,7 +132,7 @@ bool shouldSwapWithType(CompletionType completionType, CompletionKind kind,
 	if (kind == CompletionKind.moduleName || kind == CompletionKind.packageName)
 		return false;
 	// Swap out every part of a chain with its type except the last part
-	if (current < max && completionType == CompletionType.location)
+	if (current < max)
 		return true;
 	// Only swap out types for these kinds
 	immutable bool isInteresting =
