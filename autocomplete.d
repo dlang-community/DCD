@@ -107,7 +107,7 @@ AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 
 	auto beforeTokens = sortedTokens.lowerBound(cast(size_t) request.cursorPosition);
 
-	Log.trace("Token at cursor: ", beforeTokens[$ - 1]);
+	Log.trace("Token at cursor: ", beforeTokens[$ - 1].text);
 
 	const(Scope)* completionScope = generateAutocompleteTrees(tokenArray, "stdin");
 	auto expression = getExpression(beforeTokens);

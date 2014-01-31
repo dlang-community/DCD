@@ -542,39 +542,43 @@ private:
 			assignToScopes(part);
 	}
 
+	// This method is really ugly due to the casts...
+	static ACSymbol* createImportSymbols(ImportInformation info,
+		Scope* currentScope)
+	{
+		immutable string firstPart = info.importParts[0];
+		const(ACSymbol)*[] symbols = currentScope.getSymbolsByName(firstPart);
+		immutable bool found = symbols.length > 0;
+		const(ACSymbol)* firstSymbol = found
+			? symbols[0] : new ACSymbol(firstPart, CompletionKind.packageName);
+		if (!found)
+			currentScope.symbols ~= firstSymbol;
+		ACSymbol* currentSymbol = cast(ACSymbol*) firstSymbol;
+		foreach (size_t i, string importPart; info.importParts[1 .. $])
+		{
+			symbols = currentSymbol.getPartsByName(importPart);
+			ACSymbol* s = symbols.length > 0
+				? cast(ACSymbol*) symbols[0] : new ACSymbol(importPart, CompletionKind.packageName);
+			currentSymbol.parts ~= s;
+			currentSymbol = s;
+		}
+		currentSymbol.kind = CompletionKind.moduleName;
+		return currentSymbol;
+	}
+
 	void resolveImports(Scope* currentScope)
 	{
 		foreach (importInfo; currentScope.importInformation)
 		{
 			auto symbols = ModuleCache.getSymbolsInModule(
 				ModuleCache.resolveImportLoctation(importInfo.modulePath));
+			ACSymbol* moduleSymbol = createImportSymbols(importInfo, currentScope);
+			currentScope.symbols ~= moduleSymbol;
+			currentScope.symbols ~= symbols;
 			if (importInfo.importedSymbols.length == 0)
 			{
 				currentScope.symbols ~= symbols;
-				ACSymbol* a;
-				ACSymbol* b;
-				foreach (i, s; importInfo.importParts)
-				{
-					immutable kind = i + 1 < importInfo.importParts.length
-						? CompletionKind.packageName : CompletionKind.moduleName;
-					// Begin compiler bug workaround
-					if (kind == 'L')
-						std.stdio.writeln("ERROR ", kind);
-					// End compiler bug workaround
-					ACSymbol* modPart = new ACSymbol(s, kind);
-					if (a is null)
-					{
-						a = modPart;
-						b = a;
-					}
-					else
-					{
-						b.parts ~= modPart;
-						b = modPart;
-					}
-				}
-				b.parts ~= symbols;
-				currentScope.symbols ~= a;
+				moduleSymbol.parts ~= symbols;
 				if (importInfo.isPublic && currentScope.parent is null)
 				{
 					rootSymbol.acSymbol.parts ~= symbols;
@@ -600,11 +604,13 @@ private:
 						s.location = symbol.location;
 						s.symbolFile = symbol.symbolFile;
 						currentScope.symbols ~= s;
+						moduleSymbol.parts ~= s;
 						if (importInfo.isPublic && currentScope.parent is null)
 							rootSymbol.acSymbol.parts ~= s;
 					}
 					else
 					{
+						moduleSymbol.parts ~= symbol;
 						currentScope.symbols ~= symbol;
 						if (importInfo.isPublic && currentScope.parent is null)
 							rootSymbol.acSymbol.parts ~= symbol;
