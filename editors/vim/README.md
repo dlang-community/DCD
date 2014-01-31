@@ -56,6 +56,12 @@ Use `DCDclearCache` to clear the DCD server cache.
 When the server is running, use `CTRL`+`x` `CTRL`+`o` in a D buffer to use DCD
 completion.
 
+When the server is running, use the `DCDdoc` to print the doc-string of symbol
+under the cursor.
+
+When the server is running, use the `DCDsymbolLocation` to print jump to the
+declaration of the symbol under the cursor.
+
 Conflicts
 =========
 This plugin conflicts with the DScanner plugin, as both use the `dcomplete`
