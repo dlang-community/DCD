@@ -1,6 +1,8 @@
 "The completion function
 function! dcomplete#Complete(findstart,base)
 	if a:findstart
+		"Vim temporarily deletes the current identifier from the file
+		let b:currentLineText=getline('.')
 
 		"We might need it for paren completion:
 		let b:closingParenExists=getline('.')[col('.')-1:-1]=~'^\s*)'
@@ -15,7 +17,7 @@ function! dcomplete#Complete(findstart,base)
 		let parenPos=searchpos("(","bn",line('.'))
 		if parenPos[0]
 			if getline('.')[parenPos[1]:col('.')-2]=~'^\s*\w*$'
-				let b:completionColumn=parenPos[1]
+				let b:completionColumn=parenPos[1]+1
 				return parenPos[1]
 			endif
 		endif
@@ -35,7 +37,10 @@ function! dcomplete#Complete(findstart,base)
 	else
 		let b:base=a:base
 		"Run DCD
+		let l:prevCurrentLineText=getline('.')
+		call setline('.',b:currentLineText)
 		let scanResult=s:runDCDToGetAutocompletion()
+		call setline('.',l:prevCurrentLineText)
 		"Split the result text to lines.
 		let resultLines=split(scanResult,"\n")
 		let b:res=resultLines
@@ -94,15 +99,23 @@ endfunction
 
 "Run DCD to get autocompletion results
 function! s:runDCDToGetAutocompletion()
+	return s:runDCDOnBufferBytePosition(line2byte('.')+b:completionColumn-2,'')
+endfunction
 
+"Run DCD on the current position in the buffer
+function! dcomplete#runDCDOnCurrentBufferPosition(args)
+	return s:runDCDOnBufferBytePosition(line2byte('.')+col('.')-1,a:args)
+endfunction
+
+"Run DCD on the current buffer with the supplied position
+function! s:runDCDOnBufferBytePosition(bytePosition,args)
 	let l:tmpFileName=tempname()
 	"Save the temp file in unix format for better reading of byte position.
 	let l:oldFileFormat=&fileformat
 	set fileformat=unix
-	let l:bytePosition=line2byte('.')+b:completionColumn-1
-	exec "write ".l:tmpFileName
+	silent exec "write ".l:tmpFileName
 	let &fileformat=l:oldFileFormat
-	let scanResult=system(dcomplete#DCDclient().' --cursorPos '.l:bytePosition.' <'.shellescape(l:tmpFileName))
+	let scanResult=system(dcomplete#DCDclient().' '.a:args.' --cursorPos='.a:bytePosition.' <'.shellescape(l:tmpFileName))
 	call delete(l:tmpFileName)
 	return scanResult
 endfunction
