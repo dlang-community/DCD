@@ -107,6 +107,28 @@ function! dcomplete#runDCDOnCurrentBufferPosition(args)
 	return s:runDCDOnBufferBytePosition(line2byte('.')+col('.')-1,a:args)
 endfunction
 
+"Find where the symbol under the cursor is declared and jump there
+function! dcomplete#runDCDtoJumpToSymbolLocation()
+	let l:scanResult=split(s:runDCDOnBufferBytePosition(line2byte('.')+col('.')-1,'--symbolLocation'),"\n")[0]
+	let l:resultParts=split(l:scanResult,"\t")
+	if 2!=len(l:resultParts)
+		echo 'Not found!'
+		return
+	endif
+
+	if l:resultParts[0]!='stdin'
+		execute 'edit '.l:resultParts[0]
+	endif
+
+	let l:symbolByteLocation=str2nr(l:resultParts[1])
+	if l:symbolByteLocation<1
+		echo 'Not found!'
+		return
+	endif
+
+	execute 'goto '.(l:symbolByteLocation+1)
+endfunction
+
 "Run DCD on the current buffer with the supplied position
 function! s:runDCDOnBufferBytePosition(bytePosition,args)
 	let l:tmpFileName=tempname()
@@ -116,6 +138,9 @@ function! s:runDCDOnBufferBytePosition(bytePosition,args)
 	silent exec "write ".l:tmpFileName
 	let &fileformat=l:oldFileFormat
 	let scanResult=system(dcomplete#DCDclient().' '.a:args.' --cursorPos='.a:bytePosition.' <'.shellescape(l:tmpFileName))
+	if v:shell_error
+		throw scanResult
+	endif
 	call delete(l:tmpFileName)
 	return scanResult
 endfunction

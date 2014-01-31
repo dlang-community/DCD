@@ -12,3 +12,6 @@ command! -buffer -nargs=? DCDonCurrentBufferPosition echo dcomplete#runDCDOnCurr
 command! -buffer DCDstopServer DCD --shutdown
 command! -buffer -nargs=+ -complete=dir DCDaddPath execute 'DCD '.dcomplete#globImportPath([<f-args>])
 command! -buffer DCDclearCache DCD --clearCache
+
+command! -buffer DCDdoc DCDonCurrentBufferPosition --doc
+command! -buffer DCDsymbolLocation call dcomplete#runDCDtoJumpToSymbolLocation()
