@@ -73,6 +73,11 @@ AutocompleteResponse getDoc(const AutocompleteRequest request)
 		Log.error("Could not find symbol");
 	else foreach (symbol; symbols)
 	{
+		if (symbol.doc is null)
+		{
+			Log.trace("Doc comment for ", symbol.name, " was null");
+			continue;
+		}
 		Log.trace("Adding doc comment for ", symbol.name, ": ", symbol.doc);
 		response.docComments ~= symbol.doc;
 	}
@@ -129,8 +134,16 @@ bool shouldSwapWithType(CompletionType completionType, CompletionKind kind,
 	size_t current, size_t max) pure nothrow @safe
 {
 	// Modules and packages never have types, so always return false
-	if (kind == CompletionKind.moduleName || kind == CompletionKind.packageName)
+	if (kind == CompletionKind.moduleName
+		|| kind == CompletionKind.packageName
+		|| kind == CompletionKind.className
+		|| kind == CompletionKind.structName
+		|| kind == CompletionKind.interfaceName
+		|| kind == CompletionKind.enumName
+		|| kind == CompletionKind.unionName)
+	{
 		return false;
+	}
 	// Swap out every part of a chain with its type except the last part
 	if (current < max)
 		return true;
