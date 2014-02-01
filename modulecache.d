@@ -46,6 +46,14 @@ struct CacheEntry
 	}
 }
 
+bool existanceCheck(A)(A path)
+{
+	if (path.exists())
+		return true;
+	Log.error("Cannot cache modules in ", path, " because it does not exist");
+	return false;
+}
+
 /**
  * Caches pre-parsed module information.
  */
@@ -66,16 +74,9 @@ struct ModuleCache
 	 */
 	static void addImportPaths(string[] paths)
 	{
-		foreach (path; paths)
-		{
-			if (!exists(path))
-			{
-				Log.error("Cannot cache modules in ", path, " because it does not exist");
-				continue;
-			}
-			importPaths ~= path;
-		}
-		foreach (path; paths)
+		string[] addedPaths = paths.filter!(a => existanceCheck(a)).array();
+		importPaths ~= addedPaths;
+		foreach (path; addedPaths)
 		{
 			foreach (fileName; dirEntries(path, "*.{d,di}", SpanMode.depth))
 			{
