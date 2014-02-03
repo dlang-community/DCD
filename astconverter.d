@@ -394,7 +394,10 @@ private:
 //		Log.trace("visiting aggregate declaration ", dec.name.text);
 		SemanticSymbol* symbol = new SemanticSymbol(getCached(dec.name.text),
 			kind, symbolFile, dec.name.index);
-		symbol.acSymbol.parts ~= classSymbols;
+		if (kind == CompletionKind.className)
+			symbol.acSymbol.parts ~= classSymbols;
+		else
+			symbol.acSymbol.parts ~= aggregateSymbols;
 		symbol.parent = currentSymbol;
 		symbol.protection = protection;
 		symbol.acSymbol.doc = formatComment(dec.comment);

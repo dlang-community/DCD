@@ -331,6 +331,13 @@ static this()
 		s.parts ~= stringof_;
 	}
 
+	aggregateSymbols ~= new ACSymbol("tupleof", CompletionKind.variableName);
+	aggregateSymbols ~= mangleof_;
+	aggregateSymbols ~= alignof_;
+	aggregateSymbols ~= sizeof_;
+	aggregateSymbols ~= stringof_;
+	aggregateSymbols ~= init;
+
 	classSymbols ~= new ACSymbol("classInfo", CompletionKind.variableName);
 	classSymbols ~= new ACSymbol("tupleof", CompletionKind.variableName);
 	classSymbols ~= new ACSymbol("__vptr", CompletionKind.variableName);
@@ -338,6 +345,7 @@ static this()
 	classSymbols ~= mangleof_;
 	classSymbols ~= alignof_;
 	classSymbols ~= sizeof_;
+	classSymbols ~= stringof_;
 	classSymbols ~= init;
 
 	ireal_.parts ~= new ACSymbol("im", CompletionKind.keyword, real_);
@@ -379,6 +387,7 @@ static this()
 const(ACSymbol)*[] builtinSymbols;
 const(ACSymbol)*[] arraySymbols;
 const(ACSymbol)*[] assocArraySymbols;
+const(ACSymbol)*[] aggregateSymbols;
 const(ACSymbol)*[] classSymbols;
 Type argptrType;
 Type argumentsType;
