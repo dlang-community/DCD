@@ -45,7 +45,7 @@ public:
 	void addChild(SemanticSymbol* child)
 	{
 		children ~= child;
-		acSymbol.parts ~= child.acSymbol;
+		acSymbol.parts.insert(child.acSymbol);
 	}
 
 	/// Autocompletion symbol

@@ -122,7 +122,7 @@ final class FirstPass : ASTVisitor
 			dec.parameters, dec.comment);
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
-		symbol.acSymbol.doc = formatComment(dec.comment);
+		symbol.acSymbol.doc = dec.comment;
 		currentSymbol.addChild(symbol);
 		if (dec.functionBody !is null)
 		{
@@ -183,7 +183,7 @@ final class FirstPass : ASTVisitor
 			symbol.type = t;
 			symbol.protection = protection;
 			symbol.parent = currentSymbol;
-			symbol.acSymbol.doc = formatComment(dec.comment);
+			symbol.acSymbol.doc = dec.comment;
 			currentSymbol.addChild(symbol);
 		}
 	}
@@ -251,12 +251,8 @@ final class FirstPass : ASTVisitor
 		currentSymbol = new SemanticSymbol(null, CompletionKind.moduleName,
 			symbolFile);
 		rootSymbol = currentSymbol;
-
-		currentScope = new Scope();
-		currentScope.startLocation = 0;
-		currentScope.endLocation = size_t.max;
+		currentScope = new Scope(0, size_t.max);
 		moduleScope = currentScope;
-
 		mod.accept(this);
 	}
 
@@ -268,7 +264,7 @@ final class FirstPass : ASTVisitor
 			CompletionKind.enumName, symbolFile, dec.name.index);
 		symbol.type = dec.type;
 		symbol.parent = currentSymbol;
-		symbol.acSymbol.doc = formatComment(dec.comment);
+		symbol.acSymbol.doc = dec.comment;
 		currentSymbol = symbol;
 		if (dec.enumBody !is null)
 			dec.enumBody.accept(this);
@@ -283,7 +279,7 @@ final class FirstPass : ASTVisitor
 			CompletionKind.enumMember, symbolFile, member.name.index);
 		symbol.type = member.type;
 		symbol.parent = currentSymbol;
-		symbol.acSymbol.doc = formatComment(member.comment);
+		symbol.acSymbol.doc = member.comment;
 		currentSymbol.addChild(symbol);
 	}
 
@@ -300,16 +296,14 @@ final class FirstPass : ASTVisitor
 	override void visit(StructBody structBody)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(structBody).stringof);
-		Scope* s = new Scope;
-		s.startLocation = structBody.startLocation;
-		s.endLocation = structBody.endLocation;
+		Scope* s = new Scope(structBody.startLocation, structBody.endLocation);
 //		Log.trace("Added scope ", s.startLocation, " ", s.endLocation);
 
 		ACSymbol* thisSymbol = new ACSymbol("this", CompletionKind.variableName,
 			currentSymbol.acSymbol);
 		thisSymbol.location = s.startLocation;
 		thisSymbol.symbolFile = symbolFile;
-		currentSymbol.acSymbol.parts ~= thisSymbol;
+		currentSymbol.acSymbol.parts.insert(thisSymbol);
 
 		s.parent = currentScope;
 		currentScope = s;
@@ -353,11 +347,10 @@ final class FirstPass : ASTVisitor
 	override void visit(BlockStatement blockStatement)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(blockStatement).stringof);
-		Scope* s = new Scope;
+		Scope* s = new Scope(blockStatement.startLocation,
+			blockStatement.endLocation);
 		s.parent = currentScope;
 		currentScope.children ~= s;
-		s.startLocation = blockStatement.startLocation;
-		s.endLocation = blockStatement.endLocation;
 
 		if (currentSymbol.acSymbol.kind == CompletionKind.functionName)
 		{
@@ -395,12 +388,12 @@ private:
 		SemanticSymbol* symbol = new SemanticSymbol(getCached(dec.name.text),
 			kind, symbolFile, dec.name.index);
 		if (kind == CompletionKind.className)
-			symbol.acSymbol.parts ~= classSymbols;
+			symbol.acSymbol.parts.insert(classSymbols[]);
 		else
-			symbol.acSymbol.parts ~= aggregateSymbols;
+			symbol.acSymbol.parts.insert(aggregateSymbols[]);
 		symbol.parent = currentSymbol;
 		symbol.protection = protection;
-		symbol.acSymbol.doc = formatComment(dec.comment);
+		symbol.acSymbol.doc = dec.comment;
 		currentSymbol = symbol;
 		dec.accept(this);
 		currentSymbol = symbol.parent;
@@ -415,7 +408,7 @@ private:
 		processParameters(symbol, null, "this", parameters, doc);
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
-		symbol.acSymbol.doc = formatComment(doc);
+		symbol.acSymbol.doc = doc;
 		currentSymbol.addChild(symbol);
 		if (functionBody !is null)
 		{
@@ -429,10 +422,10 @@ private:
 	{
 		SemanticSymbol* symbol = new SemanticSymbol("~this",
 			CompletionKind.functionName, symbolFile, location);
-		symbol.acSymbol.callTip = /*formatComment(doc) ~*/ "~this()";
+		symbol.acSymbol.callTip = "~this()";
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
-		symbol.acSymbol.doc = formatComment(doc);
+		symbol.acSymbol.doc = doc;
 		currentSymbol.addChild(symbol);
 		if (functionBody !is null)
 		{
@@ -483,9 +476,6 @@ private:
 		if (returnType is null)
 			return "%s%s".format(name, parameterString);
 		return "%s %s%s".format(formatNode(returnType), name, parameterString);
-//		if (returnType is null)
-//			return "%s%s%s".format(formatComment(doc), name, parameterString);
-//		return "%s%s %s%s".format(formatComment(doc), formatNode(returnType), name, parameterString);
 	}
 
 	/// Current protection type
@@ -537,11 +527,11 @@ public:
 
 private:
 
-	void assignToScopes(const(ACSymbol)* currentSymbol)
+	void assignToScopes(ACSymbol* currentSymbol)
 	{
 		Scope* s = moduleScope.getScopeByCursor(currentSymbol.location);
-		s.symbols ~= currentSymbol;
-		foreach (part; currentSymbol.parts)
+		s.symbols.insert(currentSymbol);
+		foreach (part; currentSymbol.parts[])
 			assignToScopes(part);
 	}
 
@@ -550,19 +540,21 @@ private:
 		Scope* currentScope)
 	{
 		immutable string firstPart = info.importParts[0];
-		const(ACSymbol)*[] symbols = currentScope.getSymbolsByName(firstPart);
+		ACSymbol*[] symbols = currentScope.getSymbolsByName(firstPart);
 		immutable bool found = symbols.length > 0;
-		const(ACSymbol)* firstSymbol = found
+		ACSymbol* firstSymbol = found
 			? symbols[0] : new ACSymbol(firstPart, CompletionKind.packageName);
 		if (!found)
-			currentScope.symbols ~= firstSymbol;
+		{
+			currentScope.symbols.insert(firstSymbol);
+		}
 		ACSymbol* currentSymbol = cast(ACSymbol*) firstSymbol;
 		foreach (size_t i, string importPart; info.importParts[1 .. $])
 		{
 			symbols = currentSymbol.getPartsByName(importPart);
 			ACSymbol* s = symbols.length > 0
 				? cast(ACSymbol*) symbols[0] : new ACSymbol(importPart, CompletionKind.packageName);
-			currentSymbol.parts ~= s;
+			currentSymbol.parts.insert(s);
 			currentSymbol = s;
 		}
 		currentSymbol.kind = CompletionKind.moduleName;
@@ -573,18 +565,16 @@ private:
 	{
 		foreach (importInfo; currentScope.importInformation)
 		{
-			auto symbols = ModuleCache.getSymbolsInModule(
+			ACSymbol*[] symbols = ModuleCache.getSymbolsInModule(
 				ModuleCache.resolveImportLoctation(importInfo.modulePath));
 			ACSymbol* moduleSymbol = createImportSymbols(importInfo, currentScope);
-			currentScope.symbols ~= moduleSymbol;
-			currentScope.symbols ~= symbols;
+			currentScope.symbols.insert(moduleSymbol);
+			currentScope.symbols.insert(symbols);
 			if (importInfo.importedSymbols.length == 0)
 			{
-				currentScope.symbols ~= symbols;
-				moduleSymbol.parts ~= symbols;
 				if (importInfo.isPublic && currentScope.parent is null)
 				{
-					rootSymbol.acSymbol.parts ~= symbols;
+					rootSymbol.acSymbol.parts.insert(symbols);
 				}
 				continue;
 			}
@@ -606,17 +596,17 @@ private:
 						s.qualifier = symbol.qualifier;
 						s.location = symbol.location;
 						s.symbolFile = symbol.symbolFile;
-						currentScope.symbols ~= s;
-						moduleSymbol.parts ~= s;
+						currentScope.symbols.insert(s);
+						moduleSymbol.parts.insert(s);
 						if (importInfo.isPublic && currentScope.parent is null)
-							rootSymbol.acSymbol.parts ~= s;
+							rootSymbol.acSymbol.parts.insert(s);
 					}
 					else
 					{
-						moduleSymbol.parts ~= symbol;
-						currentScope.symbols ~= symbol;
+						moduleSymbol.parts.insert(symbol);
+						currentScope.symbols.insert(symbol);
 						if (importInfo.isPublic && currentScope.parent is null)
-							rootSymbol.acSymbol.parts ~= symbol;
+							rootSymbol.acSymbol.parts.insert(symbol);
 					}
 				}
 			}
@@ -673,7 +663,7 @@ private:
 		case memberVariableName:
 		case functionName:
 		case aliasName:
-			const(ACSymbol)* t = resolveType(currentSymbol.type,
+			ACSymbol* t = resolveType(currentSymbol.type,
 				currentSymbol.acSymbol.location);
 			while (t !is null && t.kind == CompletionKind.aliasName)
 				t = t.type;
@@ -691,7 +681,6 @@ private:
 		case mixinTemplateName:
 			break;
 		}
-
 		foreach (child; currentSymbol.children)
 		{
 			thirdPass(child);
@@ -703,7 +692,7 @@ private:
 //		Log.trace("Resolving inheritance for ", currentSymbol.acSymbol.name);
 		outer: foreach (string[] base; currentSymbol.baseClasses)
 		{
-			const(ACSymbol)* baseClass;
+			ACSymbol* baseClass;
 			if (base.length == 0)
 				continue;
 			auto symbols = moduleScope.getSymbolsByNameAndCursor(
@@ -718,7 +707,7 @@ private:
 					continue outer;
 				baseClass = symbols[0];
 			}
-			currentSymbol.acSymbol.parts ~= baseClass.parts;
+			currentSymbol.acSymbol.parts.insert(baseClass.parts[]);
 		}
 	}
 
@@ -732,11 +721,11 @@ private:
 		// TODO:
 	}
 
-	const(ACSymbol)* resolveType(Type t, size_t location)
+	ACSymbol* resolveType(Type t, size_t location)
 	{
 		if (t is null) return null;
 		if (t.type2 is null) return null;
-		const(ACSymbol)* s;
+		ACSymbol* s;
 		if (t.type2.builtinType != tok!"")
 			s = convertBuiltinType(t.type2);
 		else if (t.type2.typeConstructor != tok!"")
@@ -780,21 +769,24 @@ private:
 		return strings;
 	}
 
-	static const(ACSymbol)* processSuffix(const(ACSymbol)* symbol, const TypeSuffix suffix)
+	static ACSymbol* processSuffix(ACSymbol* symbol, const TypeSuffix suffix)
 	{
+		import std.container;
 		if (suffix.star)
 			return symbol;
 		if (suffix.array || suffix.type)
 		{
-			ACSymbol* s = new ACSymbol;
-			s.parts = suffix.array ? arraySymbols : assocArraySymbols;
+			ACSymbol* s = new ACSymbol(null);
+			s.parts = new RedBlackTree!(ACSymbol*, comparitor, true);
+			s.parts.insert(suffix.array ? (cast() arraySymbols)[]
+				: (cast() assocArraySymbols)[]);
 			s.type = symbol;
 			s.qualifier = suffix.array ? SymbolQualifier.array : SymbolQualifier.assocArray;
 			return s;
 		}
 		if (suffix.parameters)
 		{
-			ACSymbol* s = new ACSymbol;
+			ACSymbol* s = new ACSymbol(null);
 			s.type = symbol;
 			s.qualifier = SymbolQualifier.func;
 			s.callTip = suffix.delegateOrFunction.text ~ formatNode(suffix.parameters);
@@ -803,22 +795,21 @@ private:
 		return null;
 	}
 
-	static const(ACSymbol)* convertBuiltinType(const Type2 type2)
+	static ACSymbol* convertBuiltinType(const Type2 type2)
 	{
 		string stringRepresentation = str(type2.builtinType);
 		if (stringRepresentation is null) return null;
 		// TODO: Make this use binary search instead
-		foreach (s; builtinSymbols)
-			if (s.name == stringRepresentation)
-				return s;
-		return null;
+		auto t = cast() builtinSymbols;
+		ACSymbol s = ACSymbol(stringRepresentation);
+		return t.equalRange(&s).front();
 	}
 
 	SemanticSymbol* rootSymbol;
 	Scope* moduleScope;
 }
 
-const(ACSymbol)*[] convertAstToSymbols(const(Token)[] tokens, string symbolFile)
+ACSymbol*[] convertAstToSymbols(const(Token)[] tokens, string symbolFile)
 {
 	Module m = parseModuleSimple(tokens, symbolFile);
 
@@ -831,7 +822,7 @@ const(ACSymbol)*[] convertAstToSymbols(const(Token)[] tokens, string symbolFile)
 	ThirdPass third = ThirdPass(second.rootSymbol, second.moduleScope);
 	third.run();
 
-	return cast(typeof(return)) third.rootSymbol.acSymbol.parts;
+	return third.rootSymbol.acSymbol.parts.array();
 }
 
 const(Scope)* generateAutocompleteTrees(const(Token)[] tokens, string symbolFile)
@@ -953,28 +944,6 @@ string formatNode(T)(T node)
 
 private void doesNothing(string a, size_t b, size_t c, string d, bool e) {}
 
-string formatComment(string comment)
-{
-	import std.string;
-	import std.regex;
-	enum tripleSlashRegex = `(?:\t )*///`;
-	enum slashStarRegex = `(?:^/\*\*+)|(?:\n?\s*\*+/$)|(?:(?<=\n)\s*\* ?)`;
-	enum slashPlusRegex = `(?:^/\+\++)|(?:\n?\s*\++/$)|(?:(?<=\n)\s*\+ ?)`;
-	if (comment is null)
-		return null;
-	string re;
-	if (comment[0 .. 3] == "///")
-		re = tripleSlashRegex;
-	else if (comment[1] == '+')
-		re = slashPlusRegex;
-	else
-		re = slashStarRegex;
-	return (comment.replaceAll(regex(re), ""))
-		.replaceFirst(regex("^\n"), "")
-		.replaceAll(regex(`\\`), `\\`)
-		.replaceAll(regex("\n"), `\n`).outdent();
-}
-
 /**
  * Dummy doc comment for getCached
  */
@@ -983,14 +952,3 @@ string getCached(string s)
 	return s.length == 0 ? ""
 		: ModuleCache.stringCache.cacheGet(cast(const(ubyte)[]) s);
 }
-
-//unittest
-//{
-//	auto comment1 = "/**\n * This is some text\n */";
-//	auto result1 = formatComment(comment1);
-//	assert (result1 == `This is some text\n\n`, result1);
-//
-//	auto comment2 = "///some\n///text";
-//	auto result2 = formatComment(comment2);
-//	assert (result2 == `some\ntext\n\n`, result2);
-//}

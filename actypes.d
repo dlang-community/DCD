@@ -26,6 +26,12 @@ import std.array;
 import messages;
 import std.array;
 import std.typecons;
+import std.container;
+
+bool comparitor(const(ACSymbol)* a, const(ACSymbol)* b) pure nothrow
+{
+	return a.name < b.name;
+}
 
 /**
  * Any special information about a variable declaration symbol.
@@ -49,6 +55,8 @@ struct ACSymbol
 {
 public:
 
+	@disable this();
+
 	/**
 	 * Params:
 	 *     name = the symbol's name
@@ -56,6 +64,7 @@ public:
 	this(string name)
 	{
 		this.name = name;
+		this.parts = new RedBlackTree!(ACSymbol*, comparitor, true);
 	}
 
 	/**
@@ -67,6 +76,7 @@ public:
 	{
 		this.name = name;
 		this.kind = kind;
+		this.parts = new RedBlackTree!(ACSymbol*, comparitor, true);
 	}
 
 	/**
@@ -75,51 +85,29 @@ public:
 	 *     kind = the symbol's completion kind
 	 *     resolvedType = the resolved type of the symbol
 	 */
-	this(string name, CompletionKind kind, const(ACSymbol)* type)
+	this(string name, CompletionKind kind, ACSymbol* type)
 	{
 		this.name = name;
 		this.kind = kind;
 		this.type = type;
+		this.parts = new RedBlackTree!(ACSymbol*, comparitor, true);
 	}
-
-    /**
-     * Comparison operator sorts based on the name field
-     */
-    int opCmp(string str) const
-    {
-        if (str < this.name) return -1;
-        if (str > this.name) return 1;
-        return 0;
-    }
-
-    /// ditto
-    int opCmp(const(ACSymbol)* other) const
-    {
-        return this.opCmp(other.name);
-    }
 
 	/**
 	 * Gets all parts whose name matches the given string.
 	 */
-	const(ACSymbol)*[] getPartsByName(string name) const
+	ACSymbol*[] getPartsByName(string name)
 	{
-		return cast(typeof(return)) parts.filter!(a => a.name == name).array;
-	}
-
-	size_t estimateMemory(size_t runningTotal) const
-	{
-		runningTotal = runningTotal + name.length + callTip.length
-			+ ACSymbol.sizeof;
-		foreach (part; parts)
-			runningTotal = part.estimateMemory(runningTotal);
-		return runningTotal;
+		import std.range;
+		ACSymbol s = ACSymbol(name);
+		return parts.equalRange(&s).array();
 	}
 
 	/**
 	 * Symbols that compose this symbol, such as enum members, class variables,
 	 * methods, etc.
 	 */
-	const(ACSymbol)*[] parts;
+	RedBlackTree!(ACSymbol*, comparitor, true) parts;
 
 	/**
 	 * Symbol's name
@@ -144,7 +132,7 @@ public:
 	/**
 	 * The symbol that represents the type.
 	 */
-	const(ACSymbol)* type;
+	ACSymbol* type;
 
 	/**
 	 * Symbol location
@@ -164,6 +152,13 @@ public:
 
 struct Scope
 {
+	this (size_t begin, size_t end)
+	{
+		this.startLocation = begin;
+		this.endLocation = end;
+		this.symbols = new RedBlackTree!(ACSymbol*, comparitor, true);
+	}
+
 	Scope* getScopeByCursor(size_t cursorPosition) const
 	{
 		if (cursorPosition < startLocation) return null;
@@ -177,32 +172,38 @@ struct Scope
 		return cast(typeof(return)) &this;
 	}
 
-	const(ACSymbol)*[] getSymbolsInCursorScope(size_t cursorPosition) const
+	ACSymbol*[] getSymbolsInCursorScope(size_t cursorPosition) const
 	{
 		auto s = getScopeByCursor(cursorPosition);
 		if (s is null)
 			return [];
-		const(ACSymbol)*[] symbols = cast(typeof(return)) s.symbols;
+		auto symbols = s.symbols;
 		Scope* sc = s.parent;
 		while (sc !is null)
 		{
-			symbols ~= sc.symbols;
+			foreach (sym; sc.symbols)
+				symbols.insert(sym);
 			sc = sc.parent;
 		}
-		return symbols;
+		return symbols.array();
 	}
 
-	const(ACSymbol)*[] getSymbolsByName(string name) const
+	ACSymbol*[] getSymbolsByName(string name) const
 	{
-		const(ACSymbol)*[] retVal = cast(typeof(return)) symbols.filter!(a => a.name == name).array();
-		if (retVal.length > 0)
-			return retVal;
+		import std.range;
+		ACSymbol s = ACSymbol(name);
+		RedBlackTree!(ACSymbol*, comparitor, true) t = cast() symbols;
+		auto r = t.equalRange(&s).array();
+		version(assert) foreach (n; r)
+			assert (n.name == name, name);
+		if (r.length > 0)
+			return cast(typeof(return)) r;
 		if (parent is null)
 			return [];
 		return parent.getSymbolsByName(name);
 	}
 
-	const(ACSymbol)*[] getSymbolsByNameAndCursor(string name, size_t cursorPosition) const
+	ACSymbol*[] getSymbolsByNameAndCursor(string name, size_t cursorPosition) const
 	{
 		auto s = getScopeByCursor(cursorPosition);
 		if (s is null)
@@ -210,12 +211,23 @@ struct Scope
 		return s.getSymbolsByName(name);
 	}
 
-	const(ACSymbol)*[] symbols;
+	/// Imports contained in this scope
 	ImportInformation[] importInformation;
+
+	/// The scope that contains this one
 	Scope* parent;
+
+	/// Child scopes
 	Scope*[] children;
+
+	/// Start location of this scope in bytes
 	size_t startLocation;
+
+	/// End location of this scope in bytes
 	size_t endLocation;
+
+	/// Symbols contained in this scope
+	RedBlackTree!(ACSymbol*, comparitor, true) symbols;
 }
 
 struct ImportInformation
@@ -236,6 +248,12 @@ struct ImportInformation
  */
 static this()
 {
+	auto bSym = new RedBlackTree!(ACSymbol*, comparitor, true);
+	auto arrSym = new RedBlackTree!(ACSymbol*, comparitor, true);
+	auto asarrSym = new RedBlackTree!(ACSymbol*, comparitor, true);
+	auto aggSym = new RedBlackTree!(ACSymbol*, comparitor, true);
+	auto clSym = new RedBlackTree!(ACSymbol*, comparitor, true);
+
 	auto bool_ = new ACSymbol("bool", CompletionKind.keyword);
 	auto int_ = new ACSymbol("int", CompletionKind.keyword);
 	auto long_ = new ACSymbol("long", CompletionKind.keyword);
@@ -255,46 +273,44 @@ static this()
 	auto stringof_ = new ACSymbol("init", CompletionKind.keyword);
 	auto init = new ACSymbol("stringof", CompletionKind.keyword);
 
-	arraySymbols ~= alignof_;
-	arraySymbols ~= new ACSymbol("dup", CompletionKind.keyword);
-	arraySymbols ~= new ACSymbol("idup", CompletionKind.keyword);
-	arraySymbols ~= init;
-	arraySymbols ~= new ACSymbol("length", CompletionKind.keyword, ulong_);
-	arraySymbols ~= mangleof_;
-	arraySymbols ~= new ACSymbol("ptr", CompletionKind.keyword);
-	arraySymbols ~= new ACSymbol("reverse", CompletionKind.keyword);
-	arraySymbols ~= sizeof_;
-	arraySymbols ~= new ACSymbol("sort", CompletionKind.keyword);
-	arraySymbols ~= stringof_;
-    arraySymbols.sort();
+	arrSym.insert(alignof_);
+	arrSym.insert(new ACSymbol("dup", CompletionKind.keyword));
+	arrSym.insert(new ACSymbol("idup", CompletionKind.keyword));
+	arrSym.insert(init);
+	arrSym.insert(new ACSymbol("length", CompletionKind.keyword, ulong_));
+	arrSym.insert(mangleof_);
+	arrSym.insert(new ACSymbol("ptr", CompletionKind.keyword));
+	arrSym.insert(new ACSymbol("reverse", CompletionKind.keyword));
+	arrSym.insert(sizeof_);
+	arrSym.insert(new ACSymbol("sort", CompletionKind.keyword));
+	arrSym.insert(stringof_);
 
-	assocArraySymbols ~= alignof_;
-	assocArraySymbols ~= new ACSymbol("byKey", CompletionKind.keyword);
-	assocArraySymbols ~= new ACSymbol("byValue", CompletionKind.keyword);
-	assocArraySymbols ~= new ACSymbol("dup", CompletionKind.keyword);
-	assocArraySymbols ~= new ACSymbol("get", CompletionKind.keyword);
-	assocArraySymbols ~= new ACSymbol("init", CompletionKind.keyword);
-	assocArraySymbols ~= new ACSymbol("keys", CompletionKind.keyword);
-	assocArraySymbols ~= new ACSymbol("length", CompletionKind.keyword, ulong_);
-	assocArraySymbols ~= mangleof_;
-	assocArraySymbols ~= new ACSymbol("rehash", CompletionKind.keyword);
-	assocArraySymbols ~= sizeof_;
-	assocArraySymbols ~= stringof_;
-	assocArraySymbols ~= init;
-	assocArraySymbols ~= new ACSymbol("values", CompletionKind.keyword);
-	assocArraySymbols.sort();
+	asarrSym.insert(alignof_);
+	asarrSym.insert(new ACSymbol("byKey", CompletionKind.keyword));
+	asarrSym.insert(new ACSymbol("byValue", CompletionKind.keyword));
+	asarrSym.insert(new ACSymbol("dup", CompletionKind.keyword));
+	asarrSym.insert(new ACSymbol("get", CompletionKind.keyword));
+	asarrSym.insert(new ACSymbol("init", CompletionKind.keyword));
+	asarrSym.insert(new ACSymbol("keys", CompletionKind.keyword));
+	asarrSym.insert(new ACSymbol("length", CompletionKind.keyword, ulong_));
+	asarrSym.insert(mangleof_);
+	asarrSym.insert(new ACSymbol("rehash", CompletionKind.keyword));
+	asarrSym.insert(sizeof_);
+	asarrSym.insert(stringof_);
+	asarrSym.insert(init);
+	asarrSym.insert(new ACSymbol("values", CompletionKind.keyword));
 
 	foreach (s; [bool_, int_, long_, byte_, char_, dchar_, short_, ubyte_, uint_,
 		ulong_, ushort_, wchar_])
 	{
-		s.parts ~= new ACSymbol("init", CompletionKind.keyword, s);
-		s.parts ~= new ACSymbol("min", CompletionKind.keyword, s);
-		s.parts ~= new ACSymbol("max", CompletionKind.keyword, s);
-		s.parts ~= alignof_;
-		s.parts ~= sizeof_;
-		s.parts ~= stringof_;
-		s.parts ~= mangleof_;
-		s.parts ~= init;
+		s.parts.insert(new ACSymbol("init", CompletionKind.keyword, s));
+		s.parts.insert(new ACSymbol("min", CompletionKind.keyword, s));
+		s.parts.insert(new ACSymbol("max", CompletionKind.keyword, s));
+		s.parts.insert(alignof_);
+		s.parts.insert(sizeof_);
+		s.parts.insert(stringof_);
+		s.parts.insert(mangleof_);
+		s.parts.insert(init);
 	}
 
 	auto cdouble_ = new ACSymbol("cdouble", CompletionKind.keyword);
@@ -312,54 +328,54 @@ static this()
 	foreach (s; [cdouble_, cent_, cfloat_, creal_, double_, float_,
 		idouble_, ifloat_, ireal_, real_, ucent_])
 	{
-		s.parts ~= alignof_;
-		s.parts ~= new ACSymbol("dig", CompletionKind.keyword, s);
-		s.parts ~= new ACSymbol("epsilon", CompletionKind.keyword, s);
-		s.parts ~= new ACSymbol("infinity", CompletionKind.keyword, s);
-		s.parts ~= new ACSymbol("init", CompletionKind.keyword, s);
-		s.parts ~= mangleof_;
-		s.parts ~= new ACSymbol("mant_dig", CompletionKind.keyword, int_);
-		s.parts ~= new ACSymbol("max", CompletionKind.keyword, s);
-		s.parts ~= new ACSymbol("max_10_exp", CompletionKind.keyword, int_);
-		s.parts ~= new ACSymbol("max_exp", CompletionKind.keyword, int_);
-		s.parts ~= new ACSymbol("min", CompletionKind.keyword, s);
-		s.parts ~= new ACSymbol("min_exp", CompletionKind.keyword, int_);
-		s.parts ~= new ACSymbol("min_10_exp", CompletionKind.keyword, int_);
-		s.parts ~= new ACSymbol("min_normal", CompletionKind.keyword, s);
-		s.parts ~= new ACSymbol("nan", CompletionKind.keyword, s);
-		s.parts ~= sizeof_;
-		s.parts ~= stringof_;
+		s.parts.insert(alignof_);
+		s.parts.insert(new ACSymbol("dig", CompletionKind.keyword, s));
+		s.parts.insert(new ACSymbol("epsilon", CompletionKind.keyword, s));
+		s.parts.insert(new ACSymbol("infinity", CompletionKind.keyword, s));
+		s.parts.insert(new ACSymbol("init", CompletionKind.keyword, s));
+		s.parts.insert(mangleof_);
+		s.parts.insert(new ACSymbol("mant_dig", CompletionKind.keyword, int_));
+		s.parts.insert(new ACSymbol("max", CompletionKind.keyword, s));
+		s.parts.insert(new ACSymbol("max_10_exp", CompletionKind.keyword, int_));
+		s.parts.insert(new ACSymbol("max_exp", CompletionKind.keyword, int_));
+		s.parts.insert(new ACSymbol("min", CompletionKind.keyword, s));
+		s.parts.insert(new ACSymbol("min_exp", CompletionKind.keyword, int_));
+		s.parts.insert(new ACSymbol("min_10_exp", CompletionKind.keyword, int_));
+		s.parts.insert(new ACSymbol("min_normal", CompletionKind.keyword, s));
+		s.parts.insert(new ACSymbol("nan", CompletionKind.keyword, s));
+		s.parts.insert(sizeof_);
+		s.parts.insert(stringof_);
 	}
 
-	aggregateSymbols ~= new ACSymbol("tupleof", CompletionKind.variableName);
-	aggregateSymbols ~= mangleof_;
-	aggregateSymbols ~= alignof_;
-	aggregateSymbols ~= sizeof_;
-	aggregateSymbols ~= stringof_;
-	aggregateSymbols ~= init;
+	aggSym.insert(new ACSymbol("tupleof", CompletionKind.variableName));
+	aggSym.insert(mangleof_);
+	aggSym.insert(alignof_);
+	aggSym.insert(sizeof_);
+	aggSym.insert(stringof_);
+	aggSym.insert(init);
 
-	classSymbols ~= new ACSymbol("classInfo", CompletionKind.variableName);
-	classSymbols ~= new ACSymbol("tupleof", CompletionKind.variableName);
-	classSymbols ~= new ACSymbol("__vptr", CompletionKind.variableName);
-	classSymbols ~= new ACSymbol("__monitor", CompletionKind.variableName);
-	classSymbols ~= mangleof_;
-	classSymbols ~= alignof_;
-	classSymbols ~= sizeof_;
-	classSymbols ~= stringof_;
-	classSymbols ~= init;
+	clSym.insert(new ACSymbol("classInfo", CompletionKind.variableName));
+	clSym.insert(new ACSymbol("tupleof", CompletionKind.variableName));
+	clSym.insert(new ACSymbol("__vptr", CompletionKind.variableName));
+	clSym.insert(new ACSymbol("__monitor", CompletionKind.variableName));
+	clSym.insert(mangleof_);
+	clSym.insert(alignof_);
+	clSym.insert(sizeof_);
+	clSym.insert(stringof_);
+	clSym.insert(init);
 
-	ireal_.parts ~= new ACSymbol("im", CompletionKind.keyword, real_);
-	ifloat_.parts ~= new ACSymbol("im", CompletionKind.keyword, float_);
-	idouble_.parts ~= new ACSymbol("im", CompletionKind.keyword, double_);
-	ireal_.parts ~= new ACSymbol("re", CompletionKind.keyword, real_);
-	ifloat_.parts ~= new ACSymbol("re", CompletionKind.keyword, float_);
-	idouble_.parts ~= new ACSymbol("re", CompletionKind.keyword, double_);
+	ireal_.parts.insert(new ACSymbol("im", CompletionKind.keyword, real_));
+	ifloat_.parts.insert(new ACSymbol("im", CompletionKind.keyword, float_));
+	idouble_.parts.insert(new ACSymbol("im", CompletionKind.keyword, double_));
+	ireal_.parts.insert(new ACSymbol("re", CompletionKind.keyword, real_));
+	ifloat_.parts.insert(new ACSymbol("re", CompletionKind.keyword, float_));
+	idouble_.parts.insert(new ACSymbol("re", CompletionKind.keyword, double_));
 
 	auto void_ = new ACSymbol("void", CompletionKind.keyword);
 
-	builtinSymbols = [bool_, int_, long_, byte_, char_, dchar_, short_, ubyte_, uint_,
+	bSym.insert([bool_, int_, long_, byte_, char_, dchar_, short_, ubyte_, uint_,
 		ulong_, ushort_, wchar_, cdouble_, cent_, cfloat_, creal_, double_,
-		float_, idouble_, ifloat_, ireal_, real_, ucent_, void_];
+		float_, idouble_, ifloat_, ireal_, real_, ucent_, void_]);
 
 	// _argptr has type void*
 	argptrType = new Type;
@@ -382,12 +398,18 @@ static this()
 	TypeSuffix argumentsTypeSuffix = new TypeSuffix;
 	argumentsTypeSuffix.array = true;
 	argumentsType.typeSuffixes ~= argptrTypeSuffix;
+
+	builtinSymbols = bSym;
+	arraySymbols = arrSym;
+	assocArraySymbols = asarrSym;
+	aggregateSymbols = aggSym;
+	classSymbols = clSym;
 }
 
-const(ACSymbol)*[] builtinSymbols;
-const(ACSymbol)*[] arraySymbols;
-const(ACSymbol)*[] assocArraySymbols;
-const(ACSymbol)*[] aggregateSymbols;
-const(ACSymbol)*[] classSymbols;
+RedBlackTree!(ACSymbol*, comparitor, true) builtinSymbols;
+RedBlackTree!(ACSymbol*, comparitor, true) arraySymbols;
+RedBlackTree!(ACSymbol*, comparitor, true) assocArraySymbols;
+RedBlackTree!(ACSymbol*, comparitor, true) aggregateSymbols;
+RedBlackTree!(ACSymbol*, comparitor, true) classSymbols;
 Type argptrType;
 Type argumentsType;

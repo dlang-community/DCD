@@ -29,16 +29,23 @@ import std.array;
 import std.path;
 import std.algorithm;
 import std.conv;
+import std.container;
 
 import actypes;
 import semantic;
 import astconverter;
 import stupidlog;
 
-struct CacheEntry
+bool cacheComparitor(CacheEntry* a, CacheEntry* b) pure nothrow
 {
-	const(ACSymbol)*[] symbols;
+	return cast(ubyte[]) a.path < cast(ubyte[]) b.path;
+}
+
+private struct CacheEntry
+{
+	ACSymbol*[] symbols;
 	SysTime modificationTime;
+	string path;
 	void opAssign(ref const CacheEntry other)
 	{
 		this.symbols = cast(typeof(symbols)) other.symbols;
@@ -54,6 +61,11 @@ bool existanceCheck(A)(A path)
 	return false;
 }
 
+static this()
+{
+	ModuleCache.cache = new RedBlackTree!(CacheEntry*, cacheComparitor);
+}
+
 /**
  * Caches pre-parsed module information.
  */
@@ -66,7 +78,7 @@ struct ModuleCache
 	 */
 	static void clear()
 	{
-		cache = cache.init;
+		cache.clear();
 	}
 
 	/**
@@ -91,15 +103,18 @@ struct ModuleCache
 	 * Returns:
 	 *     The symbols defined in the given module
 	 */
-	static const(ACSymbol)*[] getSymbolsInModule(string location)
+	static ACSymbol*[] getSymbolsInModule(string location)
 	{
 		if (location is null)
 			return [];
 
 		if (!needsReparsing(location))
 		{
-			if (location in cache)
-				return cache[location].symbols;
+			CacheEntry e;
+			e.path = location;
+			auto r = cache.equalRange(&e);
+			if (!r.empty)
+				return r.front.symbols;
 			return [];
 		}
 
@@ -107,25 +122,21 @@ struct ModuleCache
 
 		recursionGuard[location] = true;
 
-		const(ACSymbol)*[] symbols;
+		ACSymbol*[] symbols;
 		try
 		{
+			import core.memory;
 			File f = File(location);
 			ubyte[] source = uninitializedArray!(ubyte[])(cast(size_t)f.size);
 			f.rawRead(source);
 
+			GC.disable();
 			LexerConfig config;
 			config.fileName = location;
 			StringCache* cache = new StringCache(StringCache.defaultBucketCount);
 			auto tokens = source.byToken(config, cache).array();
 			symbols = convertAstToSymbols(tokens, location);
-
-			// Parsing allocates a lot of AST nodes. We can greatly reduce the
-			// program's idle memory use by running the GC here.
-			// TODO: Re-visit this when D gets a precise GC.
-			import core.memory;
-			GC.collect();
-			GC.minimize();
+			GC.enable();
 		}
 		catch (Exception ex)
 		{
@@ -135,8 +146,8 @@ struct ModuleCache
 		SysTime access;
 		SysTime modification;
 		getTimes(location, access, modification);
-		CacheEntry c = CacheEntry(symbols, modification);
-		cache[location] = c;
+		CacheEntry* c = new CacheEntry(symbols, modification, location);
+		cache.insert(c);
 		recursionGuard[location] = false;
 		return symbols;
 	}
@@ -202,16 +213,21 @@ private:
 			return true;
 		if (recursionGuard[mod])
 			return false;
-		if (!exists(mod) || mod !in cache)
+		if (!exists(mod))
+			return true;
+		CacheEntry e;
+		e.path = mod;
+		auto r = cache.equalRange(&e);
+		if (r.empty)
 			return true;
 		SysTime access;
 		SysTime modification;
 		getTimes(mod, access, modification);
-		return cache[mod].modificationTime != modification;
+		return r.front.modificationTime != modification;
 	}
 
 	// Mapping of file paths to their cached symbols.
-	static CacheEntry[string] cache;
+	static RedBlackTree!(CacheEntry*, cacheComparitor) cache;
 
 	static bool[string] recursionGuard;
 

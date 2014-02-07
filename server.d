@@ -96,8 +96,6 @@ int main(string[] args)
 
 	sw.stop();
 	Log.info("Startup completed in ", sw.peek().to!("msecs", float), " milliseconds");
-//	ModuleCache.estimateMemory();
-
 
     // No relative paths
 	version (Posix) chdir("/");

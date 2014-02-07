@@ -66,7 +66,7 @@ AutocompleteResponse getDoc(const AutocompleteRequest request)
 	const(Scope)* completionScope = generateAutocompleteTrees(tokenArray, "stdin");
 	auto expression = getExpression(beforeTokens);
 
-	const(ACSymbol)*[] symbols = getSymbolsByTokenChain(completionScope, expression,
+	ACSymbol*[] symbols = getSymbolsByTokenChain(completionScope, expression,
 		request.cursorPosition, CompletionType.ddoc);
 
 	if (symbols.length == 0)
@@ -79,7 +79,7 @@ AutocompleteResponse getDoc(const AutocompleteRequest request)
 			continue;
 		}
 		Log.trace("Adding doc comment for ", symbol.name, ": ", symbol.doc);
-		response.docComments ~= symbol.doc;
+		response.docComments ~= formatComment(symbol.doc);
 	}
 	return response;
 }
@@ -112,7 +112,7 @@ AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 	const(Scope)* completionScope = generateAutocompleteTrees(tokenArray, "stdin");
 	auto expression = getExpression(beforeTokens);
 
-	const(ACSymbol)*[] symbols = getSymbolsByTokenChain(completionScope, expression,
+	ACSymbol*[] symbols = getSymbolsByTokenChain(completionScope, expression,
 		request.cursorPosition, CompletionType.location);
 
 	if (symbols.length > 0)
@@ -156,12 +156,12 @@ bool shouldSwapWithType(CompletionType completionType, CompletionKind kind,
 	return completionType == CompletionType.identifiers && isInteresting;
 }
 
-const(ACSymbol)*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
+ACSymbol*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
 	T tokens, size_t cursorPosition, CompletionType completionType)
 {
 	Log.trace("Getting symbols from token chain", tokens.map!"a.text");
 	// Find the symbol corresponding to the beginning of the chain
-	const(ACSymbol)*[] symbols = completionScope.getSymbolsByNameAndCursor(
+	ACSymbol*[] symbols = completionScope.getSymbolsByNameAndCursor(
 		tokens[0].text, cursorPosition);
 	if (symbols.length == 0)
 	{
@@ -293,7 +293,7 @@ const(ACSymbol)*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
 				skip();
 				Parser p = new Parser();
 				p.setTokens(tokens[h .. i].array());
-				const(ACSymbol)*[] overloads;
+				ACSymbol*[] overloads;
 				if (p.isSliceExpression())
 					overloads = symbols[0].getPartsByName("opSlice");
 				else
@@ -395,7 +395,7 @@ dotCompletion:
 		case tok!"stringLiteral":
 		case tok!"wstringLiteral":
 		case tok!"dstringLiteral":
-			foreach (symbol; arraySymbols)
+			foreach (symbol; (cast() arraySymbols)[])
 			{
 				response.completionKinds ~= symbol.kind;
 				response.completions ~= symbol.name;
@@ -478,7 +478,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	if (tokens.length == 0)
 		return;
 
-	const(ACSymbol)*[] symbols = getSymbolsByTokenChain(completionScope, tokens,
+	ACSymbol*[] symbols = getSymbolsByTokenChain(completionScope, tokens,
 		cursorPosition, completionType);
 
 	if (symbols.length == 0)
@@ -494,7 +494,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			if (symbols.length == 0)
 				return;
 		}
-		foreach (s; symbols[0].parts.filter!(a => a.name !is null
+		foreach (s; symbols[0].parts[].filter!(a => a.name !is null
 			&& a.name.length > 0 && a.name[0] != '*'
 			&& (partial is null ? true : a.name.toUpper().startsWith(partial.toUpper()))
 			&& !response.completions.canFind(a.name)))
@@ -671,3 +671,36 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
 		}
 	}
 }
+
+string formatComment(string comment)
+{
+	import std.string;
+	import std.regex;
+	enum tripleSlashRegex = `(?:\t )*///`;
+	enum slashStarRegex = `(?:^/\*\*+)|(?:\n?\s*\*+/$)|(?:(?<=\n)\s*\* ?)`;
+	enum slashPlusRegex = `(?:^/\+\++)|(?:\n?\s*\++/$)|(?:(?<=\n)\s*\+ ?)`;
+	if (comment is null)
+		return null;
+	string re;
+	if (comment[0 .. 3] == "///")
+		re = tripleSlashRegex;
+	else if (comment[1] == '+')
+		re = slashPlusRegex;
+	else
+		re = slashStarRegex;
+	return (comment.replaceAll(regex(re), ""))
+		.replaceFirst(regex("^\n"), "")
+		.replaceAll(regex(`\\`), `\\`)
+		.replaceAll(regex("\n"), `\n`).outdent();
+}
+
+//unittest
+//{
+//	auto comment1 = "/**\n * This is some text\n */";
+//	auto result1 = formatComment(comment1);
+//	assert (result1 == `This is some text\n\n`, result1);
+//
+//	auto comment2 = "///some\n///text";
+//	auto result2 = formatComment(comment2);
+//	assert (result2 == `some\ntext\n\n`, result2);
+//}
