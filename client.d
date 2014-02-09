@@ -1,6 +1,6 @@
 /**
  * This file is part of DCD, a development tool for the D programming language.
- * Copyright (C) 2013 Brian Schott
+ * Copyright (C) 2014 Brian Schott
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

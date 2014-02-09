@@ -1,6 +1,6 @@
 /**
  * This file is part of DCD, a development tool for the D programming language.
- * Copyright (C) 2013 Brian Schott
+ * Copyright (C) 2014 Brian Schott
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -151,19 +151,42 @@ int main(string[] args)
 			Log.info("Shutting down.");
 			break serverLoop;
 		case RequestKind.autocomplete:
-			AutocompleteResponse response = complete(request);
-			ubyte[] responseBytes = msgpack.pack(response);
-			s.send(responseBytes);
+			try
+			{
+				AutocompleteResponse response = complete(request);
+				ubyte[] responseBytes = msgpack.pack(response);
+				s.send(responseBytes);
+			}
+			catch (Exception e)
+			{
+				Log.error("Could not handle autocomplete request due to an exception:",
+					e.msg);
+			}
 			break;
 		case RequestKind.doc:
-			AutocompleteResponse response = getDoc(request);
-			ubyte[] responseBytes = msgpack.pack(response);
-			s.send(responseBytes);
+			try
+			{
+				AutocompleteResponse response = getDoc(request);
+				ubyte[] responseBytes = msgpack.pack(response);
+				s.send(responseBytes);
+			}
+			catch (Exception e)
+			{
+				Log.error("Could not get DDoc information", e.msg);
+			}
+
 			break;
 		case RequestKind.symbolLocation:
-			AutocompleteResponse response = findDeclaration(request);
-			ubyte[] responseBytes = msgpack.pack(response);
-			s.send(responseBytes);
+			try
+			{
+				AutocompleteResponse response = findDeclaration(request);
+				ubyte[] responseBytes = msgpack.pack(response);
+				s.send(responseBytes);
+			}
+			catch (Exception e)
+			{
+				Log.error("Could not get symbol location", e.msg);
+			}
 			break;
 		}
 		Log.info("Request processed in ", requestWatch.peek().to!("msecs", float), " milliseconds");
@@ -171,6 +194,9 @@ int main(string[] args)
 	return 0;
 }
 
+/**
+ * Locates the configuration file
+ */
 string getConfigurationLocation()
 {
 	version (useXDG)
@@ -208,6 +234,9 @@ void warnAboutOldConfigLocation()
 	}
 }
 
+/**
+ * Loads import directories from the configuration file
+ */
 string[] loadConfiguredImportDirs()
 {
 	warnAboutOldConfigLocation();

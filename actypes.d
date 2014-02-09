@@ -1,6 +1,6 @@
 /**
  * This file is part of DCD, a development tool for the D programming language.
- * Copyright (C) 2013 Brian Schott
+ * Copyright (C) 2014 Brian Schott
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,6 +28,9 @@ import std.array;
 import std.typecons;
 import std.container;
 
+/**
+ * Compares symbols by their name
+ */
 bool comparitor(const(ACSymbol)* a, const(ACSymbol)* b) pure nothrow
 {
 	return a.name < b.name;
@@ -150,8 +153,16 @@ public:
 	SymbolQualifier qualifier;
 }
 
+/**
+ * Contains symbols and supports lookup of symbols by cursor position.
+ */
 struct Scope
 {
+	/**
+	 * Params:
+	 *     begin = the beginning byte index
+	 *     end = the ending byte index
+	 */
 	this (size_t begin, size_t end)
 	{
 		this.startLocation = begin;
@@ -159,6 +170,12 @@ struct Scope
 		this.symbols = new RedBlackTree!(ACSymbol*, comparitor, true);
 	}
 
+	/**
+	 * Params:
+	 *     cursorPosition = the cursor position in bytes
+	 * Returns:
+	 *     the innermost scope that contains the given cursor position
+	 */
 	Scope* getScopeByCursor(size_t cursorPosition) const
 	{
 		if (cursorPosition < startLocation) return null;
@@ -172,6 +189,13 @@ struct Scope
 		return cast(typeof(return)) &this;
 	}
 
+	/**
+	 * Params:
+	 *     cursorPosition = the cursor position in bytes
+	 * Returns:
+	 *     all symbols in the scope containing the cursor position, as well as
+	 *     the symbols in parent scopes of that scope.
+	 */
 	ACSymbol*[] getSymbolsInCursorScope(size_t cursorPosition) const
 	{
 		auto s = getScopeByCursor(cursorPosition);
@@ -188,14 +212,18 @@ struct Scope
 		return symbols.array();
 	}
 
+	/**
+	 * Params:
+	 *     name = the symbol name to search for
+	 * Returns:
+	 *     all symbols in this scope or parent scopes with the given name
+	 */
 	ACSymbol*[] getSymbolsByName(string name) const
 	{
 		import std.range;
 		ACSymbol s = ACSymbol(name);
 		RedBlackTree!(ACSymbol*, comparitor, true) t = cast() symbols;
 		auto r = t.equalRange(&s).array();
-		version(assert) foreach (n; r)
-			assert (n.name == name, name);
 		if (r.length > 0)
 			return cast(typeof(return)) r;
 		if (parent is null)
@@ -203,6 +231,14 @@ struct Scope
 		return parent.getSymbolsByName(name);
 	}
 
+	/**
+	 * Params:
+	 *     name = the symbol name to search for
+	 *     cursorPosition = the cursor position in bytes
+	 * Returns:
+	 *     all symbols with the given name in the scope containing the cursor
+	 *     and its parent scopes
+	 */
 	ACSymbol*[] getSymbolsByNameAndCursor(string name, size_t cursorPosition) const
 	{
 		auto s = getScopeByCursor(cursorPosition);
@@ -230,6 +266,9 @@ struct Scope
 	RedBlackTree!(ACSymbol*, comparitor, true) symbols;
 }
 
+/**
+ * Import information
+ */
 struct ImportInformation
 {
 	/// Import statement parts
@@ -242,6 +281,41 @@ struct ImportInformation
 	bool isPublic;
 }
 
+
+/**
+ * Symbols for the built in types
+ */
+RedBlackTree!(ACSymbol*, comparitor, true) builtinSymbols;
+
+/**
+ * Array properties
+ */
+RedBlackTree!(ACSymbol*, comparitor, true) arraySymbols;
+
+/**
+ * Associative array properties
+ */
+RedBlackTree!(ACSymbol*, comparitor, true) assocArraySymbols;
+
+/**
+ * Enum, union, class, and interface properties
+ */
+RedBlackTree!(ACSymbol*, comparitor, true) aggregateSymbols;
+
+/**
+ * Class properties
+ */
+RedBlackTree!(ACSymbol*, comparitor, true) classSymbols;
+
+/**
+ * Type of the _argptr variable
+ */
+Type argptrType;
+
+/**
+ * Type of _arguments
+ */
+Type argumentsType;
 
 /**
  * Initializes builtin types and the various properties of builtin types
@@ -406,10 +480,3 @@ static this()
 	classSymbols = clSym;
 }
 
-RedBlackTree!(ACSymbol*, comparitor, true) builtinSymbols;
-RedBlackTree!(ACSymbol*, comparitor, true) arraySymbols;
-RedBlackTree!(ACSymbol*, comparitor, true) assocArraySymbols;
-RedBlackTree!(ACSymbol*, comparitor, true) aggregateSymbols;
-RedBlackTree!(ACSymbol*, comparitor, true) classSymbols;
-Type argptrType;
-Type argumentsType;

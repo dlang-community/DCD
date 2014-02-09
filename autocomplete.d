@@ -1,9 +1,7 @@
-/*******************************************************************************
- * Authors: Brian Schott
- * Copyright: Brian Schott
- * Date: Jul 19 2013
+/**
+ * This file is part of DCD, a development tool for the D programming language.
+ * Copyright (C) 2014 Brian Schott
  *
- * License:
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -16,7 +14,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- ******************************************************************************/
+ */
 
 module autocomplete;
 
@@ -40,35 +38,18 @@ import modulecache;
 import astconverter;
 import stupidlog;
 
+/**
+ * Gets documentation for the symbol at the cursor
+ * Params:
+ *     request = the autocompletion request
+ * Returns:
+ *     the autocompletion response
+ */
 AutocompleteResponse getDoc(const AutocompleteRequest request)
 {
 	Log.trace("Getting doc comments");
-
 	AutocompleteResponse response;
-	LexerConfig config;
-	config.fileName = "stdin";
-	StringCache* cache = new StringCache(StringCache.defaultBucketCount);
-	auto tokens = byToken(cast(ubyte[]) request.sourceCode, config, cache);
-	const(Token)[] tokenArray = void;
-	try {
-		tokenArray = tokens.array();
-	} catch (Exception e) {
-		Log.error("Could not provide autocomplete due to lexing exception: ", e.msg);
-		return response;
-	}
-	auto sortedTokens = assumeSorted(tokenArray);
-	string partial;
-
-	auto beforeTokens = sortedTokens.lowerBound(cast(size_t) request.cursorPosition);
-
-	Log.trace("Token at cursor: ", beforeTokens[$ - 1].text);
-
-	const(Scope)* completionScope = generateAutocompleteTrees(tokenArray, "stdin");
-	auto expression = getExpression(beforeTokens);
-
-	ACSymbol*[] symbols = getSymbolsByTokenChain(completionScope, expression,
-		request.cursorPosition, CompletionType.ddoc);
-
+	ACSymbol*[] symbols = getSymbolsForCompletion(request, CompletionType.ddoc);
 	if (symbols.length == 0)
 		Log.error("Could not find symbol");
 	else foreach (symbol; symbols)
@@ -86,76 +67,213 @@ AutocompleteResponse getDoc(const AutocompleteRequest request)
 
 /**
  * Finds the declaration of the symbol at the cursor position.
+ * Params:
+ *     request = the autocompletion request
+ * Returns:
+ *     the autocompletion response
  */
 AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 {
 	Log.trace("Finding declaration");
 	AutocompleteResponse response;
-	LexerConfig config;
-	config.fileName = "stdin";
-	StringCache* cache = new StringCache(StringCache.defaultBucketCount);
-	auto tokens = byToken(cast(ubyte[]) request.sourceCode, config, cache);
-	const(Token)[] tokenArray = void;
-	try {
-		tokenArray = tokens.array();
-	} catch (Exception e) {
-		Log.error("Could not provide autocomplete due to lexing exception: ", e.msg);
-		return response;
-	}
-	auto sortedTokens = assumeSorted(tokenArray);
-	string partial;
-
-	auto beforeTokens = sortedTokens.lowerBound(cast(size_t) request.cursorPosition);
-
-	Log.trace("Token at cursor: ", beforeTokens[$ - 1].text);
-
-	const(Scope)* completionScope = generateAutocompleteTrees(tokenArray, "stdin");
-	auto expression = getExpression(beforeTokens);
-
-	ACSymbol*[] symbols = getSymbolsByTokenChain(completionScope, expression,
-		request.cursorPosition, CompletionType.location);
-
+	ACSymbol*[] symbols = getSymbolsForCompletion(request, CompletionType.location);
 	if (symbols.length > 0)
 	{
 		response.symbolLocation = symbols[0].location;
 		response.symbolFilePath = symbols[0].symbolFile;
-		Log.info(beforeTokens[$ - 1].text, " declared in ",
+		Log.info(symbols[0].name, " declared in ",
 			response.symbolFilePath, " at ", response.symbolLocation);
 	}
 	else
-	{
 		Log.error("Could not find symbol");
-	}
-
 	return response;
 }
 
-bool shouldSwapWithType(CompletionType completionType, CompletionKind kind,
-	size_t current, size_t max) pure nothrow @safe
+/**
+ * Handles autocompletion
+ * Params:
+ *     request = the autocompletion request
+ * Returns:
+ *     the autocompletion response
+ */
+AutocompleteResponse complete(const AutocompleteRequest request)
 {
-	// Modules and packages never have types, so always return false
-	if (kind == CompletionKind.moduleName
-		|| kind == CompletionKind.packageName
-		|| kind == CompletionKind.className
-		|| kind == CompletionKind.structName
-		|| kind == CompletionKind.interfaceName
-		|| kind == CompletionKind.enumName
-		|| kind == CompletionKind.unionName)
+	Log.info("Got a completion request");
+
+	const(Token)[] tokenArray;
+	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
+		request.cursorPosition, tokenArray);
+	string partial;
+	IdType tokenType;
+
+	if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == tok!"(")
+		return parenCompletion(beforeTokens, tokenArray, request.cursorPosition);
+
+	AutocompleteResponse response;
+	if (beforeTokens.length >= 1 && beforeTokens[$ - 1] == tok!"identifier")
 	{
-		return false;
+		partial = beforeTokens[$ - 1].text;
+		tokenType = beforeTokens[$ - 1].type;
+		beforeTokens = beforeTokens[0 .. $ - 1];
 	}
-	// Swap out every part of a chain with its type except the last part
-	if (current < max)
-		return true;
-	// Only swap out types for these kinds
-	immutable bool isInteresting =
-		kind == CompletionKind.variableName
-		|| kind == CompletionKind.memberVariableName
-		|| kind == CompletionKind.enumMember
-		|| kind == CompletionKind.functionName;
-	return completionType == CompletionType.identifiers && isInteresting;
+	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] ==  tok!".")
+		tokenType = beforeTokens[$ - 2].type;
+	else
+		return response;
+
+	switch (tokenType)
+	{
+	case tok!"stringLiteral":
+	case tok!"wstringLiteral":
+	case tok!"dstringLiteral":
+		foreach (symbol; (cast() arraySymbols)[])
+		{
+			response.completionKinds ~= symbol.kind;
+			response.completions ~= symbol.name;
+		}
+		response.completionType = CompletionType.identifiers;
+		break;
+	case tok!"int":
+	case tok!"uint":
+	case tok!"long":
+	case tok!"ulong":
+	case tok!"char":
+	case tok!"wchar":
+	case tok!"dchar":
+	case tok!"bool":
+	case tok!"byte":
+	case tok!"ubyte":
+	case tok!"short":
+	case tok!"ushort":
+	case tok!"cent":
+	case tok!"ucent":
+	case tok!"float":
+	case tok!"ifloat":
+	case tok!"cfloat":
+	case tok!"idouble":
+	case tok!"cdouble":
+	case tok!"double":
+	case tok!"real":
+	case tok!"ireal":
+	case tok!"creal":
+	case tok!"identifier":
+	case tok!")":
+	case tok!"]":
+	case tok!"this":
+		const(Scope)* completionScope = generateAutocompleteTrees(tokenArray,
+			"stdin");
+		auto expression = getExpression(beforeTokens);
+		response.setCompletions(completionScope, expression,
+			request.cursorPosition, CompletionType.identifiers, partial);
+		break;
+	case tok!"(":
+	case tok!"{":
+	case tok!"[":
+	case tok!";":
+	case tok!":":
+		// TODO: global scope
+		break;
+	default:
+		break;
+	}
+	return response;
 }
 
+/**
+ * Params:
+ *     sourceCode = the source code of the file being edited
+ *     cursorPosition = the cursor position in bytes
+ * Returns:
+ *     a sorted range of tokens before the cursor position
+ */
+auto getTokensBeforeCursor(const(ubyte[]) sourceCode, size_t cursorPosition,
+	out const(Token)[] tokenArray)
+{
+	LexerConfig config;
+	config.fileName = "stdin";
+	StringCache* cache = new StringCache(StringCache.defaultBucketCount);
+	auto tokens = byToken(cast(ubyte[]) sourceCode, config, cache);
+	tokenArray = tokens.array();
+	auto sortedTokens = assumeSorted(tokenArray);
+	return sortedTokens.lowerBound(cast(size_t) cursorPosition);
+}
+
+/**
+ * Params:
+ *     request = the autocompletion request
+ *     type = type the autocompletion type
+ * Returns:
+ *     all symbols that should be considered for the autocomplete list based on
+ *     the request's source code, cursor position, and completion type.
+ */
+ACSymbol*[] getSymbolsForCompletion(const AutocompleteRequest request,
+	const CompletionType type)
+{
+	const(Token)[] tokenArray;
+	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
+		request.cursorPosition, tokenArray);
+	const(Scope)* completionScope = generateAutocompleteTrees(tokenArray, "stdin");
+	auto expression = getExpression(beforeTokens);
+	return getSymbolsByTokenChain(completionScope, expression,
+		request.cursorPosition, type);
+}
+
+/**
+ * Handles paren completion for function calls and some keywords
+ * Params:
+ *     beforeTokens = the tokens before the cursor
+ *     tokenArray = all tokens in the file
+ *     cursorPosition = the cursor position in bytes
+ * Returns:
+ *     the autocompletion response
+ */
+AutocompleteResponse parenCompletion(T)(T beforeTokens,
+	const(Token)[] tokenArray, size_t cursorPosition)
+{
+	AutocompleteResponse response;
+	immutable(string)[] completions;
+	switch (beforeTokens[$ - 2].type)
+	{
+	case tok!"__traits":
+		completions = traits;
+		goto fillResponse;
+	case tok!"scope":
+		completions = scopes;
+		goto fillResponse;
+	case tok!"version":
+		completions = versions;
+		goto fillResponse;
+	case tok!"extern":
+		completions = linkages;
+		goto fillResponse;
+	case tok!"pragma":
+		completions = pragmas;
+	fillResponse:
+		response.completionType = CompletionType.identifiers;
+		for (size_t i = 0; i < completions.length; i++)
+		{
+			response.completions ~= completions[i];
+			response.completionKinds ~= CompletionKind.keyword;
+		}
+		break;
+	case tok!"identifier":
+	case tok!")":
+	case tok!"]":
+		const(Scope)* completionScope = generateAutocompleteTrees(tokenArray,
+			"stdin");
+		auto expression = getExpression(beforeTokens[0 .. $ - 1]);
+		response.setCompletions(completionScope, expression,
+			cursorPosition, CompletionType.calltips);
+		break;
+	default:
+		break;
+	}
+	return response;
+}
+
+/**
+ *
+ */
 ACSymbol*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
 	T tokens, size_t cursorPosition, CompletionType completionType)
 {
@@ -315,140 +433,9 @@ ACSymbol*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
 	return symbols;
 }
 
-AutocompleteResponse complete(const AutocompleteRequest request)
-{
-	Log.info("Got a completion request");
-	AutocompleteResponse response;
-
-	LexerConfig config;
-	config.fileName = "stdin";
-	StringCache* cache = new StringCache(StringCache.defaultBucketCount);
-	auto tokens = byToken(cast(ubyte[]) request.sourceCode, config,
-		cache);
-	const(Token)[] tokenArray = void;
-	try {
-		tokenArray = tokens.array();
-	} catch (Exception e) {
-		Log.error("Could not provide autocomplete due to lexing exception: ", e.msg);
-		return response;
-	}
-	auto sortedTokens = assumeSorted(tokenArray);
-	string partial;
-
-	auto beforeTokens = sortedTokens.lowerBound(cast(size_t) request.cursorPosition);
-
-	IdType tokenType;
-
-	if (beforeTokens.length >= 1 && beforeTokens[$ - 1] == tok!"identifier")
-	{
-		partial = beforeTokens[$ - 1].text;
-		tokenType = beforeTokens[$ - 1].type;
-		beforeTokens = beforeTokens[0 .. $ - 1];
-		goto dotCompletion;
-	}
-	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == tok!"(")
-	{
-		immutable(string)[] completions;
-		switch (beforeTokens[$ - 2].type)
-		{
-		case tok!"__traits":
-			completions = traits;
-			goto fillResponse;
-		case tok!"scope":
-			completions = scopes;
-			goto fillResponse;
-		case tok!"version":
-			completions = versions;
-			goto fillResponse;
-		case tok!"extern":
-			completions = linkages;
-			goto fillResponse;
-		case tok!"pragma":
-			completions = pragmas;
-		fillResponse:
-			response.completionType = CompletionType.identifiers;
-			for (size_t i = 0; i < completions.length; i++)
-			{
-				response.completions ~= completions[i];
-				response.completionKinds ~= CompletionKind.keyword;
-			}
-			break;
-		case tok!"identifier":
-		case tok!")":
-		case tok!"]":
-			const(Scope)* completionScope = generateAutocompleteTrees(tokenArray,
-				"stdin");
-			auto expression = getExpression(beforeTokens[0 .. $ - 1]);
-			response.setCompletions(completionScope, expression,
-				request.cursorPosition, CompletionType.calltips);
-			break;
-		default:
-			break;
-		}
-	}
-	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] ==  tok!".")
-	{
-		tokenType = beforeTokens[$ - 2].type;
-dotCompletion:
-		switch (tokenType)
-		{
-		case tok!"stringLiteral":
-		case tok!"wstringLiteral":
-		case tok!"dstringLiteral":
-			foreach (symbol; (cast() arraySymbols)[])
-			{
-				response.completionKinds ~= symbol.kind;
-				response.completions ~= symbol.name;
-			}
-			response.completionType = CompletionType.identifiers;
-			break;
-		case tok!"int":
-		case tok!"uint":
-		case tok!"long":
-		case tok!"ulong":
-		case tok!"char":
-		case tok!"wchar":
-		case tok!"dchar":
-		case tok!"bool":
-		case tok!"byte":
-		case tok!"ubyte":
-		case tok!"short":
-		case tok!"ushort":
-		case tok!"cent":
-		case tok!"ucent":
-		case tok!"float":
-		case tok!"ifloat":
-		case tok!"cfloat":
-		case tok!"idouble":
-		case tok!"cdouble":
-		case tok!"double":
-		case tok!"real":
-		case tok!"ireal":
-		case tok!"creal":
-		case tok!"identifier":
-		case tok!")":
-		case tok!"]":
-		case tok!"this":
-			const(Scope)* completionScope = generateAutocompleteTrees(tokenArray,
-				"stdin");
-			auto expression = getExpression(beforeTokens);
-			response.setCompletions(completionScope, expression,
-				request.cursorPosition, CompletionType.identifiers, partial);
-			break;
-		case tok!"(":
-		case tok!"{":
-		case tok!"[":
-		case tok!";":
-		case tok!":":
-			// TODO: global scope
-			break;
-		default:
-			break;
-		}
-	}
-	return response;
-}
-
+/**
+ *
+ */
 void setCompletions(T)(ref AutocompleteResponse response,
 	const(Scope)* completionScope, T tokens, size_t cursorPosition,
 	CompletionType completionType, string partial = null)
@@ -538,6 +525,9 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	}
 }
 
+/**
+ *
+ */
 T getExpression(T)(T beforeTokens)
 {
 	if (beforeTokens.length == 0)
@@ -641,6 +631,12 @@ T getExpression(T)(T beforeTokens)
 	return beforeTokens[i .. $];
 }
 
+/**
+ * Populates the response with completion information for an import statement
+ * Params:
+ *     tokens = the tokens after the "import" keyword and before the cursor
+ *     response = the response that should be populated
+ */
 void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
 {
 	response.completionType = CompletionType.identifiers;
@@ -650,7 +646,7 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
 	string path = buildPath(moduleParts);
 	foreach (importDirectory; ModuleCache.getImportPaths())
 	{
-		string p = format("%s%s%s", importDirectory, dirSeparator, path);
+		string p = buildPath(importDirectory, path);
 		Log.trace("Checking for ", p);
 		if (!exists(p))
 			continue;
@@ -672,6 +668,47 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
 	}
 }
 
+/**
+ * Params:
+ *     completionType = the completion type being requested
+ *     kind = the kind of the current item in the completion chain
+ *     current = the index of the current item in the symbol chain
+ *     max = the number of items in the symbol chain
+ * Returns:
+ *     true if the symbol should be swapped with its type field
+ */
+bool shouldSwapWithType(CompletionType completionType, CompletionKind kind,
+	size_t current, size_t max) pure nothrow @safe
+{
+	// Modules and packages never have types, so always return false
+	if (kind == CompletionKind.moduleName
+		|| kind == CompletionKind.packageName
+		|| kind == CompletionKind.className
+		|| kind == CompletionKind.structName
+		|| kind == CompletionKind.interfaceName
+		|| kind == CompletionKind.enumName
+		|| kind == CompletionKind.unionName)
+	{
+		return false;
+	}
+	// Swap out every part of a chain with its type except the last part
+	if (current < max)
+		return true;
+	// Only swap out types for these kinds
+	immutable bool isInteresting =
+		kind == CompletionKind.variableName
+		|| kind == CompletionKind.memberVariableName
+		|| kind == CompletionKind.enumMember
+		|| kind == CompletionKind.functionName;
+	return completionType == CompletionType.identifiers && isInteresting;
+}
+
+/**
+ * Params:
+ *     comment = the comment to format
+ * Returns
+ *     the comment with the comment characters removed
+ */
 string formatComment(string comment)
 {
 	import std.string;

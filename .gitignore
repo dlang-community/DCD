@@ -5,8 +5,10 @@
 # *nix binaries
 dcd-client
 dcd-server
-dcd-client.o
-dcd-server.o
+*.o
 
 # Perf reports
 perf.data
+
+# Valgrind reports
+callgrind.*

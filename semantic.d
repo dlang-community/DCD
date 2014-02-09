@@ -1,6 +1,6 @@
 /**
  * This file is part of DCD, a development tool for the D programming language.
- * Copyright (C) 2013 Brian Schott
+ * Copyright (C) 2014 Brian Schott
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,6 +34,13 @@ public:
 
 	@disable this();
 
+	/**
+	 * Params:
+	 *    name = the name
+	 *    kind = the completion kind
+	 *    symbolFile = the file name for this symbol
+	 *    location = the location of this symbol
+	 */
 	this(string name, CompletionKind kind, string symbolFile,
 		size_t location = size_t.max)
 	{
@@ -42,6 +49,9 @@ public:
 		acSymbol.symbolFile = symbolFile;
 	}
 
+	/**
+	 * Adds a child to the children field and updates the acSymbol's parts field
+	 */
 	void addChild(SemanticSymbol* child)
 	{
 		children ~= child;
@@ -66,7 +76,9 @@ public:
 	/// Protection level for this symobol
 	IdType protection;
 
+	/// Parent symbol
 	SemanticSymbol* parent;
 
+	/// Child symbols
 	SemanticSymbol*[] children;
 }
