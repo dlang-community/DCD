@@ -250,6 +250,10 @@ final class FirstPass : ASTVisitor
 			symbolFile);
 		rootSymbol = currentSymbol;
 		currentScope = new Scope(0, size_t.max);
+		ImportInformation i;
+		i.modulePath = "object";
+		i.importParts ~= "object";
+		currentScope.importInformation ~= i;
 		moduleScope = currentScope;
 		mod.accept(this);
 	}
