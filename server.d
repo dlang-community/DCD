@@ -97,7 +97,7 @@ int main(string[] args)
 	sw.stop();
 	Log.info("Startup completed in ", sw.peek().to!("msecs", float), " milliseconds");
 
-    // No relative paths
+	// No relative paths
 	version (Posix) chdir("/");
 
 	serverLoop: while (true)

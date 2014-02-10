@@ -49,6 +49,7 @@ private struct CacheEntry
 	void opAssign(ref const CacheEntry other)
 	{
 		this.symbols = cast(typeof(symbols)) other.symbols;
+		this.path = other.path;
 		this.modificationTime = other.modificationTime;
 	}
 }
