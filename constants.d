@@ -49,6 +49,7 @@ immutable string[] traits = [
 	"classInstanceSize",
 	"compiles",
 	"derivedMembers",
+	"getAliasThis",
 	"getAttributes",
 	"getMember",
 	"getOverloads",
