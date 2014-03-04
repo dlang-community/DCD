@@ -31,6 +31,7 @@ import std.string;
 
 import msgpack;
 import messages;
+import stupidlog;
 
 int main(string[] args)
 {
@@ -52,7 +53,7 @@ int main(string[] args)
 	}
 	catch (Exception e)
 	{
-		stderr.writeln(e.msg);
+		Log.fatal(e.msg);
 		return 1;
 	}
 

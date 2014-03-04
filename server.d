@@ -63,7 +63,7 @@ int main(string[] args)
 	}
 	catch (ConvException e)
 	{
-		stderr.writeln(e.msg);
+		Log.fatal(e.msg);
 		printHelp(args[0]);
 		return 1;
 	}
@@ -96,6 +96,8 @@ int main(string[] args)
 
 	sw.stop();
 	Log.info("Startup completed in ", sw.peek().to!("msecs", float), " milliseconds");
+	float internBytes = cast(float) ModuleCache.stringCache.allocated / (1024 * 1024);
+	Log.info("String interning took up ", internBytes, " megabytes");
 
 	// No relative paths
 	version (Posix) chdir("/");

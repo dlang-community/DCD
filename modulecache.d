@@ -24,7 +24,6 @@ import stdx.lexer;
 import stdx.d.lexer;
 import stdx.d.parser;
 import stdx.d.ast;
-import std.stdio;
 import std.array;
 import std.path;
 import std.algorithm;
@@ -33,7 +32,10 @@ import std.container;
 
 import actypes;
 import semantic;
-import astconverter;
+import conversion.astconverter;
+import conversion.first;
+import conversion.second;
+import conversion.third;
 import stupidlog;
 
 bool cacheComparitor(CacheEntry* a, CacheEntry* b) pure nothrow
@@ -65,6 +67,7 @@ bool existanceCheck(A)(A path)
 static this()
 {
 	ModuleCache.cache = new RedBlackTree!(CacheEntry*, cacheComparitor);
+	ModuleCache.stringCache = new shared StringCache(StringCache.defaultBucketCount);
 }
 
 /**
@@ -87,12 +90,16 @@ struct ModuleCache
 	 */
 	static void addImportPaths(string[] paths)
 	{
+		import core.memory;
 		string[] addedPaths = paths.filter!(a => existanceCheck(a)).array();
 		importPaths ~= addedPaths;
+
 		foreach (path; addedPaths)
 		{
 			foreach (fileName; dirEntries(path, "*.{d,di}", SpanMode.depth))
 			{
+				GC.disable();
+				scope(exit) GC.enable();
 				getSymbolsInModule(fileName);
 			}
 		}
@@ -106,9 +113,7 @@ struct ModuleCache
 	 */
 	static ACSymbol*[] getSymbolsInModule(string location)
 	{
-		if (location is null)
-			return [];
-
+		assert (location !is null);
 		if (!needsReparsing(location))
 		{
 			CacheEntry e;
@@ -127,17 +132,33 @@ struct ModuleCache
 		try
 		{
 			import core.memory;
+			import std.stdio;
 			File f = File(location);
-			ubyte[] source = uninitializedArray!(ubyte[])(cast(size_t)f.size);
+			ubyte[] source = (cast(ubyte*) GC.malloc(cast(size_t) f.size,
+				GC.BlkAttr.NO_SCAN | GC.BlkAttr.NO_MOVE))[0 .. f.size];
 			f.rawRead(source);
-
-			GC.disable();
 			LexerConfig config;
 			config.fileName = location;
-			StringCache* cache = new StringCache(StringCache.defaultBucketCount);
+			shared(StringCache)* cache = new shared StringCache(StringCache.defaultBucketCount);
 			auto tokens = source.byToken(config, cache).array();
-			symbols = convertAstToSymbols(tokens, location);
-			GC.enable();
+			source[] = 0;
+			GC.free(source.ptr);
+			ParseAllocator p = new ParseAllocator(location);
+			Module m = parseModuleSimple(tokens, location, p);
+
+			FirstPass first = new FirstPass(m, location, stringCache);
+			first.run();
+			cache = null;
+
+			SecondPass second = SecondPass(first);
+			second.run();
+
+			ThirdPass third = ThirdPass(second, location);
+			third.run();
+
+			p.deallocateAll();
+			p = null;
+			symbols = third.rootSymbol.acSymbol.parts.array();
 		}
 		catch (Exception ex)
 		{
@@ -193,12 +214,12 @@ struct ModuleCache
 		return cast(const(string[])) importPaths;
 	}
 
-	static this()
+	static string intern(string s)
 	{
-		stringCache = new StringCache(StringCache.defaultBucketCount);
+		return s is null || s.length == 0 ? "" : stringCache.intern(s);
 	}
 
-	static StringCache* stringCache;
+	static shared(StringCache)* stringCache;
 
 private:
 

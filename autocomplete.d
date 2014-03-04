@@ -35,7 +35,7 @@ import messages;
 import actypes;
 import constants;
 import modulecache;
-import astconverter;
+import conversion.astconverter;
 import stupidlog;
 
 /**
@@ -191,7 +191,7 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, size_t cursorPosition,
 {
 	LexerConfig config;
 	config.fileName = "stdin";
-	StringCache* cache = new StringCache(StringCache.defaultBucketCount);
+	shared(StringCache)* cache = new shared StringCache(StringCache.defaultBucketCount);
 	auto tokens = byToken(cast(ubyte[]) sourceCode, config, cache);
 	tokenArray = tokens.array();
 	auto sortedTokens = assumeSorted(tokenArray);

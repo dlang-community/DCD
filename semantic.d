@@ -42,11 +42,12 @@ public:
 	 *    location = the location of this symbol
 	 */
 	this(string name, CompletionKind kind, string symbolFile,
-		size_t location = size_t.max)
+		size_t location = size_t.max, const Type type = null)
 	{
 		acSymbol = new ACSymbol(name, kind);
 		acSymbol.location = location;
 		acSymbol.symbolFile = symbolFile;
+		this.type = type;
 	}
 
 	/**
@@ -65,7 +66,7 @@ public:
 	string[][] baseClasses;
 
 	/// Variable type or function return type
-	Type type;
+	const Type type;
 
 	/// Alias this symbols
 	string[] aliasThis;
@@ -81,4 +82,39 @@ public:
 
 	/// Child symbols
 	SemanticSymbol*[] children;
+}
+
+/**
+ * Type of the _argptr variable
+ */
+Type argptrType;
+
+/**
+ * Type of _arguments
+ */
+Type argumentsType;
+
+static this()
+{
+	// _argptr has type void*
+	argptrType = new Type;
+	argptrType.type2 = new Type2;
+	argptrType.type2.builtinType = tok!"void";
+	TypeSuffix argptrTypeSuffix = new TypeSuffix;
+	argptrTypeSuffix.star = true;
+	argptrType.typeSuffixes ~= argptrTypeSuffix;
+
+	// _arguments has type TypeInfo[]
+	argumentsType = new Type;
+	argumentsType = new Type;
+	argumentsType.type2 = new Type2;
+	argumentsType.type2.symbol = new Symbol;
+	argumentsType.type2.symbol.identifierOrTemplateChain = new IdentifierOrTemplateChain;
+	IdentifierOrTemplateInstance i = new IdentifierOrTemplateInstance;
+	i.identifier.text = "TypeInfo";
+	i.identifier.type = tok!"identifier";
+	argumentsType.type2.symbol.identifierOrTemplateChain.identifiersOrTemplateInstances ~= i;
+	TypeSuffix argumentsTypeSuffix = new TypeSuffix;
+	argumentsTypeSuffix.array = true;
+	argumentsType.typeSuffixes ~= argptrTypeSuffix;
 }

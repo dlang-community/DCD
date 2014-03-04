@@ -18,15 +18,15 @@
 
 module actypes;
 
-import stdx.d.lexer;
-import stdx.d.ast;
 import std.algorithm;
-import std.stdio;
 import std.array;
-import messages;
-import std.array;
-import std.typecons;
 import std.container;
+import std.stdio;
+import std.typecons;
+
+import stdx.d.lexer;
+
+import messages;
 
 /**
  * Compares symbols by their name
@@ -308,16 +308,6 @@ RedBlackTree!(ACSymbol*, comparitor, true) aggregateSymbols;
 RedBlackTree!(ACSymbol*, comparitor, true) classSymbols;
 
 /**
- * Type of the _argptr variable
- */
-Type argptrType;
-
-/**
- * Type of _arguments
- */
-Type argumentsType;
-
-/**
  * Initializes builtin types and the various properties of builtin types
  */
 static this()
@@ -450,28 +440,6 @@ static this()
 	bSym.insert([bool_, int_, long_, byte_, char_, dchar_, short_, ubyte_, uint_,
 		ulong_, ushort_, wchar_, cdouble_, cent_, cfloat_, creal_, double_,
 		float_, idouble_, ifloat_, ireal_, real_, ucent_, void_]);
-
-	// _argptr has type void*
-	argptrType = new Type;
-	argptrType.type2 = new Type2;
-	argptrType.type2.builtinType = tok!"void";
-	TypeSuffix argptrTypeSuffix = new TypeSuffix;
-	argptrTypeSuffix.star = true;
-	argptrType.typeSuffixes ~= argptrTypeSuffix;
-
-	// _arguments has type TypeInfo[]
-	argumentsType = new Type;
-	argumentsType = new Type;
-	argumentsType.type2 = new Type2;
-	argumentsType.type2.symbol = new Symbol;
-	argumentsType.type2.symbol.identifierOrTemplateChain = new IdentifierOrTemplateChain;
-	IdentifierOrTemplateInstance i = new IdentifierOrTemplateInstance;
-	i.identifier.text = "TypeInfo";
-	i.identifier.type = tok!"identifier";
-	argumentsType.type2.symbol.identifierOrTemplateChain.identifiersOrTemplateInstances ~= i;
-	TypeSuffix argumentsTypeSuffix = new TypeSuffix;
-	argumentsTypeSuffix.array = true;
-	argumentsType.typeSuffixes ~= argptrTypeSuffix;
 
 	builtinSymbols = bSym;
 	arraySymbols = arrSym;
