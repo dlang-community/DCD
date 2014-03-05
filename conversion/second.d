@@ -64,7 +64,7 @@ private:
 
 	// This method is really ugly due to the casts...
 	static ACSymbol* createImportSymbols(ImportInformation info,
-		Scope* currentScope)
+		Scope* currentScope, ACSymbol*[] moduleSymbols)
 	{
 		immutable string firstPart = info.importParts[0];
 		ACSymbol*[] symbols = currentScope.getSymbolsByName(firstPart);
@@ -85,6 +85,7 @@ private:
 			currentSymbol = s;
 		}
 		currentSymbol.kind = CompletionKind.moduleName;
+		currentSymbol.parts.insert(moduleSymbols);
 		return currentSymbol;
 	}
 
@@ -95,7 +96,7 @@ private:
 		{
 			string location = ModuleCache.resolveImportLoctation(importInfo.modulePath);
 			ACSymbol*[] symbols = location is null ? [] : ModuleCache.getSymbolsInModule(location);
-			ACSymbol* moduleSymbol = createImportSymbols(importInfo, currentScope);
+			ACSymbol* moduleSymbol = createImportSymbols(importInfo, currentScope, symbols);
 			currentScope.symbols.insert(moduleSymbol);
 			currentScope.symbols.insert(symbols);
 			if (importInfo.importedSymbols.length == 0)
