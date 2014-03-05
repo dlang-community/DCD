@@ -135,7 +135,7 @@ struct ModuleCache
 			import std.stdio;
 			File f = File(location);
 			ubyte[] source = (cast(ubyte*) GC.malloc(cast(size_t) f.size,
-				GC.BlkAttr.NO_SCAN | GC.BlkAttr.NO_MOVE))[0 .. f.size];
+				GC.BlkAttr.NO_SCAN | GC.BlkAttr.NO_MOVE))[0 .. cast(size_t)f.size];
 			f.rawRead(source);
 			LexerConfig config;
 			config.fileName = location;
