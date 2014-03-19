@@ -175,6 +175,20 @@ final class FirstPass : ASTVisitor
 			symbol.acSymbol.doc = dec.comment;
 			currentSymbol.addChild(symbol);
 		}
+		if (dec.autoDeclaration !is null)
+		{
+			foreach (identifier; dec.autoDeclaration.identifiers)
+			{
+				SemanticSymbol* symbol = new SemanticSymbol(
+					stringCache.intern(identifier.text),
+					CompletionKind.variableName, symbolFile, identifier.index,
+					null);
+				symbol.protection = protection;
+				symbol.parent = currentSymbol;
+				symbol.acSymbol.doc = dec.comment;
+				currentSymbol.addChild(symbol);
+			}
+		}
 	}
 
 	override void visit(const AliasDeclaration aliasDeclaration)
