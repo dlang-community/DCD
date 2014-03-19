@@ -611,6 +611,8 @@ T getExpression(T)(T beforeTokens)
 				case tok!"foreach":
 				case tok!"foreach_reverse":
 				case tok!"do":
+				case tok!"cast":
+				case tok!"catch":
 					i = bookmark + 1;
 					break expressionLoop;
 				default:
