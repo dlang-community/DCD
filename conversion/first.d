@@ -18,12 +18,18 @@
 
 module conversion.first;
 
-import stdx.d.ast;
-import stdx.d.lexer;
 import actypes;
-import semantic;
+import formatter;
+import std.allocator;
+import memory.allocators;
+import memory.appender;
 import messages;
+import semantic;
+import std.d.ast;
+import std.d.lexer;
+import std.typecons;
 import stupidlog;
+import containers.unrolledlist;
 
 /**
  * First Pass handles the following:
@@ -40,24 +46,31 @@ import stupidlog;
  */
 final class FirstPass : ASTVisitor
 {
-	this(Module mod, string symbolFile, shared(StringCache)* stringCache)
+	this(Module mod, string symbolFile, shared(StringCache)* stringCache,
+		CAllocator symbolAllocator, CAllocator semanticAllocator)
+	in
 	{
-		this.symbolFile = symbolFile;
+		assert (symbolAllocator);
+	}
+	body
+	{
 		this.mod = mod;
+		this.symbolFile = symbolFile;
 		this.stringCache = stringCache;
+		this.symbolAllocator = symbolAllocator;
+		this.semanticAllocator = semanticAllocator;
 	}
 
 	void run()
 	{
 		visit(mod);
-		mod = null;
 	}
 
 	override void visit(const Unittest u)
 	{
 		// Create a dummy symbol because we don't want unit test symbols leaking
 		// into the symbol they're declared in.
-		SemanticSymbol* s = new SemanticSymbol("*unittest*",
+		SemanticSymbol* s = allocateSemanticSymbol("*unittest*",
 			CompletionKind.dummy, null, 0);
 		s.parent = currentSymbol;
 		currentSymbol = s;
@@ -86,7 +99,7 @@ final class FirstPass : ASTVisitor
 	override void visit(const Destructor des)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(des).stringof);
-		visitDestructor(des.location, des.functionBody, des.comment);
+		visitDestructor(des.index, des.functionBody, des.comment);
 	}
 
 	override void visit(const SharedStaticDestructor des)
@@ -103,9 +116,10 @@ final class FirstPass : ASTVisitor
 
 	override void visit(const FunctionDeclaration dec)
 	{
-//		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
-		SemanticSymbol* symbol = new SemanticSymbol(stringCache.intern(dec.name.text),
-			CompletionKind.functionName, symbolFile, dec.name.index, dec.returnType);
+//		Log.trace(__FUNCTION__, " ", typeof(dec).stringof, " ", dec.name.text);
+		SemanticSymbol* symbol = allocateSemanticSymbol(dec.name.text,
+			CompletionKind.functionName, symbolFile, dec.name.index,
+			dec.returnType);
 		processParameters(symbol, dec.returnType, symbol.acSymbol.name,
 			dec.parameters, dec.comment);
 		symbol.protection = protection;
@@ -153,8 +167,8 @@ final class FirstPass : ASTVisitor
 	override void visit(const BaseClass bc)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(bc).stringof);
-		currentSymbol.baseClasses ~= iotcToStringArray(
-			bc.identifierOrTemplateChain, stringCache);
+		currentSymbol.baseClasses.insert(iotcToStringArray(symbolAllocator,
+			bc.identifierOrTemplateChain, stringCache));
 	}
 
 	override void visit(const VariableDeclaration dec)
@@ -164,12 +178,9 @@ final class FirstPass : ASTVisitor
 		const Type t = dec.type;
 		foreach (declarator; dec.declarators)
 		{
-			SemanticSymbol* symbol = new SemanticSymbol(
-				stringCache.intern(declarator.name.text),
-				CompletionKind.variableName,
-				symbolFile,
-				declarator.name.index,
-				t);
+			SemanticSymbol* symbol = allocateSemanticSymbol(
+				declarator.name.text, CompletionKind.variableName,
+				symbolFile, declarator.name.index, t);
 			symbol.protection = protection;
 			symbol.parent = currentSymbol;
 			symbol.acSymbol.doc = dec.comment;
@@ -179,10 +190,9 @@ final class FirstPass : ASTVisitor
 		{
 			foreach (identifier; dec.autoDeclaration.identifiers)
 			{
-				SemanticSymbol* symbol = new SemanticSymbol(
-					stringCache.intern(identifier.text),
-					CompletionKind.variableName, symbolFile, identifier.index,
-					null);
+				SemanticSymbol* symbol = allocateSemanticSymbol(
+					identifier.text, CompletionKind.variableName, symbolFile,
+					identifier.index, null);
 				symbol.protection = protection;
 				symbol.parent = currentSymbol;
 				symbol.acSymbol.doc = dec.comment;
@@ -195,8 +205,8 @@ final class FirstPass : ASTVisitor
 	{
 		if (aliasDeclaration.initializers.length == 0)
 		{
-			SemanticSymbol* symbol = new SemanticSymbol(
-				stringCache.intern(aliasDeclaration.name.text),
+			SemanticSymbol* symbol = allocateSemanticSymbol(
+				aliasDeclaration.name.text,
 				CompletionKind.aliasName,
 				symbolFile,
 				aliasDeclaration.name.index,
@@ -210,8 +220,8 @@ final class FirstPass : ASTVisitor
 		{
 			foreach (initializer; aliasDeclaration.initializers)
 			{
-				SemanticSymbol* symbol = new SemanticSymbol(
-					stringCache.intern(initializer.name.text),
+				SemanticSymbol* symbol = allocateSemanticSymbol(
+					initializer.name.text,
 					CompletionKind.aliasName,
 					symbolFile,
 					initializer.name.index,
@@ -227,7 +237,7 @@ final class FirstPass : ASTVisitor
 	override void visit(const AliasThisDeclaration dec)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
-		currentSymbol.aliasThis ~= stringCache.intern(dec.identifier.text);
+		currentSymbol.aliasThis.insert(stringCache.intern(dec.identifier.text));
 	}
 
 	override void visit(const Declaration dec)
@@ -253,23 +263,24 @@ final class FirstPass : ASTVisitor
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(mod).stringof);
 //
-		currentSymbol = new SemanticSymbol(null, CompletionKind.moduleName,
+		currentSymbol = allocateSemanticSymbol(null, CompletionKind.moduleName,
 			symbolFile);
 		rootSymbol = currentSymbol;
-		currentScope = new Scope(0, size_t.max);
-		ImportInformation i;
+		currentScope = allocate!Scope(semanticAllocator, 0, size_t.max);
+		auto i = allocate!ImportInformation(semanticAllocator);
 		i.modulePath = "object";
-		i.importParts ~= "object";
-		currentScope.importInformation ~= i;
+		i.importParts.insert("object");
+		currentScope.importInformation.insert(i);
 		moduleScope = currentScope;
 		mod.accept(this);
+		assert (currentSymbol.acSymbol.name is null);
 	}
 
 	override void visit(const EnumDeclaration dec)
 	{
 		assert (currentSymbol);
 //		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
-		SemanticSymbol* symbol = new SemanticSymbol(stringCache.intern(dec.name.text),
+		SemanticSymbol* symbol = allocateSemanticSymbol(dec.name.text,
 			CompletionKind.enumName, symbolFile, dec.name.index, dec.type);
 		symbol.parent = currentSymbol;
 		symbol.acSymbol.doc = dec.comment;
@@ -283,7 +294,7 @@ final class FirstPass : ASTVisitor
 	override void visit(const EnumMember member)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(member).stringof);
-		SemanticSymbol* symbol = new SemanticSymbol(stringCache.intern(member.name.text),
+		SemanticSymbol* symbol = allocateSemanticSymbol(member.name.text,
 			CompletionKind.enumMember, symbolFile, member.name.index, member.type);
 		symbol.parent = currentSymbol;
 		symbol.acSymbol.doc = member.comment;
@@ -295,72 +306,75 @@ final class FirstPass : ASTVisitor
 //		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
 		foreach (identifier; moduleDeclaration.moduleName.identifiers)
 		{
-			moduleName ~= stringCache.intern(identifier.text);
+			moduleName.insert(stringCache.intern(identifier.text));
 		}
 	}
 
-	// creates scopes for
 	override void visit(const StructBody structBody)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(structBody).stringof);
-		Scope* s = new Scope(structBody.startLocation, structBody.endLocation);
+		Scope* s = allocate!Scope(semanticAllocator, structBody.startLocation, structBody.endLocation);
 //		Log.trace("Added scope ", s.startLocation, " ", s.endLocation);
 
-		ACSymbol* thisSymbol = new ACSymbol("this", CompletionKind.variableName,
-			currentSymbol.acSymbol);
+		ACSymbol* thisSymbol = allocate!ACSymbol(symbolAllocator, "this",
+			CompletionKind.variableName, currentSymbol.acSymbol);
 		thisSymbol.location = s.startLocation;
 		thisSymbol.symbolFile = symbolFile;
-		currentSymbol.acSymbol.parts.insert(thisSymbol);
+		s.symbols.insert(thisSymbol);
 
 		s.parent = currentScope;
 		currentScope = s;
 		foreach (dec; structBody.declarations)
 			visit(dec);
 		currentScope = s.parent;
-		currentScope.children ~= s;
+		currentScope.children.insert(s);
 	}
 
 	override void visit(const ImportDeclaration importDeclaration)
 	{
 		import std.typecons;
 		import std.algorithm;
-		import std.array;
 //		Log.trace(__FUNCTION__, " ImportDeclaration");
 		foreach (single; importDeclaration.singleImports.filter!(
 			a => a !is null && a.identifierChain !is null))
 		{
-			ImportInformation info;
-			info.importParts = single.identifierChain.identifiers.map!(a => stringCache.intern(a.text)).array;
-			info.modulePath = convertChainToImportPath(single.identifierChain);
+			auto info = allocate!ImportInformation(semanticAllocator);
+			foreach (identifier; single.identifierChain.identifiers)
+				info.importParts.insert(stringCache.intern(identifier.text));
+			info.modulePath = convertChainToImportPath(stringCache, single.identifierChain);
 			info.isPublic = protection == tok!"public";
-			currentScope.importInformation ~= info;
+			currentScope.importInformation.insert(info);
 		}
 		if (importDeclaration.importBindings is null) return;
 		if (importDeclaration.importBindings.singleImport.identifierChain is null) return;
-		ImportInformation info;
-		info.modulePath = convertChainToImportPath(
+		auto info = allocate!ImportInformation(semanticAllocator);
+
+		info.modulePath = convertChainToImportPath(stringCache,
 			importDeclaration.importBindings.singleImport.identifierChain);
-		info.importParts = importDeclaration.importBindings.singleImport
-			.identifierChain.identifiers.map!(a => stringCache.intern(a.text)).array;
+		foreach (identifier; importDeclaration.importBindings.singleImport
+			.identifierChain.identifiers)
+		{
+			info.importParts.insert(stringCache.intern(identifier.text));
+		}
 		foreach (bind; importDeclaration.importBindings.importBinds)
 		{
 			Tuple!(string, string) bindTuple;
 			bindTuple[0] = stringCache.intern(bind.left.text);
 			bindTuple[1] = bind.right == tok!"" ? null : stringCache.intern(bind.right.text);
-			info.importedSymbols ~= bindTuple;
+			info.importedSymbols.insert(bindTuple);
 		}
 		info.isPublic = protection == tok!"public";
-		currentScope.importInformation ~= info;
+		currentScope.importInformation.insert(info);
 	}
 
 	// Create scope for block statements
 	override void visit(const BlockStatement blockStatement)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(blockStatement).stringof);
-		Scope* s = new Scope(blockStatement.startLocation,
+		Scope* s = allocate!Scope(semanticAllocator, blockStatement.startLocation,
 			blockStatement.endLocation);
 		s.parent = currentScope;
-		currentScope.children ~= s;
+		currentScope.children.insert(s);
 
 		if (currentSymbol.acSymbol.kind == CompletionKind.functionName)
 		{
@@ -400,12 +414,16 @@ final class FirstPass : ASTVisitor
 
 	shared(StringCache)* stringCache;
 
+	CAllocator symbolAllocator;
+
+	uint symbolsAllocated;
+
 private:
 
 	void visitAggregateDeclaration(AggType)(AggType dec, CompletionKind kind)
 	{
 //		Log.trace("visiting aggregate declaration ", dec.name.text);
-		SemanticSymbol* symbol = new SemanticSymbol(stringCache.intern(dec.name.text),
+		SemanticSymbol* symbol = allocateSemanticSymbol(dec.name.text,
 			kind, symbolFile, dec.name.index);
 		if (kind == CompletionKind.className)
 			symbol.acSymbol.parts.insert(classSymbols[]);
@@ -423,7 +441,7 @@ private:
 	void visitConstructor(size_t location, const Parameters parameters,
 		const FunctionBody functionBody, string doc)
 	{
-		SemanticSymbol* symbol = new SemanticSymbol("*constructor*",
+		SemanticSymbol* symbol = allocateSemanticSymbol("*constructor*",
 			CompletionKind.functionName, symbolFile, location);
 		processParameters(symbol, null, "this", parameters, doc);
 		symbol.protection = protection;
@@ -440,7 +458,7 @@ private:
 
 	void visitDestructor(size_t location, const FunctionBody functionBody, string doc)
 	{
-		SemanticSymbol* symbol = new SemanticSymbol("~this",
+		SemanticSymbol* symbol = allocateSemanticSymbol("~this",
 			CompletionKind.functionName, symbolFile, location);
 		symbol.acSymbol.callTip = "~this()";
 		symbol.protection = protection;
@@ -462,21 +480,20 @@ private:
 		{
 			foreach (const Parameter p; parameters.parameters)
 			{
-				SemanticSymbol* parameter = new SemanticSymbol(
-					stringCache.intern(p.name.text),
-					CompletionKind.variableName, symbolFile, size_t.max,
-					p.type);
+				SemanticSymbol* parameter = allocateSemanticSymbol(
+					p.name.text, CompletionKind.variableName, symbolFile,
+					size_t.max, p.type);
 				symbol.addChild(parameter);
 				parameter.parent = symbol;
 			}
 			if (parameters.hasVarargs)
 			{
-				SemanticSymbol* argptr = new SemanticSymbol("_argptr",
+				SemanticSymbol* argptr = allocateSemanticSymbol("_argptr",
 					CompletionKind.variableName, null, size_t.max, argptrType);
 				argptr.parent = symbol;
 				symbol.addChild(argptr);
 
-				SemanticSymbol* arguments = new SemanticSymbol("_arguments",
+				SemanticSymbol* arguments = allocateSemanticSymbol("_arguments",
 					CompletionKind.variableName, null, size_t.max, argumentsType);
 				arguments.parent = symbol;
 				symbol.addChild(arguments);
@@ -486,22 +503,46 @@ private:
 			parameters, doc);
 	}
 
-	static string formatCallTip(const Type returnType, string name,
+	string formatCallTip(const Type returnType, string name,
 		const Parameters parameters, string doc = null)
 	{
-		import std.string;
-		string parameterString = parameters is null ? "()"
-			: formatNode(parameters);
-		if (returnType is null)
-			return "%s%s".format(name, parameterString);
-		return "%s %s%s".format(formatNode(returnType), name, parameterString);
+		QuickAllocator!1024 q;
+		auto app = Appender!(char, typeof(q), 1024)(q);
+		scope(exit) q.deallocate(app.mem);
+		if (returnType !is null)
+		{
+			app.formatNode(returnType);
+			app.put(' ');
+		}
+		app.put(name);
+		if (parameters is null)
+			app.put("()");
+		else
+			app.formatNode(parameters);
+		return stringCache.intern(cast(ubyte[]) app[]);
+	}
+
+	SemanticSymbol* allocateSemanticSymbol(string name, CompletionKind kind,
+		string symbolFile, size_t location = 0, const Type type = null)
+	in
+	{
+		assert (symbolAllocator !is null);
+	}
+	body
+	{
+		ACSymbol* acSymbol = allocate!ACSymbol(symbolAllocator,
+			name is null ? name : stringCache.intern(name), kind);
+		acSymbol.location = location;
+		acSymbol.symbolFile = symbolFile;
+		symbolsAllocated++;
+		return allocate!SemanticSymbol(semanticAllocator, acSymbol, type);
 	}
 
 	/// Current protection type
 	IdType protection;
 
 	/// Package and module name
-	string[] moduleName;
+	UnrolledList!string moduleName;
 
 	/// Current scope
 	Scope* currentScope;
@@ -513,41 +554,47 @@ private:
 	string symbolFile;
 
 	Module mod;
+
+	CAllocator semanticAllocator;
 }
 
-string formatNode(T)(const T node)
+void formatNode(A, T)(ref A appender, const T node)
 {
-	import formatter;
-	import std.array;
-	import std.conv;
-	if (node is null) return "";
-	auto app = appender!(char[])();
-	auto f = new Formatter!(typeof(app))(app);
+	if (node is null)
+		return;
+	auto f = scoped!(Formatter!(A*))(&appender);
 	f.format(node);
-	return to!string(app.data);
 }
 
 private:
 
-string[] iotcToStringArray(const IdentifierOrTemplateChain iotc,
+string[] iotcToStringArray(A)(ref A allocator, const IdentifierOrTemplateChain iotc,
 	shared(StringCache)* stringCache)
 {
-	string[] parts;
-	foreach (ioti; iotc.identifiersOrTemplateInstances)
+	string[] retVal = cast(string[]) allocator.allocate((string[]).sizeof
+		* iotc.identifiersOrTemplateInstances.length);
+	foreach (i, ioti; iotc.identifiersOrTemplateInstances)
 	{
 		if (ioti.identifier != tok!"")
-			parts ~= stringCache.intern(ioti.identifier.text);
+			retVal[i] = stringCache.intern(ioti.identifier.text);
 		else
-			parts ~= stringCache.intern(ioti.templateInstance.identifier.text);
+			retVal[i] = stringCache.intern(ioti.templateInstance.identifier.text);
 	}
-	return parts;
+	return retVal;
 }
 
-private static string convertChainToImportPath(const IdentifierChain ic)
+static string convertChainToImportPath(shared(StringCache)* stringCache,
+	const IdentifierChain ic)
 {
-	import std.conv;
-	import std.algorithm;
-	import std.range;
 	import std.path;
-	return to!string(ic.identifiers.map!(a => cast() a.text).join(dirSeparator).array);
+	QuickAllocator!1024 q;
+	auto app = Appender!(char, typeof(q), 1024)(q);
+	scope(exit) q.deallocate(app.mem);
+	foreach (i, ident; ic.identifiers)
+	{
+		app.append(ident.text);
+		if (i + 1 < ic.identifiers.length)
+			app.append(dirSeparator);
+	}
+	return stringCache.intern(cast(string) app[]);
 }

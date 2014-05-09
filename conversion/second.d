@@ -22,7 +22,9 @@ import conversion.first;
 import actypes;
 import semantic;
 import messages;
-import stdx.lexer : StringCache;
+import std.lexer : StringCache;
+import std.allocator;
+import stupidlog;
 
 /**
  * Second pass handles the following:
@@ -35,11 +37,12 @@ struct SecondPass
 {
 public:
 
-	this(ref FirstPass first)
+	this(FirstPass first)
 	{
 		this.rootSymbol = first.rootSymbol;
 		this.moduleScope = first.moduleScope;
 		this.stringCache = first.stringCache;
+		this.symbolAllocator = first.symbolAllocator;
 	}
 
 	void run()
@@ -48,6 +51,7 @@ public:
 		resolveImports(moduleScope);
 	}
 
+	CAllocator symbolAllocator;
 	SemanticSymbol* rootSymbol;
 	Scope* moduleScope;
 	shared(StringCache)* stringCache;
@@ -57,45 +61,74 @@ private:
 	void assignToScopes(ACSymbol* currentSymbol)
 	{
 		Scope* s = moduleScope.getScopeByCursor(currentSymbol.location);
-		s.symbols.insert(currentSymbol);
+		if (currentSymbol.kind != CompletionKind.moduleName)
+			s.symbols.insert(currentSymbol);
 		foreach (part; currentSymbol.parts[])
+		{
+			std.utf.validate(part.name);
 			assignToScopes(part);
+		}
 	}
 
-	// This method is really ugly due to the casts...
-	static ACSymbol* createImportSymbols(ImportInformation info,
-		Scope* currentScope, ACSymbol*[] moduleSymbols)
+	ACSymbol* createImportSymbols(ImportInformation* info, Scope* currentScope,
+		ACSymbol*[] moduleSymbols)
+	in
 	{
-		immutable string firstPart = info.importParts[0];
+		assert (info !is null);
+		foreach (s; moduleSymbols)
+			assert (s !is null);
+	}
+	body
+	{
+		immutable string firstPart = info.importParts[].front;
+//		Log.trace("firstPart = ", firstPart);
 		ACSymbol*[] symbols = currentScope.getSymbolsByName(firstPart);
 		immutable bool found = symbols.length > 0;
 		ACSymbol* firstSymbol = found
-			? symbols[0] : new ACSymbol(firstPart, CompletionKind.packageName);
+			? symbols[0] : allocate!ACSymbol(symbolAllocator, firstPart,
+				CompletionKind.packageName);
 		if (!found)
-		{
 			currentScope.symbols.insert(firstSymbol);
-		}
-		ACSymbol* currentSymbol = cast(ACSymbol*) firstSymbol;
-		foreach (size_t i, string importPart; info.importParts[1 .. $])
+//		Log.trace(firstSymbol.name);
+		ACSymbol* currentSymbol = firstSymbol;
+		size_t i = 0;
+		foreach (string importPart; info.importParts[])
 		{
+			if (i++ == 0)
+				continue;
 			symbols = currentSymbol.getPartsByName(importPart);
 			ACSymbol* s = symbols.length > 0
-				? cast(ACSymbol*) symbols[0] : new ACSymbol(importPart, CompletionKind.packageName);
+				? cast(ACSymbol*) symbols[0] : allocate!ACSymbol(symbolAllocator,
+					importPart, CompletionKind.packageName);
 			currentSymbol.parts.insert(s);
 			currentSymbol = s;
 		}
 		currentSymbol.kind = CompletionKind.moduleName;
 		currentSymbol.parts.insert(moduleSymbols);
+//		Log.trace(currentSymbol.name);
 		return currentSymbol;
 	}
 
 	void resolveImports(Scope* currentScope)
 	{
 		import modulecache;
-		foreach (importInfo; currentScope.importInformation)
+		import std.stdio;
+		foreach (importInfo; currentScope.importInformation[])
 		{
 			string location = ModuleCache.resolveImportLoctation(importInfo.modulePath);
 			ACSymbol*[] symbols = location is null ? [] : ModuleCache.getSymbolsInModule(location);
+			//////
+			foreach (s; symbols)
+			{
+				try
+					std.utf.validate(s.name);
+				catch (Exception e)
+				{
+					writeln("Symbols in ", importInfo.modulePath, " are corrupted");
+					throw e;
+				}
+			}
+			//////
 			ACSymbol* moduleSymbol = createImportSymbols(importInfo, currentScope, symbols);
 			currentScope.symbols.insert(moduleSymbol);
 			currentScope.symbols.insert(symbols);
@@ -109,16 +142,16 @@ private:
 			}
 			symbolLoop: foreach (symbol; symbols)
 			{
-				foreach (tup; importInfo.importedSymbols)
+				foreach (tup; importInfo.importedSymbols[])
 				{
 					if (tup[0] != symbol.name)
 						continue symbolLoop;
 					if (tup[1] !is null)
 					{
-						ACSymbol* s = new ACSymbol(tup[1],
+						ACSymbol* s = allocate!ACSymbol(symbolAllocator, tup[1],
 							symbol.kind, symbol.type);
 						// TODO: Compiler gets confused here, so cast the types.
-						s.parts = cast(typeof(s.parts)) symbol.parts;
+						s.parts.insert(symbol.parts[]);
 						// TODO: Re-format callTip with new name?
 						s.callTip = symbol.callTip;
 						s.doc = symbol.doc;

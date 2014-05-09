@@ -28,6 +28,9 @@ import std.array;
 import std.process;
 import std.datetime;
 import std.conv;
+import std.allocator;
+
+import core.memory;
 
 import msgpack;
 
@@ -92,12 +95,16 @@ int main(string[] args)
 	ModuleCache.addImportPaths(importPaths);
 	Log.info("Import directories: ", ModuleCache.getImportPaths());
 
-	ubyte[] buffer = new ubyte[1024 * 1024 * 4]; // 4 megabytes should be enough for anybody...
+	ubyte[] buffer = cast(ubyte[]) Mallocator.it.allocate(1024 * 1024 * 4); // 4 megabytes should be enough for anybody...
+	scope(exit) Mallocator.it.deallocate(buffer);
 
 	sw.stop();
 	Log.info("Startup completed in ", sw.peek().to!("msecs", float), " milliseconds");
 	float internBytes = cast(float) ModuleCache.stringCache.allocated / (1024 * 1024);
 	Log.info("String interning took up ", internBytes, " megabytes");
+	float symbolMegs = (cast(float) (ACSymbol.sizeof * ModuleCache.symbolsAllocated)) / (1024f * 1024f);
+	Log.info(ModuleCache.symbolsAllocated, " symbols allocated, taking up ",
+		symbolMegs, " megabytes");
 
 	// No relative paths
 	version (Posix) chdir("/");
@@ -153,17 +160,17 @@ int main(string[] args)
 			Log.info("Shutting down.");
 			break serverLoop;
 		case RequestKind.autocomplete:
-			try
-			{
+//			try
+//			{
 				AutocompleteResponse response = complete(request);
 				ubyte[] responseBytes = msgpack.pack(response);
 				s.send(responseBytes);
-			}
-			catch (Exception e)
-			{
-				Log.error("Could not handle autocomplete request due to an exception:",
-					e.msg);
-			}
+//			}
+//			catch (Exception e)
+//			{
+//				Log.error("Could not handle autocomplete request due to an exception:",
+//					e.msg);
+//			}
 			break;
 		case RequestKind.doc:
 			try

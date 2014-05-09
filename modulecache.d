@@ -18,41 +18,49 @@
 
 module modulecache;
 
-import std.file;
-import std.datetime;
-import stdx.lexer;
-import stdx.d.lexer;
-import stdx.d.parser;
-import stdx.d.ast;
-import std.array;
-import std.path;
 import std.algorithm;
+import std.allocator;
 import std.conv;
-import std.container;
+import std.d.ast;
+import std.datetime;
+import std.d.lexer;
+import std.d.parser;
+import std.file;
+import std.lexer;
+import std.path;
 
 import actypes;
 import semantic;
+import memory.allocators;
+import containers.karytree;
+import containers.hashset;
+import containers.unrolledlist;
 import conversion.astconverter;
 import conversion.first;
 import conversion.second;
 import conversion.third;
+import containers.dynamicarray;
 import stupidlog;
-
-bool cacheComparitor(CacheEntry* a, CacheEntry* b) pure nothrow
-{
-	return cast(ubyte[]) a.path < cast(ubyte[]) b.path;
-}
+import messages;
 
 private struct CacheEntry
 {
 	ACSymbol*[] symbols;
 	SysTime modificationTime;
 	string path;
+
+	int opCmp(ref const CacheEntry other) const
+	{
+		if (path < other.path)
+			return -1;
+		if (path > other.path)
+			return 1;
+		return 0;
+	}
+
 	void opAssign(ref const CacheEntry other)
 	{
-		this.symbols = cast(typeof(symbols)) other.symbols;
-		this.path = other.path;
-		this.modificationTime = other.modificationTime;
+		assert(false);
 	}
 }
 
@@ -66,8 +74,8 @@ bool existanceCheck(A)(A path)
 
 static this()
 {
-	ModuleCache.cache = new RedBlackTree!(CacheEntry*, cacheComparitor);
 	ModuleCache.stringCache = new shared StringCache(StringCache.defaultBucketCount);
+	ModuleCache.symbolAllocator = new CAllocatorImpl!(BlockAllocator!(1024 * 16));
 }
 
 /**
@@ -77,12 +85,8 @@ struct ModuleCache
 {
 	@disable this();
 
-	/**
-	 * Clears the completion cache
-	 */
 	static void clear()
 	{
-		cache.clear();
 	}
 
 	/**
@@ -91,15 +95,13 @@ struct ModuleCache
 	static void addImportPaths(string[] paths)
 	{
 		import core.memory;
-		string[] addedPaths = paths.filter!(a => existanceCheck(a)).array();
-		importPaths ~= addedPaths;
+		foreach (path; paths.filter!(a => existanceCheck(a)))
+			importPaths.insert(path);
 
-		foreach (path; addedPaths)
+		foreach (path; importPaths[])
 		{
 			foreach (fileName; dirEntries(path, "*.{d,di}", SpanMode.depth))
 			{
-				GC.disable();
-				scope(exit) GC.enable();
 				getSymbolsInModule(fileName);
 			}
 		}
@@ -126,29 +128,35 @@ struct ModuleCache
 
 		Log.info("Getting symbols for ", location);
 
-		recursionGuard[location] = true;
+		recursionGuard.insert(location);
 
 		ACSymbol*[] symbols;
-		try
-		{
+//		try
+//		{
 			import core.memory;
 			import std.stdio;
+			import std.typecons;
 			File f = File(location);
-			ubyte[] source = (cast(ubyte*) GC.malloc(cast(size_t) f.size,
-				GC.BlkAttr.NO_SCAN | GC.BlkAttr.NO_MOVE))[0 .. cast(size_t)f.size];
+			ubyte[] source = cast(ubyte[]) Mallocator.it.allocate(cast(size_t)f.size);
 			f.rawRead(source);
 			LexerConfig config;
 			config.fileName = location;
-			shared(StringCache)* cache = new shared StringCache(StringCache.defaultBucketCount);
-			auto tokens = source.byToken(config, cache).array();
-			source[] = 0;
-			GC.free(source.ptr);
-			ParseAllocator p = new ParseAllocator(location);
-			Module m = parseModuleSimple(tokens, location, p);
+			shared parseStringCache = shared StringCache(StringCache.defaultBucketCount);
+			auto semanticAllocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 64)));
+			DynamicArray!(Token, false) tokens;
+			auto tokenRange = byToken(
+				(source.length >= 3 && source[0 .. 3] == "\xef\xbb\xbf"c) ? source[3 .. $] : source,
+				config, &parseStringCache);
+			foreach (t; tokenRange)
+				tokens.insert(t);
+			Mallocator.it.deallocate(source);
 
-			FirstPass first = new FirstPass(m, location, stringCache);
+			Module m = parseModuleSimple(tokens[], location, semanticAllocator);
+
+			assert (symbolAllocator);
+			auto first = scoped!FirstPass(m, location, stringCache,
+				symbolAllocator, semanticAllocator);
 			first.run();
-			cache = null;
 
 			SecondPass second = SecondPass(first);
 			second.run();
@@ -156,21 +164,28 @@ struct ModuleCache
 			ThirdPass third = ThirdPass(second, location);
 			third.run();
 
-			p.deallocateAll();
-			p = null;
-			symbols = third.rootSymbol.acSymbol.parts.array();
-		}
-		catch (Exception ex)
-		{
-			Log.error("Couln't parse ", location, " due to exception: ", ex.msg);
-			return [];
-		}
+			symbols = cast(ACSymbol*[]) Mallocator.it.allocate(
+				third.rootSymbol.acSymbol.parts.length * (ACSymbol*).sizeof);
+			size_t i = 0;
+			foreach (part; third.rootSymbol.acSymbol.parts[])
+				symbols[i++] = part;
+
+			typeid(Scope).destroy(third.moduleScope);
+			typeid(SemanticSymbol).destroy(third.rootSymbol);
+			symbolsAllocated += first.symbolsAllocated;
+//		}
+//		catch (Exception ex)
+//		{
+//			Log.error("Couln't parse ", location, " due to exception: ", ex.msg);
+//			return [];
+//		}
 		SysTime access;
 		SysTime modification;
 		getTimes(location, access, modification);
-		CacheEntry* c = new CacheEntry(symbols, modification, location);
+		CacheEntry* c = allocate!CacheEntry(Mallocator.it, symbols,
+			modification, stringCache.intern(location));
 		cache.insert(c);
-		recursionGuard[location] = false;
+		recursionGuard.remove(location);
 		return symbols;
 	}
 
@@ -188,38 +203,36 @@ struct ModuleCache
 		string[] alternatives;
 		foreach (path; importPaths)
 		{
-			string filePath = buildPath(path, moduleName);
-			if (exists(filePath ~ ".d") && isFile(filePath ~ ".d"))
-				alternatives = (filePath ~ ".d") ~ alternatives;
-			else if (exists(filePath ~ ".di") && isFile(filePath ~ ".di"))
-				alternatives = (filePath ~ ".di") ~ alternatives;
-			else if (exists(filePath) && isDir(filePath))
+			string dotDi = buildPath(path, moduleName) ~ ".di";
+			string dotD = dotDi[0 .. $ - 1];
+			string withoutSuffix = dotDi[0 .. $ - 2];
+			if (exists(dotD) && isFile(dotD))
+				alternatives = (dotD) ~ alternatives;
+			else if (exists(dotDi) && isFile(dotDi))
+				alternatives ~= dotDi;
+			else if (exists(withoutSuffix) && isDir(withoutSuffix))
 			{
-				string packagePath = buildPath(filePath, "package.d");
+				string packagePath = buildPath(withoutSuffix, "package.di");
 				if (exists(packagePath) && isFile(packagePath))
 				{
 					alternatives ~= packagePath;
 					continue;
 				}
-				packagePath ~= "i";
-				if (exists(packagePath) && isFile(packagePath))
-					alternatives ~= packagePath;
+				if (exists(packagePath[0 .. $ - 1]) && isFile(packagePath[0 .. $ - 1]))
+					alternatives ~= packagePath[0 .. $ - 1];
 			}
 		}
 		return alternatives.length > 0 ? alternatives[0] : null;
 	}
 
-	static const(string[]) getImportPaths()
+	static auto getImportPaths()
 	{
-		return cast(const(string[])) importPaths;
-	}
-
-	static string intern(string s)
-	{
-		return s is null || s.length == 0 ? "" : stringCache.intern(s);
+		return importPaths[];
 	}
 
 	static shared(StringCache)* stringCache;
+
+	static uint symbolsAllocated;
 
 private:
 
@@ -231,9 +244,7 @@ private:
 	 */
 	static bool needsReparsing(string mod)
 	{
-		if (mod !in recursionGuard)
-			return true;
-		if (recursionGuard[mod])
+		if (recursionGuard.contains(mod))
 			return false;
 		if (!exists(mod))
 			return true;
@@ -249,10 +260,12 @@ private:
 	}
 
 	// Mapping of file paths to their cached symbols.
-	static RedBlackTree!(CacheEntry*, cacheComparitor) cache;
+	static KAryTree!(CacheEntry*) cache;
 
-	static bool[string] recursionGuard;
+	static HashSet!string recursionGuard;
 
 	// Listing of paths to check for imports
-	static string[] importPaths;
+	static UnrolledList!string importPaths;
+
+	static CAllocator symbolAllocator;
 }

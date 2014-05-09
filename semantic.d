@@ -20,9 +20,10 @@ module semantic;
 
 import messages;
 import actypes;
-import stdx.d.ast;
-import stdx.d.lexer;
+import std.d.ast;
+import std.d.lexer;
 import stupidlog;
+import containers.unrolledlist;
 
 /**
  * Intermediate form between ACSymbol and the AST classes. Stores enough
@@ -33,6 +34,7 @@ struct SemanticSymbol
 public:
 
 	@disable this();
+	@disable this(this);
 
 	/**
 	 * Params:
@@ -41,13 +43,16 @@ public:
 	 *    symbolFile = the file name for this symbol
 	 *    location = the location of this symbol
 	 */
-	this(string name, CompletionKind kind, string symbolFile,
-		size_t location = size_t.max, const Type type = null)
+	this(ACSymbol* acSymbol, const Type type = null)
 	{
-		acSymbol = new ACSymbol(name, kind);
-		acSymbol.location = location;
-		acSymbol.symbolFile = symbolFile;
+		this.acSymbol = acSymbol;
 		this.type = type;
+	}
+
+	~this()
+	{
+		foreach (child; children[])
+			typeid(typeof(*child)).destroy(child);
 	}
 
 	/**
@@ -55,7 +60,7 @@ public:
 	 */
 	void addChild(SemanticSymbol* child)
 	{
-		children ~= child;
+		children.insert(child);
 		acSymbol.parts.insert(child.acSymbol);
 	}
 
@@ -63,16 +68,16 @@ public:
 	ACSymbol* acSymbol;
 
 	/// Base classes
-	string[][] baseClasses;
+	UnrolledList!(string[]) baseClasses;
 
 	/// Variable type or function return type
 	const Type type;
 
 	/// Alias this symbols
-	string[] aliasThis;
+	UnrolledList!(string) aliasThis;
 
 	/// MixinTemplates
-	string[] mixinTemplates;
+	UnrolledList!(string) mixinTemplates;
 
 	/// Protection level for this symobol
 	IdType protection;
@@ -81,7 +86,7 @@ public:
 	SemanticSymbol* parent;
 
 	/// Child symbols
-	SemanticSymbol*[] children;
+	UnrolledList!(SemanticSymbol*) children;
 }
 
 /**
@@ -96,25 +101,29 @@ Type argumentsType;
 
 static this()
 {
+	import std.allocator;
 	// _argptr has type void*
-	argptrType = new Type;
-	argptrType.type2 = new Type2;
+	argptrType = allocate!Type(Mallocator.it);
+	argptrType.type2 = allocate!Type2(Mallocator.it);
 	argptrType.type2.builtinType = tok!"void";
-	TypeSuffix argptrTypeSuffix = new TypeSuffix;
+	TypeSuffix argptrTypeSuffix = allocate!TypeSuffix(Mallocator.it);
 	argptrTypeSuffix.star = true;
-	argptrType.typeSuffixes ~= argptrTypeSuffix;
+	argptrType.typeSuffixes = cast(TypeSuffix[]) Mallocator.it.allocate(TypeSuffix.sizeof);
+	argptrType.typeSuffixes[0] = argptrTypeSuffix;
 
 	// _arguments has type TypeInfo[]
-	argumentsType = new Type;
-	argumentsType = new Type;
-	argumentsType.type2 = new Type2;
-	argumentsType.type2.symbol = new Symbol;
-	argumentsType.type2.symbol.identifierOrTemplateChain = new IdentifierOrTemplateChain;
-	IdentifierOrTemplateInstance i = new IdentifierOrTemplateInstance;
+	argumentsType = allocate!Type(Mallocator.it);
+	argumentsType.type2 = allocate!Type2(Mallocator.it);
+	argumentsType.type2.symbol = allocate!Symbol(Mallocator.it);
+	argumentsType.type2.symbol.identifierOrTemplateChain = allocate!IdentifierOrTemplateChain(Mallocator.it);
+	IdentifierOrTemplateInstance i = allocate!IdentifierOrTemplateInstance(Mallocator.it);
 	i.identifier.text = "TypeInfo";
 	i.identifier.type = tok!"identifier";
-	argumentsType.type2.symbol.identifierOrTemplateChain.identifiersOrTemplateInstances ~= i;
-	TypeSuffix argumentsTypeSuffix = new TypeSuffix;
+	argumentsType.type2.symbol.identifierOrTemplateChain.identifiersOrTemplateInstances =
+		cast(IdentifierOrTemplateInstance[]) Mallocator.it.allocate(IdentifierOrTemplateInstance.sizeof);
+	argumentsType.type2.symbol.identifierOrTemplateChain.identifiersOrTemplateInstances[0] = i;
+	TypeSuffix argumentsTypeSuffix = allocate!TypeSuffix(Mallocator.it);
 	argumentsTypeSuffix.array = true;
-	argumentsType.typeSuffixes ~= argptrTypeSuffix;
+	argumentsType.typeSuffixes = cast(TypeSuffix[]) Mallocator.it.allocate(TypeSuffix.sizeof);
+	argumentsType.typeSuffixes[0] = argptrTypeSuffix;
 }

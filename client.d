@@ -185,7 +185,7 @@ Options:
         Instructs the server to add PATH to its list of paths searced for
         imported modules.
 
-    --port PORTNUMBER | -pPORTNUMBER
+    --port PORTNUMBER | -p PORTNUMBER
         Uses PORTNUMBER to communicate with the server instead of the default
         port 9166.`, programName);
 }

@@ -23,18 +23,14 @@ import std.array;
 import std.container;
 import std.stdio;
 import std.typecons;
+import std.allocator;
 
-import stdx.d.lexer;
+import containers.karytree;
+import containers.unrolledlist;
+import containers.slist;
+import std.d.lexer;
 
 import messages;
-
-/**
- * Compares symbols by their name
- */
-bool comparitor(const(ACSymbol)* a, const(ACSymbol)* b) pure nothrow
-{
-	return a.name < b.name;
-}
 
 /**
  * Any special information about a variable declaration symbol.
@@ -67,7 +63,6 @@ public:
 	this(string name)
 	{
 		this.name = name;
-		this.parts = new RedBlackTree!(ACSymbol*, comparitor, true);
 	}
 
 	/**
@@ -79,7 +74,6 @@ public:
 	{
 		this.name = name;
 		this.kind = kind;
-		this.parts = new RedBlackTree!(ACSymbol*, comparitor, true);
 	}
 
 	/**
@@ -93,7 +87,15 @@ public:
 		this.name = name;
 		this.kind = kind;
 		this.type = type;
-		this.parts = new RedBlackTree!(ACSymbol*, comparitor, true);
+	}
+
+	int opCmp(ref const ACSymbol other) const
+	{
+		if (name < other.name)
+			return -1;
+		if (name > other.name)
+			return 1;
+		return 0;
 	}
 
 	/**
@@ -101,16 +103,15 @@ public:
 	 */
 	ACSymbol*[] getPartsByName(string name)
 	{
-		import std.range;
 		ACSymbol s = ACSymbol(name);
-		return parts.equalRange(&s).array();
+		return array(parts.equalRange(&s));
 	}
 
 	/**
 	 * Symbols that compose this symbol, such as enum members, class variables,
 	 * methods, etc.
 	 */
-	RedBlackTree!(ACSymbol*, comparitor, true) parts;
+	KAryTree!(ACSymbol*, true, "a < b", false) parts;
 
 	/**
 	 * Symbol's name
@@ -167,7 +168,14 @@ struct Scope
 	{
 		this.startLocation = begin;
 		this.endLocation = end;
-		this.symbols = new RedBlackTree!(ACSymbol*, comparitor, true);
+	}
+
+	~this()
+	{
+		foreach (info; importInformation[])
+			typeid(ImportInformation).destroy(info);
+		foreach (child; children[])
+			typeid(Scope).destroy(child);
 	}
 
 	/**
@@ -176,11 +184,11 @@ struct Scope
 	 * Returns:
 	 *     the innermost scope that contains the given cursor position
 	 */
-	Scope* getScopeByCursor(size_t cursorPosition) const
+	Scope* getScopeByCursor(size_t cursorPosition)
 	{
 		if (cursorPosition < startLocation) return null;
 		if (cursorPosition > endLocation) return null;
-		foreach (child; children)
+		foreach (child; children[])
 		{
 			auto childScope = child.getScopeByCursor(cursorPosition);
 			if (childScope !is null)
@@ -196,20 +204,20 @@ struct Scope
 	 *     all symbols in the scope containing the cursor position, as well as
 	 *     the symbols in parent scopes of that scope.
 	 */
-	ACSymbol*[] getSymbolsInCursorScope(size_t cursorPosition) const
+	ACSymbol*[] getSymbolsInCursorScope(size_t cursorPosition)
 	{
 		auto s = getScopeByCursor(cursorPosition);
 		if (s is null)
 			return [];
-		auto symbols = s.symbols;
+		UnrolledList!(ACSymbol*) symbols;
+		symbols.insert(s.symbols[]);
 		Scope* sc = s.parent;
 		while (sc !is null)
 		{
-			foreach (sym; sc.symbols)
-				symbols.insert(sym);
+			symbols.insert(sc.symbols[]);
 			sc = sc.parent;
 		}
-		return symbols.array();
+		return array(symbols[]);
 	}
 
 	/**
@@ -218,12 +226,16 @@ struct Scope
 	 * Returns:
 	 *     all symbols in this scope or parent scopes with the given name
 	 */
-	ACSymbol*[] getSymbolsByName(string name) const
+	ACSymbol*[] getSymbolsByName(string name)
 	{
 		import std.range;
 		ACSymbol s = ACSymbol(name);
-		RedBlackTree!(ACSymbol*, comparitor, true) t = cast() symbols;
-		auto r = t.equalRange(&s).array();
+		auto r = array(symbols.equalRange(&s));
+		foreach (i; r)
+		{
+			import std.string;
+			assert (i.name == name, format("%s %s %d", i.name, name, r.length));
+		}
 		if (r.length > 0)
 			return cast(typeof(return)) r;
 		if (parent is null)
@@ -239,7 +251,7 @@ struct Scope
 	 *     all symbols with the given name in the scope containing the cursor
 	 *     and its parent scopes
 	 */
-	ACSymbol*[] getSymbolsByNameAndCursor(string name, size_t cursorPosition) const
+	ACSymbol*[] getSymbolsByNameAndCursor(string name, size_t cursorPosition)
 	{
 		auto s = getScopeByCursor(cursorPosition);
 		if (s is null)
@@ -248,13 +260,13 @@ struct Scope
 	}
 
 	/// Imports contained in this scope
-	ImportInformation[] importInformation;
+	UnrolledList!(ImportInformation*) importInformation;
 
 	/// The scope that contains this one
 	Scope* parent;
 
 	/// Child scopes
-	Scope*[] children;
+	UnrolledList!(Scope*, false) children;
 
 	/// Start location of this scope in bytes
 	size_t startLocation;
@@ -263,7 +275,7 @@ struct Scope
 	size_t endLocation;
 
 	/// Symbols contained in this scope
-	RedBlackTree!(ACSymbol*, comparitor, true) symbols;
+	KAryTree!(ACSymbol*, true, "a < b", false) symbols;
 }
 
 /**
@@ -272,11 +284,11 @@ struct Scope
 struct ImportInformation
 {
 	/// Import statement parts
-	string[] importParts;
+	UnrolledList!string importParts;
 	/// module relative path
 	string modulePath;
 	/// symbols to import from this module
-	Tuple!(string, string)[] importedSymbols;
+	UnrolledList!(Tuple!(string, string), false) importedSymbols;
 	/// true if the import is public
 	bool isPublic;
 }
@@ -285,91 +297,98 @@ struct ImportInformation
 /**
  * Symbols for the built in types
  */
-RedBlackTree!(ACSymbol*, comparitor, true) builtinSymbols;
+KAryTree!(ACSymbol*, true) builtinSymbols;
 
 /**
  * Array properties
  */
-RedBlackTree!(ACSymbol*, comparitor, true) arraySymbols;
+KAryTree!(ACSymbol*, true) arraySymbols;
 
 /**
  * Associative array properties
  */
-RedBlackTree!(ACSymbol*, comparitor, true) assocArraySymbols;
+KAryTree!(ACSymbol*, true) assocArraySymbols;
 
 /**
  * Enum, union, class, and interface properties
  */
-RedBlackTree!(ACSymbol*, comparitor, true) aggregateSymbols;
+KAryTree!(ACSymbol*, true) aggregateSymbols;
 
 /**
  * Class properties
  */
-RedBlackTree!(ACSymbol*, comparitor, true) classSymbols;
+KAryTree!(ACSymbol*, true) classSymbols;
 
 /**
  * Initializes builtin types and the various properties of builtin types
  */
 static this()
 {
-	auto bSym = new RedBlackTree!(ACSymbol*, comparitor, true);
-	auto arrSym = new RedBlackTree!(ACSymbol*, comparitor, true);
-	auto asarrSym = new RedBlackTree!(ACSymbol*, comparitor, true);
-	auto aggSym = new RedBlackTree!(ACSymbol*, comparitor, true);
-	auto clSym = new RedBlackTree!(ACSymbol*, comparitor, true);
+	auto bool_ = allocate!ACSymbol(Mallocator.it, "bool", CompletionKind.keyword);
+	auto int_ = allocate!ACSymbol(Mallocator.it, "int", CompletionKind.keyword);
+	auto long_ = allocate!ACSymbol(Mallocator.it, "long", CompletionKind.keyword);
+	auto byte_ = allocate!ACSymbol(Mallocator.it, "byte", CompletionKind.keyword);
+	auto char_ = allocate!ACSymbol(Mallocator.it, "char", CompletionKind.keyword);
+	auto dchar_ = allocate!ACSymbol(Mallocator.it, "dchar", CompletionKind.keyword);
+	auto short_ = allocate!ACSymbol(Mallocator.it, "short", CompletionKind.keyword);
+	auto ubyte_ = allocate!ACSymbol(Mallocator.it, "ubyte", CompletionKind.keyword);
+	auto uint_ = allocate!ACSymbol(Mallocator.it, "uint", CompletionKind.keyword);
+	auto ulong_ = allocate!ACSymbol(Mallocator.it, "ulong", CompletionKind.keyword);
+	auto ushort_ = allocate!ACSymbol(Mallocator.it, "ushort", CompletionKind.keyword);
+	auto wchar_ = allocate!ACSymbol(Mallocator.it, "wchar", CompletionKind.keyword);
 
-	auto bool_ = new ACSymbol("bool", CompletionKind.keyword);
-	auto int_ = new ACSymbol("int", CompletionKind.keyword);
-	auto long_ = new ACSymbol("long", CompletionKind.keyword);
-	auto byte_ = new ACSymbol("byte", CompletionKind.keyword);
-	auto char_ = new ACSymbol("char", CompletionKind.keyword);
-	auto dchar_ = new ACSymbol("dchar", CompletionKind.keyword);
-	auto short_ = new ACSymbol("short", CompletionKind.keyword);
-	auto ubyte_ = new ACSymbol("ubyte", CompletionKind.keyword);
-	auto uint_ = new ACSymbol("uint", CompletionKind.keyword);
-	auto ulong_ = new ACSymbol("ulong", CompletionKind.keyword);
-	auto ushort_ = new ACSymbol("ushort", CompletionKind.keyword);
-	auto wchar_ = new ACSymbol("wchar", CompletionKind.keyword);
+	auto alignof_ = allocate!ACSymbol(Mallocator.it, "alignof", CompletionKind.keyword);
+	auto mangleof_ = allocate!ACSymbol(Mallocator.it, "mangleof", CompletionKind.keyword);
+	auto sizeof_ = allocate!ACSymbol(Mallocator.it, "sizeof", CompletionKind.keyword);
+	auto stringof_ = allocate!ACSymbol(Mallocator.it, "init", CompletionKind.keyword);
+	auto init = allocate!ACSymbol(Mallocator.it, "stringof", CompletionKind.keyword);
 
-	auto alignof_ = new ACSymbol("alignof", CompletionKind.keyword, ulong_);
-	auto mangleof_ = new ACSymbol("mangleof", CompletionKind.keyword);
-	auto sizeof_ = new ACSymbol("sizeof", CompletionKind.keyword, ulong_);
-	auto stringof_ = new ACSymbol("init", CompletionKind.keyword);
-	auto init = new ACSymbol("stringof", CompletionKind.keyword);
+	arraySymbols.insert(alignof_);
+	arraySymbols.insert(allocate!ACSymbol(Mallocator.it, "dup", CompletionKind.keyword));
+	arraySymbols.insert(allocate!ACSymbol(Mallocator.it, "idup", CompletionKind.keyword));
+	arraySymbols.insert(init);
+	arraySymbols.insert(allocate!ACSymbol(Mallocator.it, "length", CompletionKind.keyword, ulong_));
+	arraySymbols.insert(mangleof_);
+	arraySymbols.insert(allocate!ACSymbol(Mallocator.it, "ptr", CompletionKind.keyword));
+	arraySymbols.insert(allocate!ACSymbol(Mallocator.it, "reverse", CompletionKind.keyword));
+	arraySymbols.insert(sizeof_);
+	arraySymbols.insert(allocate!ACSymbol(Mallocator.it, "sort", CompletionKind.keyword));
+	arraySymbols.insert(stringof_);
 
-	arrSym.insert(alignof_);
-	arrSym.insert(new ACSymbol("dup", CompletionKind.keyword));
-	arrSym.insert(new ACSymbol("idup", CompletionKind.keyword));
-	arrSym.insert(init);
-	arrSym.insert(new ACSymbol("length", CompletionKind.keyword, ulong_));
-	arrSym.insert(mangleof_);
-	arrSym.insert(new ACSymbol("ptr", CompletionKind.keyword));
-	arrSym.insert(new ACSymbol("reverse", CompletionKind.keyword));
-	arrSym.insert(sizeof_);
-	arrSym.insert(new ACSymbol("sort", CompletionKind.keyword));
-	arrSym.insert(stringof_);
+	assocArraySymbols.insert(alignof_);
+	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, "byKey", CompletionKind.keyword));
+	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, "byValue", CompletionKind.keyword));
+	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, "dup", CompletionKind.keyword));
+	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, "get", CompletionKind.keyword));
+	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, "init", CompletionKind.keyword));
+	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, "keys", CompletionKind.keyword));
+	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, "length", CompletionKind.keyword, ulong_));
+	assocArraySymbols.insert(mangleof_);
+	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, "rehash", CompletionKind.keyword));
+	assocArraySymbols.insert(sizeof_);
+	assocArraySymbols.insert(stringof_);
+	assocArraySymbols.insert(init);
+	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, "values", CompletionKind.keyword));
 
-	asarrSym.insert(alignof_);
-	asarrSym.insert(new ACSymbol("byKey", CompletionKind.keyword));
-	asarrSym.insert(new ACSymbol("byValue", CompletionKind.keyword));
-	asarrSym.insert(new ACSymbol("dup", CompletionKind.keyword));
-	asarrSym.insert(new ACSymbol("get", CompletionKind.keyword));
-	asarrSym.insert(new ACSymbol("init", CompletionKind.keyword));
-	asarrSym.insert(new ACSymbol("keys", CompletionKind.keyword));
-	asarrSym.insert(new ACSymbol("length", CompletionKind.keyword, ulong_));
-	asarrSym.insert(mangleof_);
-	asarrSym.insert(new ACSymbol("rehash", CompletionKind.keyword));
-	asarrSym.insert(sizeof_);
-	asarrSym.insert(stringof_);
-	asarrSym.insert(init);
-	asarrSym.insert(new ACSymbol("values", CompletionKind.keyword));
+	ACSymbol*[11] integralTypeArray;
+	integralTypeArray[0] = bool_;
+	integralTypeArray[1] = int_;
+	integralTypeArray[2] = long_;
+	integralTypeArray[3] = byte_;
+	integralTypeArray[4] = char_;
+	integralTypeArray[4] = dchar_;
+	integralTypeArray[5] = short_;
+	integralTypeArray[6] = ubyte_;
+	integralTypeArray[7] = uint_;
+	integralTypeArray[8] = ulong_;
+	integralTypeArray[9] = ushort_;
+	integralTypeArray[10] = wchar_;
 
-	foreach (s; [bool_, int_, long_, byte_, char_, dchar_, short_, ubyte_, uint_,
-		ulong_, ushort_, wchar_])
+	foreach (s; integralTypeArray)
 	{
-		s.parts.insert(new ACSymbol("init", CompletionKind.keyword, s));
-		s.parts.insert(new ACSymbol("min", CompletionKind.keyword, s));
-		s.parts.insert(new ACSymbol("max", CompletionKind.keyword, s));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, "init", CompletionKind.keyword, s));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, "min", CompletionKind.keyword, s));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, "max", CompletionKind.keyword, s));
 		s.parts.insert(alignof_);
 		s.parts.insert(sizeof_);
 		s.parts.insert(stringof_);
@@ -377,74 +396,101 @@ static this()
 		s.parts.insert(init);
 	}
 
-	auto cdouble_ = new ACSymbol("cdouble", CompletionKind.keyword);
-	auto cent_ = new ACSymbol("cent", CompletionKind.keyword);
-	auto cfloat_ = new ACSymbol("cfloat", CompletionKind.keyword);
-	auto creal_ = new ACSymbol("creal", CompletionKind.keyword);
-	auto double_ = new ACSymbol("double", CompletionKind.keyword);
-	auto float_ = new ACSymbol("float", CompletionKind.keyword);
-	auto idouble_ = new ACSymbol("idouble", CompletionKind.keyword);
-	auto ifloat_ = new ACSymbol("ifloat", CompletionKind.keyword);
-	auto ireal_ = new ACSymbol("ireal", CompletionKind.keyword);
-	auto real_ = new ACSymbol("real", CompletionKind.keyword);
-	auto ucent_ = new ACSymbol("ucent", CompletionKind.keyword);
+	auto cdouble_ = allocate!ACSymbol(Mallocator.it, "cdouble", CompletionKind.keyword);
+	auto cent_ = allocate!ACSymbol(Mallocator.it, "cent", CompletionKind.keyword);
+	auto cfloat_ = allocate!ACSymbol(Mallocator.it, "cfloat", CompletionKind.keyword);
+	auto creal_ = allocate!ACSymbol(Mallocator.it, "creal", CompletionKind.keyword);
+	auto double_ = allocate!ACSymbol(Mallocator.it, "double", CompletionKind.keyword);
+	auto float_ = allocate!ACSymbol(Mallocator.it, "float", CompletionKind.keyword);
+	auto idouble_ = allocate!ACSymbol(Mallocator.it, "idouble", CompletionKind.keyword);
+	auto ifloat_ = allocate!ACSymbol(Mallocator.it, "ifloat", CompletionKind.keyword);
+	auto ireal_ = allocate!ACSymbol(Mallocator.it, "ireal", CompletionKind.keyword);
+	auto real_ = allocate!ACSymbol(Mallocator.it, "real", CompletionKind.keyword);
+	auto ucent_ = allocate!ACSymbol(Mallocator.it, "ucent", CompletionKind.keyword);
 
-	foreach (s; [cdouble_, cent_, cfloat_, creal_, double_, float_,
-		idouble_, ifloat_, ireal_, real_, ucent_])
+	ACSymbol*[11] floatTypeArray;
+	floatTypeArray[0] = cdouble_;
+	floatTypeArray[1] = cent_;
+	floatTypeArray[2] = cfloat_;
+	floatTypeArray[3] = creal_;
+	floatTypeArray[4] = double_;
+	floatTypeArray[5] = float_;
+	floatTypeArray[6] = idouble_;
+	floatTypeArray[7] = ifloat_;
+	floatTypeArray[8] = ireal_;
+	floatTypeArray[9] = real_;
+	floatTypeArray[10] = ucent_;
+
+	foreach (s; floatTypeArray)
 	{
 		s.parts.insert(alignof_);
-		s.parts.insert(new ACSymbol("dig", CompletionKind.keyword, s));
-		s.parts.insert(new ACSymbol("epsilon", CompletionKind.keyword, s));
-		s.parts.insert(new ACSymbol("infinity", CompletionKind.keyword, s));
-		s.parts.insert(new ACSymbol("init", CompletionKind.keyword, s));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, "dig", CompletionKind.keyword, s));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, "epsilon", CompletionKind.keyword, s));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, "infinity", CompletionKind.keyword, s));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, "init", CompletionKind.keyword, s));
 		s.parts.insert(mangleof_);
-		s.parts.insert(new ACSymbol("mant_dig", CompletionKind.keyword, int_));
-		s.parts.insert(new ACSymbol("max", CompletionKind.keyword, s));
-		s.parts.insert(new ACSymbol("max_10_exp", CompletionKind.keyword, int_));
-		s.parts.insert(new ACSymbol("max_exp", CompletionKind.keyword, int_));
-		s.parts.insert(new ACSymbol("min", CompletionKind.keyword, s));
-		s.parts.insert(new ACSymbol("min_exp", CompletionKind.keyword, int_));
-		s.parts.insert(new ACSymbol("min_10_exp", CompletionKind.keyword, int_));
-		s.parts.insert(new ACSymbol("min_normal", CompletionKind.keyword, s));
-		s.parts.insert(new ACSymbol("nan", CompletionKind.keyword, s));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, "mant_dig", CompletionKind.keyword, int_));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, "max", CompletionKind.keyword, s));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, "max_10_exp", CompletionKind.keyword, int_));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, "max_exp", CompletionKind.keyword, int_));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, "min", CompletionKind.keyword, s));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, "min_exp", CompletionKind.keyword, int_));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, "min_10_exp", CompletionKind.keyword, int_));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, "min_normal", CompletionKind.keyword, s));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, "nan", CompletionKind.keyword, s));
 		s.parts.insert(sizeof_);
 		s.parts.insert(stringof_);
 	}
 
-	aggSym.insert(new ACSymbol("tupleof", CompletionKind.variableName));
-	aggSym.insert(mangleof_);
-	aggSym.insert(alignof_);
-	aggSym.insert(sizeof_);
-	aggSym.insert(stringof_);
-	aggSym.insert(init);
+	aggregateSymbols.insert(allocate!ACSymbol(Mallocator.it, "tupleof", CompletionKind.variableName));
+	aggregateSymbols.insert(mangleof_);
+	aggregateSymbols.insert(alignof_);
+	aggregateSymbols.insert(sizeof_);
+	aggregateSymbols.insert(stringof_);
+	aggregateSymbols.insert(init);
 
-	clSym.insert(new ACSymbol("classInfo", CompletionKind.variableName));
-	clSym.insert(new ACSymbol("tupleof", CompletionKind.variableName));
-	clSym.insert(new ACSymbol("__vptr", CompletionKind.variableName));
-	clSym.insert(new ACSymbol("__monitor", CompletionKind.variableName));
-	clSym.insert(mangleof_);
-	clSym.insert(alignof_);
-	clSym.insert(sizeof_);
-	clSym.insert(stringof_);
-	clSym.insert(init);
+	classSymbols.insert(allocate!ACSymbol(Mallocator.it, "classInfo", CompletionKind.variableName));
+	classSymbols.insert(allocate!ACSymbol(Mallocator.it, "tupleof", CompletionKind.variableName));
+	classSymbols.insert(allocate!ACSymbol(Mallocator.it, "__vptr", CompletionKind.variableName));
+	classSymbols.insert(allocate!ACSymbol(Mallocator.it, "__monitor", CompletionKind.variableName));
+	classSymbols.insert(mangleof_);
+	classSymbols.insert(alignof_);
+	classSymbols.insert(sizeof_);
+	classSymbols.insert(stringof_);
+	classSymbols.insert(init);
 
-	ireal_.parts.insert(new ACSymbol("im", CompletionKind.keyword, real_));
-	ifloat_.parts.insert(new ACSymbol("im", CompletionKind.keyword, float_));
-	idouble_.parts.insert(new ACSymbol("im", CompletionKind.keyword, double_));
-	ireal_.parts.insert(new ACSymbol("re", CompletionKind.keyword, real_));
-	ifloat_.parts.insert(new ACSymbol("re", CompletionKind.keyword, float_));
-	idouble_.parts.insert(new ACSymbol("re", CompletionKind.keyword, double_));
+	ireal_.parts.insert(allocate!ACSymbol(Mallocator.it, "im", CompletionKind.keyword, real_));
+	ifloat_.parts.insert(allocate!ACSymbol(Mallocator.it, "im", CompletionKind.keyword, float_));
+	idouble_.parts.insert(allocate!ACSymbol(Mallocator.it, "im", CompletionKind.keyword, double_));
+	ireal_.parts.insert(allocate!ACSymbol(Mallocator.it, "re", CompletionKind.keyword, real_));
+	ifloat_.parts.insert(allocate!ACSymbol(Mallocator.it, "re", CompletionKind.keyword, float_));
+	idouble_.parts.insert(allocate!ACSymbol(Mallocator.it, "re", CompletionKind.keyword, double_));
 
-	auto void_ = new ACSymbol("void", CompletionKind.keyword);
+	auto void_ = allocate!ACSymbol(Mallocator.it, "void", CompletionKind.keyword);
 
-	bSym.insert([bool_, int_, long_, byte_, char_, dchar_, short_, ubyte_, uint_,
-		ulong_, ushort_, wchar_, cdouble_, cent_, cfloat_, creal_, double_,
-		float_, idouble_, ifloat_, ireal_, real_, ucent_, void_]);
-
-	builtinSymbols = bSym;
-	arraySymbols = arrSym;
-	assocArraySymbols = asarrSym;
-	aggregateSymbols = aggSym;
-	classSymbols = clSym;
+	builtinSymbols.insert(bool_);
+	builtinSymbols.insert(int_);
+	builtinSymbols.insert(long_);
+	builtinSymbols.insert(byte_);
+	builtinSymbols.insert(char_);
+	builtinSymbols.insert(dchar_);
+	builtinSymbols.insert(short_);
+	builtinSymbols.insert(ubyte_);
+	builtinSymbols.insert(uint_);
+	builtinSymbols.insert(ulong_);
+	builtinSymbols.insert(ushort_);
+	builtinSymbols.insert(wchar_);
+	builtinSymbols.insert(cdouble_);
+	builtinSymbols.insert(cent_);
+	builtinSymbols.insert(cfloat_);
+	builtinSymbols.insert(creal_);
+	builtinSymbols.insert(double_);
+	builtinSymbols.insert(float_);
+	builtinSymbols.insert(idouble_);
+	builtinSymbols.insert(ifloat_);
+	builtinSymbols.insert(ireal_);
+	builtinSymbols.insert(real_);
+	builtinSymbols.insert(ucent_);
+	builtinSymbols.insert(void_);
 }
 

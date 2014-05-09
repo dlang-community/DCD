@@ -18,13 +18,13 @@
 
 module conversion.third;
 
-import stdx.d.ast;
-import stdx.d.lexer;
+import std.d.ast;
+import std.d.lexer;
 import conversion.second;
 import semantic;
 import actypes;
 import messages;
-
+import std.allocator;
 
 /**
  * Third pass handles the following:
@@ -45,6 +45,7 @@ public:
 		this.moduleScope = second.moduleScope;
 		this.stringCache = second.stringCache;
 		this.name = name;
+		this.symbolAllocator = second.symbolAllocator;
 	}
 
 	string name;
@@ -56,6 +57,7 @@ public:
 
 	SemanticSymbol* rootSymbol;
 	Scope* moduleScope;
+	CAllocator symbolAllocator;
 
 private:
 
@@ -147,7 +149,11 @@ private:
 		else if (t.type2.symbol !is null)
 		{
 			// TODO: global scoped symbol handling
-			string[] symbolParts = expandSymbol(
+			string[] symbolParts = cast(string[]) Mallocator.it.allocate(
+				t.type2.symbol.identifierOrTemplateChain.identifiersOrTemplateInstances.length
+				* string.sizeof);
+			scope(exit) Mallocator.it.deallocate(symbolParts);
+			expandSymbol(symbolParts,
 				t.type2.symbol.identifierOrTemplateChain, stringCache, name);
 			auto symbols = moduleScope.getSymbolsByNameAndCursor(
 				symbolParts[0], location);
@@ -168,12 +174,9 @@ private:
 		return s;
 	}
 
-	static string[] expandSymbol(const IdentifierOrTemplateChain chain,
+	static void expandSymbol(string[] strings, const IdentifierOrTemplateChain chain,
 		shared(StringCache)* stringCache, string n)
 	{
-		if (chain.identifiersOrTemplateInstances.length == 0)
-			return [];
-		string[] strings = new string[chain.identifiersOrTemplateInstances.length];
 		for (size_t i = 0; i < chain.identifiersOrTemplateInstances.length; ++i)
 		{
 			auto identOrTemplate = chain.identifiersOrTemplateInstances[i];
@@ -183,21 +186,18 @@ private:
 				identOrTemplate.identifier.text
 				: identOrTemplate.templateInstance.identifier.text);
 		}
-		return strings;
 	}
 
-	static ACSymbol* processSuffix(ACSymbol* symbol, const TypeSuffix suffix)
+	ACSymbol* processSuffix(ACSymbol* symbol, const TypeSuffix suffix)
 	{
-		import std.container;
 		import formatter;
 		if (suffix.star)
 			return symbol;
 		if (suffix.array || suffix.type)
 		{
-			ACSymbol* s = new ACSymbol(null);
-			s.parts = new RedBlackTree!(ACSymbol*, comparitor, true);
-			s.parts.insert(suffix.array ? (cast() arraySymbols)[]
-				: (cast() assocArraySymbols)[]);
+			ACSymbol* s = allocate!ACSymbol(symbolAllocator, null);
+			s.parts.insert(suffix.array ? arraySymbols[]
+				: assocArraySymbols[]);
 			s.type = symbol;
 			s.qualifier = suffix.array ? SymbolQualifier.array : SymbolQualifier.assocArray;
 			return s;
@@ -205,10 +205,17 @@ private:
 		if (suffix.parameters)
 		{
 			import conversion.first;
-			ACSymbol* s = new ACSymbol(null);
+			import memory.allocators;
+			import memory.appender;
+			ACSymbol* s = allocate!ACSymbol(symbolAllocator, null);
 			s.type = symbol;
 			s.qualifier = SymbolQualifier.func;
-			s.callTip = suffix.delegateOrFunction.text ~ formatNode(suffix.parameters);
+			QuickAllocator!1024 q;
+			auto app = Appender!(char, typeof(q), 1024)(q);
+			scope(exit) q.deallocate(app.mem);
+			app.append(suffix.delegateOrFunction.text);
+			app.formatNode(suffix.parameters);
+			s.callTip = stringCache.intern(cast(ubyte[]) app[]);
 			return s;
 		}
 		return null;
@@ -219,9 +226,8 @@ private:
 		string stringRepresentation = str(type2.builtinType);
 		if (stringRepresentation is null) return null;
 		// TODO: Make this use binary search instead
-		auto t = cast() builtinSymbols;
 		ACSymbol s = ACSymbol(stringRepresentation);
-		return t.equalRange(&s).front();
+		return builtinSymbols.equalRange(&s).front();
 	}
 
 	shared(StringCache)* stringCache;

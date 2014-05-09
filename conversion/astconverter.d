@@ -18,22 +18,24 @@
 
 module conversion.astconverter;
 
-import stdx.d.lexer;
-import stdx.d.ast;
-import stdx.d.parser;
-
+import actypes;
 import conversion.first;
 import conversion.second;
 import conversion.third;
-import actypes;
+import memory.allocators;
+import std.allocator;
+import std.d.ast;
+import std.d.lexer;
+import std.d.parser;
+import std.typecons;
 
-
-const(Scope)* generateAutocompleteTrees(const(Token)[] tokens, string symbolFile)
+Scope* generateAutocompleteTrees(const(Token)[] tokens, string symbolFile,
+	CAllocator symbolAllocator, CAllocator semanticAllocator,
+	shared(StringCache)* cache)
 {
-	ParseAllocator p = new ParseAllocator;
-	Module m = parseModule(tokens, "editor buffer", p, &doesNothing);
-	shared(StringCache)* cache = new shared StringCache(StringCache.defaultBucketCount);
-	FirstPass first = new FirstPass(m, symbolFile, cache);
+	Module m = parseModule(tokens, "editor buffer", semanticAllocator, &doesNothing);
+	auto first = scoped!FirstPass(m, symbolFile, cache, symbolAllocator,
+		semanticAllocator);
 	first.run();
 
 	SecondPass second = SecondPass(first);
@@ -41,14 +43,13 @@ const(Scope)* generateAutocompleteTrees(const(Token)[] tokens, string symbolFile
 
 	ThirdPass third = ThirdPass(second);
 	third.run();
-
-	p.deallocateAll();
-	return cast(typeof(return)) third.moduleScope;
+	typeid(typeof(third.rootSymbol)).destroy(third.rootSymbol);
+	return third.moduleScope;
 }
 
-Module parseModuleSimple(const(Token)[] tokens, string fileName, ParseAllocator p)
+Module parseModuleSimple(const(Token)[] tokens, string fileName, CAllocator p)
 {
-	auto parser = new SimpleParser();
+	auto parser = scoped!SimpleParser();
 	parser.fileName = fileName;
 	parser.tokens = tokens;
 	parser.messageFunction = &doesNothing;

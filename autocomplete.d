@@ -26,10 +26,13 @@ import std.path;
 import std.range;
 import std.stdio;
 import std.uni;
-import stdx.d.ast;
-import stdx.d.lexer;
-import stdx.d.parser;
+import std.d.ast;
+import std.d.lexer;
+import std.d.parser;
 import std.string;
+import std.typecons;
+import memory.allocators;
+import std.allocator;
 
 import messages;
 import actypes;
@@ -49,7 +52,8 @@ AutocompleteResponse getDoc(const AutocompleteRequest request)
 {
 	Log.trace("Getting doc comments");
 	AutocompleteResponse response;
-	ACSymbol*[] symbols = getSymbolsForCompletion(request, CompletionType.ddoc);
+	auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 16)))();
+	ACSymbol*[] symbols = getSymbolsForCompletion(request, CompletionType.ddoc, allocator);
 	if (symbols.length == 0)
 		Log.error("Could not find symbol");
 	else foreach (symbol; symbols)
@@ -76,7 +80,8 @@ AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 {
 	Log.trace("Finding declaration");
 	AutocompleteResponse response;
-	ACSymbol*[] symbols = getSymbolsForCompletion(request, CompletionType.location);
+	auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 16)))();
+	ACSymbol*[] symbols = getSymbolsForCompletion(request, CompletionType.location, allocator);
 	if (symbols.length > 0)
 	{
 		response.symbolLocation = symbols[0].location;
@@ -120,7 +125,7 @@ AutocompleteResponse complete(const AutocompleteRequest request)
 		tokenType = beforeTokens[$ - 2].type;
 	else
 		return response;
-
+	auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 16)))();
 	switch (tokenType)
 	{
 	case tok!"stringLiteral":
@@ -160,8 +165,11 @@ AutocompleteResponse complete(const AutocompleteRequest request)
 	case tok!")":
 	case tok!"]":
 	case tok!"this":
-		const(Scope)* completionScope = generateAutocompleteTrees(tokenArray,
-			"stdin");
+		auto semanticAllocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024*16)));
+		shared(StringCache)* cache = new shared StringCache(StringCache.defaultBucketCount);
+		Scope* completionScope = generateAutocompleteTrees(tokenArray,
+			"stdin", allocator, semanticAllocator, cache);
+		scope(exit) typeid(Scope).destroy(completionScope);
 		auto expression = getExpression(beforeTokens);
 		response.setCompletions(completionScope, expression,
 			request.cursorPosition, CompletionType.identifiers, partial);
@@ -207,12 +215,16 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, size_t cursorPosition,
  *     the request's source code, cursor position, and completion type.
  */
 ACSymbol*[] getSymbolsForCompletion(const AutocompleteRequest request,
-	const CompletionType type)
+	const CompletionType type, CAllocator allocator)
 {
 	const(Token)[] tokenArray;
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
 		request.cursorPosition, tokenArray);
-	const(Scope)* completionScope = generateAutocompleteTrees(tokenArray, "stdin");
+	auto semanticAllocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024*16)));
+	shared(StringCache)* cache = new shared StringCache(StringCache.defaultBucketCount);
+	Scope* completionScope = generateAutocompleteTrees(tokenArray,
+		"stdin", allocator, semanticAllocator, cache);
+	scope(exit) typeid(Scope).destroy(completionScope);
 	auto expression = getExpression(beforeTokens);
 	return getSymbolsByTokenChain(completionScope, expression,
 		request.cursorPosition, type);
@@ -232,6 +244,7 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 {
 	AutocompleteResponse response;
 	immutable(string)[] completions;
+	auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 16)))();
 	switch (beforeTokens[$ - 2].type)
 	{
 	case tok!"__traits":
@@ -259,8 +272,11 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	case tok!"identifier":
 	case tok!")":
 	case tok!"]":
-		const(Scope)* completionScope = generateAutocompleteTrees(tokenArray,
-			"stdin");
+		auto semanticAllocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024*16)));
+		shared(StringCache)* cache = new shared StringCache(StringCache.defaultBucketCount);
+		Scope* completionScope = generateAutocompleteTrees(tokenArray,
+			"stdin", allocator, semanticAllocator, cache);
+		scope(exit) typeid(Scope).destroy(completionScope);
 		auto expression = getExpression(beforeTokens[0 .. $ - 1]);
 		response.setCompletions(completionScope, expression,
 			cursorPosition, CompletionType.calltips);
@@ -274,16 +290,18 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 /**
  *
  */
-ACSymbol*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
+ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 	T tokens, size_t cursorPosition, CompletionType completionType)
 {
-	Log.trace("Getting symbols from token chain", tokens.map!"a.text");
+	import std.d.lexer;
+	Log.trace("Getting symbols from token chain",
+		tokens.map!stringToken);
 	// Find the symbol corresponding to the beginning of the chain
 	ACSymbol*[] symbols = completionScope.getSymbolsByNameAndCursor(
-		tokens[0].text, cursorPosition);
+		stringToken(tokens[0]), cursorPosition);
 	if (symbols.length == 0)
 	{
-		Log.error("Could not find declaration of ", tokens[0].text,
+		Log.error("Could not find declaration of ", stringToken(tokens[0]),
 			" from position ", cursorPosition);
 		return [];
 	}
@@ -437,7 +455,7 @@ ACSymbol*[] getSymbolsByTokenChain(T)(const(Scope)* completionScope,
  *
  */
 void setCompletions(T)(ref AutocompleteResponse response,
-	const(Scope)* completionScope, T tokens, size_t cursorPosition,
+	Scope* completionScope, T tokens, size_t cursorPosition,
 	CompletionType completionType, string partial = null)
 {
 	// Autocomplete module imports instead of symbols
@@ -486,7 +504,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			&& (partial is null ? true : a.name.toUpper().startsWith(partial.toUpper()))
 			&& !response.completions.canFind(a.name)))
 		{
-			Log.trace("Adding ", s.name, " to the completion list");
+//			Log.trace("Adding ", s.name, " to the completion list");
 			response.completionKinds ~= s.kind;
 			response.completions ~= s.name;
 		}
@@ -731,6 +749,11 @@ string formatComment(string comment)
 		.replaceFirst(regex("^\n"), "")
 		.replaceAll(regex(`\\`), `\\`)
 		.replaceAll(regex("\n"), `\n`).outdent();
+}
+
+string stringToken()(auto ref const Token a)
+{
+	return a.text is null ? str(a.type) : a.text;
 }
 
 //unittest
