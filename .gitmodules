@@ -10,3 +10,6 @@
 [submodule "datapicked"]
 	path = datapicked
 	url = https://github.com/blackwhale/datapicked.git
+[submodule "containers"]
+	path = containers
+	url = https://github.com/economicmodeling/containers.git

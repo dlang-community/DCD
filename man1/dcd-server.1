@@ -1,0 +1,61 @@
+.TH dcd-server 1 "March 6 2014" "" https://github.com/Hackerpilot/DCD
+.SH NAME
+dcd-server \- autocompletion server for the D programming language
+.PD
+.SH SYNOPSIS
+.SY dcd-server
+.OP \-p|\-\-port portNumber
+.OP \-I
+.OP \-h|\-\-help
+.YS
+.PD
+.SH DESCRIPTION
+\fBdcd-server\fP caches information about D source files that were found
+.PD
+.SH OPTIONS
+.B -p, \-\-port
+.I portNumber
+.RS
+Choose the port number on which
+.B dcd-server
+listens.
+.RE
+.B -h, \-\-help
+.RS
+Prints a help message
+.RE
+.B \-I
+.I directory
+.RS
+Includes
+.I directory
+in the list of directories to scan for source files.
+.RE
+.PD
+.SH FILES
+dcd-server can be configured through the use of a file called
+.I dcd.conf
+This file should be placed in one of the following locations:
+.IP \(bu
+.I $XDG_CONFIG_HOME/dcd/dcd.conf
+.RE
+.IP \(bu
+.I $HOME/.config/dcd/dcd.conf
+.RE
+
+Each line in the file should be a path to search for D source files. A line in
+.I dcd.conf
+is equivalent to passing that same line to
+.B dcd-server
+with the
+.I -I
+option.
+.SH AUTHOR
+Written by Brian Schott (@Hackerpilot on Github)
+.PD
+.SH BUGS
+Please use the issue tracker located at
+.UR https://github.com/Hackerpilot/DCD/issues
+.UE
+.SH SEE ALSO
+\fBdcd-client\fP(1)

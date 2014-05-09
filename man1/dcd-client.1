@@ -1,0 +1,72 @@
+.TH dcd-client 1 "March 6 2014" "" https://github.com/Hackerpilot/DCD
+.SH NAME
+dcd-client \- autocompletion client for the D programming language
+.PD
+.SH SYNOPSIS
+.SY dcd-client
+.OP "\-c, \-\-cursorPos" cursorPosition
+.OP "\-p, \-\-port" portNumber
+.OP "\-I" directory
+.OP "\-h, \-\-help"
+.OP "\-l, \-\-symbolLocation"
+.OP "\-d, \-\-doc"
+.OP "\-\-shutdown"
+.OP "\-\-clearCache"
+.RI [ filename ]
+.YS
+.PD
+.SH DESCRIPTION
+\fBdcd-client\fP is a client for \fBdcd-server\fP and is typically used by text
+editor scripts.
+.PD
+.SH OPTIONS
+.B -p, \-\-port
+.I portNumber
+.RS
+Choose the port number on which
+.B dcd-client
+listens.
+.RE
+.B -h, \-\-help
+.RS
+Prints a help message
+.RE
+.B \-I
+.I directory
+.RS
+Informs
+.B dcd-server
+to cache any D source files found in
+.I directory
+so that they will be included in responses to future
+.B dcd-client
+requests.
+.RE
+.B \-c, \-\-cursorPos
+.I cursorPosition
+.RS
+Provides auto-completion at the given cursor position. The cursor
+position is measured in bytes from the beginning of the source code.
+.RE
+.B \-\-shutdown
+.RS
+Instructs the server to shut down
+.RE
+.B \-\-clearCache
+.RS
+Instructs the server to clear its cache of auto-completion information.
+.RE
+.I filename
+.RS
+Provides auto-completion information for the file with the given name.
+.RE
+.PD
+.SH AUTHOR
+Written by Brian Schott (@Hackerpilot on Github)
+.PD
+.SH BUGS
+Please use the issue tracker located at
+.UR https://github.com/Hackerpilot/DCD/issues
+.UE
+.SH SEE ALSO
+\fBdcd-server\fP(1)
