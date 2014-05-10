@@ -125,5 +125,5 @@ static this()
 	TypeSuffix argumentsTypeSuffix = allocate!TypeSuffix(Mallocator.it);
 	argumentsTypeSuffix.array = true;
 	argumentsType.typeSuffixes = cast(TypeSuffix[]) Mallocator.it.allocate(TypeSuffix.sizeof);
-	argumentsType.typeSuffixes[0] = argptrTypeSuffix;
+	argumentsType.typeSuffixes[0] = argumentsTypeSuffix;
 }

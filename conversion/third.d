@@ -154,7 +154,7 @@ private:
 				* string.sizeof);
 			scope(exit) Mallocator.it.deallocate(symbolParts);
 			expandSymbol(symbolParts,
-				t.type2.symbol.identifierOrTemplateChain, stringCache, name);
+				t.type2.symbol.identifierOrTemplateChain, stringCache);
 			auto symbols = moduleScope.getSymbolsByNameAndCursor(
 				symbolParts[0], location);
 			if (symbols.length == 0)
@@ -175,7 +175,7 @@ private:
 	}
 
 	static void expandSymbol(string[] strings, const IdentifierOrTemplateChain chain,
-		shared(StringCache)* stringCache, string n)
+		shared(StringCache)* stringCache)
 	{
 		for (size_t i = 0; i < chain.identifiersOrTemplateInstances.length; ++i)
 		{
