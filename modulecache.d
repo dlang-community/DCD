@@ -126,9 +126,13 @@ struct ModuleCache
 			return [];
 		}
 
-		Log.info("Getting symbols for ", location);
+		string cachedLocation = stringCache.intern(location);
 
-		recursionGuard.insert(location);
+		Log.info("Getting symbols for ", cachedLocation);
+
+		recursionGuard.insert(cachedLocation);
+
+
 
 		ACSymbol*[] symbols;
 //		try
@@ -136,11 +140,11 @@ struct ModuleCache
 			import core.memory;
 			import std.stdio;
 			import std.typecons;
-			File f = File(location);
+			File f = File(cachedLocation);
 			ubyte[] source = cast(ubyte[]) Mallocator.it.allocate(cast(size_t)f.size);
 			f.rawRead(source);
 			LexerConfig config;
-			config.fileName = location;
+			config.fileName = cachedLocation;
 			shared parseStringCache = shared StringCache(StringCache.defaultBucketCount);
 			auto semanticAllocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 64)));
 			DynamicArray!(Token, false) tokens;
@@ -151,17 +155,17 @@ struct ModuleCache
 				tokens.insert(t);
 			Mallocator.it.deallocate(source);
 
-			Module m = parseModuleSimple(tokens[], location, semanticAllocator);
+			Module m = parseModuleSimple(tokens[], cachedLocation, semanticAllocator);
 
 			assert (symbolAllocator);
-			auto first = scoped!FirstPass(m, location, stringCache,
+			auto first = scoped!FirstPass(m, cachedLocation, stringCache,
 				symbolAllocator, semanticAllocator);
 			first.run();
 
 			SecondPass second = SecondPass(first);
 			second.run();
 
-			ThirdPass third = ThirdPass(second, location);
+			ThirdPass third = ThirdPass(second, cachedLocation);
 			third.run();
 
 			symbols = cast(ACSymbol*[]) Mallocator.it.allocate(
@@ -181,11 +185,11 @@ struct ModuleCache
 //		}
 		SysTime access;
 		SysTime modification;
-		getTimes(location, access, modification);
+		getTimes(cachedLocation, access, modification);
 		CacheEntry* c = allocate!CacheEntry(Mallocator.it, symbols,
-			modification, stringCache.intern(location));
+			modification, cachedLocation);
 		cache.insert(c);
-		recursionGuard.remove(location);
+		recursionGuard.remove(cachedLocation);
 		return symbols;
 	}
 
