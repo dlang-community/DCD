@@ -431,7 +431,7 @@ private:
 			symbol.acSymbol.parts.insert(aggregateSymbols[]);
 		symbol.parent = currentSymbol;
 		symbol.protection = protection;
-		symbol.acSymbol.doc = dec.comment;
+		symbol.acSymbol.doc = stringCache.intern(dec.comment);
 		currentSymbol = symbol;
 		dec.accept(this);
 		currentSymbol = symbol.parent;
@@ -446,7 +446,7 @@ private:
 		processParameters(symbol, null, "this", parameters, doc);
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
-		symbol.acSymbol.doc = doc;
+		symbol.acSymbol.doc = stringCache.intern(doc);
 		currentSymbol.addChild(symbol);
 		if (functionBody !is null)
 		{
@@ -463,7 +463,7 @@ private:
 		symbol.acSymbol.callTip = "~this()";
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
-		symbol.acSymbol.doc = doc;
+		symbol.acSymbol.doc = stringCache.intern(doc);
 		currentSymbol.addChild(symbol);
 		if (functionBody !is null)
 		{

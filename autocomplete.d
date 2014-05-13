@@ -586,11 +586,8 @@ T getExpression(T)(T beforeTokens)
 		case tok!"this":
 		case tok!"identifier":
 			if (hasSpecialPrefix)
-			{
 				i++;
-				break expressionLoop;
-			}
-			break;
+			break expressionLoop;
 		case tok!".":
 			break;
 		case tok!"*":
