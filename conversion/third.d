@@ -25,6 +25,7 @@ import semantic;
 import actypes;
 import messages;
 import std.allocator;
+import string_interning;
 
 /**
  * Third pass handles the following:
@@ -43,7 +44,6 @@ public:
 	{
 		this.rootSymbol = second.rootSymbol;
 		this.moduleScope = second.moduleScope;
-		this.stringCache = second.stringCache;
 		this.name = name;
 		this.symbolAllocator = second.symbolAllocator;
 	}
@@ -153,8 +153,7 @@ private:
 				t.type2.symbol.identifierOrTemplateChain.identifiersOrTemplateInstances.length
 				* string.sizeof);
 			scope(exit) Mallocator.it.deallocate(symbolParts);
-			expandSymbol(symbolParts,
-				t.type2.symbol.identifierOrTemplateChain, stringCache);
+			expandSymbol(symbolParts, t.type2.symbol.identifierOrTemplateChain);
 			auto symbols = moduleScope.getSymbolsByNameAndCursor(
 				symbolParts[0], location);
 			if (symbols.length == 0)
@@ -174,15 +173,14 @@ private:
 		return s;
 	}
 
-	static void expandSymbol(string[] strings, const IdentifierOrTemplateChain chain,
-		shared(StringCache)* stringCache)
+	static void expandSymbol(string[] strings, const IdentifierOrTemplateChain chain)
 	{
 		for (size_t i = 0; i < chain.identifiersOrTemplateInstances.length; ++i)
 		{
 			auto identOrTemplate = chain.identifiersOrTemplateInstances[i];
 			if (identOrTemplate is null)
 				continue;
-			strings[i] = stringCache.intern(identOrTemplate.templateInstance is null ?
+			strings[i] = internString(identOrTemplate.templateInstance is null ?
 				identOrTemplate.identifier.text
 				: identOrTemplate.templateInstance.identifier.text);
 		}
@@ -215,20 +213,20 @@ private:
 			scope(exit) q.deallocate(app.mem);
 			app.append(suffix.delegateOrFunction.text);
 			app.formatNode(suffix.parameters);
-			s.callTip = stringCache.intern(cast(ubyte[]) app[]);
+			s.callTip = internString(cast(string) app[]);
 			return s;
 		}
 		return null;
 	}
 
-	static ACSymbol* convertBuiltinType(const Type2 type2)
+	ACSymbol* convertBuiltinType(const Type2 type2)
 	{
-		string stringRepresentation = str(type2.builtinType);
-		if (stringRepresentation is null) return null;
-		// TODO: Make this use binary search instead
+		import std.stdio;
+		string stringRepresentation = getBuiltinTypeName(type2.builtinType);
+//		writefln(">> %s %016X", stringRepresentation, stringRepresentation.ptr);
 		ACSymbol s = ACSymbol(stringRepresentation);
+		assert(s.name.ptr == stringRepresentation.ptr);
+//		writefln(">> %s %016X", s.name, s.name.ptr);
 		return builtinSymbols.equalRange(&s).front();
 	}
-
-	shared(StringCache)* stringCache;
 }

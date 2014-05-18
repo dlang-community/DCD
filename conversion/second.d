@@ -22,7 +22,6 @@ import conversion.first;
 import actypes;
 import semantic;
 import messages;
-import std.lexer : StringCache;
 import std.allocator;
 import stupidlog;
 
@@ -41,7 +40,6 @@ public:
 	{
 		this.rootSymbol = first.rootSymbol;
 		this.moduleScope = first.moduleScope;
-		this.stringCache = first.stringCache;
 		this.symbolAllocator = first.symbolAllocator;
 	}
 
@@ -54,7 +52,6 @@ public:
 	CAllocator symbolAllocator;
 	SemanticSymbol* rootSymbol;
 	Scope* moduleScope;
-	shared(StringCache)* stringCache;
 
 private:
 
@@ -117,18 +114,6 @@ private:
 		{
 			string location = ModuleCache.resolveImportLoctation(importInfo.modulePath);
 			ACSymbol*[] symbols = location is null ? [] : ModuleCache.getSymbolsInModule(location);
-			//////
-			foreach (s; symbols)
-			{
-				try
-					std.utf.validate(s.name);
-				catch (Exception e)
-				{
-					writeln("Symbols in ", importInfo.modulePath, " are corrupted");
-					throw e;
-				}
-			}
-			//////
 			ACSymbol* moduleSymbol = createImportSymbols(importInfo, currentScope, symbols);
 			currentScope.symbols.insert(moduleSymbol);
 			currentScope.symbols.insert(symbols);

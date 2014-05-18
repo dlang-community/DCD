@@ -30,6 +30,7 @@ import std.d.lexer;
 import std.typecons;
 import stupidlog;
 import containers.unrolledlist;
+import string_interning;
 
 /**
  * First Pass handles the following:
@@ -46,8 +47,8 @@ import containers.unrolledlist;
  */
 final class FirstPass : ASTVisitor
 {
-	this(Module mod, string symbolFile, shared(StringCache)* stringCache,
-		CAllocator symbolAllocator, CAllocator semanticAllocator)
+	this(Module mod, string symbolFile, CAllocator symbolAllocator,
+		CAllocator semanticAllocator)
 	in
 	{
 		assert (symbolAllocator);
@@ -56,7 +57,6 @@ final class FirstPass : ASTVisitor
 	{
 		this.mod = mod;
 		this.symbolFile = symbolFile;
-		this.stringCache = stringCache;
 		this.symbolAllocator = symbolAllocator;
 		this.semanticAllocator = semanticAllocator;
 	}
@@ -168,7 +168,7 @@ final class FirstPass : ASTVisitor
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(bc).stringof);
 		currentSymbol.baseClasses.insert(iotcToStringArray(symbolAllocator,
-			bc.identifierOrTemplateChain, stringCache));
+			bc.identifierOrTemplateChain));
 	}
 
 	override void visit(const VariableDeclaration dec)
@@ -237,7 +237,7 @@ final class FirstPass : ASTVisitor
 	override void visit(const AliasThisDeclaration dec)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
-		currentSymbol.aliasThis.insert(stringCache.intern(dec.identifier.text));
+		currentSymbol.aliasThis.insert(internString(dec.identifier.text));
 	}
 
 	override void visit(const Declaration dec)
@@ -306,7 +306,7 @@ final class FirstPass : ASTVisitor
 //		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
 		foreach (identifier; moduleDeclaration.moduleName.identifiers)
 		{
-			moduleName.insert(stringCache.intern(identifier.text));
+			moduleName.insert(internString(identifier.text));
 		}
 	}
 
@@ -340,8 +340,8 @@ final class FirstPass : ASTVisitor
 		{
 			auto info = allocate!ImportInformation(semanticAllocator);
 			foreach (identifier; single.identifierChain.identifiers)
-				info.importParts.insert(stringCache.intern(identifier.text));
-			info.modulePath = convertChainToImportPath(stringCache, single.identifierChain);
+				info.importParts.insert(internString(identifier.text));
+			info.modulePath = convertChainToImportPath(single.identifierChain);
 			info.isPublic = protection == tok!"public";
 			currentScope.importInformation.insert(info);
 		}
@@ -349,18 +349,18 @@ final class FirstPass : ASTVisitor
 		if (importDeclaration.importBindings.singleImport.identifierChain is null) return;
 		auto info = allocate!ImportInformation(semanticAllocator);
 
-		info.modulePath = convertChainToImportPath(stringCache,
+		info.modulePath = convertChainToImportPath(
 			importDeclaration.importBindings.singleImport.identifierChain);
 		foreach (identifier; importDeclaration.importBindings.singleImport
 			.identifierChain.identifiers)
 		{
-			info.importParts.insert(stringCache.intern(identifier.text));
+			info.importParts.insert(internString(identifier.text));
 		}
 		foreach (bind; importDeclaration.importBindings.importBinds)
 		{
 			Tuple!(string, string) bindTuple;
-			bindTuple[0] = stringCache.intern(bind.left.text);
-			bindTuple[1] = bind.right == tok!"" ? null : stringCache.intern(bind.right.text);
+			bindTuple[0] = internString(bind.left.text);
+			bindTuple[1] = bind.right == tok!"" ? null : internString(bind.right.text);
 			info.importedSymbols.insert(bindTuple);
 		}
 		info.isPublic = protection == tok!"public";
@@ -412,8 +412,6 @@ final class FirstPass : ASTVisitor
 	/// The module
 	SemanticSymbol* rootSymbol;
 
-	shared(StringCache)* stringCache;
-
 	CAllocator symbolAllocator;
 
 	uint symbolsAllocated;
@@ -431,7 +429,7 @@ private:
 			symbol.acSymbol.parts.insert(aggregateSymbols[]);
 		symbol.parent = currentSymbol;
 		symbol.protection = protection;
-		symbol.acSymbol.doc = stringCache.intern(dec.comment);
+		symbol.acSymbol.doc = internString(dec.comment);
 		currentSymbol = symbol;
 		dec.accept(this);
 		currentSymbol = symbol.parent;
@@ -446,7 +444,7 @@ private:
 		processParameters(symbol, null, "this", parameters, doc);
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
-		symbol.acSymbol.doc = stringCache.intern(doc);
+		symbol.acSymbol.doc = internString(doc);
 		currentSymbol.addChild(symbol);
 		if (functionBody !is null)
 		{
@@ -463,7 +461,7 @@ private:
 		symbol.acSymbol.callTip = "~this()";
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
-		symbol.acSymbol.doc = stringCache.intern(doc);
+		symbol.acSymbol.doc = internString(doc);
 		currentSymbol.addChild(symbol);
 		if (functionBody !is null)
 		{
@@ -519,7 +517,7 @@ private:
 			app.put("()");
 		else
 			app.formatNode(parameters);
-		return stringCache.intern(cast(ubyte[]) app[]);
+		return internString(cast(string) app[]);
 	}
 
 	SemanticSymbol* allocateSemanticSymbol(string name, CompletionKind kind,
@@ -530,8 +528,7 @@ private:
 	}
 	body
 	{
-		ACSymbol* acSymbol = allocate!ACSymbol(symbolAllocator,
-			name is null ? name : stringCache.intern(name), kind);
+		ACSymbol* acSymbol = allocate!ACSymbol(symbolAllocator, name, kind);
 		acSymbol.location = location;
 		acSymbol.symbolFile = symbolFile;
 		symbolsAllocated++;
@@ -568,23 +565,21 @@ void formatNode(A, T)(ref A appender, const T node)
 
 private:
 
-string[] iotcToStringArray(A)(ref A allocator, const IdentifierOrTemplateChain iotc,
-	shared(StringCache)* stringCache)
+string[] iotcToStringArray(A)(ref A allocator, const IdentifierOrTemplateChain iotc)
 {
 	string[] retVal = cast(string[]) allocator.allocate((string[]).sizeof
 		* iotc.identifiersOrTemplateInstances.length);
 	foreach (i, ioti; iotc.identifiersOrTemplateInstances)
 	{
 		if (ioti.identifier != tok!"")
-			retVal[i] = stringCache.intern(ioti.identifier.text);
+			retVal[i] = internString(ioti.identifier.text);
 		else
-			retVal[i] = stringCache.intern(ioti.templateInstance.identifier.text);
+			retVal[i] = internString(ioti.templateInstance.identifier.text);
 	}
 	return retVal;
 }
 
-static string convertChainToImportPath(shared(StringCache)* stringCache,
-	const IdentifierChain ic)
+static string convertChainToImportPath(const IdentifierChain ic)
 {
 	import std.path;
 	QuickAllocator!1024 q;
@@ -596,5 +591,5 @@ static string convertChainToImportPath(shared(StringCache)* stringCache,
 		if (i + 1 < ic.identifiers.length)
 			app.append(dirSeparator);
 	}
-	return stringCache.intern(cast(string) app[]);
+	return internString(cast(string) app[]);
 }

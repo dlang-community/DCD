@@ -22,6 +22,7 @@ dmd\
 	semantic.d\
 	server.d\
 	stupidlog.d\
+	string_interning.d\
 	dscanner/std/d/ast.d\
 	dscanner/std/d/entities.d\
 	dscanner/std/d/lexer.d\
@@ -32,7 +33,7 @@ dmd\
 	containers/src/memory/allocators.d\
 	containers/src/memory/appender.d\
 	containers/src/containers/dynamicarray.d\
-	containers/src/containers/karytree.d\
+	containers/src/containers/ttree.d\
 	containers/src/containers/unrolledlist.d\
 	containers/src/containers/hashset.d\
 	containers/src/containers/internal/hash.d\
@@ -41,7 +42,7 @@ dmd\
 	-Icontainers/src\
 	-Imsgpack-d/src\
 	-Idscanner\
-	-wi -O -release -inline\
+	-wi -O -release\
 	-ofdcd-server
 
 #gdc client.d\

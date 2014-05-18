@@ -166,12 +166,10 @@ AutocompleteResponse complete(const AutocompleteRequest request)
 	case tok!"]":
 	case tok!"this":
 		auto semanticAllocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024*16)));
-		shared(StringCache)* cache = new shared StringCache(StringCache.defaultBucketCount);
 		Scope* completionScope = generateAutocompleteTrees(tokenArray,
-			"stdin", allocator, semanticAllocator, cache);
+			"stdin", allocator, semanticAllocator);
 		scope(exit) typeid(Scope).destroy(completionScope);
-		auto expression = getExpression(beforeTokens);
-		response.setCompletions(completionScope, expression,
+		response.setCompletions(completionScope, getExpression(beforeTokens),
 			request.cursorPosition, CompletionType.identifiers, partial);
 		break;
 	case tok!"(":
@@ -199,7 +197,7 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, size_t cursorPosition,
 {
 	LexerConfig config;
 	config.fileName = "stdin";
-	shared(StringCache)* cache = new shared StringCache(StringCache.defaultBucketCount);
+	StringCache* cache = new StringCache(StringCache.defaultBucketCount);
 	auto tokens = byToken(cast(ubyte[]) sourceCode, config, cache);
 	tokenArray = tokens.array();
 	auto sortedTokens = assumeSorted(tokenArray);
@@ -221,9 +219,8 @@ ACSymbol*[] getSymbolsForCompletion(const AutocompleteRequest request,
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
 		request.cursorPosition, tokenArray);
 	auto semanticAllocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024*16)));
-	shared(StringCache)* cache = new shared StringCache(StringCache.defaultBucketCount);
 	Scope* completionScope = generateAutocompleteTrees(tokenArray,
-		"stdin", allocator, semanticAllocator, cache);
+		"stdin", allocator, semanticAllocator);
 	scope(exit) typeid(Scope).destroy(completionScope);
 	auto expression = getExpression(beforeTokens);
 	return getSymbolsByTokenChain(completionScope, expression,
@@ -273,9 +270,8 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	case tok!")":
 	case tok!"]":
 		auto semanticAllocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024*16)));
-		shared(StringCache)* cache = new shared StringCache(StringCache.defaultBucketCount);
 		Scope* completionScope = generateAutocompleteTrees(tokenArray,
-			"stdin", allocator, semanticAllocator, cache);
+			"stdin", allocator, semanticAllocator);
 		scope(exit) typeid(Scope).destroy(completionScope);
 		auto expression = getExpression(beforeTokens[0 .. $ - 1]);
 		response.setCompletions(completionScope, expression,
@@ -587,7 +583,7 @@ T getExpression(T)(T beforeTokens)
 		case tok!"identifier":
 			if (hasSpecialPrefix)
 				i++;
-			break expressionLoop;
+			break;
 		case tok!".":
 			break;
 		case tok!"*":

@@ -100,11 +100,9 @@ int main(string[] args)
 
 	sw.stop();
 	Log.info("Startup completed in ", sw.peek().to!("msecs", float), " milliseconds");
-	float internBytes = cast(float) ModuleCache.stringCache.allocated / (1024 * 1024);
-	Log.info("String interning took up ", internBytes, " megabytes");
-	float symbolMegs = (cast(float) (ACSymbol.sizeof * ModuleCache.symbolsAllocated)) / (1024f * 1024f);
-	Log.info(ModuleCache.symbolsAllocated, " symbols allocated, taking up ",
-		symbolMegs, " megabytes");
+//	float symbolMegs = (cast(float) (ACSymbol.sizeof * ModuleCache.symbolsAllocated)) / (1024f * 1024f);
+//	Log.info(ModuleCache.symbolsAllocated, " symbols allocated, taking up ",
+//		symbolMegs, " megabytes");
 
 	// No relative paths
 	version (Posix) chdir("/");

@@ -21,16 +21,17 @@ module actypes;
 import std.algorithm;
 import std.array;
 import std.container;
-import std.stdio;
+//import std.stdio;
 import std.typecons;
 import std.allocator;
 
-import containers.karytree;
+import containers.ttree;
 import containers.unrolledlist;
 import containers.slist;
 import std.d.lexer;
 
 import messages;
+import string_interning;
 
 /**
  * Any special information about a variable declaration symbol.
@@ -62,7 +63,7 @@ public:
 	 */
 	this(string name)
 	{
-		this.name = name;
+		this.name = name is null ? name : internString(name);
 	}
 
 	/**
@@ -72,7 +73,7 @@ public:
 	 */
 	this(string name, CompletionKind kind)
 	{
-		this.name = name;
+		this.name = name is null ? name : internString(name);
 		this.kind = kind;
 	}
 
@@ -84,16 +85,18 @@ public:
 	 */
 	this(string name, CompletionKind kind, ACSymbol* type)
 	{
-		this.name = name;
+		this.name = name is null ? name : internString(name);
 		this.kind = kind;
 		this.type = type;
 	}
 
 	int opCmp(ref const ACSymbol other) const
 	{
-		if (name < other.name)
+		// Compare the pointers because the strings have been interned.
+		// Identical strings MUST have the same address
+		if (name.ptr < other.name.ptr)
 			return -1;
-		if (name > other.name)
+		if (name.ptr > other.name.ptr)
 			return 1;
 		return 0;
 	}
@@ -111,7 +114,7 @@ public:
 	 * Symbols that compose this symbol, such as enum members, class variables,
 	 * methods, etc.
 	 */
-	KAryTree!(ACSymbol*, true, "a < b", false) parts;
+	TTree!(ACSymbol*, true, "a < b", false) parts;
 
 	/**
 	 * Symbol's name
@@ -275,7 +278,7 @@ struct Scope
 	size_t endLocation;
 
 	/// Symbols contained in this scope
-	KAryTree!(ACSymbol*, true, "a < b", false) symbols;
+	TTree!(ACSymbol*, true, "a < b", false) symbols;
 }
 
 /**
@@ -297,33 +300,94 @@ struct ImportInformation
 /**
  * Symbols for the built in types
  */
-KAryTree!(ACSymbol*, true) builtinSymbols;
+TTree!(ACSymbol*, true, "a < b", false) builtinSymbols;
 
 /**
  * Array properties
  */
-KAryTree!(ACSymbol*, true) arraySymbols;
+TTree!(ACSymbol*, true, "a < b", false) arraySymbols;
 
 /**
  * Associative array properties
  */
-KAryTree!(ACSymbol*, true) assocArraySymbols;
+TTree!(ACSymbol*, true, "a < b", false) assocArraySymbols;
 
 /**
  * Enum, union, class, and interface properties
  */
-KAryTree!(ACSymbol*, true) aggregateSymbols;
+TTree!(ACSymbol*, true, "a < b", false) aggregateSymbols;
 
 /**
  * Class properties
  */
-KAryTree!(ACSymbol*, true) classSymbols;
+TTree!(ACSymbol*, true, "a < b", false) classSymbols;
+
+private immutable(string[24]) builtinTypeNames;
+
+string getBuiltinTypeName(IdType id)
+{
+	switch (id)
+	{
+	case tok!"int": return builtinTypeNames[0];
+	case tok!"uint": return builtinTypeNames[1];
+	case tok!"double": return builtinTypeNames[2];
+	case tok!"idouble": return builtinTypeNames[3];
+	case tok!"float": return builtinTypeNames[4];
+	case tok!"ifloat": return builtinTypeNames[5];
+	case tok!"short": return builtinTypeNames[6];
+	case tok!"ushort": return builtinTypeNames[7];
+	case tok!"long": return builtinTypeNames[8];
+	case tok!"ulong": return builtinTypeNames[9];
+	case tok!"char": return builtinTypeNames[10];
+	case tok!"wchar": return builtinTypeNames[11];
+	case tok!"dchar": return builtinTypeNames[12];
+	case tok!"bool": return builtinTypeNames[13];
+	case tok!"void": return builtinTypeNames[14];
+	case tok!"cent": return builtinTypeNames[15];
+	case tok!"ucent": return builtinTypeNames[16];
+	case tok!"real": return builtinTypeNames[17];
+	case tok!"ireal": return builtinTypeNames[18];
+	case tok!"byte": return builtinTypeNames[19];
+	case tok!"ubyte": return builtinTypeNames[20];
+	case tok!"cdouble": return builtinTypeNames[21];
+	case tok!"cfloat": return builtinTypeNames[22];
+	case tok!"creal": return builtinTypeNames[23];
+	default: assert (false);
+	}
+}
+
 
 /**
  * Initializes builtin types and the various properties of builtin types
  */
 static this()
 {
+	builtinTypeNames[0] = internString("int");
+	builtinTypeNames[1] = internString("uint");
+	builtinTypeNames[2] = internString("double");
+	builtinTypeNames[3] = internString("idouble");
+	builtinTypeNames[4] = internString("float");
+	builtinTypeNames[5] = internString("ifloat");
+	builtinTypeNames[6] = internString("short");
+	builtinTypeNames[7] = internString("ushort");
+	builtinTypeNames[8] = internString("long");
+	builtinTypeNames[9] = internString("ulong");
+	builtinTypeNames[10] = internString("char");
+	builtinTypeNames[11] = internString("wchar");
+	builtinTypeNames[12] = internString("dchar");
+	builtinTypeNames[13] = internString("bool");
+	builtinTypeNames[14] = internString("void");
+	builtinTypeNames[15] = internString("cent");
+	builtinTypeNames[16] = internString("ucent");
+	builtinTypeNames[17] = internString("real");
+	builtinTypeNames[18] = internString("ireal");
+	builtinTypeNames[19] = internString("byte");
+	builtinTypeNames[20] = internString("ubyte");
+	builtinTypeNames[21] = internString("cdouble");
+	builtinTypeNames[22] = internString("cfloat");
+	builtinTypeNames[23] = internString("creal");
+
+
 	auto bool_ = allocate!ACSymbol(Mallocator.it, "bool", CompletionKind.keyword);
 	auto int_ = allocate!ACSymbol(Mallocator.it, "int", CompletionKind.keyword);
 	auto long_ = allocate!ACSymbol(Mallocator.it, "long", CompletionKind.keyword);
@@ -492,5 +556,10 @@ static this()
 	builtinSymbols.insert(real_);
 	builtinSymbols.insert(ucent_);
 	builtinSymbols.insert(void_);
+
+//	writeln(">>Builtin symbols");
+//	foreach (symbol; builtinSymbols[])
+//		writeln(symbol.name, " ", symbol.name.ptr);
+//	writeln("<<Builtin symbols");
 }
 

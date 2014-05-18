@@ -32,7 +32,7 @@ import std.path;
 import actypes;
 import semantic;
 import memory.allocators;
-import containers.karytree;
+import containers.ttree;
 import containers.hashset;
 import containers.unrolledlist;
 import conversion.astconverter;
@@ -74,7 +74,6 @@ bool existanceCheck(A)(A path)
 
 static this()
 {
-	ModuleCache.stringCache = new shared StringCache(StringCache.defaultBucketCount);
 	ModuleCache.symbolAllocator = new CAllocatorImpl!(BlockAllocator!(1024 * 16));
 }
 
@@ -115,6 +114,7 @@ struct ModuleCache
 	 */
 	static ACSymbol*[] getSymbolsInModule(string location)
 	{
+		import string_interning;
 		assert (location !is null);
 		if (!needsReparsing(location))
 		{
@@ -126,7 +126,7 @@ struct ModuleCache
 			return [];
 		}
 
-		string cachedLocation = stringCache.intern(location);
+		string cachedLocation = internString(location);
 
 		Log.info("Getting symbols for ", cachedLocation);
 
@@ -145,7 +145,7 @@ struct ModuleCache
 			f.rawRead(source);
 			LexerConfig config;
 			config.fileName = cachedLocation;
-			shared parseStringCache = shared StringCache(StringCache.defaultBucketCount);
+			auto parseStringCache = StringCache(StringCache.defaultBucketCount);
 			auto semanticAllocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 64)));
 			DynamicArray!(Token, false) tokens;
 			auto tokenRange = byToken(
@@ -158,8 +158,8 @@ struct ModuleCache
 			Module m = parseModuleSimple(tokens[], cachedLocation, semanticAllocator);
 
 			assert (symbolAllocator);
-			auto first = scoped!FirstPass(m, cachedLocation, stringCache,
-				symbolAllocator, semanticAllocator);
+			auto first = scoped!FirstPass(m, cachedLocation, symbolAllocator,
+				semanticAllocator);
 			first.run();
 
 			SecondPass second = SecondPass(first);
@@ -234,8 +234,6 @@ struct ModuleCache
 		return importPaths[];
 	}
 
-	static shared(StringCache)* stringCache;
-
 	static uint symbolsAllocated;
 
 private:
@@ -264,7 +262,7 @@ private:
 	}
 
 	// Mapping of file paths to their cached symbols.
-	static KAryTree!(CacheEntry*) cache;
+	static TTree!(CacheEntry*) cache;
 
 	static HashSet!string recursionGuard;
 

@@ -30,11 +30,10 @@ import std.d.parser;
 import std.typecons;
 
 Scope* generateAutocompleteTrees(const(Token)[] tokens, string symbolFile,
-	CAllocator symbolAllocator, CAllocator semanticAllocator,
-	shared(StringCache)* cache)
+	CAllocator symbolAllocator, CAllocator semanticAllocator)
 {
 	Module m = parseModule(tokens, "editor buffer", semanticAllocator, &doesNothing);
-	auto first = scoped!FirstPass(m, symbolFile, cache, symbolAllocator,
+	auto first = scoped!FirstPass(m, symbolFile, symbolAllocator,
 		semanticAllocator);
 	first.run();
 
