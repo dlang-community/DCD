@@ -53,7 +53,9 @@ AutocompleteResponse getDoc(const AutocompleteRequest request)
 	Log.trace("Getting doc comments");
 	AutocompleteResponse response;
 	auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 16)))();
-	ACSymbol*[] symbols = getSymbolsForCompletion(request, CompletionType.ddoc, allocator);
+	auto cache = StringCache(StringCache.defaultBucketCount);
+	ACSymbol*[] symbols = getSymbolsForCompletion(request, CompletionType.ddoc,
+		allocator, &cache);
 	if (symbols.length == 0)
 		Log.error("Could not find symbol");
 	else foreach (symbol; symbols)
@@ -81,11 +83,13 @@ AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 	Log.trace("Finding declaration");
 	AutocompleteResponse response;
 	auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 16)))();
-	ACSymbol*[] symbols = getSymbolsForCompletion(request, CompletionType.location, allocator);
+	auto cache = StringCache(StringCache.defaultBucketCount);
+	ACSymbol*[] symbols = getSymbolsForCompletion(request,
+		CompletionType.location, allocator, &cache);
 	if (symbols.length > 0)
 	{
 		response.symbolLocation = symbols[0].location;
-		response.symbolFilePath = symbols[0].symbolFile;
+		response.symbolFilePath = symbols[0].symbolFile.idup;
 		Log.info(symbols[0].name, " declared in ",
 			response.symbolFilePath, " at ", response.symbolLocation);
 	}
@@ -106,8 +110,9 @@ AutocompleteResponse complete(const AutocompleteRequest request)
 	Log.info("Got a completion request");
 
 	const(Token)[] tokenArray;
+	auto cache = StringCache(StringCache.defaultBucketCount);
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
-		request.cursorPosition, tokenArray);
+		request.cursorPosition, &cache, tokenArray);
 	string partial;
 	IdType tokenType;
 
@@ -134,7 +139,7 @@ AutocompleteResponse complete(const AutocompleteRequest request)
 		foreach (symbol; (cast() arraySymbols)[])
 		{
 			response.completionKinds ~= symbol.kind;
-			response.completions ~= symbol.name;
+			response.completions ~= symbol.name.dup;
 		}
 		response.completionType = CompletionType.identifiers;
 		break;
@@ -193,11 +198,10 @@ AutocompleteResponse complete(const AutocompleteRequest request)
  *     a sorted range of tokens before the cursor position
  */
 auto getTokensBeforeCursor(const(ubyte[]) sourceCode, size_t cursorPosition,
-	out const(Token)[] tokenArray)
+	StringCache* cache, out const(Token)[] tokenArray)
 {
 	LexerConfig config;
 	config.fileName = "stdin";
-	StringCache* cache = new StringCache(StringCache.defaultBucketCount);
 	auto tokens = byToken(cast(ubyte[]) sourceCode, config, cache);
 	tokenArray = tokens.array();
 	auto sortedTokens = assumeSorted(tokenArray);
@@ -213,11 +217,11 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, size_t cursorPosition,
  *     the request's source code, cursor position, and completion type.
  */
 ACSymbol*[] getSymbolsForCompletion(const AutocompleteRequest request,
-	const CompletionType type, CAllocator allocator)
+	const CompletionType type, CAllocator allocator, StringCache* cache)
 {
 	const(Token)[] tokenArray;
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
-		request.cursorPosition, tokenArray);
+		request.cursorPosition, cache, tokenArray);
 	auto semanticAllocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024*16)));
 	Scope* completionScope = generateAutocompleteTrees(tokenArray,
 		"stdin", allocator, semanticAllocator);
@@ -470,7 +474,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			.filter!(a => a.name.toUpper().startsWith(partial.toUpper())))
 		{
 			response.completionKinds ~= s.kind;
-			response.completions ~= s.name;
+			response.completions ~= s.name.dup;
 		}
 		response.completionType = CompletionType.identifiers;
 		return;
@@ -502,7 +506,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		{
 //			Log.trace("Adding ", s.name, " to the completion list");
 			response.completionKinds ~= s.kind;
-			response.completions ~= s.name;
+			response.completions ~= s.name.dup;
 		}
 		response.completionType = CompletionType.identifiers;
 	}

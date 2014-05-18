@@ -111,15 +111,15 @@ public:
 	}
 
 	/**
+	 * Symbol's name
+	 */
+	string name;
+
+	/**
 	 * Symbols that compose this symbol, such as enum members, class variables,
 	 * methods, etc.
 	 */
 	TTree!(ACSymbol*, true, "a < b", false) parts;
-
-	/**
-	 * Symbol's name
-	 */
-	string name;
 
 	/**
 	 * Calltip to display if this is a function

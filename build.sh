@@ -42,7 +42,7 @@ dmd\
 	-Icontainers/src\
 	-Imsgpack-d/src\
 	-Idscanner\
-	-wi -O -release\
+	-wi -O -release -inline\
 	-ofdcd-server
 
 #gdc client.d\
