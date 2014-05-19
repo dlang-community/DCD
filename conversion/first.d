@@ -124,7 +124,7 @@ final class FirstPass : ASTVisitor
 			dec.parameters, dec.comment);
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
-		symbol.acSymbol.doc = dec.comment;
+		symbol.acSymbol.doc = internString(dec.comment);
 		currentSymbol.addChild(symbol);
 		if (dec.functionBody !is null)
 		{
@@ -183,7 +183,7 @@ final class FirstPass : ASTVisitor
 				symbolFile, declarator.name.index, t);
 			symbol.protection = protection;
 			symbol.parent = currentSymbol;
-			symbol.acSymbol.doc = dec.comment;
+			symbol.acSymbol.doc = internString(dec.comment);
 			currentSymbol.addChild(symbol);
 		}
 		if (dec.autoDeclaration !is null)
@@ -195,7 +195,7 @@ final class FirstPass : ASTVisitor
 					identifier.index, null);
 				symbol.protection = protection;
 				symbol.parent = currentSymbol;
-				symbol.acSymbol.doc = dec.comment;
+				symbol.acSymbol.doc = internString(dec.comment);
 				currentSymbol.addChild(symbol);
 			}
 		}
@@ -213,7 +213,7 @@ final class FirstPass : ASTVisitor
 				aliasDeclaration.type);
 			symbol.protection = protection;
 			symbol.parent = currentSymbol;
-			symbol.acSymbol.doc = aliasDeclaration.comment;
+			symbol.acSymbol.doc = internString(aliasDeclaration.comment);
 			currentSymbol.addChild(symbol);
 		}
 		else
@@ -228,7 +228,7 @@ final class FirstPass : ASTVisitor
 					initializer.type);
 				symbol.protection = protection;
 				symbol.parent = currentSymbol;
-				symbol.acSymbol.doc = aliasDeclaration.comment;
+				symbol.acSymbol.doc = internString(aliasDeclaration.comment);
 				currentSymbol.addChild(symbol);
 			}
 		}
@@ -283,7 +283,7 @@ final class FirstPass : ASTVisitor
 		SemanticSymbol* symbol = allocateSemanticSymbol(dec.name.text,
 			CompletionKind.enumName, symbolFile, dec.name.index, dec.type);
 		symbol.parent = currentSymbol;
-		symbol.acSymbol.doc = dec.comment;
+		symbol.acSymbol.doc = internString(dec.comment);
 		currentSymbol = symbol;
 		if (dec.enumBody !is null)
 			dec.enumBody.accept(this);
@@ -297,7 +297,7 @@ final class FirstPass : ASTVisitor
 		SemanticSymbol* symbol = allocateSemanticSymbol(member.name.text,
 			CompletionKind.enumMember, symbolFile, member.name.index, member.type);
 		symbol.parent = currentSymbol;
-		symbol.acSymbol.doc = member.comment;
+		symbol.acSymbol.doc = internString(member.comment);
 		currentSymbol.addChild(symbol);
 	}
 
