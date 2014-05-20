@@ -252,7 +252,10 @@ string[] loadConfiguredImportDirs()
 		return [];
 	Log.info("Loading configuration from ", configLocation);
 	File f = File(configLocation, "rt");
-	return f.byLine(KeepTerminator.no).map!(a => a.idup).filter!(a => existanceCheck(a)).array();
+	return f.byLine(KeepTerminator.no)
+		.filter!(a => a.length > 0 && existanceCheck(a))
+		.map!(a => a.idup)
+		.array();
 }
 
 void printHelp(string programName)
