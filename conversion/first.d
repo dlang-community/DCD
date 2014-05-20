@@ -421,6 +421,11 @@ private:
 	void visitAggregateDeclaration(AggType)(AggType dec, CompletionKind kind)
 	{
 //		Log.trace("visiting aggregate declaration ", dec.name.text);
+		if (kind == CompletionKind.unionName && dec.name == tok!"")
+		{
+			dec.accept(this);
+			return;
+		}
 		SemanticSymbol* symbol = allocateSemanticSymbol(dec.name.text,
 			kind, symbolFile, dec.name.index);
 		if (kind == CompletionKind.className)
