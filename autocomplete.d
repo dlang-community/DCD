@@ -116,8 +116,11 @@ AutocompleteResponse complete(const AutocompleteRequest request)
 	string partial;
 	IdType tokenType;
 
-	if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == tok!"(")
+	if (beforeTokens.length >= 2 && (beforeTokens[$ - 1] == tok!"("
+		|| beforeTokens[$ - 1] == tok!"["))
+	{
 		return parenCompletion(beforeTokens, tokenArray, request.cursorPosition);
+	}
 
 	AutocompleteResponse response;
 	if (beforeTokens.length >= 1 && beforeTokens[$ - 1] == tok!"identifier")
@@ -175,7 +178,7 @@ AutocompleteResponse complete(const AutocompleteRequest request)
 			"stdin", allocator, semanticAllocator);
 		scope(exit) typeid(Scope).destroy(completionScope);
 		response.setCompletions(completionScope, getExpression(beforeTokens),
-			request.cursorPosition, CompletionType.identifiers, partial);
+			request.cursorPosition, CompletionType.identifiers, false, partial);
 		break;
 	case tok!"(":
 	case tok!"{":
@@ -279,7 +282,7 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 		scope(exit) typeid(Scope).destroy(completionScope);
 		auto expression = getExpression(beforeTokens[0 .. $ - 1]);
 		response.setCompletions(completionScope, expression,
-			cursorPosition, CompletionType.calltips);
+			cursorPosition, CompletionType.calltips, beforeTokens[$ - 1] == tok!"[");
 		break;
 	default:
 		break;
@@ -456,7 +459,7 @@ ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
  */
 void setCompletions(T)(ref AutocompleteResponse response,
 	Scope* completionScope, T tokens, size_t cursorPosition,
-	CompletionType completionType, string partial = null)
+	CompletionType completionType, bool isBracket = false, string partial = null)
 {
 	// Autocomplete module imports instead of symbols
 	if (tokens.length > 0 && tokens[0].type == tok!"import")
@@ -516,27 +519,42 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		if (symbols[0].kind != CompletionKind.functionName
 			&& symbols[0].callTip is null)
 		{
-			auto call = symbols[0].getPartsByName("opCall");
-			if (call.length > 0)
+			if (symbols[0].kind == CompletionKind.variableName)
 			{
-				symbols = call;
-				goto setCallTips;
+				auto dumb = symbols[0].type;
+				if (isBracket)
+				{
+					auto index = dumb.getPartsByName("opIndex");
+					if (index.length > 0)
+					{
+						symbols = index;
+						goto setCallTips;
+					}
+				}
+				auto call = dumb.getPartsByName("opCall");
+				if (call.length > 0)
+				{
+					symbols = call;
+					goto setCallTips;
+				}
 			}
-			auto constructor = symbols[0].getPartsByName("*constructor*");
-			if (constructor.length == 0)
-				return;
-			else
+			if (symbols[0].kind == CompletionKind.structName
+				|| symbols[0].kind == CompletionKind.className)
 			{
-				Log.trace("Not a function, but it has a constructor");
-				symbols = constructor;
-				goto setCallTips;
+				auto constructor = symbols[0].getPartsByName("*constructor*");
+				if (constructor.length == 0)
+					return;
+				else
+				{
+					symbols = constructor;
+					goto setCallTips;
+				}
 			}
 		}
 	setCallTips:
 		response.completionType = CompletionType.calltips;
 		foreach (symbol; symbols)
 		{
-			Log.trace("Adding calltip ", symbol.callTip);
 			if (symbol.kind != CompletionKind.aliasName)
 				response.completions ~= symbol.callTip;
 		}

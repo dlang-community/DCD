@@ -61,8 +61,10 @@ local function showCompletionList(r)
 	end
 	table.sort(completions, function(a, b) return string.upper(a) < string.upper(b) end)
 	local charactersEntered = buffer.current_pos - buffer:word_start_position(buffer.current_pos)
-	if buffer.char_at[buffer.current_pos - 1] == string.byte('.')
-			or buffer.char_at[buffer.current_pos - 1] == string.byte('(') then
+	local prevChar = buffer.char_at[buffer.current_pos - 1]
+	if prevChar == string.byte('.')
+			or prevChar == string.byte('(')
+			or prevChar == string.byte('[') then
 		charactersEntered = 0
 	end
 	buffer:auto_c_show(charactersEntered, table.concat(completions, " "))

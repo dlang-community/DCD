@@ -11,7 +11,7 @@ if type(_G.keys) == 'table' then
 end
 
 events.connect(events.CHAR_ADDED, function(ch)
-	if string.char(ch) == '(' or string.char(ch) == '.' then
+	if string.char(ch) == '(' or string.char(ch) == '.' or string.char(ch) == '[' then
 		dcd.autocomplete()
 	end
 end)
