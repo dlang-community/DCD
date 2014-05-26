@@ -135,8 +135,8 @@ struct ModuleCache
 
 
 		ACSymbol*[] symbols;
-//		try
-//		{
+		try
+		{
 			import core.memory;
 			import std.stdio;
 			import std.typecons;
@@ -177,12 +177,12 @@ struct ModuleCache
 			typeid(Scope).destroy(third.moduleScope);
 			typeid(SemanticSymbol).destroy(third.rootSymbol);
 			symbolsAllocated += first.symbolsAllocated;
-//		}
-//		catch (Exception ex)
-//		{
-//			Log.error("Couln't parse ", location, " due to exception: ", ex.msg);
-//			return [];
-//		}
+		}
+		catch (Exception ex)
+		{
+			Log.error("Couln't parse ", location, " due to exception: ", ex.msg);
+			return [];
+		}
 		SysTime access;
 		SysTime modification;
 		getTimes(cachedLocation, access, modification);
