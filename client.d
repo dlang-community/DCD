@@ -73,15 +73,6 @@ int main(string[] args)
 		scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
 		return sendRequest(socket, request) ? 0 : 1;
 	}
-	else if (importPaths.length > 0)
-	{
-		AutocompleteRequest request;
-		request.kind = RequestKind.addImport;
-		request.importPaths = importPaths.map!(a => absolutePath(a)).array;
-		TcpSocket socket = createSocket(port);
-		scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
-		return sendRequest(socket, request) ? 0 : 1;
-	}
 	else if (cursorPos == size_t.max)
 	{
 		// cursor position is a required argument
@@ -122,12 +113,19 @@ int main(string[] args)
 	request.importPaths = importPaths;
 	request.sourceCode = sourceCode;
 	request.cursorPosition = cursorPos;
+
+	if (importPaths.length > 0)
+	{
+		request.kind |= RequestKind.addImport;
+		request.importPaths = importPaths.map!(a => absolutePath(a)).array;
+	}
+
 	if (symbolLocation)
-		request.kind = RequestKind.symbolLocation;
+		request.kind |= RequestKind.symbolLocation;
 	else if (doc)
-		request.kind = RequestKind.doc;
+		request.kind |= RequestKind.doc;
 	else
-		request.kind = RequestKind.autocomplete;
+		request.kind |= RequestKind.autocomplete;
 
 	// Send message to server
 	TcpSocket socket = createSocket(port);
