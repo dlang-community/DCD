@@ -57,6 +57,8 @@ int main(string[] args)
 		return 1;
 	}
 
+	AutocompleteRequest request;
+
 	if (help)
 	{
 		printHelp(args[0]);
@@ -64,7 +66,6 @@ int main(string[] args)
 	}
 	else if (shutdown || clearCache)
 	{
-		AutocompleteRequest request;
 		if (shutdown)
 		request.kind = RequestKind.shutdown;
 		else if (clearCache)
@@ -72,6 +73,19 @@ int main(string[] args)
 		TcpSocket socket = createSocket(port);
 		scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
 		return sendRequest(socket, request) ? 0 : 1;
+	}
+	else if (importPaths.length > 0)
+	{
+		request.kind |= RequestKind.addImport;
+		request.importPaths = importPaths.map!(a => absolutePath(a)).array;
+		if (cursorPos == size_t.max)
+		{
+			TcpSocket socket = createSocket(port);
+			scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
+			if (!sendRequest(socket, request))
+				return 1;
+			return 0;
+		}
 	}
 	else if (cursorPos == size_t.max)
 	{
@@ -107,18 +121,10 @@ int main(string[] args)
 		f.rawRead(sourceCode);
 	}
 
-	// Create message
-	AutocompleteRequest request;
 	request.fileName = fileName;
 	request.importPaths = importPaths;
 	request.sourceCode = sourceCode;
 	request.cursorPosition = cursorPos;
-
-	if (importPaths.length > 0)
-	{
-		request.kind |= RequestKind.addImport;
-		request.importPaths = importPaths.map!(a => absolutePath(a)).array;
-	}
 
 	if (symbolLocation)
 		request.kind |= RequestKind.symbolLocation;

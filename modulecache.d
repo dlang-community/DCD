@@ -141,7 +141,10 @@ struct ModuleCache
 			import std.stdio;
 			import std.typecons;
 			File f = File(cachedLocation);
-			ubyte[] source = cast(ubyte[]) Mallocator.it.allocate(cast(size_t)f.size);
+			immutable fileSize = cast(size_t)f.size;
+			if (fileSize == 0)
+				return symbols;
+			ubyte[] source = cast(ubyte[]) Mallocator.it.allocate(fileSize);
 			f.rawRead(source);
 			LexerConfig config;
 			config.fileName = cachedLocation;

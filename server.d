@@ -145,8 +145,6 @@ int main(string[] args)
 
 		AutocompleteRequest request;
 		msgpack.unpack(buffer[size_t.sizeof .. bytesReceived], request);
-		if (request.kind & RequestKind.addImport)
-			ModuleCache.addImportPaths(request.importPaths);
 		if (request.kind & RequestKind.clearCache)
 		{
 			Log.info("Clearing cache.");
@@ -157,6 +155,8 @@ int main(string[] args)
 			Log.info("Shutting down.");
 			break serverLoop;
 		}
+		if (request.kind & RequestKind.addImport)
+			ModuleCache.addImportPaths(request.importPaths);
 		else if (request.kind & RequestKind.autocomplete)
 		{
 			Log.info("Getting completions");
