@@ -667,15 +667,15 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
 {
 	response.completionType = CompletionType.identifiers;
 	auto moduleParts = tokens.filter!(a => a.type == tok!"identifier").map!("a.text").array();
-	if (moduleParts.length == 0)
-		return;
 	string path = buildPath(moduleParts);
+
 	foreach (importDirectory; ModuleCache.getImportPaths())
 	{
 		string p = buildPath(importDirectory, path);
 		Log.trace("Checking for ", p);
 		if (!exists(p))
 			continue;
+
 		foreach (string name; dirEntries(p, SpanMode.shallow))
 		{
 			if (isFile(name) && (name.endsWith(".d") || name.endsWith(".di")))
