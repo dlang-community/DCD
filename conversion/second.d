@@ -45,6 +45,7 @@ public:
 
 	void run()
 	{
+		rootSymbol.acSymbol.parts.insert(builtinSymbols[]);
 		assignToScopes(rootSymbol.acSymbol);
 		resolveImports(moduleScope);
 	}
@@ -62,8 +63,8 @@ private:
 			s.symbols.insert(currentSymbol);
 		foreach (part; currentSymbol.parts[])
 		{
-			std.utf.validate(part.name);
-			assignToScopes(part);
+			if (part.kind != CompletionKind.keyword)
+				assignToScopes(part);
 		}
 	}
 

@@ -18,7 +18,7 @@
 
 module string_interning;
 
-import std.lexer;
+import std.d.lexer;
 
 string internString(string s)
 {

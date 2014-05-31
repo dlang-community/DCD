@@ -145,32 +145,28 @@ int main(string[] args)
 
 		AutocompleteRequest request;
 		msgpack.unpack(buffer[size_t.sizeof .. bytesReceived], request);
-		final switch (request.kind)
+		if (request.kind & RequestKind.clearCache)
 		{
-		case RequestKind.addImport:
-			ModuleCache.addImportPaths(request.importPaths);
-			break;
-		case RequestKind.clearCache:
 			Log.info("Clearing cache.");
 			ModuleCache.clear();
-			break;
-		case RequestKind.shutdown:
+		}
+		else if (request.kind & RequestKind.shutdown)
+		{
 			Log.info("Shutting down.");
 			break serverLoop;
-		case RequestKind.autocomplete:
-//			try
-//			{
-				AutocompleteResponse response = complete(request);
-				ubyte[] responseBytes = msgpack.pack(response);
-				s.send(responseBytes);
-//			}
-//			catch (Exception e)
-//			{
-//				Log.error("Could not handle autocomplete request due to an exception:",
-//					e.msg);
-//			}
-			break;
-		case RequestKind.doc:
+		}
+		if (request.kind & RequestKind.addImport)
+			ModuleCache.addImportPaths(request.importPaths);
+		else if (request.kind & RequestKind.autocomplete)
+		{
+			Log.info("Getting completions");
+			AutocompleteResponse response = complete(request);
+			ubyte[] responseBytes = msgpack.pack(response);
+			s.send(responseBytes);
+		}
+		else if (request.kind & RequestKind.doc)
+		{
+			Log.info("Getting doc comment");
 			try
 			{
 				AutocompleteResponse response = getDoc(request);
@@ -181,9 +177,9 @@ int main(string[] args)
 			{
 				Log.error("Could not get DDoc information", e.msg);
 			}
-
-			break;
-		case RequestKind.symbolLocation:
+		}
+		else if (request.kind & RequestKind.symbolLocation)
+		{
 			try
 			{
 				AutocompleteResponse response = findDeclaration(request);
@@ -194,8 +190,9 @@ int main(string[] args)
 			{
 				Log.error("Could not get symbol location", e.msg);
 			}
-			break;
 		}
+		else
+			Log.error("Unknown request type");
 		Log.info("Request processed in ", requestWatch.peek().to!("msecs", float), " milliseconds");
 	}
 	return 0;

@@ -111,18 +111,19 @@ enum CompletionType : string
  */
 enum RequestKind : ubyte
 {
+	uninitialized =  0b00000000,
 	/// Autocompletion
-	autocomplete,
+	autocomplete =   0b00000001,
 	/// Clear the completion cache
-	clearCache,
+	clearCache =     0b00000010,
 	/// Add import directory to server
-	addImport,
+	addImport =      0b00000100,
 	/// Shut down the server
-	shutdown,
+	shutdown =       0b00001000,
 	/// Get declaration location of given symbol
-	symbolLocation,
+	symbolLocation = 0b00010000,
 	/// Get the doc comments for the symbol
-	doc
+	doc =            0b00100000,
 }
 
 /**

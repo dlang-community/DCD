@@ -149,9 +149,8 @@ private:
 		else if (t.type2.symbol !is null)
 		{
 			// TODO: global scoped symbol handling
-			string[] symbolParts = cast(string[]) Mallocator.it.allocate(
-				t.type2.symbol.identifierOrTemplateChain.identifiersOrTemplateInstances.length
-				* string.sizeof);
+			size_t l = t.type2.symbol.identifierOrTemplateChain.identifiersOrTemplateInstances.length;
+			string[] symbolParts = (cast(string*) Mallocator.it.allocate(l * string.sizeof))[0 .. l];
 			scope(exit) Mallocator.it.deallocate(symbolParts);
 			expandSymbol(symbolParts, t.type2.symbol.identifierOrTemplateChain);
 			auto symbols = moduleScope.getSymbolsByNameAndCursor(
@@ -179,7 +178,10 @@ private:
 		{
 			auto identOrTemplate = chain.identifiersOrTemplateInstances[i];
 			if (identOrTemplate is null)
+			{
+				strings[i] = null;
 				continue;
+			}
 			strings[i] = internString(identOrTemplate.templateInstance is null ?
 				identOrTemplate.identifier.text
 				: identOrTemplate.templateInstance.identifier.text);
