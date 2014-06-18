@@ -7,7 +7,7 @@
 ## Setup
 * First, follow the Setup section in the root README.
 * Second, add the following to your .emacs. With this setting, dcd-server starts automatically when you open file in d-mode.
-
+```
 (add-to-list 'load-path "path_to_ac-dcd.el")
 (require 'ac-dcd)
 (add-to-list 'ac-modes 'd-mode)
@@ -16,7 +16,7 @@
   (add-to-list 'ac-sources 'ac-source-dcd)
   (auto-complete-mode t))
 (add-hook 'd-mode-hook 'ac-d-mode-setup)
-
+```
 * Third, set import path using ```M-x customize-variable RET ac-dcd-flags```.
 * When something is wrong, please check variables with ```M-x customize-apropos RET ac-dcd``` and restart server with ```M-x ac-dcd-init-server```.
 
