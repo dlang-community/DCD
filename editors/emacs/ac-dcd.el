@@ -21,19 +21,19 @@
 
 ;;; Code:
 
-(provide 'ac-dcd)
 (require 'auto-complete)
 
 (defcustom ac-dcd-executable
-  (executable-find "dcd-client")
-  "*Location of dcd-client executable"
+  "dcd-client"
+  "Location of dcd-client executable."
   :group 'auto-complete
   :type 'file)
 
 ;;; Extra compilation flags to pass to dcd.
 (defcustom ac-dcd-flags nil
-  "Extra flags to pass to the Dcd executable.
-This variable will typically contain include paths, e.g., ( \"-I~/MyProject\", \"-I.\" )."
+  "Extra flags to pass to the dcd-server.
+This variable will typically contain include paths, e.g., (\"-I~/MyProject\", \"-I.\").
+You can't put port number flag here.  Set `ac-dcd-server-port' instead."
   :group 'auto-complete
   :type '(repeat (string :tag "Argument" "")))
 
@@ -41,6 +41,52 @@ This variable will typically contain include paths, e.g., ( \"-I~/MyProject\", \
   "^\\(%s[^\s\n]*\\)[ \t]+[cisuvmkfgepM]")
 
 (defconst ac-dcd-error-buffer-name "*dcd error*")
+
+(defcustom ac-dcd-server-executable
+  "dcd-server"
+  "Location of dcd-server executable."
+  :group 'auto-complete
+  :type 'file)
+
+(defcustom ac-dcd-server-port 9166
+  "Port number of dcd-server.  default is 9166."
+  :group 'auto-complete)
+
+(defvar ac-dcd-delay-after-kill-process 200
+  "Duration after killing server process in milli second.")
+
+
+
+(defun ac-dcd-stop-server ()
+  "Stop dcd-server manually.  Ordinary, you don't have to call it.
+If you want to restart server, use `ac-dcd-init-server' instead."
+  (interactive)
+  (interrupt-process "dcd-server"))
+
+(defsubst ac-dcd-start-server ()
+  "Start dcd-server."
+  (let ((buf (get-buffer-create "*dcd-server*")))
+	(with-current-buffer buf (start-process "dcd-server" (current-buffer)
+											ac-dcd-server-executable 
+											(mapconcat 'identity ac-dcd-flags " ")
+											"-p"
+											(format "%s" ac-dcd-server-port)
+											))))
+
+(defun ac-dcd-maybe-start-server ()
+  "Start dcd-server.  When the server process is already running, do nothing."
+  (unless (get-process "dcd-server")
+	(ac-dcd-start-server)))
+
+(defun ac-dcd-init-server ()
+  "Start dcd-server.  When the server process is already running, restart it."
+  (interactive)
+  (when (get-process "dcd-server")
+	(ac-dcd-stop-server)
+	(sleep-for 0 ac-dcd-delay-after-kill-process))
+  (ac-dcd-start-server))
+
+
 
 (defun ac-dcd-parse-output (prefix)
   (goto-char (point-min))
@@ -89,12 +135,16 @@ This variable will typically contain include paths, e.g., ( \"-I~/MyProject\", \
         (setq buffer-read-only t)
         (goto-char (point-min))))))
 
-(defun ac-dcd-call-process (prefix &rest args)
+
+
+(defun ac-dcd-call-process (prefix args)
   (let ((buf (get-buffer-create "*dcd-output*"))
         res)
     (with-current-buffer buf (erase-buffer))
     (setq res (apply 'call-process-region (point-min) (point-max)
-		     ac-dcd-executable nil buf nil args))
+					 ac-dcd-executable nil buf nil
+					 args
+					 ))
     (with-current-buffer buf
       (unless (eq 0 res)
         (ac-dcd-handle-error res args))
@@ -102,10 +152,12 @@ This variable will typically contain include paths, e.g., ( \"-I~/MyProject\", \
       (ac-dcd-parse-output prefix))))
 
 (defsubst ac-dcd-build-complete-args (pos)
-  (append '()
-	  '("-c")
-	  (list (format "%s" pos))
-  	  ac-dcd-flags))
+  (list
+   "-c"
+   (format "%s" pos)
+   "-p"
+   (format "%s" ac-dcd-server-port)
+   ))
 
 
 (defsubst ac-dcd-clean-document (s)
@@ -128,9 +180,9 @@ This variable will typically contain include paths, e.g., ( \"-I~/MyProject\", \
   (unless (ac-in-string/comment)
     (save-restriction
       (widen)
-      (apply 'ac-dcd-call-process
-             ac-prefix
-             (ac-dcd-build-complete-args (point))))))
+      (ac-dcd-call-process
+	   ac-prefix
+	   (ac-dcd-build-complete-args (point))))))
 
 (defvar ac-template-start-point nil)
 (defvar ac-template-candidates (list "ok" "no" "yes:)"))
@@ -172,7 +224,8 @@ This variable will typically contain include paths, e.g., ( \"-I~/MyProject\", \
     (requires . 0)
     (document . ac-dcd-document)
     (action . ac-dcd-action)
-    (cache)))
+    (cache)
+	(symbol . "D")))
 
 (defun ac-dcd-same-count-in-string (c1 c2 s)
   (let ((count 0) (cur 0) (end (length s)) c)
@@ -203,6 +256,8 @@ This variable will typically contain include paths, e.g., ( \"-I~/MyProject\", \
           (t
            sl))))
 
+
+
 (defun ac-template-candidate ()
   ac-template-candidates)
 
@@ -226,4 +281,5 @@ This variable will typically contain include paths, e.g., ( \"-I~/MyProject\", \
     (cache)
     (symbol . "t")))
 
-;;; auto-complete-dcd.el ends here
+(provide 'ac-dcd)
+;;; ac-dcd.el ends here
