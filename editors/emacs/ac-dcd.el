@@ -22,6 +22,8 @@
 ;;; Code:
 
 (require 'auto-complete)
+(require 'rx)
+(require 'yasnippet)
 
 (defcustom ac-dcd-executable
   "dcd-client"
@@ -29,16 +31,18 @@
   :group 'auto-complete
   :type 'file)
 
-;;; Extra compilation flags to pass to dcd.
 (defcustom ac-dcd-flags nil
   "Extra flags to pass to the dcd-server.
-This variable will typically contain include paths, e.g., (\"-I~/MyProject\", \"-I.\").
+This variable will typically contain include paths,
+e.g., (\"-I~/MyProject\", \"-I.\").
 You can't put port number flag here.  Set `ac-dcd-server-port' instead."
   :group 'auto-complete
   :type '(repeat (string :tag "Argument" "")))
 
 (defconst ac-dcd-completion-pattern
-  "^\\(%s[^\s\n]*\\)[ \t]+[cisuvmkfgepM]")
+  "^\\(%s[^\s\n]*\\)[ \t]+\\([cisuvmkfgepM]\\)"
+  "Regex to parse dcd output.
+\\1 is candidate itself, \\2 is kind of candidate.")
 
 (defconst ac-dcd-error-buffer-name "*dcd error*")
 
@@ -56,6 +60,7 @@ You can't put port number flag here.  Set `ac-dcd-server-port' instead."
   "Duration after killing server process in milli second.")
 
 
+;;server handle functions
 
 (defun ac-dcd-stop-server ()
   "Stop dcd-server manually.  Ordinary, you don't have to call it.
@@ -87,34 +92,37 @@ If you want to restart server, use `ac-dcd-init-server' instead."
   (ac-dcd-start-server))
 
 
+;; output parser functions
 
 (defun ac-dcd-parse-output (prefix)
+  "Parse dcd output."
   (goto-char (point-min))
   (let ((pattern (format ac-dcd-completion-pattern
                          (regexp-quote prefix)))
-        lines match detailed_info
+        lines match detailed-info
         (prev-match ""))
     (while (re-search-forward pattern nil t)
       (setq match (match-string-no-properties 1))
       (unless (string= "Pattern" match)
-        (setq detailed_info (match-string-no-properties 2))
+        (setq detailed-info (match-string-no-properties 2))
         (if (string= match prev-match)
             (progn
-              (when detailed_info
+              (when detailed-info
                 (setq match (propertize match
                                         'ac-dcd-help
                                         (concat
                                          (get-text-property 0 'ac-dcd-help (car lines))
                                          "\n"
-                                         detailed_info)))
+                                         detailed-info)))
                 (setf (car lines) match)))
           (setq prev-match match)
-          (when detailed_info
-            (setq match (propertize match 'ac-dcd-help detailed_info)))
+          (when detailed-info
+            (setq match (propertize match 'ac-dcd-help detailed-info)))
           (push match lines))))
     lines))
 
 (defun ac-dcd-handle-error (res args)
+  "Notify error on parse failure."
   (goto-char (point-min))
   (let* ((buf (get-buffer-create ac-dcd-error-buffer-name))
          (cmd (concat ac-dcd-executable " " (mapconcat 'identity args " ")))
@@ -136,6 +144,7 @@ If you want to restart server, use `ac-dcd-init-server' instead."
         (goto-char (point-min))))))
 
 
+;; utility functions to call process
 
 (defun ac-dcd-call-process (prefix args)
   (let ((buf (get-buffer-create "*dcd-output*"))
@@ -151,6 +160,11 @@ If you want to restart server, use `ac-dcd-init-server' instead."
       ;; Still try to get any useful input.
       (ac-dcd-parse-output prefix))))
 
+(defsubst ac-dcd-cursor-position ()
+  "Get cursor position to pass to dcd-client.
+TODO: multi byte character support"
+  (point))
+
 (defsubst ac-dcd-build-complete-args (pos)
   (list
    "-c"
@@ -160,21 +174,12 @@ If you want to restart server, use `ac-dcd-init-server' instead."
    ))
 
 
-(defsubst ac-dcd-clean-document (s)
-  (when s
-    (setq s (replace-regexp-in-string "<#\\|#>\\|\\[#" "" s))
-    (setq s (replace-regexp-in-string "#\\]" " " s)))
-  s)
-
-(defun ac-dcd-document (item)
-  (if (stringp item)
-      (let (s)
-        (setq s (get-text-property 0 'ac-dcd-help item))
-        (ac-dcd-clean-document s))))
-
 (defsubst ac-in-string/comment ()
   "Return non-nil if point is in a literal (a comment or string)."
   (nth 8 (syntax-ppss)))
+
+
+;; interface to communicate with auto-complete.el
 
 (defun ac-dcd-candidate ()
   (unless (ac-in-string/comment)
@@ -182,31 +187,7 @@ If you want to restart server, use `ac-dcd-init-server' instead."
       (widen)
       (ac-dcd-call-process
 	   ac-prefix
-	   (ac-dcd-build-complete-args (point))))))
-
-(defvar ac-template-start-point nil)
-(defvar ac-template-candidates (list "ok" "no" "yes:)"))
-
-(defun ac-dcd-action ()
-  (interactive)
-  (let ((help (ac-dcd-clean-document (get-text-property 0 'ac-dcd-help (cdr ac-last-completion))))
-        (raw-help (get-text-property 0 'ac-dcd-help (cdr ac-last-completion)))
-        (candidates (list)) ss fn args (ret-t "") ret-f)
-    (setq ss (split-string raw-help "\n"))
-    (dolist (s ss)
-      (when (string-match "\\[#\\(.*\\)#\\]" s)
-        (setq ret-t (match-string 1 s)))
-      (setq s (replace-regexp-in-string "\\[#.*?#\\]" "" s)))
-    (cond (candidates
-           (setq candidates (delete-dups candidates))
-           (setq candidates (nreverse candidates))
-           (setq ac-template-candidates candidates)
-           (setq ac-template-start-point (point))
-           (ac-complete-template)
-           (unless (cdr candidates) ;; unless length > 1
-             (message (replace-regexp-in-string "\n" "   ;    " help))))
-          (t
-           (message (replace-regexp-in-string "\n" "   ;    " help))))))
+	   (ac-dcd-build-complete-args (ac-dcd-cursor-position))))))
 
 (defun ac-dcd-prefix ()
   (or (ac-prefix-symbol)
@@ -218,68 +199,180 @@ If you want to restart server, use `ac-dcd-init-server' instead."
                        (eq ?: (char-before (1- (point))))))
           (point)))))
 
+(defun ac-dcd-document (item)
+  "Return popup document of `ITEM'."
+  (if (stringp item)
+      (let (s)
+        (setq s (get-text-property 0 'ac-dcd-help item))
+		(cond
+		 ((equal s "c") "class")
+		 ((equal s "i") "interface")
+		 ((equal s "s") "struct")
+		 ((equal s "u") "union")
+		 ((equal s "v") "variable")
+		 ((equal s "m") "member variable")
+		 ((equal s "k") "keyword")
+		 ((equal s "f") "function")
+		 ((equal s "g") "enum")
+		 ((equal s "e") "enum member")
+		 ((equal s "P") "package")
+		 ((equal s "M") "module")
+		 ((equal s "a") "array")
+		 ((equal s "A") "associative array")
+		 ((equal s "l") "alias")
+		 ((equal s "t") "template")
+		 ((equal s "T") "mixin template")
+		 (t (format "candidate kind undetected: %s" s))
+		 ))))
+
+
+(defun ac-dcd-action ()
+  "Try function calltip expansion."
+  (when (featurep 'yasnippet)
+
+	(let ((lastcompl (cdr ac-last-completion)))
+	  (cond
+	   ((equal (get-text-property 0 'ac-dcd-help lastcompl) "f") ; when it was a function
+		(progn
+		  (insert "(") ;dcd-client requires open parenthesis to complete calltip.
+		  (ac-complete-dcd-calltips)))
+	   (t nil)
+	   ))))
+
 (ac-define-source dcd
   '((candidates . ac-dcd-candidate)
     (prefix . ac-dcd-prefix)
     (requires . 0)
     (document . ac-dcd-document)
-    (action . ac-dcd-action)
+	(action . ac-dcd-action)
     (cache)
-	(symbol . "D")))
-
-(defun ac-dcd-same-count-in-string (c1 c2 s)
-  (let ((count 0) (cur 0) (end (length s)) c)
-    (while (< cur end)
-      (setq c (aref s cur))
-      (cond ((eq c1 c)
-             (setq count (1+ count)))
-            ((eq c2 c)
-             (setq count (1- count))))
-      (setq cur (1+ cur)))
-    (= count 0)))
-
-(defun ac-dcd-split-args (s)
-  (let ((sl (split-string s ", *")))
-    (cond ((string-match "<\\|(" s)
-           (let ((res (list)) (pre "") subs)
-             (while sl
-               (setq subs (pop sl))
-               (unless (string= pre "")
-                 (setq subs (concat pre ", " subs))
-                 (setq pre ""))
-               (cond ((and (ac-dcd-same-count-in-string ?\< ?\> subs)
-                           (ac-dcd-same-count-in-string ?\( ?\) subs))
-                      (push subs res))
-                     (t
-                      (setq pre subs))))
-             (nreverse res)))
-          (t
-           sl))))
+	(symbol . "D")
+	))
 
 
+;; function calltip expansion with yasnippet
 
-(defun ac-template-candidate ()
-  ac-template-candidates)
+(defun ac-dcd-calltip-candidate ()
+  "Do calltip completion of the D symbol at point.
+The cursor must be at the end of a D symbol.
+When the symbol is not a function, returns nothing"
+  (let ((buf (get-buffer-create "*dcd-output*")))
+	(ac-dcd-call-process-for-calltips)
+	(with-current-buffer buf (ac-dcd-parse-calltips))
+	))
 
-(defun ac-template-action ()
+(defun ac-dcd-call-process-for-calltips ()
+  "Call process to get calltips of the function at point."
+  (ac-dcd-call-process
+   (concat (cdr ac-last-completion) "(")
+   (ac-dcd-build-complete-args (ac-dcd-cursor-position))))
+
+
+(defconst ac-dcd-calltip-pattern
+  (rx bol (submatch (* nonl)) (submatch "(" (* nonl) ")") eol)
+  "Regexp to parse calltip completion output.
+\\1 is function return type (if exists) and name, and \\2 is args.")
+
+(defsubst ac-dcd-remove-function-return-type (s)
+  "Remove return type of function."
+  (let ((sl (split-string s)))
+	(if (string-match "(" (car sl)) ; filter calltip candidate which has no return type. e.g. std.regex.match
+		s
+	  (mapconcat 'identity (cdr sl) " ")
+	  )))
+
+
+(defun ac-dcd-parse-calltips ()
+  "Parse dcd output for calltips completion.
+It returns a list of calltip candidates."
+  (goto-char (point-min))
+  (let ((pattern ac-dcd-calltip-pattern)
+		lines
+		match
+		(prev-match ""))
+	(while (re-search-forward pattern nil t)
+	  (setq match (ac-dcd-remove-function-return-type (concat (match-string-no-properties 1) (match-string-no-properties 2))))
+	  (push match lines))
+	lines
+	))
+
+(defun ac-dcd-calltip-action ()
+  "Format the calltip to yasnippet style.
+This function should be called at *dcd-output* buf."
+  (let (beg end)
+	(save-excursion	
+	  (setq end (point))
+	  (setq beg (progn
+				  ;; find the end of function name. some function arguments have parenthesis of its own,
+				  ;; so I had to do it like this.
+				  (search-backward (cdr ac-last-completion))
+				  (-  (search-forward "(" ) 1)))
+	  (kill-region beg end))
+	(let ((str (car kill-ring))
+		  yasstr)
+	  (setq kill-ring (cdr kill-ring)); clean up kill-ring
+
+	  ;remove parenthesis
+	  (setq str (substring str 1 (- (length str) 1)))
+	  
+	  (setq yasstr
+			(mapconcat
+			 (lambda (s) "format each args to yasnippet style" (concat "${" s "}"))
+			 (split-string str ", ")
+			 ", "))
+	  (setq yasstr (concat "(" yasstr ")"))
+	  ;; ;;debug
+	  ;; (message (format "str: %s" str))
+	  ;; (message (format "yasstr: %s" yasstr))
+	  (yas-expand-snippet yasstr))))
+
+(defun ac-dcd-calltip-prefix ()
+  (car ac-last-completion))
+
+(ac-define-source dcd-calltips
+  '((candidates . ac-dcd-calltip-candidate)
+	(prefix . ac-dcd-calltip-prefix)
+	(action . ac-dcd-calltip-action)
+	(cache)
+	))
+
+
+;;show document
+
+(defun ac-dcd-get-ddoc (pos)
+  "Get document with `dcd-client --doc'.  `POS' is cursor position.
+TODO:reformat it."
+  (let ((args 
+		 (append
+		  (ac-dcd-build-complete-args (ac-dcd-cursor-position))
+		  '("--doc")
+		  (list (buffer-file-name))))
+		(buf (get-buffer-create "*dcd-output*")))
+	(with-current-buffer
+		buf (erase-buffer)
+		(apply 'call-process ac-dcd-executable nil buf nil args))
+	(let ((raw-doc (with-current-buffer buf (buffer-string))))
+	  ;; ;; TODO: format document string. 
+	  ;; (setq raw-doc (replace-regexp-in-string
+	  ;; 				 (rx (and (not (any "\\\\")) (submatch "\\n")))
+	  ;; 				 " " raw-doc  nil nil 1 nil)); replace \n with space
+	  ;; ;; (setq raw-doc (replace-regexp-in-string
+	  ;; ;; 				 (rx "\\n") "\n" raw-doc));replace \\n(RET in D src) with \n
+	  ;; (setq raw-doc (replace-regexp-in-string
+	  ;; 				 (rx (and "$(D" (submatch (* anything)) ")"))
+	  ;; 				 " `\\1' " raw-doc)) ;format D src
+	  raw-doc)))
+
+(defun ac-dcd-popup-ddoc-at-point ()
+  "Popup Ddoc at point using popup.el."
   (interactive)
-  (unless (null ac-template-start-point)
-    (let ((pos (point)) sl (snp "")
-          (s (get-text-property 0 'raw-args (cdr ac-last-completion)))))))
+  (let ((doc (ac-dcd-get-ddoc (ac-dcd-cursor-position))))
+	(when (or(string= doc "")
+			 (string= doc "\n\n\n") ;when symbol has no doc
+			 )
+	  (message "No document for the symbol at point!"))))
 
-(defun ac-template-prefix ()
-  ac-template-start-point)
-
-
-;; this source shall only be used internally.
-(ac-define-source template
-  '((candidates . ac-template-candidate)
-    (prefix . ac-template-prefix)
-    (requires . 0)
-    (action . ac-template-action)
-    (document . ac-dcd-document)
-    (cache)
-    (symbol . "t")))
+
 
 (provide 'ac-dcd)
 ;;; ac-dcd.el ends here
