@@ -274,9 +274,9 @@ When the symbol is not a function, returns nothing"
 \\1 is function return type (if exists) and name, and \\2 is args.")
 
 (defsubst ac-dcd-remove-function-return-type (s)
-  "Remove return type of function."
+  "Remove return type of the function."
   (let ((sl (split-string s)))
-	(if (string-match "(" (car sl)) ; filter calltip candidate which has no return type. e.g. std.regex.match
+	(if (string-match "(" (car sl)) ;
 		s
 	  (mapconcat 'identity (cdr sl) " ")
 	  )))
@@ -312,7 +312,7 @@ This function should be called at *dcd-output* buf."
 		  yasstr)
 	  (setq kill-ring (cdr kill-ring)); clean up kill-ring
 
-	  ;remove parenthesis
+	  ;;remove parenthesis
 	  (setq str (substring str 1 (- (length str) 1)))
 	  
 	  (setq yasstr
@@ -342,6 +342,7 @@ This function should be called at *dcd-output* buf."
 (defun ac-dcd-get-ddoc (pos)
   "Get document with `dcd-client --doc'.  `POS' is cursor position.
 TODO:reformat it."
+  (save-buffer)
   (let ((args 
 		 (append
 		  (ac-dcd-build-complete-args (ac-dcd-cursor-position))
@@ -370,8 +371,87 @@ TODO:reformat it."
 	(when (or(string= doc "")
 			 (string= doc "\n\n\n") ;when symbol has no doc
 			 )
-	  (message "No document for the symbol at point!"))))
+	  (message "No document for the symbol at point!"))
+	(popup-tip doc)))
 
+
+;; goto definition
+;; thanks to jedi.el by Takafumi Arakaki
+
+(defcustom ac-dcd-goto-definition-marker-ring-length 16
+  "Length of marker ring to store `ac-dcd-goto-definition' call positions."
+  :group 'auto-complete)
+
+(defvar ac-dcd-goto-definition-marker-ring
+  (make-ring ac-dcd-goto-definition-marker-ring-length)
+  "Ring that stores ac-dcd-goto-symbol-declaration.")
+
+(defsubst ac-dcd-goto-def-push-marker ()
+  "Push marker at point to goto-def ring."
+  (ring-insert ac-dcd-goto-definition-marker-ring (point-marker)))
+
+(defun ac-dcd-goto-def-pop-marker ()
+  "Goto the point where `ac-dcd-goto-definition' was last called."
+  (interactive)
+  (if (ring-empty-p ac-dcd-goto-definition-marker-ring)
+	  (error "Marker ring is empty. Can't pop.")
+	(let ((marker (ring-remove ac-dcd-goto-definition-marker-ring 0)))
+	  (switch-to-buffer (or (marker-buffer marker)
+                            (error "Buffer has been deleted")))
+      (goto-char (marker-position marker))
+      ;; Cleanup the marker so as to avoid them piling up.
+      (set-marker marker nil nil))))
+
+(defun ac-dcd-goto-definition ()
+  "Goto declaration of symbol at point."
+  (interactive)
+  (save-buffer)  
+  (ac-dcd-call-process-for-symbol-declaration (point))
+  (let* ((data (ac-dcd-parse-output-for-get-symbol-declaration))
+		 (file (car data))
+		 (offset (cdr data)))
+	(if (equal data '(nil . nil))
+		(message "Not found")
+	  (progn
+		(ac-dcd-goto-def-push-marker)
+		(if (string=  file "stdin") ; When the declaration is in the current file
+			(progn
+			  (goto-char (point-min))
+			  (forward-char (string-to-number offset)))
+		  (progn
+			(find-file file)
+			(goto-char (point-min))
+			(forward-char (string-to-number offset))))))))
+
+;; utilities for goto-definition
+
+(defun ac-dcd-call-process-for-symbol-declaration (pos)
+  "Get location of symbol declaration with `dcd-client --symbolLocation'.
+`POS' is cursor position."
+  (let ((args 
+		 (append
+		  (ac-dcd-build-complete-args (ac-dcd-cursor-position))
+		  '("--symbolLocation")
+		  (list (buffer-file-name))))
+		(buf (get-buffer-create "*dcd-output*")))
+	(with-current-buffer
+		buf (erase-buffer)
+		(apply 'call-process ac-dcd-executable nil buf nil args))
+	(let ((output (with-current-buffer buf (buffer-string))))
+	  output)))
+
+(defun ac-dcd-parse-output-for-get-symbol-declaration ()
+  "Parse output of `ac-dcd-get-symbol-declaration'.
+output is just like following.\n
+`(cons \"PATH_TO_IMPORT/import/std/stdio.d\" \"63946\")'"
+  (let ((buf (get-buffer-create "*dcd-output*")))
+	(with-current-buffer buf
+	  (goto-char (point-min))
+	  (if (not (string= "Not found\n" (buffer-string)))
+		  (progn (re-search-forward (rx (submatch (* nonl)) "\t" (submatch (* nonl)) "\n"))
+				 (cons (match-string 1) (match-string 2)))
+		(cons nil nil)))
+	))
 
 
 (provide 'ac-dcd)
