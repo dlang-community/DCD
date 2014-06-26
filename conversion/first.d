@@ -19,7 +19,7 @@
 module conversion.first;
 
 import actypes;
-import formatter;
+import std.d.formatter;
 import std.allocator;
 import memory.allocators;
 import memory.appender;

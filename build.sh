@@ -23,13 +23,13 @@ dmd\
 	server.d\
 	stupidlog.d\
 	string_interning.d\
-	dscanner/std/d/ast.d\
-	dscanner/std/d/entities.d\
-	dscanner/std/d/lexer.d\
-	dscanner/std/d/parser.d\
-	dscanner/std/lexer.d\
-	dscanner/std/allocator.d\
-	dscanner/formatter.d\
+	libdparse/src/std/d/ast.d\
+	libdparse/src/std/d/entities.d\
+	libdparse/src/std/d/lexer.d\
+	libdparse/src/std/d/parser.d\
+	libdparse/src/std/lexer.d\
+	libdparse/src/std/allocator.d\
+	libdparse/src/std/d/formatter.d\
 	containers/src/memory/allocators.d\
 	containers/src/memory/appender.d\
 	containers/src/containers/dynamicarray.d\

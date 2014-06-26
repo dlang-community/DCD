@@ -137,7 +137,6 @@ struct ModuleCache
 		ACSymbol*[] symbols;
 //		try
 //		{
-			import core.memory;
 			import std.stdio;
 			import std.typecons;
 			File f = File(cachedLocation);
@@ -150,12 +149,9 @@ struct ModuleCache
 			config.fileName = cachedLocation;
 			auto parseStringCache = StringCache(StringCache.defaultBucketCount);
 			auto semanticAllocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 64)));
-			DynamicArray!(Token, false) tokens;
-			auto tokenRange = byToken(
+			const(Token)[] tokens = getTokensForParser(
 				(source.length >= 3 && source[0 .. 3] == "\xef\xbb\xbf"c) ? source[3 .. $] : source,
 				config, &parseStringCache);
-			foreach (t; tokenRange)
-				tokens.insert(t);
 			Mallocator.it.deallocate(source);
 
 			Module m = parseModuleSimple(tokens[], cachedLocation, semanticAllocator);

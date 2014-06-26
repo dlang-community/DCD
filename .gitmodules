@@ -1,9 +1,6 @@
 [submodule "msgpack-d"]
 	path = msgpack-d
 	url = https://github.com/msgpack/msgpack-d.git
-[submodule "dscanner"]
-	path = dscanner
-	url = https://github.com/Hackerpilot/Dscanner.git
 [submodule "editors/ktexteditor"]
 	path = editors/ktexteditor
 	url = https://github.com/Dav1dde/lumen.git
@@ -13,3 +10,7 @@
 [submodule "containers"]
 	path = containers
 	url = https://github.com/economicmodeling/containers.git
+[submodule "libdparse"]
+	path = libdparse
+	url = https://github.com/Hackerpilot/libdparse.git
+	branch = master

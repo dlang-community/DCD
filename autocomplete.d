@@ -205,8 +205,7 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, size_t cursorPosition,
 {
 	LexerConfig config;
 	config.fileName = "stdin";
-	auto tokens = byToken(cast(ubyte[]) sourceCode, config, cache);
-	tokenArray = tokens.array();
+	tokenArray = getTokensForParser(cast(ubyte[]) sourceCode, config, cache);
 	auto sortedTokens = assumeSorted(tokenArray);
 	return sortedTokens.lowerBound(cast(size_t) cursorPosition);
 }
