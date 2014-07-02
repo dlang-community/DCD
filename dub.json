@@ -1,0 +1,29 @@
+{
+	"name": "dcd",
+	"description": "The D Completion Daemon is an auto-complete program for the D programming language.",
+	"copyright": "Copyright 2014, Brian Schott",
+	"authors": ["Brian Schott"],
+	"dependencies": {
+		"msgpack-d": "~master"
+	},
+	"importPaths": ["containers"],
+	"preGenerateCommands-windows": ["del ./containers/src/std/allocator.d"],
+	"preGenerateCommands-posix": ["rm -f ./containers/src/std/allocator.d"],
+	"buildOptions": ["inline", "optimize"],
+	"configurations": [
+	{
+		"name": "dcd-client",
+		"targetType": "executable",
+		"targetName": "dcd-client",
+		"sourcePaths": [],
+		"sourceFiles": ["client.d", "messages.d", "stupidlog.d"]
+	},
+	{
+		"name": "dcd-server",
+		"targetType": "executable",
+		"targetName": "dcd-server",
+		"sourcePaths": ["."],
+		"excludedSourceFiles": ["msgpack-d/*", "client.d"]
+	}
+	],
+}
