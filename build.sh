@@ -37,6 +37,7 @@ dmd\
 	containers/src/containers/unrolledlist.d\
 	containers/src/containers/hashset.d\
 	containers/src/containers/internal/hash.d\
+	containers/src/containers/internal/node.d\
 	containers/src/containers/slist.d\
 	msgpack-d/src/msgpack.d\
 	-Icontainers/src\
