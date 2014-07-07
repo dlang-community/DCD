@@ -190,7 +190,7 @@ private:
 
 	ACSymbol* processSuffix(ACSymbol* symbol, const TypeSuffix suffix)
 	{
-		import formatter;
+		import std.d.formatter;
 		if (suffix.star)
 			return symbol;
 		if (suffix.array || suffix.type)

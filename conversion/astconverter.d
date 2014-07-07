@@ -63,7 +63,8 @@ class SimpleParser : Parser
 	override Unittest parseUnittest()
 	{
 		expect(tok!"unittest");
-		skipBraces();
+		if (currentIs(tok!"{"))
+			skipBraces();
 		return null;
 	}
 

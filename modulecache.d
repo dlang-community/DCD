@@ -135,9 +135,8 @@ struct ModuleCache
 
 
 		ACSymbol*[] symbols;
-		try
-		{
-			import core.memory;
+//		try
+//		{
 			import std.stdio;
 			import std.typecons;
 			File f = File(cachedLocation);
@@ -150,12 +149,9 @@ struct ModuleCache
 			config.fileName = cachedLocation;
 			auto parseStringCache = StringCache(StringCache.defaultBucketCount);
 			auto semanticAllocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 64)));
-			DynamicArray!(Token, false) tokens;
-			auto tokenRange = byToken(
+			const(Token)[] tokens = getTokensForParser(
 				(source.length >= 3 && source[0 .. 3] == "\xef\xbb\xbf"c) ? source[3 .. $] : source,
 				config, &parseStringCache);
-			foreach (t; tokenRange)
-				tokens.insert(t);
 			Mallocator.it.deallocate(source);
 
 			Module m = parseModuleSimple(tokens[], cachedLocation, semanticAllocator);
@@ -180,12 +176,12 @@ struct ModuleCache
 			typeid(Scope).destroy(third.moduleScope);
 			typeid(SemanticSymbol).destroy(third.rootSymbol);
 			symbolsAllocated += first.symbolsAllocated;
-		}
-		catch (Exception ex)
-		{
-			Log.error("Couln't parse ", location, " due to exception: ", ex.msg);
-			return [];
-		}
+//		}
+//		catch (Exception ex)
+//		{
+//			Log.error("Couln't parse ", location, " due to exception: ", ex.msg);
+//			return [];
+//		}
 		SysTime access;
 		SysTime modification;
 		getTimes(cachedLocation, access, modification);
