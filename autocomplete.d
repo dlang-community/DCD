@@ -299,8 +299,16 @@ ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 	Log.trace("Getting symbols from token chain",
 		tokens.map!stringToken);
 	// Find the symbol corresponding to the beginning of the chain
-	ACSymbol*[] symbols = completionScope.getSymbolsByNameAndCursor(
-		stringToken(tokens[0]), cursorPosition);
+	ACSymbol*[] symbols;
+	if (tokens[0] == tok!"." && tokens.length > 1)
+	{
+		tokens = tokens[1 .. $];
+		Log.info("Looking for ", stringToken(tokens[0]), " at global scope");
+		symbols = completionScope.getSymbolsAtGlobalScope(stringToken(tokens[0]));
+	}
+	else
+		symbols = completionScope.getSymbolsByNameAndCursor(stringToken(tokens[0]), cursorPosition);
+
 	if (symbols.length == 0)
 	{
 		Log.error("Could not find declaration of ", stringToken(tokens[0]),

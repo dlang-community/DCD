@@ -233,14 +233,9 @@ struct Scope
 	{
 		import std.range;
 		ACSymbol s = ACSymbol(name);
-		auto r = array(symbols.equalRange(&s));
-		foreach (i; r)
-		{
-			import std.string;
-			assert (i.name == name, format("%s %s %d", i.name, name, r.length));
-		}
-		if (r.length > 0)
-			return cast(typeof(return)) r;
+		auto er = symbols.equalRange(&s);
+		if (!er.empty)
+			return cast(typeof(return)) array(er);
 		if (parent is null)
 			return [];
 		return parent.getSymbolsByName(name);
@@ -260,6 +255,13 @@ struct Scope
 		if (s is null)
 			return [];
 		return s.getSymbolsByName(name);
+	}
+
+	ACSymbol*[] getSymbolsAtGlobalScope(string name)
+	{
+		if (parent !is null)
+			return parent.getSymbolsAtGlobalScope(name);
+		return getSymbolsByName(name);
 	}
 
 	/// Imports contained in this scope
