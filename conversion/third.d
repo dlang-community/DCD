@@ -145,7 +145,7 @@ private:
 			auto parts = currentSymbol.acSymbol.getPartsByName(aliasThis);
 			if (parts.length == 0 || parts[0].type is null)
 				continue;
-			currentSymbol.acSymbol.parts.insert(parts[0].type.parts[]);
+			currentSymbol.acSymbol.aliasThisParts.insert(parts[0].type.parts[]);
 		}
 	}
 

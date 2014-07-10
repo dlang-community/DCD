@@ -107,7 +107,11 @@ public:
 	ACSymbol*[] getPartsByName(string name)
 	{
 		ACSymbol s = ACSymbol(name);
-		return array(parts.equalRange(&s));
+		auto er = parts.equalRange(&s);
+		if (er.empty)
+			return array(aliasThisParts.equalRange(&s));
+		else
+			return array(er);
 	}
 
 	/**
@@ -120,6 +124,11 @@ public:
 	 * methods, etc.
 	 */
 	TTree!(ACSymbol*, true, "a < b", false) parts;
+
+	/**
+	 * Symbols included due to an alias this.
+	 */
+	TTree!(ACSymbol*, true, "a < b", false) aliasThisParts;
 
 	/**
 	 * Calltip to display if this is a function
@@ -315,7 +324,7 @@ TTree!(ACSymbol*, true, "a < b", false) arraySymbols;
 TTree!(ACSymbol*, true, "a < b", false) assocArraySymbols;
 
 /**
- * Enum, union, class, and interface properties
+ * Struct, enum, union, class, and interface properties
  */
 TTree!(ACSymbol*, true, "a < b", false) aggregateSymbols;
 
@@ -508,7 +517,7 @@ static this()
 		s.parts.insert(stringof_);
 	}
 
-	aggregateSymbols.insert(allocate!ACSymbol(Mallocator.it, "tupleof", CompletionKind.variableName));
+	aggregateSymbols.insert(allocate!ACSymbol(Mallocator.it, "tupleof", CompletionKind.keyword));
 	aggregateSymbols.insert(mangleof_);
 	aggregateSymbols.insert(alignof_);
 	aggregateSymbols.insert(sizeof_);

@@ -185,7 +185,6 @@ AutocompleteResponse complete(const AutocompleteRequest request)
 	case tok!"[":
 	case tok!";":
 	case tok!":":
-		// TODO: global scope
 		break;
 	default:
 		break;
@@ -501,6 +500,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 
 	if (completionType == CompletionType.identifiers)
 	{
+		import containers.ttree;
 		if (symbols[0].qualifier == SymbolQualifier.func
 			|| symbols[0].kind == CompletionKind.functionName)
 		{
@@ -509,7 +509,10 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			if (symbols.length == 0)
 				return;
 		}
-		foreach (s; symbols[0].parts[].filter!(a => a.name !is null
+		TTree!(ACSymbol*, true, "a < b", false) parts;
+		parts.insert(symbols[0].parts[]);
+		parts.insert(symbols[0].aliasThisParts[]);
+		foreach (s; parts[].filter!(a => a.name !is null
 			&& a.name.length > 0 && a.name[0] != '*'
 			&& (partial is null ? true : a.name.toUpper().startsWith(partial.toUpper()))
 			&& !response.completions.canFind(a.name)))
@@ -550,7 +553,15 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			{
 				auto constructor = symbols[0].getPartsByName("*constructor*");
 				if (constructor.length == 0)
-					return;
+				{
+					// Build a call tip out of the struct fields
+					if (symbols[0].kind == CompletionKind.structName)
+					{
+						response.completionType = CompletionType.calltips;
+						response.completions = [generateStructConstructorCalltip(symbols[0])];
+						return;
+					}
+				}
 				else
 				{
 					symbols = constructor;
@@ -566,6 +577,34 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				response.completions ~= symbol.callTip;
 		}
 	}
+}
+
+string generateStructConstructorCalltip(const ACSymbol* symbol)
+in
+{
+	assert (symbol.kind == CompletionKind.structName);
+}
+body
+{
+	string generatedStructConstructorCalltip = "this(";
+	size_t i = 0;
+	immutable c = count(symbol.parts[].filter!(a => a.kind == CompletionKind.variableName));
+	foreach (part; array(symbol.parts[]).sort!((a, b) => a.location < b.location))
+	{
+		if (part.kind != CompletionKind.variableName)
+			continue;
+		i++;
+		if (part.type !is null)
+		{
+			generatedStructConstructorCalltip ~= part.type.name;
+			generatedStructConstructorCalltip ~= " ";
+		}
+		generatedStructConstructorCalltip ~= part.name;
+		if (i < c)
+			generatedStructConstructorCalltip ~= ", ";
+	}
+	generatedStructConstructorCalltip ~= ")";
+	return generatedStructConstructorCalltip;
 }
 
 /**
