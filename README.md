@@ -10,7 +10,7 @@ The server (dcd-server) is responsible for caching imported files, calculating a
 back to the client.
 
 #Status
-*This program is reasonably stable.*
+This program is reasonably stable.
 
 * Working:
 	* Autocompletion of properties of built-in types such as int, float, double, etc.
