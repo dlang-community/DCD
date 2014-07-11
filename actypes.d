@@ -107,7 +107,11 @@ public:
 	ACSymbol*[] getPartsByName(string name)
 	{
 		ACSymbol s = ACSymbol(name);
-		return array(parts.equalRange(&s));
+		auto er = parts.equalRange(&s);
+		if (er.empty)
+			return array(aliasThisParts.equalRange(&s));
+		else
+			return array(er);
 	}
 
 	/**
@@ -120,6 +124,11 @@ public:
 	 * methods, etc.
 	 */
 	TTree!(ACSymbol*, true, "a < b", false) parts;
+
+	/**
+	 * Symbols included due to an alias this.
+	 */
+	TTree!(ACSymbol*, true, "a < b", false) aliasThisParts;
 
 	/**
 	 * Calltip to display if this is a function
@@ -233,14 +242,9 @@ struct Scope
 	{
 		import std.range;
 		ACSymbol s = ACSymbol(name);
-		auto r = array(symbols.equalRange(&s));
-		foreach (i; r)
-		{
-			import std.string;
-			assert (i.name == name, format("%s %s %d", i.name, name, r.length));
-		}
-		if (r.length > 0)
-			return cast(typeof(return)) r;
+		auto er = symbols.equalRange(&s);
+		if (!er.empty)
+			return cast(typeof(return)) array(er);
 		if (parent is null)
 			return [];
 		return parent.getSymbolsByName(name);
@@ -260,6 +264,13 @@ struct Scope
 		if (s is null)
 			return [];
 		return s.getSymbolsByName(name);
+	}
+
+	ACSymbol*[] getSymbolsAtGlobalScope(string name)
+	{
+		if (parent !is null)
+			return parent.getSymbolsAtGlobalScope(name);
+		return getSymbolsByName(name);
 	}
 
 	/// Imports contained in this scope
@@ -313,7 +324,7 @@ TTree!(ACSymbol*, true, "a < b", false) arraySymbols;
 TTree!(ACSymbol*, true, "a < b", false) assocArraySymbols;
 
 /**
- * Enum, union, class, and interface properties
+ * Struct, enum, union, class, and interface properties
  */
 TTree!(ACSymbol*, true, "a < b", false) aggregateSymbols;
 
@@ -506,7 +517,7 @@ static this()
 		s.parts.insert(stringof_);
 	}
 
-	aggregateSymbols.insert(allocate!ACSymbol(Mallocator.it, "tupleof", CompletionKind.variableName));
+	aggregateSymbols.insert(allocate!ACSymbol(Mallocator.it, "tupleof", CompletionKind.keyword));
 	aggregateSymbols.insert(mangleof_);
 	aggregateSymbols.insert(alignof_);
 	aggregateSymbols.insert(sizeof_);

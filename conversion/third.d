@@ -69,11 +69,6 @@ private:
 		case className:
 		case interfaceName:
 			resolveInheritance(currentSymbol);
-			goto case structName;
-		case structName:
-		case unionName:
-			resolveAliasThis(currentSymbol);
-			resolveMixinTemplates(currentSymbol);
 			break;
 		case variableName:
 		case memberVariableName:
@@ -85,6 +80,8 @@ private:
 				t = t.type;
 			currentSymbol.acSymbol.type = t;
 			break;
+		case structName:
+		case unionName:
 		case enumName:
 		case keyword:
 		case enumMember:
@@ -97,9 +94,23 @@ private:
 		case mixinTemplateName:
 			break;
 		}
+
 		foreach (child; currentSymbol.children)
 		{
 			thirdPass(child);
+		}
+
+		with (CompletionKind) switch (currentSymbol.acSymbol.kind)
+		{
+		case className:
+		case interfaceName:
+		case structName:
+		case unionName:
+			resolveAliasThis(currentSymbol);
+			resolveMixinTemplates(currentSymbol);
+			break;
+		default:
+			break;
 		}
 	}
 
@@ -129,10 +140,16 @@ private:
 
 	void resolveAliasThis(SemanticSymbol* currentSymbol)
 	{
-		// TODO:
+		foreach (aliasThis; currentSymbol.aliasThis)
+		{
+			auto parts = currentSymbol.acSymbol.getPartsByName(aliasThis);
+			if (parts.length == 0 || parts[0].type is null)
+				continue;
+			currentSymbol.acSymbol.aliasThisParts.insert(parts[0].type.parts[]);
+		}
 	}
 
-	void resolveMixinTemplates(SemanticSymbol* currentSymbol)
+	void resolveMixinTemplates(SemanticSymbol*)
 	{
 		// TODO:
 	}
