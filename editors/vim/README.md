@@ -38,6 +38,11 @@ let g:dcd_importPath=['C:\D\dmd2\src\phobos','C:\D\dmd2\src\druntime\import']
 
 Import paths are globbed with Vim's globbing function.
 
+Be sure that the following option is set in your .vimrc:
+```vim
+set omnifunc=syntaxComplete#complete
+```
+
 Usage
 =====
 When the filetype is D, use the `DCDstartServer` command to start the server

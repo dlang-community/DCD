@@ -123,27 +123,30 @@ If you want to restart server, use `ac-dcd-init-server' instead."
           (push match lines))))
     lines))
 
+(defvar ac-dcd-error-message-regexp
+  (rx (and (submatch (* nonl))  ": " (submatch (* nonl)) ": " (submatch (* nonl) eol)))
+  "If it matches first line of dcd-output, it would be error message.")
+
 (defun ac-dcd-handle-error (res args)
-  "Notify error on parse failure."
-  (goto-char (point-min))
-  (let* ((buf (get-buffer-create ac-dcd-error-buffer-name))
+  "Notify error."
+  (let* ((errbuf (get-buffer-create ac-dcd-error-buffer-name))
+		 (outbuf (get-buffer ac-dcd-output-buffer-name))
          (cmd (concat ac-dcd-executable " " (mapconcat 'identity args " ")))
-         (pattern (format ac-dcd-completion-pattern ""))
-         (err (if (re-search-forward pattern nil t)
-                  (buffer-substring-no-properties (point-min)
-                                                  (1- (match-beginning 0)))
-                ;; Warn the user more agressively if no match was found.
-                (message "dcd-client failed with error %d:\n%s" res cmd)
-                (buffer-string))))
-    (with-current-buffer buf
-      (let ((inhibit-read-only t))
-        (erase-buffer)
-        (insert (current-time-string)
-                (format "\ndcd-client failed with error %d:\n" res)
-                cmd "\n\n")
-        (insert err)
-        (setq buffer-read-only t)
-        (goto-char (point-min))))))
+         (errstr
+		  (with-current-buffer outbuf
+			(goto-char (point-min))
+			(re-search-forward ac-dcd-error-message-regexp)
+			(concat
+			 (match-string 2) " : " (match-string 3)))
+		  ))
+    (with-current-buffer errbuf
+      (erase-buffer)
+	  (insert (current-time-string)
+			  "\n\"" cmd "\" failed."
+			  (format "\nError type is: %s\n" errstr)
+			  )
+	  (goto-char (point-min)))
+	(display-buffer errbuf)))
 
 
 ;; utility functions to call process
@@ -157,7 +160,8 @@ If you want to restart server, use `ac-dcd-init-server' instead."
 					 args
 					 ))
     (with-current-buffer buf
-      (unless (eq 0 res)
+	  (goto-char (point-min))
+      (when (re-search-forward ac-dcd-error-message-regexp nil t)
         (ac-dcd-handle-error res args))
       ;; Still try to get any useful input.
       (ac-dcd-parse-output prefix))))
@@ -228,6 +232,7 @@ TODO: multi byte character support"
 		 ))))
 
 
+
 (defun ac-dcd-action ()
   "Try function calltip expansion."
   (when (featurep 'yasnippet)
@@ -237,6 +242,9 @@ TODO: multi byte character support"
 	   ((equal "f" (get-text-property 0 'ac-dcd-help lastcompl)) ; when it was a function
 		(progn
 		  (ac-complete-dcd-calltips)))
+	   ((equal "s" (get-text-property 0 'ac-dcd-help lastcompl)) ; when it was a struct
+		(progn
+		  (ac-complete-dcd-calltips-for-struct-constructor)))
 	   (t nil)
 	   ))))
 
@@ -355,12 +363,43 @@ This function should be called at *dcd-output* buf."
 (defun ac-dcd-calltip-prefix ()
   (car ac-last-completion))
 
-(ac-define-source dcd-calltips
+(defvar dcd-calltips
   '((candidates . ac-dcd-calltip-candidate)
 	(prefix . ac-dcd-calltip-prefix)
 	(action . ac-dcd-calltip-action)
 	(cache)
 	))
+
+(defun ac-complete-dcd-calltips ()
+  (auto-complete '(dcd-calltips)))
+
+
+;; struct constructor calltip expansion
+
+(defsubst ac-dcd-replace-this-to-struct-name (struct-name)
+  "When to complete struct constructor calltips, dcd-client outputs candidates which begins with\"this\", 
+so I have to replace it with struct name."
+  (while (search-forward "this" nil t))
+  (replace-match struct-name))
+
+(defun ac-dcd-calltip-candidate-for-struct-constructor ()
+  "Almost the same as `ac-dcd-calltip-candidate', but calls `ac-dcd-replace-this-to-struct-name' before parsing."
+  (let ((buf (get-buffer-create ac-dcd-output-buffer-name)))
+	(ac-dcd-call-process-for-calltips)
+	(with-current-buffer buf
+	  (ac-dcd-replace-this-to-struct-name (cdr ac-last-completion))
+	  (ac-dcd-parse-calltips))
+	))
+
+(defvar dcd-calltips-for-struct-constructor
+  '((candidates . ac-dcd-calltip-candidate-for-struct-constructor)
+	(prefix . ac-dcd-calltip-prefix)
+	(action . ac-dcd-calltip-action)
+	(cache)
+	))
+
+(defun ac-complete-dcd-calltips-for-struct-constructor ()
+  (auto-complete '(dcd-calltips-for-struct-constructor)))
 
 
 ;;show document
