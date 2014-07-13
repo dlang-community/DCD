@@ -25,8 +25,11 @@
 (define-key d-mode-map (kbd "C-c ,") 'ac-dcd-goto-def-pop-marker)
 
 (when (featurep 'popwin)
-(add-to-list 'popwin:special-display-config
-`(,ac-dcd-document-buffer-name :position right :width 80)))
+  (add-to-list 'popwin:special-display-config
+			   `(,ac-dcd-error-buffer-name :noselect t))
+  (add-to-list 'popwin:special-display-config
+				 `(,ac-dcd-document-buffer-name :position right :width 80)))
+
 ```
 
 * Third, set import path using ```M-x customize-variable RET ac-dcd-flags```.
@@ -40,5 +43,4 @@
 * After goto definition, you can pop to previous position with ```C-c ,```
 
 ## TODO
-* Better error handling
 * Multi byte character support (Need help!)
