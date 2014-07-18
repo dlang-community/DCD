@@ -42,6 +42,7 @@ Be sure that the following option is set in your .vimrc:
 ```vim
 set omnifunc=syntaxComplete#complete
 ```
+If you do not do this, omni-complete will not know to use DCD.
 
 Usage
 =====
@@ -67,11 +68,6 @@ under the cursor.
 When the server is running, use the `DCDsymbolLocation` to print jump to the
 declaration of the symbol under the cursor.
 
-Conflicts
-=========
-This plugin conflicts with the DScanner plugin, as both use the `dcomplete`
-autoload namespace and the `dcomplete#Complete` function - as per Vim's
-conventions.
 
 Configuration
 =============
