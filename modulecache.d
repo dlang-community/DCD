@@ -194,7 +194,7 @@ struct ModuleCache
 
 	/**
 	 * Params:
-	 *     moduleName the name of the module being imported, in "a/b/c" style
+	 *     moduleName = the name of the module being imported, in "a/b/c" style
 	 * Returns:
 	 *     The absolute path to the file that contains the module, or null if
 	 *     not found.
