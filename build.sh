@@ -42,7 +42,7 @@ dmd\
 	msgpack-d/src/msgpack.d\
 	-Icontainers/src\
 	-Imsgpack-d/src\
-	-Idscanner\
+	-Ilibdparse/src\
 	-wi -O -release -inline\
 	-ofdcd-server
 
@@ -71,7 +71,7 @@ dmd\
 #	dscanner/formatter.d\
 #	msgpack-d/src/msgpack.d\
 #	-Imsgpack-d/src\
-#	-Idscanner\
+#	-Ilibdparse/src\
 #	-O3 -frelease -fno-bounds-check\
 #	-odcd-server
 
