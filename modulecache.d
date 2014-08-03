@@ -101,6 +101,8 @@ struct ModuleCache
 		{
 			foreach (fileName; dirEntries(path, "*.{d,di}", SpanMode.depth))
 			{
+				import std.path: baseName;
+				if(fileName.baseName.startsWith(".#")) continue;
 				getSymbolsInModule(fileName);
 			}
 		}
