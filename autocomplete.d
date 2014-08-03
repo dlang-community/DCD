@@ -50,7 +50,7 @@ import stupidlog;
  */
 AutocompleteResponse getDoc(const AutocompleteRequest request)
 {
-	Log.trace("Getting doc comments");
+//	Log.trace("Getting doc comments");
 	AutocompleteResponse response;
 	auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 16)))();
 	auto cache = StringCache(StringCache.defaultBucketCount);
@@ -62,10 +62,10 @@ AutocompleteResponse getDoc(const AutocompleteRequest request)
 	{
 		if (symbol.doc is null)
 		{
-			Log.trace("Doc comment for ", symbol.name, " was null");
+//			Log.trace("Doc comment for ", symbol.name, " was null");
 			continue;
 		}
-		Log.trace("Adding doc comment for ", symbol.name, ": ", symbol.doc);
+//		Log.trace("Adding doc comment for ", symbol.name, ": ", symbol.doc);
 		response.docComments ~= formatComment(symbol.doc);
 	}
 	return response;
@@ -80,7 +80,7 @@ AutocompleteResponse getDoc(const AutocompleteRequest request)
  */
 AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 {
-	Log.trace("Finding declaration");
+//	Log.trace("Finding declaration");
 	AutocompleteResponse response;
 	auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 16)))();
 	auto cache = StringCache(StringCache.defaultBucketCount);
@@ -90,8 +90,8 @@ AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 	{
 		response.symbolLocation = symbols[0].location;
 		response.symbolFilePath = symbols[0].symbolFile.idup;
-		Log.info(symbols[0].name, " declared in ",
-			response.symbolFilePath, " at ", response.symbolLocation);
+//		Log.trace(symbols[0].name, " declared in ",
+//			response.symbolFilePath, " at ", response.symbolLocation);
 	}
 	else
 		Log.error("Could not find symbol");
@@ -107,7 +107,7 @@ AutocompleteResponse findDeclaration(const AutocompleteRequest request)
  */
 AutocompleteResponse complete(const AutocompleteRequest request)
 {
-	Log.info("Got a completion request");
+//	Log.info("Got a completion request");
 
 	const(Token)[] tokenArray;
 	auto cache = StringCache(StringCache.defaultBucketCount);
@@ -295,14 +295,14 @@ ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 	T tokens, size_t cursorPosition, CompletionType completionType)
 {
 	import std.d.lexer;
-	Log.trace("Getting symbols from token chain",
-		tokens.map!stringToken);
+//	Log.trace("Getting symbols from token chain",
+//		tokens.map!stringToken);
 	// Find the symbol corresponding to the beginning of the chain
 	ACSymbol*[] symbols;
 	if (tokens[0] == tok!"." && tokens.length > 1)
 	{
 		tokens = tokens[1 .. $];
-		Log.info("Looking for ", stringToken(tokens[0]), " at global scope");
+//		Log.trace("Looking for ", stringToken(tokens[0]), " at global scope");
 		symbols = completionScope.getSymbolsAtGlobalScope(stringToken(tokens[0]));
 	}
 	else
@@ -314,11 +314,11 @@ ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 			" from position ", cursorPosition);
 		return [];
 	}
-	else
-	{
-		Log.trace("Found ", symbols[0].name, " at ", symbols[0].location,
-			" with type ", symbols[0].type is null ? "null" : symbols[0].type.name);
-	}
+//	else
+//	{
+//		Log.trace("Found ", symbols[0].name, " at ", symbols[0].location,
+//			" with type ", symbols[0].type is null ? "null" : symbols[0].type.name);
+//	}
 
 	if (shouldSwapWithType(completionType, symbols[0].kind, 0, tokens.length - 1))
 	{
@@ -385,11 +385,11 @@ ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 					break loop;
 			}
 
-			Log.trace("looking for ", tokens[i].text, " in ", symbols[0].name);
+//			Log.trace("looking for ", tokens[i].text, " in ", symbols[0].name);
 			symbols = symbols[0].getPartsByName(tokens[i].text);
 			if (symbols.length == 0)
 			{
-				Log.trace("Couldn't find it.");
+//				Log.trace("Couldn't find it.");
 				break loop;
 			}
 			if (shouldSwapWithType(completionType, symbols[0].kind, i,
@@ -504,7 +504,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		if (symbols[0].qualifier == SymbolQualifier.func
 			|| symbols[0].kind == CompletionKind.functionName)
 		{
-			Log.trace("Completion list for return type of function ", symbols[0].name);
+//			Log.trace("Completion list for return type of function ", symbols[0].name);
 			symbols = symbols[0].type is null ? [] : [symbols[0].type];
 			if (symbols.length == 0)
 				return;
@@ -525,7 +525,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	}
 	else if (completionType == CompletionType.calltips)
 	{
-		Log.trace("Showing call tips for ", symbols[0].name, " of type ", symbols[0].kind);
+//		Log.trace("Showing call tips for ", symbols[0].name, " of type ", symbols[0].kind);
 		if (symbols[0].kind != CompletionKind.functionName
 			&& symbols[0].callTip is null)
 		{
@@ -718,7 +718,7 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
 	foreach (importDirectory; ModuleCache.getImportPaths())
 	{
 		string p = buildPath(importDirectory, path);
-		Log.trace("Checking for ", p);
+//		Log.trace("Checking for ", p);
 		if (!exists(p))
 			continue;
 
