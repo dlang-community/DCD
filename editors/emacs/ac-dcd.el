@@ -74,7 +74,7 @@ If you want to restart server, use `ac-dcd-init-server' instead."
   "Start dcd-server."
   (let ((buf (get-buffer-create "*dcd-server*")))
 	(with-current-buffer buf (start-process "dcd-server" (current-buffer)
-											ac-dcd-server-executable 
+											ac-dcd-server-executable
 											(mapconcat 'identity ac-dcd-flags " ")
 											"-p"
 											(format "%s" ac-dcd-server-port)
@@ -150,21 +150,19 @@ If you want to restart server, use `ac-dcd-init-server' instead."
 
 
 ;; utility functions to call process
-
-(defun ac-dcd-call-process (prefix args)
-  (let ((buf (get-buffer-create ac-dcd-output-buffer-name))
-        res)
-    (with-current-buffer buf (erase-buffer))
-    (setq res (apply 'call-process-region (point-min) (point-max)
-					 ac-dcd-executable nil buf nil
-					 args
-					 ))
-    (with-current-buffer buf
-	  (goto-char (point-min))
-      (when (re-search-forward ac-dcd-error-message-regexp nil t)
-        (ac-dcd-handle-error res args))
-      ;; Still try to get any useful input.
-      (ac-dcd-parse-output prefix))))
+(defun ac-dcd-call-process (prefix &rest args)
+  (if (null ac-dcd-executable)
+      (error (format "Could not find dcd-client executable"))
+    (let ((buf (get-buffer-create "*dcd-output*"))
+          res)
+      (with-current-buffer buf (erase-buffer))
+      (setq res (apply 'call-process-region (point-min) (point-max)
+                       ac-dcd-executable nil buf nil args))
+      (with-current-buffer buf
+        (unless (eq 0 res)
+          (ac-dcd-handle-error res args))
+        ;; Still try to get any useful input.
+        (ac-dcd-parse-output prefix)))))
 
 (defsubst ac-dcd-cursor-position ()
   "Get cursor position to pass to dcd-client.
@@ -281,7 +279,7 @@ When the symbol is not a function, returns nothing"
 
   (forward-char 2)
   (delete-char -3)
-  
+
   )
 
 
@@ -302,7 +300,7 @@ When the symbol is not a function, returns nothing"
 		(end-of-line)
 		(backward-sexp)
 		(re-search-backward (rx (or bol " "))))
-	  
+
 	  (setq res (buffer-substring
 				 (point)
 				 (progn
@@ -334,7 +332,7 @@ It returns a list of calltip candidates."
   "Format the calltip to yasnippet style.
 This function should be called at *dcd-output* buf."
   (let (beg end)
-	(save-excursion	
+	(save-excursion
 	  (setq end (point))
 	  (setq beg (progn
 				  (backward-sexp)
@@ -347,7 +345,7 @@ This function should be called at *dcd-output* buf."
 
 	  ;;remove parenthesis
 	  (setq str (substring str 1 (- (length str) 1)))
-	  
+
 	  (setq yasstr
 			(mapconcat
 			 (lambda (s) "format each args to yasnippet style" (concat "${" s "}"))
@@ -377,7 +375,7 @@ This function should be called at *dcd-output* buf."
 ;; struct constructor calltip expansion
 
 (defsubst ac-dcd-replace-this-to-struct-name (struct-name)
-  "When to complete struct constructor calltips, dcd-client outputs candidates which begins with\"this\", 
+  "When to complete struct constructor calltips, dcd-client outputs candidates which begins with\"this\",
 so I have to replace it with struct name."
   (while (search-forward "this" nil t))
   (replace-match struct-name))
@@ -412,7 +410,7 @@ so I have to replace it with struct name."
 	(goto-char (point-min))
 	(while (re-search-forward (rx (and (not (any "\\")) (submatch "\\n"))) nil t)
 	  (replace-match "\n" nil nil nil 1))
-	
+
 	(goto-char (point-min))
 	(while (re-search-forward (rx (and (not (any "\\")) (submatch "\\n"))) nil t)
 	  (replace-match "\n" nil nil nil 1))
@@ -425,7 +423,7 @@ so I have to replace it with struct name."
 (defun ac-dcd-get-ddoc (pos)
   "Get document with `dcd-client --doc'.  `POS' is cursor position."
   (save-buffer)
-  (let ((args 
+  (let ((args
 		 (append
 		  (ac-dcd-build-complete-args (ac-dcd-cursor-position))
 		  '("-d")
@@ -485,7 +483,7 @@ so I have to replace it with struct name."
 (defun ac-dcd-goto-definition ()
   "Goto declaration of symbol at point."
   (interactive)
-  (save-buffer)  
+  (save-buffer)
   (ac-dcd-call-process-for-symbol-declaration (point))
   (let* ((data (ac-dcd-parse-output-for-get-symbol-declaration))
 		 (file (car data))
@@ -508,7 +506,7 @@ so I have to replace it with struct name."
 (defun ac-dcd-call-process-for-symbol-declaration (pos)
   "Get location of symbol declaration with `dcd-client --symbolLocation'.
 `POS' is cursor position."
-  (let ((args 
+  (let ((args
 		 (append
 		  (ac-dcd-build-complete-args (ac-dcd-cursor-position))
 		  '("-l")
