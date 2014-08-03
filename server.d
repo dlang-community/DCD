@@ -157,7 +157,7 @@ int main(string[] args)
 		}
 		if (request.kind & RequestKind.addImport)
 			ModuleCache.addImportPaths(request.importPaths);
-		else if (request.kind & RequestKind.autocomplete)
+		if (request.kind & RequestKind.autocomplete)
 		{
 			Log.info("Getting completions");
 			AutocompleteResponse response = complete(request);

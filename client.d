@@ -225,6 +225,8 @@ AutocompleteResponse getResponse(TcpSocket socket)
 	auto bytesReceived = socket.receive(buffer);
 	if (bytesReceived == Socket.ERROR)
 		throw new Exception("Incorrect number of bytes received");
+	if (bytesReceived == 0)
+		throw new Exception("Server closed the connection, 0 bytes received");
 	AutocompleteResponse response;
 	msgpack.unpack(buffer[0..bytesReceived], response);
 	return response;
