@@ -83,11 +83,11 @@ dmdserver:
 
 gdcclient:
 	rm -f containers/src/std/allocator.d
-	${GDC} {CLIENT_SRC} ${GDC_CLIENT_FLAGS}
+	${GDC} ${CLIENT_SRC} ${GDC_CLIENT_FLAGS}
 
 gdcserver:
 	rm -f containers/src/std/allocator.d
-	${GDC} {SERVER_SRC} ${GDC_SERVER_FLAGS}
+	${GDC} ${SERVER_SRC} ${GDC_SERVER_FLAGS}
 
 #ldcclient:
 #	${LDC} {CLIENT_SRC} ${LDC_CLIENT_FLAGS}
