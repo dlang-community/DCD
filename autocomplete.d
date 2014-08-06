@@ -293,22 +293,29 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	return response;
 }
 
-bool isSelectiveImport(T)(T tokens) pure nothrow
+bool isSelectiveImport(T)(T tokens)
 {
-	size_t i = 1;
-	if (tokens[$ - i] != tok!":")
+	size_t i = tokens.length - 1;
+	stderr.writeln(stringToken(tokens[i]));
+	if (!(tokens[i] == tok!":" || tokens[i] == tok!","))
 		return false;
-	i++;
-	loop: while (i < tokens.length) switch (tokens[$ - i].type)
+	i--;
+	loop: while (true) switch (tokens[i].type)
 	{
 	case tok!"identifier":
 	case tok!".":
-		i++;
+	case tok!",":
+	case tok!":":
+		if (i == 0)
+			return false;
+		else
+			i--;
 		break;
+	case tok!"import":
+		return true;
 	default:
-		break loop;
+		return false;
 	}
-	return tokens[$ - i] == tok!"import";
 }
 
 unittest
@@ -319,6 +326,8 @@ unittest
 	t ~= Token(tok!".");
 	t ~= Token(tok!"identifier");
 	t ~= Token(tok!":");
+	t ~= Token(tok!"identifier");
+	t ~= Token(tok!",");
 	assert (isSelectiveImport(t));
 	Token[] t2;
 	t2 ~= Token(tok!"else");
@@ -335,30 +344,48 @@ unittest
  * ---
  */
 AutocompleteResponse selectiveImportCompletion(T)(T beforeTokens)
+in
+{
+	assert (beforeTokens.length >= 2);
+}
+body
 {
 	Log.trace("selectiveImportCompletion");
 	AutocompleteResponse response;
-	size_t i = 2;
-	loop: while (i < beforeTokens.length) switch (beforeTokens[$ - i].type)
+	size_t i = beforeTokens.length - 2;
+	loop: while (i > 0) switch (beforeTokens[i].type)
 	{
 	case tok!"identifier":
+	case tok!",":
 	case tok!".":
-		i++;
+	case tok!":":
+		i--;
 		break;
 	default:
 		break loop;
 	}
-	string path;
-	size_t j = 0;
-	foreach (token; beforeTokens[($ - i + 1) .. $ - 1])
+	Log.trace("i = ", i);
+	size_t j = i;
+	loop2: while (j <= beforeTokens.length) switch (beforeTokens[j].type)
 	{
-		if (token.type == tok!"identifier")
+	case tok!":": break loop2;
+	default: j++; break;
+	}
+	Log.trace("j = ", j);
+
+	string path;
+	{
+		size_t k = 0;
+		foreach (token; beforeTokens[i + 1 .. j])
 		{
-			if (j != 0)
-				path ~= "/";
-			path ~= token.text;
+			if (token.type == tok!"identifier")
+			{
+				if (k != 0)
+					path ~= "/";
+				path ~= token.text;
+			}
+			k++;
 		}
-		j++;
 	}
 	auto symbols = ModuleCache.getSymbolsInModule(ModuleCache.resolveImportLoctation(path));
 	import containers.hashset;
