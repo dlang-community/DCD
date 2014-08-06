@@ -296,26 +296,29 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 bool isSelectiveImport(T)(T tokens)
 {
 	size_t i = tokens.length - 1;
-	stderr.writeln(stringToken(tokens[i]));
 	if (!(tokens[i] == tok!":" || tokens[i] == tok!","))
 		return false;
-	i--;
+	bool r = false;
 	loop: while (true) switch (tokens[i].type)
 	{
+	case tok!":":
+		r = true;
+		goto case;
 	case tok!"identifier":
+	case tok!"=":
 	case tok!".":
 	case tok!",":
-	case tok!":":
 		if (i == 0)
 			return false;
 		else
 			i--;
 		break;
 	case tok!"import":
-		return true;
+		return r;
 	default:
 		return false;
 	}
+	return false;
 }
 
 unittest
@@ -350,12 +353,12 @@ in
 }
 body
 {
-	Log.trace("selectiveImportCompletion");
 	AutocompleteResponse response;
 	size_t i = beforeTokens.length - 2;
 	loop: while (i > 0) switch (beforeTokens[i].type)
 	{
 	case tok!"identifier":
+	case tok!"=":
 	case tok!",":
 	case tok!".":
 	case tok!":":
@@ -364,14 +367,12 @@ body
 	default:
 		break loop;
 	}
-	Log.trace("i = ", i);
 	size_t j = i;
 	loop2: while (j <= beforeTokens.length) switch (beforeTokens[j].type)
 	{
 	case tok!":": break loop2;
 	default: j++; break;
 	}
-	Log.trace("j = ", j);
 
 	string path;
 	{
