@@ -122,6 +122,11 @@ AutocompleteResponse complete(const AutocompleteRequest request)
 		return parenCompletion(beforeTokens, tokenArray, request.cursorPosition);
 	}
 
+	if (beforeTokens.length >= 2 && isSelectiveImport(beforeTokens))
+	{
+		return selectiveImportCompletion(beforeTokens);
+	}
+
 	AutocompleteResponse response;
 	if (beforeTokens.length >= 1 && beforeTokens[$ - 1] == tok!"identifier")
 	{
@@ -285,6 +290,90 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	default:
 		break;
 	}
+	return response;
+}
+
+bool isSelectiveImport(T)(T tokens) pure nothrow
+{
+	size_t i = 1;
+	if (tokens[$ - i] != tok!":")
+		return false;
+	i++;
+	loop: while (i < tokens.length) switch (tokens[$ - i].type)
+	{
+	case tok!"identifier":
+	case tok!".":
+		i++;
+		break;
+	default:
+		break loop;
+	}
+	return tokens[$ - i] == tok!"import";
+}
+
+unittest
+{
+	Token[] t;
+	t ~= Token(tok!"import");
+	t ~= Token(tok!"identifier");
+	t ~= Token(tok!".");
+	t ~= Token(tok!"identifier");
+	t ~= Token(tok!":");
+	assert (isSelectiveImport(t));
+	Token[] t2;
+	t2 ~= Token(tok!"else");
+	t2 ~= Token(tok!":");
+	assert (!isSelectiveImport(t2));
+	import std.stdio;
+	writeln("Unittest for isSelectiveImport() passed");
+}
+
+/**
+ * Provides autocomplete for selective imports, e.g.:
+ * ---
+ * import std.algorithm: balancedParens;
+ * ---
+ */
+AutocompleteResponse selectiveImportCompletion(T)(T beforeTokens)
+{
+	Log.trace("selectiveImportCompletion");
+	AutocompleteResponse response;
+	size_t i = 2;
+	loop: while (i < beforeTokens.length) switch (beforeTokens[$ - i].type)
+	{
+	case tok!"identifier":
+	case tok!".":
+		i++;
+		break;
+	default:
+		break loop;
+	}
+	string path;
+	size_t j = 0;
+	foreach (token; beforeTokens[($ - i + 1) .. $ - 1])
+	{
+		if (token.type == tok!"identifier")
+		{
+			if (j != 0)
+				path ~= "/";
+			path ~= token.text;
+		}
+		j++;
+	}
+	auto symbols = ModuleCache.getSymbolsInModule(ModuleCache.resolveImportLoctation(path));
+	import containers.hashset;
+	HashSet!string h;
+	foreach (s; symbols)
+	{
+		auto a = ACSymbol(s.name);
+		if (!builtinSymbols.contains(&a) && !h.contains(s.name))
+		{
+			response.completionKinds ~= s.kind;
+			response.completions ~= s.name;
+			h.insert(s.name);
+		}
+	}
+	response.completionType = CompletionType.identifiers;
 	return response;
 }
 
