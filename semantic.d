@@ -87,6 +87,9 @@ public:
 
 	/// Child symbols
 	UnrolledList!(SemanticSymbol*) children;
+
+	/// Assign expression identifier chain used for auto declarations
+	UnrolledList!(string) initializer;
 }
 
 /**
