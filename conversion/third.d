@@ -74,8 +74,8 @@ private:
 		case memberVariableName:
 		case functionName:
 		case aliasName:
-			ACSymbol* t = resolveType(currentSymbol.type,
-				currentSymbol.acSymbol.location);
+			ACSymbol* t = resolveType(currentSymbol.initializer,
+				currentSymbol.type, currentSymbol.acSymbol.location);
 			while (t !is null && t.kind == CompletionKind.aliasName)
 				t = t.type;
 			currentSymbol.acSymbol.type = t;
@@ -154,15 +154,59 @@ private:
 		// TODO:
 	}
 
-	ACSymbol* resolveType(const Type t, size_t location)
+	ACSymbol* resolveInitializerType(I)(ref const I initializer, size_t location)
 	{
-		if (t is null) return null;
+		if (initializer.empty)
+			return null;
+//		import stupidlog;
+//		Log.trace("resolveInitializerType: ", __LINE__, ":", initializer[]);
+		auto slice = initializer[];
+		bool literal = slice.front[0] == '*';
+		if (literal && initializer.length > 1)
+		{
+//			Log.trace("Popping ", slice.front, " from slice");
+			slice.popFront();
+			literal = false;
+		}
+		auto symbols = moduleScope.getSymbolsByNameAndCursor(internString(
+			literal ? slice.front[1 .. $] : slice.front), location);
+		if (symbols.length == 0)
+		{
+//			Log.trace("Could not find ", literal ? slice.front[1 .. $] : slice.front);
+			return null;
+		}
+		if (literal)
+			return symbols[0];
+		slice.popFront();
+		auto s = symbols[0];
+		while (s !is null && s.type !is null && !slice.empty)
+		{
+			s = s.type;
+//			Log.trace("resolveInitializerType: ", __LINE__, ":", slice.front);
+			if (slice.front == "[]")
+				s = s.type;
+			else
+			{
+				auto parts = s.getPartsByName(internString(slice.front));
+				if (parts.length == 0)
+					return null;
+				s = parts[0];
+			}
+			slice.popFront();
+		}
+		return s;
+	}
+
+	ACSymbol* resolveType(I)(ref const I initializer, const Type t, size_t location)
+	{
+		if (t is null)
+			return resolveInitializerType(initializer, location);
 		if (t.type2 is null) return null;
 		ACSymbol* s;
 		if (t.type2.builtinType != tok!"")
 			s = convertBuiltinType(t.type2);
 		else if (t.type2.typeConstructor != tok!"")
-			s = resolveType(t.type2.type, location);
+			s = resolveType(initializer, t.type2.type, location);
 		else if (t.type2.symbol !is null)
 		{
 			// TODO: global scoped symbol handling
