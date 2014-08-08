@@ -150,7 +150,7 @@ If you want to restart server, use `ac-dcd-init-server' instead."
 
 
 ;; utility functions to call process
-(defun ac-dcd-call-process (prefix &rest args)
+(defun ac-dcd-call-process (prefix args)
   (if (null ac-dcd-executable)
       (error (format "Could not find dcd-client executable"))
     (let ((buf (get-buffer-create "*dcd-output*"))
