@@ -149,9 +149,30 @@ private:
 		}
 	}
 
-	void resolveMixinTemplates(SemanticSymbol*)
+	void resolveMixinTemplates(SemanticSymbol* currentSymbol)
 	{
-		// TODO:
+		foreach (mix; currentSymbol.mixinTemplates[])
+		{
+			import stupidlog;
+			Log.trace(mix);
+			auto symbols = moduleScope.getSymbolsByNameAndCursor(mix[0],
+				currentSymbol.acSymbol.location);
+			if (symbols.length == 0)
+				continue;
+			auto symbol = symbols[0];
+			foreach (m; mix[1 .. $])
+			{
+				auto s = symbol.getPartsByName(m);
+				if (s.length == 0)
+				{
+					symbol = null;
+					break;
+				}
+				else
+					symbol = s[0];
+			}
+			currentSymbol.acSymbol.parts.insert(symbol.parts[]);
+		}
 	}
 
 	ACSymbol* resolveInitializerType(I)(ref const I initializer, size_t location)

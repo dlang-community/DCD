@@ -77,7 +77,7 @@ public:
 	UnrolledList!(string) aliasThis;
 
 	/// MixinTemplates
-	UnrolledList!(string) mixinTemplates;
+	UnrolledList!(string[]) mixinTemplates;
 
 	/// Protection level for this symobol
 	IdType protection;

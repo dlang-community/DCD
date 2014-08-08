@@ -405,6 +405,15 @@ final class FirstPass : ASTVisitor
 			versionCondition.accept(this);
 	}
 
+	override void visit(const TemplateMixinExpression tme)
+	{
+		// TODO: support typeof here
+		if (tme.mixinTemplateName.symbol is null)
+			return;
+		currentSymbol.mixinTemplates.insert(iotcToStringArray(symbolAllocator,
+			tme.mixinTemplateName.symbol.identifierOrTemplateChain));
+	}
+
 	alias visit = ASTVisitor.visit;
 
 	/// Module scope
