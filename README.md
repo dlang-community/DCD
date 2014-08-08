@@ -151,6 +151,18 @@ The server will attempt to read the file ```~/.config/dcd``` on Posix systems, o
 If it exists, each line of the file is interpreted as a path that should be
 searched when looking for module imports.
 
+
+
+Keep in mind that DCD treats import paths the same way that the compiler does.
+For example, a configuration file like this will not work as expected:
+
+	/usr/include/dmd/
+
+What you actually want is this:
+
+	/usr/include/dmd/druntime/import
+	/usr/include/dmd/phobos
+
 ##Shut down the server
 The server can be shut down by running the client with the correct option:
 
