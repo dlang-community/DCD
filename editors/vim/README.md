@@ -38,6 +38,12 @@ let g:dcd_importPath=['C:\D\dmd2\src\phobos','C:\D\dmd2\src\druntime\import']
 
 Import paths are globbed with Vim's globbing function.
 
+Be sure that the following option is set in your .vimrc:
+```vim
+set omnifunc=syntaxComplete#complete
+```
+If you do not do this, omni-complete will not know to use DCD.
+
 Usage
 =====
 When the filetype is D, use the `DCDstartServer` command to start the server
@@ -62,11 +68,6 @@ under the cursor.
 When the server is running, use the `DCDsymbolLocation` to print jump to the
 declaration of the symbol under the cursor.
 
-Conflicts
-=========
-This plugin conflicts with the DScanner plugin, as both use the `dcomplete`
-autoload namespace and the `dcomplete#Complete` function - as per Vim's
-conventions.
 
 Configuration
 =============

@@ -3,12 +3,14 @@ The D Completion Daemon is an auto-complete program for the D programming langua
 
 ![Teaser](teaser.png "This is what the future looks like - Jayce, League of Legends")
 
+(The above is a screenshot of [Textadept](http://foicica.com/textadept/))
+
 DCD consists of a client and a server. The client (dcd-client) is used by a text editor script or from the command line.
 The server (dcd-server) is responsible for caching imported files, calculating autocomplete information, and sending it
 back to the client.
 
 #Status
-*This program is still in an alpha state.*
+This program is reasonably stable.
 
 * Working:
 	* Autocompletion of properties of built-in types such as int, float, double, etc.
@@ -21,17 +23,17 @@ back to the client.
 	* Finding the declaration location of a symbol at the cursor
 	* *import* statement completions
 	* Display of documentation comments in function call tips
+	* *alias this*
 * Not working:
 	* Automatic starting of the server by the client
 	* UFCS
 	* Autocompletion of declarations with template arguments
 	* *auto* declarations
-	* *alias this*
 	* Determining the type of an enum member when no base type is specified, but the first member has an initialaizer
 	* That one feature that you *REALLY* needed
 
 #Setup
-1. Install a recent D compiler. DCD is only tested with DMD 2.064.2
+1. Install a recent D compiler. DCD is tested with 2.065 and the 2.066 betas.
 1. Run ```git submodule update --init``` after cloning this repository to grab the MessagePack and Datapacked libraries and the parser from DScanner.
 1. run the ```build.sh``` script to build the client and server. (Or build.bat on Windows, or ```dub build --config=dcd-client --build=release``` and ```dub build --config=dcd-server --build=release``` in case of DUB usage)
 1. Configure your text editor to call the dcd-client program. See the *editors* folder for directions on configuring your specific editor.
@@ -148,6 +150,16 @@ now it must be started manually.
 The server will attempt to read the file ```~/.config/dcd``` on Posix systems, or ```dcd.conf``` on Windows in the current working directory on startup.
 If it exists, each line of the file is interpreted as a path that should be
 searched when looking for module imports.
+
+Keep in mind that DCD treats import paths the same way that the compiler does.
+For example, a configuration file like this will not work as expected:
+
+	/usr/include/dmd/
+
+What you actually want is this:
+
+	/usr/include/dmd/druntime/import
+	/usr/include/dmd/phobos
 
 ##Shut down the server
 The server can be shut down by running the client with the correct option:

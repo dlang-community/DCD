@@ -63,6 +63,9 @@ local function showCompletionList(r)
 	local charactersEntered = buffer.current_pos - buffer:word_start_position(buffer.current_pos)
 	local prevChar = buffer.char_at[buffer.current_pos - 1]
 	if prevChar == string.byte('.')
+			or prevChar == string.byte(':')
+			or prevChar == string.byte(' ')
+			or prevChar == string.byte('\t')
 			or prevChar == string.byte('(')
 			or prevChar == string.byte('[') then
 		charactersEntered = 0

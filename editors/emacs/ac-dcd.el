@@ -24,7 +24,7 @@
 (require 'auto-complete)
 (require 'rx)
 (require 'yasnippet)
-
+(require 'eshell)
 (defcustom ac-dcd-executable
   "dcd-client"
   "Location of dcd-client executable."
@@ -44,8 +44,9 @@ You can't put port number flag here.  Set `ac-dcd-server-port' instead."
   "Regex to parse dcd output.
 \\1 is candidate itself, \\2 is kind of candidate.")
 
-(defconst ac-dcd-error-buffer-name "*dcd error*")
-
+(defconst ac-dcd-error-buffer-name "*dcd-error*")
+(defconst ac-dcd-output-buffer-name "*dcd-output*")
+(defconst ac-dcd-document-buffer-name "*dcd-document*")
 (defcustom ac-dcd-server-executable
   "dcd-server"
   "Location of dcd-server executable."
@@ -57,7 +58,8 @@ You can't put port number flag here.  Set `ac-dcd-server-port' instead."
   :group 'auto-complete)
 
 (defvar ac-dcd-delay-after-kill-process 200
-  "Duration after killing server process in milli second.")
+  "Duration after killing server process in milli second.
+If `ac-dcd-init-server' doesn't work correctly, please set bigger number for this variable.")
 
 
 ;;server handle functions
@@ -72,7 +74,7 @@ If you want to restart server, use `ac-dcd-init-server' instead."
   "Start dcd-server."
   (let ((buf (get-buffer-create "*dcd-server*")))
 	(with-current-buffer buf (start-process "dcd-server" (current-buffer)
-											ac-dcd-server-executable 
+											ac-dcd-server-executable
 											(mapconcat 'identity ac-dcd-flags " ")
 											"-p"
 											(format "%s" ac-dcd-server-port)
@@ -121,44 +123,46 @@ If you want to restart server, use `ac-dcd-init-server' instead."
           (push match lines))))
     lines))
 
+(defvar ac-dcd-error-message-regexp
+  (rx (and (submatch (* nonl))  ": " (submatch (* nonl)) ": " (submatch (* nonl) eol)))
+  "If it matches first line of dcd-output, it would be error message.")
+
 (defun ac-dcd-handle-error (res args)
-  "Notify error on parse failure."
-  (goto-char (point-min))
-  (let* ((buf (get-buffer-create ac-dcd-error-buffer-name))
+  "Notify error."
+  (let* ((errbuf (get-buffer-create ac-dcd-error-buffer-name))
+		 (outbuf (get-buffer ac-dcd-output-buffer-name))
          (cmd (concat ac-dcd-executable " " (mapconcat 'identity args " ")))
-         (pattern (format ac-dcd-completion-pattern ""))
-         (err (if (re-search-forward pattern nil t)
-                  (buffer-substring-no-properties (point-min)
-                                                  (1- (match-beginning 0)))
-                ;; Warn the user more agressively if no match was found.
-                (message "dcd-client failed with error %d:\n%s" res cmd)
-                (buffer-string))))
-    (with-current-buffer buf
-      (let ((inhibit-read-only t))
-        (erase-buffer)
-        (insert (current-time-string)
-                (format "\ndcd-client failed with error %d:\n" res)
-                cmd "\n\n")
-        (insert err)
-        (setq buffer-read-only t)
-        (goto-char (point-min))))))
+         (errstr
+		  (with-current-buffer outbuf
+			(goto-char (point-min))
+			(re-search-forward ac-dcd-error-message-regexp)
+			(concat
+			 (match-string 2) " : " (match-string 3)))
+		  ))
+    (with-current-buffer errbuf
+      (erase-buffer)
+	  (insert (current-time-string)
+			  "\n\"" cmd "\" failed."
+			  (format "\nError type is: %s\n" errstr)
+			  )
+	  (goto-char (point-min)))
+	(display-buffer errbuf)))
 
 
 ;; utility functions to call process
-
-(defun ac-dcd-call-process (prefix args)
-  (let ((buf (get-buffer-create "*dcd-output*"))
-        res)
-    (with-current-buffer buf (erase-buffer))
-    (setq res (apply 'call-process-region (point-min) (point-max)
-					 ac-dcd-executable nil buf nil
-					 args
-					 ))
-    (with-current-buffer buf
-      (unless (eq 0 res)
-        (ac-dcd-handle-error res args))
-      ;; Still try to get any useful input.
-      (ac-dcd-parse-output prefix))))
+(defun ac-dcd-call-process (prefix &rest args)
+  (if (null ac-dcd-executable)
+      (error (format "Could not find dcd-client executable"))
+    (let ((buf (get-buffer-create "*dcd-output*"))
+          res)
+      (with-current-buffer buf (erase-buffer))
+      (setq res (apply 'call-process-region (point-min) (point-max)
+                       ac-dcd-executable nil buf nil args))
+      (with-current-buffer buf
+        (unless (eq 0 res)
+          (ac-dcd-handle-error res args))
+        ;; Still try to get any useful input.
+        (ac-dcd-parse-output prefix)))))
 
 (defsubst ac-dcd-cursor-position ()
   "Get cursor position to pass to dcd-client.
@@ -226,16 +230,19 @@ TODO: multi byte character support"
 		 ))))
 
 
+
 (defun ac-dcd-action ()
   "Try function calltip expansion."
   (when (featurep 'yasnippet)
 
 	(let ((lastcompl (cdr ac-last-completion)))
 	  (cond
-	   ((equal (get-text-property 0 'ac-dcd-help lastcompl) "f") ; when it was a function
+	   ((equal "f" (get-text-property 0 'ac-dcd-help lastcompl)) ; when it was a function
 		(progn
-		  (insert "(") ;dcd-client requires open parenthesis to complete calltip.
 		  (ac-complete-dcd-calltips)))
+	   ((equal "s" (get-text-property 0 'ac-dcd-help lastcompl)) ; when it was a struct
+		(progn
+		  (ac-complete-dcd-calltips-for-struct-constructor)))
 	   (t nil)
 	   ))))
 
@@ -256,16 +263,24 @@ TODO: multi byte character support"
   "Do calltip completion of the D symbol at point.
 The cursor must be at the end of a D symbol.
 When the symbol is not a function, returns nothing"
-  (let ((buf (get-buffer-create "*dcd-output*")))
+  (let ((buf (get-buffer-create ac-dcd-output-buffer-name)))
 	(ac-dcd-call-process-for-calltips)
 	(with-current-buffer buf (ac-dcd-parse-calltips))
 	))
 
 (defun ac-dcd-call-process-for-calltips ()
   "Call process to get calltips of the function at point."
+  (insert "( ;")
+  (backward-char 2)
+
   (ac-dcd-call-process
    (concat (cdr ac-last-completion) "(")
-   (ac-dcd-build-complete-args (ac-dcd-cursor-position))))
+   (ac-dcd-build-complete-args (ac-dcd-cursor-position)))
+
+  (forward-char 2)
+  (delete-char -3)
+
+  )
 
 
 (defconst ac-dcd-calltip-pattern
@@ -273,17 +288,31 @@ When the symbol is not a function, returns nothing"
   "Regexp to parse calltip completion output.
 \\1 is function return type (if exists) and name, and \\2 is args.")
 
-(defsubst ac-dcd-remove-function-return-type (s)
-  "Remove return type of the function."
-  (let ((sl (split-string s)))
-	(if (string-match "(" (car sl)) ;
-		s
-	  (mapconcat 'identity (cdr sl) " ")
+(defsubst ac-dcd-cleanup-function-candidate (s)
+  "Remove return type of the head of the function.
+`S' is candidate string."
+  (let (res)
+	(with-temp-buffer
+	  (insert s)
+
+	  ;;goto beggining of function name
+	  (progn
+		(end-of-line)
+		(backward-sexp)
+		(re-search-backward (rx (or bol " "))))
+
+	  (setq res (buffer-substring
+				 (point)
+				 (progn
+				   (end-of-line)
+				   (point))))
+	  (when (equal " " (substring res 0 1))
+		(setq res (substring res 1)))
+	  res
 	  )))
 
-
 (defun ac-dcd-parse-calltips ()
-  "Parse dcd output for calltips completion.
+  "Parse dcd output for calltip completion.
 It returns a list of calltip candidates."
   (goto-char (point-min))
   (let ((pattern ac-dcd-calltip-pattern)
@@ -291,7 +320,10 @@ It returns a list of calltip candidates."
 		match
 		(prev-match ""))
 	(while (re-search-forward pattern nil t)
-	  (setq match (ac-dcd-remove-function-return-type (concat (match-string-no-properties 1) (match-string-no-properties 2))))
+	  (setq match
+			(ac-dcd-cleanup-function-candidate
+			 (concat (match-string-no-properties 1) (match-string-no-properties 2))
+			 ))
 	  (push match lines))
 	lines
 	))
@@ -300,13 +332,12 @@ It returns a list of calltip candidates."
   "Format the calltip to yasnippet style.
 This function should be called at *dcd-output* buf."
   (let (beg end)
-	(save-excursion	
+	(save-excursion
 	  (setq end (point))
 	  (setq beg (progn
-				  ;; find the end of function name. some function arguments have parenthesis of its own,
-				  ;; so I had to do it like this.
-				  (search-backward (cdr ac-last-completion))
-				  (-  (search-forward "(" ) 1)))
+				  (backward-sexp)
+				  (point)
+				  ))
 	  (kill-region beg end))
 	(let ((str (car kill-ring))
 		  yasstr)
@@ -314,7 +345,7 @@ This function should be called at *dcd-output* buf."
 
 	  ;;remove parenthesis
 	  (setq str (substring str 1 (- (length str) 1)))
-	  
+
 	  (setq yasstr
 			(mapconcat
 			 (lambda (s) "format each args to yasnippet style" (concat "${" s "}"))
@@ -324,55 +355,102 @@ This function should be called at *dcd-output* buf."
 	  ;; ;;debug
 	  ;; (message (format "str: %s" str))
 	  ;; (message (format "yasstr: %s" yasstr))
-	  (yas-expand-snippet yasstr))))
+	  (yas-expand-snippet yasstr)
+	  )))
 
 (defun ac-dcd-calltip-prefix ()
   (car ac-last-completion))
 
-(ac-define-source dcd-calltips
+(defvar dcd-calltips
   '((candidates . ac-dcd-calltip-candidate)
 	(prefix . ac-dcd-calltip-prefix)
 	(action . ac-dcd-calltip-action)
 	(cache)
 	))
 
+(defun ac-complete-dcd-calltips ()
+  (auto-complete '(dcd-calltips)))
+
+
+;; struct constructor calltip expansion
+
+(defsubst ac-dcd-replace-this-to-struct-name (struct-name)
+  "When to complete struct constructor calltips, dcd-client outputs candidates which begins with\"this\",
+so I have to replace it with struct name."
+  (while (search-forward "this" nil t))
+  (replace-match struct-name))
+
+(defun ac-dcd-calltip-candidate-for-struct-constructor ()
+  "Almost the same as `ac-dcd-calltip-candidate', but calls `ac-dcd-replace-this-to-struct-name' before parsing."
+  (let ((buf (get-buffer-create ac-dcd-output-buffer-name)))
+	(ac-dcd-call-process-for-calltips)
+	(with-current-buffer buf
+	  (ac-dcd-replace-this-to-struct-name (cdr ac-last-completion))
+	  (ac-dcd-parse-calltips))
+	))
+
+(defvar dcd-calltips-for-struct-constructor
+  '((candidates . ac-dcd-calltip-candidate-for-struct-constructor)
+	(prefix . ac-dcd-calltip-prefix)
+	(action . ac-dcd-calltip-action)
+	(cache)
+	))
+
+(defun ac-complete-dcd-calltips-for-struct-constructor ()
+  (auto-complete '(dcd-calltips-for-struct-constructor)))
+
 
 ;;show document
 
+(defun ac-dcd-reformat-document ()
+  "Currently, it just decodes \n and \\n."
+  (with-current-buffer (get-buffer ac-dcd-document-buffer-name)
+
+	;;doit twice to catch '\n\n'
+	(goto-char (point-min))
+	(while (re-search-forward (rx (and (not (any "\\")) (submatch "\\n"))) nil t)
+	  (replace-match "\n" nil nil nil 1))
+
+	(goto-char (point-min))
+	(while (re-search-forward (rx (and (not (any "\\")) (submatch "\\n"))) nil t)
+	  (replace-match "\n" nil nil nil 1))
+
+	;; replace '\\n' in D src to '\n'
+	(while (re-search-forward (rx "\\\\n") nil t)
+	  (replace-match "\\\\n"))
+	))
+
 (defun ac-dcd-get-ddoc (pos)
-  "Get document with `dcd-client --doc'.  `POS' is cursor position.
-TODO:reformat it."
+  "Get document with `dcd-client --doc'.  `POS' is cursor position."
   (save-buffer)
-  (let ((args 
+  (let ((args
 		 (append
 		  (ac-dcd-build-complete-args (ac-dcd-cursor-position))
-		  '("--doc")
+		  '("-d")
 		  (list (buffer-file-name))))
-		(buf (get-buffer-create "*dcd-output*")))
-	(with-current-buffer
-		buf (erase-buffer)
-		(apply 'call-process ac-dcd-executable nil buf nil args))
-	(let ((raw-doc (with-current-buffer buf (buffer-string))))
-	  ;; ;; TODO: format document string. 
-	  ;; (setq raw-doc (replace-regexp-in-string
-	  ;; 				 (rx (and (not (any "\\\\")) (submatch "\\n")))
-	  ;; 				 " " raw-doc  nil nil 1 nil)); replace \n with space
-	  ;; ;; (setq raw-doc (replace-regexp-in-string
-	  ;; ;; 				 (rx "\\n") "\n" raw-doc));replace \\n(RET in D src) with \n
-	  ;; (setq raw-doc (replace-regexp-in-string
-	  ;; 				 (rx (and "$(D" (submatch (* anything)) ")"))
-	  ;; 				 " `\\1' " raw-doc)) ;format D src
-	  raw-doc)))
+		(buf (get-buffer-create ac-dcd-document-buffer-name)))
 
-(defun ac-dcd-popup-ddoc-at-point ()
-  "Popup Ddoc at point using popup.el."
-  (interactive)
-  (let ((doc (ac-dcd-get-ddoc (ac-dcd-cursor-position))))
-	(when (or(string= doc "")
-			 (string= doc "\n\n\n") ;when symbol has no doc
+	;; If I use `call-process', dcd-client errors out when to get long doc(e.g. doc of writef).
+	;; I have no idea why.
+	(with-current-buffer buf
+	  (erase-buffer)
+	  (eshell-command
+	   (mapconcat 'identity `(,(executable-find ac-dcd-executable) ,@args) " ")
+	   t)
+	  (when (or
+			 (string= (buffer-string) "")
+			 (string= (buffer-string) "\n\n\n")		;when symbol has no doc
 			 )
-	  (message "No document for the symbol at point!"))
-	(popup-tip doc)))
+		(error "No document for the symbol at point!"))
+	  (buffer-string)
+	  )))
+
+(defun ac-dcd-show-ddoc-with-buffer ()
+  "Display Ddoc at point using `display-buffer'."
+  (interactive)
+  (ac-dcd-get-ddoc (ac-dcd-cursor-position))
+  (ac-dcd-reformat-document)
+  (display-buffer (get-buffer-create ac-dcd-document-buffer-name)))
 
 
 ;; goto definition
@@ -405,7 +483,7 @@ TODO:reformat it."
 (defun ac-dcd-goto-definition ()
   "Goto declaration of symbol at point."
   (interactive)
-  (save-buffer)  
+  (save-buffer)
   (ac-dcd-call-process-for-symbol-declaration (point))
   (let* ((data (ac-dcd-parse-output-for-get-symbol-declaration))
 		 (file (car data))
@@ -428,12 +506,12 @@ TODO:reformat it."
 (defun ac-dcd-call-process-for-symbol-declaration (pos)
   "Get location of symbol declaration with `dcd-client --symbolLocation'.
 `POS' is cursor position."
-  (let ((args 
+  (let ((args
 		 (append
 		  (ac-dcd-build-complete-args (ac-dcd-cursor-position))
-		  '("--symbolLocation")
+		  '("-l")
 		  (list (buffer-file-name))))
-		(buf (get-buffer-create "*dcd-output*")))
+		(buf (get-buffer-create ac-dcd-output-buffer-name)))
 	(with-current-buffer
 		buf (erase-buffer)
 		(apply 'call-process ac-dcd-executable nil buf nil args))
@@ -444,7 +522,7 @@ TODO:reformat it."
   "Parse output of `ac-dcd-get-symbol-declaration'.
 output is just like following.\n
 `(cons \"PATH_TO_IMPORT/import/std/stdio.d\" \"63946\")'"
-  (let ((buf (get-buffer-create "*dcd-output*")))
+  (let ((buf (get-buffer-create ac-dcd-output-buffer-name)))
 	(with-current-buffer buf
 	  (goto-char (point-min))
 	  (if (not (string= "Not found\n" (buffer-string)))

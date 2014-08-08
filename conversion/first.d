@@ -188,11 +188,12 @@ final class FirstPass : ASTVisitor
 		}
 		if (dec.autoDeclaration !is null)
 		{
-			foreach (identifier; dec.autoDeclaration.identifiers)
+			foreach (i, identifier; dec.autoDeclaration.identifiers)
 			{
 				SemanticSymbol* symbol = allocateSemanticSymbol(
 					identifier.text, CompletionKind.variableName, symbolFile,
 					identifier.index, null);
+				populateInitializer(symbol, dec.autoDeclaration.initializers[i]);
 				symbol.protection = protection;
 				symbol.parent = currentSymbol;
 				symbol.acSymbol.doc = internString(dec.comment);
@@ -404,6 +405,15 @@ final class FirstPass : ASTVisitor
 			versionCondition.accept(this);
 	}
 
+	override void visit(const TemplateMixinExpression tme)
+	{
+		// TODO: support typeof here
+		if (tme.mixinTemplateName.symbol is null)
+			return;
+		currentSymbol.mixinTemplates.insert(iotcToStringArray(symbolAllocator,
+			tme.mixinTemplateName.symbol.identifierOrTemplateChain));
+	}
+
 	alias visit = ASTVisitor.visit;
 
 	/// Module scope
@@ -525,6 +535,12 @@ private:
 		return internString(cast(string) app[]);
 	}
 
+	void populateInitializer(SemanticSymbol* symbol, const Initializer initializer)
+	{
+		auto visitor = scoped!InitializerVisitor(symbol);
+		visitor.visit(initializer);
+	}
+
 	SemanticSymbol* allocateSemanticSymbol(string name, CompletionKind kind,
 		string symbolFile, size_t location = 0, const Type type = null)
 	in
@@ -597,4 +613,100 @@ static string convertChainToImportPath(const IdentifierChain ic)
 			app.append(dirSeparator);
 	}
 	return internString(cast(string) app[]);
+}
+
+class InitializerVisitor : ASTVisitor
+{
+	this (SemanticSymbol* semanticSymbol)
+	{
+		this.semanticSymbol = semanticSymbol;
+	}
+
+	alias visit = ASTVisitor.visit;
+
+	override void visit(const IdentifierOrTemplateInstance ioti)
+	{
+		if (on && ioti.identifier != tok!"")
+			semanticSymbol.initializer.insert(ioti.identifier.text);
+		ioti.accept(this);
+	}
+
+	override void visit(const PrimaryExpression primary)
+	{
+		// Add identifiers without processing. Convert literals to strings with
+		// the prefix '*' so that that the third pass can tell the difference
+		// between "int.abc" and "10.abc".
+		if (on && primary.basicType != tok!"")
+			semanticSymbol.initializer.insert(str(primary.basicType.type));
+		if (on) switch (primary.primary.type)
+		{
+		case tok!"identifier":
+			semanticSymbol.initializer.insert(primary.primary.text);
+			break;
+		case tok!"doubleLiteral":
+			semanticSymbol.initializer.insert("*double");
+			break;
+		case tok!"floatLiteral":
+			semanticSymbol.initializer.insert("*float");
+			break;
+		case tok!"idoubleLiteral":
+			semanticSymbol.initializer.insert("*idouble");
+			break;
+		case tok!"ifloatLiteral":
+			semanticSymbol.initializer.insert("*ifloat");
+			break;
+		case tok!"intLiteral":
+			semanticSymbol.initializer.insert("*int");
+			break;
+		case tok!"longLiteral":
+			semanticSymbol.initializer.insert("*long");
+			break;
+		case tok!"realLiteral":
+			semanticSymbol.initializer.insert("*real");
+			break;
+		case tok!"irealLiteral":
+			semanticSymbol.initializer.insert("*ireal");
+			break;
+		case tok!"uintLiteral":
+			semanticSymbol.initializer.insert("*uint");
+			break;
+		case tok!"ulongLiteral":
+			semanticSymbol.initializer.insert("*ulong");
+			break;
+		case tok!"characterLiteral":
+			semanticSymbol.initializer.insert("*char");
+			break;
+		case tok!"dstringLiteral":
+			semanticSymbol.initializer.insert("*dstring");
+			break;
+		case tok!"stringLiteral":
+			semanticSymbol.initializer.insert("*string");
+			break;
+		case tok!"wstringLiteral":
+			semanticSymbol.initializer.insert("*wstring");
+			break;
+		default:
+			break;
+		}
+		primary.accept(this);
+	}
+
+	override void visit(const UnaryExpression unary)
+	{
+		unary.accept(this);
+		if (unary.indexExpression)
+			semanticSymbol.initializer.insert("[]");
+	}
+
+	override void visit(const ArgumentList) {}
+
+	override void visit(const Initializer initializer)
+	{
+		on = true;
+		initializer.accept(this);
+		on = false;
+	}
+
+	SemanticSymbol* semanticSymbol;
+	bool on = false;
 }
