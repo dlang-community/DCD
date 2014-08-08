@@ -154,7 +154,6 @@ private:
 		foreach (mix; currentSymbol.mixinTemplates[])
 		{
 			import stupidlog;
-			Log.trace(mix);
 			auto symbols = moduleScope.getSymbolsByNameAndCursor(mix[0],
 				currentSymbol.acSymbol.location);
 			if (symbols.length == 0)
