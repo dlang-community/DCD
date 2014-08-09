@@ -153,7 +153,7 @@ If you want to restart server, use `ac-dcd-init-server' instead."
 (defun ac-dcd-call-process (prefix args)
   (if (null ac-dcd-executable)
       (error (format "Could not find dcd-client executable"))
-    (let ((buf (get-buffer-create "*dcd-output*"))
+    (let ((buf (get-buffer-create ac-dcd-output-buffer-name))
           res)
       (with-current-buffer buf (erase-buffer))
       (setq res (apply 'call-process-region (point-min) (point-max)
@@ -501,6 +501,7 @@ so I have to replace it with struct name."
 			(goto-char (point-min))
 			(forward-char (string-to-number offset))))))))
 
+
 ;; utilities for goto-definition
 
 (defun ac-dcd-call-process-for-symbol-declaration (pos)
@@ -530,7 +531,7 @@ output is just like following.\n
 				 (cons (match-string 1) (match-string 2)))
 		(cons nil nil)))
 	))
-
+
 
 (provide 'ac-dcd)
 ;;; ac-dcd.el ends here
