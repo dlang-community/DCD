@@ -2,7 +2,7 @@
 
 ##Requirements
 * You must have the [auto-complete](https://github.com/auto-complete/auto-complete) package.
-[yasnippet](https://github.com/capitaomorte/yasnippet) and [popwin](https://github.com/m2ym/popwin-el) is recommended.
+And, [yasnippet](https://github.com/capitaomorte/yasnippet) and [popwin](https://github.com/m2ym/popwin-el) is recommended.
 * Make sure dcd-client and dcd-server is in your exec-path. Otherwise, please set the variable ```dcd-exectutable``` and ```dcd-server-executable``` using ```M-x customize```.
 
 ## Setup
@@ -13,10 +13,11 @@
 ;;; ac-dcd
 (add-to-list 'load-path "path_to_ac-dcd.el")
 (require 'ac-dcd)
-(add-to-list 'ac-modes 'd-mode)
 
 (add-hook 'd-mode-hook
 		  '(lambda () "set up ac-dcd"
+		     (auto-complete-mode t)
+			 (yas-minor-mode-on)
 			 (ac-dcd-maybe-start-server)
 			 (add-to-list 'ac-sources 'ac-source-dcd)))
 
