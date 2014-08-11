@@ -155,6 +155,13 @@ int main(string[] args)
 			Log.info("Shutting down.");
 			break serverLoop;
 		}
+		else if (request.kind & RequestKind.query)
+		{
+			AutocompleteResponse response;
+			response.completionType = "ack";
+			ubyte[] responseBytes = msgpack.pack(response);
+			s.send(responseBytes);
+		}
 		if (request.kind & RequestKind.addImport)
 			ModuleCache.addImportPaths(request.importPaths);
 		if (request.kind & RequestKind.autocomplete)
@@ -191,8 +198,6 @@ int main(string[] args)
 				Log.error("Could not get symbol location", e.msg);
 			}
 		}
-		else
-			Log.error("Unknown request type");
 		Log.info("Request processed in ", requestWatch.peek().to!("msecs", float), " milliseconds");
 	}
 	return 0;

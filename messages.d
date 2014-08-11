@@ -124,6 +124,8 @@ enum RequestKind : ubyte
 	symbolLocation = 0b00010000,
 	/// Get the doc comments for the symbol
 	doc =            0b00100000,
+	/// Query server status
+	query =          0b01000000,
 }
 
 /**

@@ -43,13 +43,14 @@ int main(string[] args)
 	bool clearCache;
 	bool symbolLocation;
 	bool doc;
+	bool query;
 
 	try
 	{
 		getopt(args, "cursorPos|c", &cursorPos, "I", &importPaths,
 			"port|p", &port, "help|h", &help, "shutdown", &shutdown,
 			"clearCache", &clearCache, "symbolLocation|l", &symbolLocation,
-			"doc|d", &doc);
+			"doc|d", &doc, "query|q", &query);
 	}
 	catch (Exception e)
 	{
@@ -63,6 +64,31 @@ int main(string[] args)
 	{
 		printHelp(args[0]);
 		return 0;
+	}
+	else if (query)
+	{
+		try
+		{
+			TcpSocket socket = createSocket(port);
+			scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
+			request.kind = RequestKind.query;
+			if (sendRequest(socket, request))
+			{
+				AutocompleteResponse response = getResponse(socket);
+				if (response.completionType == "ack")
+				{
+					writeln("Server is running");
+					return 0;
+				}
+				else
+					throw new Exception("");
+			}
+		}
+		catch (Exception ex)
+		{
+			writeln("Server is not running");
+			return 1;
+		}
 	}
 	else if (shutdown || clearCache)
 	{
@@ -184,6 +210,10 @@ Options:
     --doc | -d
         Gets documentation comments associated with the symbol at the cursor
         location.
+
+    --query | -q
+        Query the server statis. Returns 0 if the server is running. Returns
+        1 if the server could not be contacted.
 
     -IPATH
         Instructs the server to add PATH to its list of paths searced for
