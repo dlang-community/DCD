@@ -59,6 +59,12 @@ private:
 	void assignToScopes(ACSymbol* currentSymbol)
 	{
 		Scope* s = moduleScope.getScopeByCursor(currentSymbol.location);
+		// Look for a parent scope whose start location equals this scope's
+		// start location. This only happens in the case of functions with
+		// contracts. Use this outer scope that covers the in, out, and body
+		// instead of the smaller scope found by getScopeByCursor.
+		if (s.parent !is null && s.parent.startLocation == s.startLocation)
+			s = s.parent;
 		if (currentSymbol.kind != CompletionKind.moduleName)
 			s.symbols.insert(currentSymbol);
 		foreach (part; currentSymbol.parts[])

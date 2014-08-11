@@ -128,9 +128,33 @@ final class FirstPass : ASTVisitor
 		currentSymbol.addChild(symbol);
 		if (dec.functionBody !is null)
 		{
+			import std.algorithm;
+			size_t scopeBegin = min(
+				dec.functionBody.inStatement is null ? size_t.max : dec.functionBody.inStatement.blockStatement.startLocation,
+				dec.functionBody.outStatement is null ? size_t.max : dec.functionBody.outStatement.blockStatement.startLocation,
+				dec.functionBody.blockStatement is null ? size_t.max : dec.functionBody.blockStatement.startLocation,
+				dec.functionBody.bodyStatement is null ? size_t.max : dec.functionBody.bodyStatement.blockStatement.startLocation);
+			size_t scopeEnd = max(
+				dec.functionBody.inStatement is null ? 0 : dec.functionBody.inStatement.blockStatement.endLocation,
+				dec.functionBody.outStatement is null ? 0 : dec.functionBody.outStatement.blockStatement.endLocation,
+				dec.functionBody.blockStatement is null ? 0 : dec.functionBody.blockStatement.endLocation,
+				dec.functionBody.bodyStatement is null ? 0 : dec.functionBody.bodyStatement.blockStatement.endLocation);
+			foreach (child; symbol.children)
+			{
+				if (child.acSymbol.location == size_t.max)
+				{
+//					Log.trace("Reassigning location of ", child.acSymbol.name);
+					child.acSymbol.location = scopeBegin + 1;
+				}
+			}
+			Scope* s = allocate!Scope(semanticAllocator, scopeBegin, scopeEnd);
+			currentScope.children.insert(s);
+			s.parent = currentScope;
+			currentScope = s;
 			currentSymbol = symbol;
 			dec.functionBody.accept(this);
 			currentSymbol = symbol.parent;
+			currentScope = s.parent;
 		}
 	}
 
@@ -377,17 +401,6 @@ final class FirstPass : ASTVisitor
 		s.parent = currentScope;
 		currentScope.children.insert(s);
 
-		if (currentSymbol.acSymbol.kind == CompletionKind.functionName)
-		{
-			foreach (child; currentSymbol.children)
-			{
-				if (child.acSymbol.location == size_t.max)
-				{
-//					Log.trace("Reassigning location of ", child.acSymbol.name);
-					child.acSymbol.location = s.startLocation + 1;
-				}
-			}
-		}
 		if (blockStatement.declarationsAndStatements !is null)
 		{
 			currentScope = s;
