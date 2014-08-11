@@ -203,7 +203,20 @@ private:
 		{
 			s = s.type;
 //			Log.trace("resolveInitializerType: ", __LINE__, ":", slice.front);
-			if (slice.front == "[]")
+			if (slice.front == "foreach")
+			{
+				if (s.qualifier == SymbolQualifier.array)
+					s = s.type;
+				else
+				{
+					ACSymbol*[] f = s.getPartsByName(internString("front"));
+					if (f.length > 0)
+						s = f[0].type;
+					else
+						s = null;
+				}
+			}
+			else if (slice.front == "[]")
 				s = s.type;
 			else
 			{

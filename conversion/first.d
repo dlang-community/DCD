@@ -129,7 +129,7 @@ final class FirstPass : ASTVisitor
 		if (dec.functionBody !is null)
 		{
 			import std.algorithm;
-			size_t scopeBegin = dec.name.index;
+			size_t scopeBegin = dec.name.index + dec.name.text.length;
 			size_t scopeEnd = max(
 				dec.functionBody.inStatement is null ? 0 : dec.functionBody.inStatement.blockStatement.endLocation,
 				dec.functionBody.outStatement is null ? 0 : dec.functionBody.outStatement.blockStatement.endLocation,
@@ -423,6 +423,49 @@ final class FirstPass : ASTVisitor
 			tme.mixinTemplateName.symbol.identifierOrTemplateChain));
 	}
 
+	override void visit(const ForeachStatement feStatement)
+	{
+		if (feStatement.declarationOrStatement !is null
+			&& feStatement.declarationOrStatement.statement !is null
+			&& feStatement.declarationOrStatement.statement.statementNoCaseNoDefault !is null
+			&& feStatement.declarationOrStatement.statement.statementNoCaseNoDefault.blockStatement !is null)
+		{
+			const BlockStatement bs =
+				feStatement.declarationOrStatement.statement.statementNoCaseNoDefault.blockStatement;
+			Scope* s = allocate!Scope(semanticAllocator, feStatement.startIndex, bs.endLocation);
+			s.parent = currentScope;
+			currentScope.children.insert(s);
+			feExpression = feStatement.low.items[$ - 1];
+			feStatement.accept(this);
+			feExpression = null;
+			currentScope = currentScope.parent;
+		}
+		else
+			feStatement.accept(this);
+	}
+
+	override void visit(const ForeachTypeList feTypeList)
+	{
+		if (feTypeList.items.length == 1)
+			feTypeList.accept(this);
+	}
+
+	override void visit(const ForeachType feType)
+	{
+//		Log.trace("Handling foreachtype ", feType.identifier.text);
+		SemanticSymbol* symbol = allocateSemanticSymbol(
+				feType.identifier.text, CompletionKind.variableName,
+				symbolFile, feType.identifier.index, feType.type);
+		if (symbol.type is null && feExpression !is null)
+		{
+//			Log.trace("Populating initializer");
+			populateInitializer(symbol, feExpression, true);
+//			Log.trace(symbol.initializer[]);
+		}
+		symbol.parent = currentSymbol;
+		currentSymbol.addChild(symbol);
+	}
+
 	alias visit = ASTVisitor.visit;
 
 	/// Module scope
@@ -544,9 +587,10 @@ private:
 		return internString(cast(string) app[]);
 	}
 
-	void populateInitializer(SemanticSymbol* symbol, const Initializer initializer)
+	void populateInitializer(T)(SemanticSymbol* symbol, const T initializer,
+		bool appendForeach = false)
 	{
-		auto visitor = scoped!InitializerVisitor(symbol);
+		auto visitor = scoped!InitializerVisitor(symbol, appendForeach);
 		visitor.visit(initializer);
 	}
 
@@ -583,6 +627,8 @@ private:
 	Module mod;
 
 	CAllocator semanticAllocator;
+
+	Rebindable!(const AssignExpression) feExpression;
 }
 
 void formatNode(A, T)(ref A appender, const T node)
@@ -626,9 +672,10 @@ static string convertChainToImportPath(const IdentifierChain ic)
 
 class InitializerVisitor : ASTVisitor
 {
-	this (SemanticSymbol* semanticSymbol)
+	this (SemanticSymbol* semanticSymbol, bool appendForeach = false)
 	{
 		this.semanticSymbol = semanticSymbol;
+		this.appendForeach = appendForeach;
 	}
 
 	alias visit = ASTVisitor.visit;
@@ -709,13 +756,16 @@ class InitializerVisitor : ASTVisitor
 
 	override void visit(const ArgumentList) {}
 
-	override void visit(const Initializer initializer)
+	override void visit(const AssignExpression initializer)
 	{
 		on = true;
 		initializer.accept(this);
+		if (appendForeach)
+			semanticSymbol.initializer.insert("foreach");
 		on = false;
 	}
 
 	SemanticSymbol* semanticSymbol;
 	bool on = false;
+	const bool appendForeach;
 }
