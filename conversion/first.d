@@ -522,11 +522,11 @@ private:
 			}
 		}
 		symbol.acSymbol.callTip = formatCallTip(returnType, functionName,
-			parameters, doc);
+			parameters);
 	}
 
 	string formatCallTip(const Type returnType, string name,
-		const Parameters parameters, string doc = null)
+		const Parameters parameters)
 	{
 		QuickAllocator!1024 q;
 		auto app = Appender!(char, typeof(q), 1024)(q);
