@@ -23,45 +23,45 @@ module messages;
  */
 enum CompletionKind : char
 {
-    /// Invalid completion kind. This is used internally and will never
-    /// be returned in a completion response.
-    dummy = '?',
+	/// Invalid completion kind. This is used internally and will never
+	/// be returned in a completion response.
+	dummy = '?',
 
-    /// class names
-    className = 'c',
+	/// class names
+	className = 'c',
 
-    /// interface names
-    interfaceName = 'i',
+	/// interface names
+	interfaceName = 'i',
 
-    /// structure names
-    structName = 's',
+	/// structure names
+	structName = 's',
 
 	/// union name
 	unionName = 'u',
 
-    /// variable name
-    variableName = 'v',
+	/// variable name
+	variableName = 'v',
 
-    /// member variable
-    memberVariableName = 'm',
+	/// member variable
+	memberVariableName = 'm',
 
-    /// keyword, built-in version, scope statement
-    keyword = 'k',
+	/// keyword, built-in version, scope statement
+	keyword = 'k',
 
-    /// function or method
-    functionName = 'f',
+	/// function or method
+	functionName = 'f',
 
-    /// enum name
-    enumName = 'g',
+	/// enum name
+	enumName = 'g',
 
 	/// enum member
-    enumMember = 'e',
+	enumMember = 'e',
 
-    /// package name
-    packageName = 'P',
+	/// package name
+	packageName = 'P',
 
-    /// module name
-    moduleName = 'M',
+	/// module name
+	moduleName = 'M',
 
 	/// array
 	array = 'a',
@@ -84,21 +84,21 @@ enum CompletionKind : char
  */
 enum CompletionType : string
 {
-    /**
-     * The completion list contains a listing of identifier/kind pairs.
-     */
-    identifiers = "identifiers",
+	/**
+	 * The completion list contains a listing of identifier/kind pairs.
+	 */
+	identifiers = "identifiers",
 
-    /**
-     * The auto-completion list consists of a listing of functions and their
-     * parameters.
-     */
-    calltips = "calltips",
+	/**
+	 * The auto-completion list consists of a listing of functions and their
+	 * parameters.
+	 */
+	calltips = "calltips",
 
-    /**
-     * The response contains the location of a symbol declaration.
-     */
-    location = "location",
+	/**
+	 * The response contains the location of a symbol declaration.
+	 */
+	location = "location",
 
 	/**
 	 * The response contains documentation comments for the symbol.
@@ -115,17 +115,17 @@ enum RequestKind : ubyte
 	/// Autocompletion
 	autocomplete =   0b00000001,
 	/// Clear the completion cache
-	clearCache =     0b00000010,
+	clearCache =	 0b00000010,
 	/// Add import directory to server
-	addImport =      0b00000100,
+	addImport =	  0b00000100,
 	/// Shut down the server
-	shutdown =       0b00001000,
+	shutdown =	   0b00001000,
 	/// Get declaration location of given symbol
 	symbolLocation = 0b00010000,
 	/// Get the doc comments for the symbol
-	doc =            0b00100000,
+	doc =			0b00100000,
 	/// Query server status
-	query =          0b01000000,
+	query =		  0b01000000,
 }
 
 /**
@@ -133,30 +133,30 @@ enum RequestKind : ubyte
  */
 struct AutocompleteRequest
 {
-    /**
-     * File name used for error reporting
-     */
-    string fileName;
+	/**
+	 * File name used for error reporting
+	 */
+	string fileName;
 
 	/**
 	 * Command coming from the client
 	 */
 	RequestKind kind;
 
-    /**
-     * Paths to be searched for import files
-     */
-    string[] importPaths;
+	/**
+	 * Paths to be searched for import files
+	 */
+	string[] importPaths;
 
-    /**
-     * The source code to auto complete
-     */
-    ubyte[] sourceCode;
+	/**
+	 * The source code to auto complete
+	 */
+	ubyte[] sourceCode;
 
-    /**
-     * The cursor position
-     */
-    size_t cursorPosition;
+	/**
+	 * The cursor position
+	 */
+	size_t cursorPosition;
 }
 
 /**
@@ -164,34 +164,34 @@ struct AutocompleteRequest
  */
 struct AutocompleteResponse
 {
-    /**
-     * The autocompletion type. (Parameters or identifier)
-     */
-    string completionType;
+	/**
+	 * The autocompletion type. (Parameters or identifier)
+	 */
+	string completionType;
 
-    /**
-     * The path to the file that contains the symbol.
-     */
-    string symbolFilePath;
+	/**
+	 * The path to the file that contains the symbol.
+	 */
+	string symbolFilePath;
 
-    /**
-     * The byte offset at which the symbol is located.
-     */
-    size_t symbolLocation;
+	/**
+	 * The byte offset at which the symbol is located.
+	 */
+	size_t symbolLocation;
 
 	/**
 	 * The documentation comment
 	 */
 	string[] docComments;
 
-    /**
-     * The completions
-     */
-    string[] completions;
+	/**
+	 * The completions
+	 */
+	string[] completions;
 
-    /**
-     * The kinds of the items in the completions array. Will be empty if the
-     * completion type is a function argument list.
-     */
-    char[] completionKinds;
+	/**
+	 * The kinds of the items in the completions array. Will be empty if the
+	 * completion type is a function argument list.
+	 */
+	char[] completionKinds;
 }
