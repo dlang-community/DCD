@@ -604,7 +604,10 @@ output is just like following.\n
                          flags-list))))))
 
 (defun ac-dcd-add-imports ()
-  "Send import flags of the current DUB project to dcd-server."
+  "Send import flags of the current DUB project to dcd-server.
+
+The root of the project is determined by the \"closest\" dub.json
+or package.json file."
   (interactive)
   (ac-dcd-call-process ""
                        (append
