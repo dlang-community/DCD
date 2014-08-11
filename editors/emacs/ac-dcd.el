@@ -23,8 +23,9 @@
 
 (require 'auto-complete)
 (require 'rx)
-(require 'yasnippet)
+(require 'yasnippet nil t)
 (require 'eshell)
+
 (defcustom ac-dcd-executable
   "dcd-client"
   "Location of dcd-client executable."
@@ -167,7 +168,7 @@ If you want to restart server, use `ac-dcd-init-server' instead."
 (defsubst ac-dcd-cursor-position ()
   "Get cursor position to pass to dcd-client.
 TODO: multi byte character support"
-  (point))
+  (position-bytes (point)))
 
 (defsubst ac-dcd-build-complete-args (pos)
   (list
