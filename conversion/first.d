@@ -129,11 +129,7 @@ final class FirstPass : ASTVisitor
 		if (dec.functionBody !is null)
 		{
 			import std.algorithm;
-			size_t scopeBegin = min(
-				dec.functionBody.inStatement is null ? size_t.max : dec.functionBody.inStatement.blockStatement.startLocation,
-				dec.functionBody.outStatement is null ? size_t.max : dec.functionBody.outStatement.blockStatement.startLocation,
-				dec.functionBody.blockStatement is null ? size_t.max : dec.functionBody.blockStatement.startLocation,
-				dec.functionBody.bodyStatement is null ? size_t.max : dec.functionBody.bodyStatement.blockStatement.startLocation);
+			size_t scopeBegin = dec.name.index;
 			size_t scopeEnd = max(
 				dec.functionBody.inStatement is null ? 0 : dec.functionBody.inStatement.blockStatement.endLocation,
 				dec.functionBody.outStatement is null ? 0 : dec.functionBody.outStatement.blockStatement.endLocation,
@@ -508,7 +504,7 @@ private:
 			{
 				SemanticSymbol* parameter = allocateSemanticSymbol(
 					p.name.text, CompletionKind.variableName, symbolFile,
-					size_t.max, p.type);
+					p.name.index, p.type);
 				symbol.addChild(parameter);
 				parameter.parent = symbol;
 			}
