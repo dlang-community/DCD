@@ -416,6 +416,8 @@ ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 //		tokens.map!stringToken);
 	// Find the symbol corresponding to the beginning of the chain
 	ACSymbol*[] symbols;
+	if (tokens.length == 0)
+		return [];
 	if (tokens[0] == tok!"." && tokens.length > 1)
 	{
 		tokens = tokens[1 .. $];

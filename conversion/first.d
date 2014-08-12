@@ -435,6 +435,7 @@ final class FirstPass : ASTVisitor
 			Scope* s = allocate!Scope(semanticAllocator, feStatement.startIndex, bs.endLocation);
 			s.parent = currentScope;
 			currentScope.children.insert(s);
+			currentScope = s;
 			feExpression = feStatement.low.items[$ - 1];
 			feStatement.accept(this);
 			feExpression = null;
