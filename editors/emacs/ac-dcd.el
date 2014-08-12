@@ -421,8 +421,8 @@ so I have to replace it with struct name."
 	  (replace-match "\\\\n"))
 	))
 
-(defun ac-dcd-get-ddoc (pos)
-  "Get document with `dcd-client --doc'.  `POS' is cursor position."
+(defun ac-dcd-get-ddoc ()
+  "Get document with `dcd-client --doc'."
   (save-buffer)
   (let ((args
 		 (append
@@ -449,7 +449,7 @@ so I have to replace it with struct name."
 (defun ac-dcd-show-ddoc-with-buffer ()
   "Display Ddoc at point using `display-buffer'."
   (interactive)
-  (ac-dcd-get-ddoc (ac-dcd-cursor-position))
+  (ac-dcd-get-ddoc)
   (ac-dcd-reformat-document)
   (display-buffer (get-buffer-create ac-dcd-document-buffer-name)))
 
@@ -485,7 +485,7 @@ so I have to replace it with struct name."
   "Goto declaration of symbol at point."
   (interactive)
   (save-buffer)
-  (ac-dcd-call-process-for-symbol-declaration (point))
+  (ac-dcd-call-process-for-symbol-declaration)
   (let* ((data (ac-dcd-parse-output-for-get-symbol-declaration))
 		 (file (car data))
 		 (offset (cdr data)))
@@ -493,21 +493,15 @@ so I have to replace it with struct name."
 		(message "Not found")
 	  (progn
 		(ac-dcd-goto-def-push-marker)
-		(if (string=  file "stdin") ; When the declaration is in the current file
-			(progn
-			  (goto-char (point-min))
-			  (forward-char (string-to-number offset)))
-		  (progn
-			(find-file file)
-			(goto-char (point-min))
-			(forward-char (string-to-number offset))))))))
+        (unless (string=  file "stdin") ; the declaration is in the current file
+          (find-file file))
+        (goto-char (byte-to-position (string-to-number offset)))))))
 
 
 ;; utilities for goto-definition
 
-(defun ac-dcd-call-process-for-symbol-declaration (pos)
-  "Get location of symbol declaration with `dcd-client --symbolLocation'.
-`POS' is cursor position."
+(defun ac-dcd-call-process-for-symbol-declaration ()
+  "Get location of symbol declaration with `dcd-client --symbolLocation'."
   (let ((args
 		 (append
 		  (ac-dcd-build-complete-args (ac-dcd-cursor-position))
