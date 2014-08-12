@@ -6,9 +6,9 @@
 [auto-complete](https://github.com/auto-complete/auto-complete) package. Also,
 [yasnippet](https://github.com/capitaomorte/yasnippet) and
 [popwin](https://github.com/m2ym/popwin-el) are recommended.
-* Make sure `dcd-client` and `dcd-server` is in your exec-path. Otherwise,
-  please set the variable `dcd-exectutable` and `dcd-server-executable`
-  using `M-x customize`.
+* Make sure `dcd-client` and `dcd-server` are in your exec-path. Otherwise,
+  please set the variables `dcd-exectutable` and `dcd-server-executable` using
+  `M-x customize`.
 
 ## Setup
 
