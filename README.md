@@ -5,12 +5,18 @@ The D Completion Daemon is an auto-complete program for the D programming langua
 
 (The above is a screenshot of [Textadept](http://foicica.com/textadept/))
 
-DCD consists of a client and a server. The client (dcd-client) is used by a text editor script or from the command line.
-The server (dcd-server) is responsible for caching imported files, calculating autocomplete information, and sending it
-back to the client.
+DCD is not an IDE. DCD is designed to provide autocompletion for your favorite
+text editor. If you are looking for an IDE, try [one of these](http://wiki.dlang.org/IDEs).
+
+DCD consists of a client and a server. The client (dcd-client) is almost always
+used through a text editor script or plugin, though it can be used from the
+command line. The server (dcd-server) is responsible for caching imported files,
+calculating autocomplete information, and sending it back to the client.
 
 #Status
-This program is reasonably stable.
+This program is reasonably stable. Please report problems on the Github issue
+tracker. Please be sure that you have read the documentation before filing an
+issue.
 
 * Working:
 	* Autocompletion of properties of built-in types such as int, float, double, etc.
@@ -24,11 +30,11 @@ This program is reasonably stable.
 	* *import* statement completions
 	* Display of documentation comments in function call tips
 	* *alias this*
+	* *auto* declarations (Mostly)
 * Not working:
 	* Automatic starting of the server by the client
-	* UFCS
-	* Autocompletion of declarations with template arguments
-	* *auto* declarations
+	* UFCS suggestions
+	* Autocompletion of declarations with template arguments (This will work to some extent, but it won't do things like replace T with int)
 	* Determining the type of an enum member when no base type is specified, but the first member has an initialaizer
 	* That one feature that you *REALLY* needed
 
