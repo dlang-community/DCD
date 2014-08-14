@@ -1,3 +1,9 @@
+This plugin is deprecated in favor of [the Dutyl
+plugin](https://github.com/idanarye/vim-dutyl), that can set the import paths
+from other sources.
+
+----------------------
+
 A plugin for using DCD with vim.
 
 Tested on Linux (and a bit on Windows)
