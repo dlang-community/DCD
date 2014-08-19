@@ -226,16 +226,19 @@ final class FirstPass : ASTVisitor
 	{
 		if (aliasDeclaration.initializers.length == 0)
 		{
-			SemanticSymbol* symbol = allocateSemanticSymbol(
-				aliasDeclaration.name.text,
-				CompletionKind.aliasName,
-				symbolFile,
-				aliasDeclaration.name.index,
-				aliasDeclaration.type);
-			symbol.protection = protection;
-			symbol.parent = currentSymbol;
-			symbol.acSymbol.doc = internString(aliasDeclaration.comment);
-			currentSymbol.addChild(symbol);
+			foreach (name; aliasDeclaration.identifierList.identifiers)
+			{
+				SemanticSymbol* symbol = allocateSemanticSymbol(
+					name.text,
+					CompletionKind.aliasName,
+					symbolFile,
+					name.index,
+					aliasDeclaration.type);
+				symbol.protection = protection;
+				symbol.parent = currentSymbol;
+				symbol.acSymbol.doc = internString(aliasDeclaration.comment);
+				currentSymbol.addChild(symbol);
+			}
 		}
 		else
 		{
