@@ -9,9 +9,17 @@ DMD = dmd
 GDC = gdc
 #LDC = ldc
 
-CLIENT_SRC = client.d\
-	messages.d\
-	stupidlog.d\
+report:
+	dscanner --report src > dscanner-report.json
+	sonar-runner
+
+clean:
+	rm -rf bin
+	rm -f dscanner-report.json
+
+CLIENT_SRC = src/client.d\
+	src/messages.d\
+	src/stupidlog.d\
 	msgpack-d/src/msgpack.d
 
 DMD_CLIENT_FLAGS = -Imsgpack-d/src\
@@ -20,26 +28,26 @@ DMD_CLIENT_FLAGS = -Imsgpack-d/src\
 	-inline\
 	-O\
 	-wi\
-	-ofdcd-client
+	-ofbin/dcd-client
 
 GDC_CLIENT_FLAGS =  -Imsgpack-d/src\
 	-O3\
 	-frelease\
-	-odcd-client
+	-obin/dcd-client
 
-SERVER_SRC = actypes.d\
-	conversion/astconverter.d\
-	conversion/first.d\
-	conversion/second.d\
-	conversion/third.d\
-	autocomplete.d\
-	constants.d\
-	messages.d\
-	modulecache.d\
-	semantic.d\
-	server.d\
-	stupidlog.d\
-	string_interning.d\
+SERVER_SRC = src/actypes.d\
+	src/conversion/astconverter.d\
+	src/conversion/first.d\
+	src/conversion/second.d\
+	src/conversion/third.d\
+	src/autocomplete.d\
+	src/constants.d\
+	src/messages.d\
+	src/modulecache.d\
+	src/semantic.d\
+	src/server.d\
+	src/stupidlog.d\
+	src/string_interning.d\
 	libdparse/src/std/d/ast.d\
 	libdparse/src/std/d/entities.d\
 	libdparse/src/std/d/lexer.d\
@@ -65,27 +73,31 @@ DMD_SERVER_FLAGS = -Icontainers/src\
 	-O\
 	-release\
 	-inline\
-	-ofdcd-server
+	-ofbin/dcd-server
 
 GDC_SERVER_FLAGS =  -Imsgpack-d/src\
 	-Ilibdparse/src\
 	-O3\
 	-frelease\
-	-odcd-server
+	-obin/dcd-server
 
 dmdclient:
+	mkdir -p bin
 	rm -f containers/src/std/allocator.d
 	${DMD} ${CLIENT_SRC} ${DMD_CLIENT_FLAGS}
 
 dmdserver:
+	mkdir -p bin
 	rm -f containers/src/std/allocator.d
 	${DMD} ${SERVER_SRC} ${DMD_SERVER_FLAGS}
 
 gdcclient:
+	mkdir -p bin
 	rm -f containers/src/std/allocator.d
 	${GDC} ${CLIENT_SRC} ${GDC_CLIENT_FLAGS}
 
 gdcserver:
+	mkdir -p bin
 	rm -f containers/src/std/allocator.d
 	${GDC} ${SERVER_SRC} ${GDC_SERVER_FLAGS}
 

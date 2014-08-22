@@ -121,7 +121,7 @@ final class FirstPass : ASTVisitor
 			CompletionKind.functionName, symbolFile, dec.name.index,
 			dec.returnType);
 		processParameters(symbol, dec.returnType, symbol.acSymbol.name,
-			dec.parameters, dec.comment);
+			dec.parameters);
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
 		symbol.acSymbol.doc = internString(dec.comment);
@@ -512,7 +512,7 @@ private:
 	{
 		SemanticSymbol* symbol = allocateSemanticSymbol("*constructor*",
 			CompletionKind.functionName, symbolFile, location);
-		processParameters(symbol, null, "this", parameters, doc);
+		processParameters(symbol, null, "this", parameters);
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
 		symbol.acSymbol.doc = internString(doc);
@@ -543,7 +543,7 @@ private:
 	}
 
 	void processParameters(SemanticSymbol* symbol, const Type returnType,
-		string functionName, const Parameters parameters, string doc)
+		string functionName, const Parameters parameters)
 	{
 		if (parameters !is null)
 		{

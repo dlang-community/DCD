@@ -1,28 +1,28 @@
 del /f containers\src\std\allocator.d
 
 dmd^
- client.d^
- messages.d^
- stupidlog.d^
+ src\client.d^
+ src\messages.d^
+ src\stupidlog.d^
  msgpack-d/src/msgpack.d^
  -Imsgpack-d/src^
  -release -inline -O -wi^
  -ofdcd-client
 
 dmd^
- actypes.d^
- conversion/astconverter.d^
- conversion/first.d^
- conversion/second.d^
- conversion/third.d^
- autocomplete.d^
- constants.d^
- messages.d^
- modulecache.d^
- semantic.d^
- server.d^
- stupidlog.d^
- string_interning.d^
+ src\actypes.d^
+ src\conversion/astconverter.d^
+ src\conversion/first.d^
+ src\conversion/second.d^
+ src\conversion/third.d^
+ src\autocomplete.d^
+ src\constants.d^
+ src\messages.d^
+ src\modulecache.d^
+ src\semantic.d^
+ src\server.d^
+ src\stupidlog.d^
+ src\string_interning.d^
  libdparse/src/std/d/ast.d^
  libdparse/src/std/d/entities.d^
  libdparse/src/std/d/lexer.d^
