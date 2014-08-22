@@ -90,7 +90,7 @@ public:
 		this.type = type;
 	}
 
-	int opCmp(ref const ACSymbol other) const
+	int opCmp(ref const ACSymbol other) const pure nothrow @safe
 	{
 		// Compare the pointers because the strings have been interned.
 		// Identical strings MUST have the same address
@@ -99,6 +99,16 @@ public:
 		if (name.ptr > other.name.ptr)
 			return 1;
 		return 0;
+	}
+
+	bool opEquals(ref const ACSymbol other) const pure nothrow @safe
+	{
+		return other.name.ptr == this.name.ptr;
+	}
+
+	size_t toHash() const pure nothrow @safe
+	{
+		return (cast(size_t) name.ptr) * 27_644_437;
 	}
 
 	/**
