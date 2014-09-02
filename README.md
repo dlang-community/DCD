@@ -41,7 +41,7 @@ issue.
 #Setup
 1. Install a recent D compiler. DCD is tested with 2.065 and the 2.066 betas.
 1. Run ```git submodule update --init``` after cloning this repository to grab the MessagePack and Datapacked libraries and the parser from DScanner.
-1. run the ```build.sh``` script to build the client and server. (Or build.bat on Windows)
+1. Run ```make``` to build the client and server. (Or run build.bat on Windows). ```make ldc``` and ```make gdc``` will use the LDC or GDC compilers. The resulting executable will be much faster.
 1. Configure your text editor to call the dcd-client program. See the *editors* folder for directions on configuring your specific editor.
 1. Start the dcd-server program before editing code.
 

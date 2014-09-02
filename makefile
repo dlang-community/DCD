@@ -3,11 +3,11 @@
 all: dmd
 dmd: dmdserver dmdclient
 gdc: gdcserver gdcclient
-#ldc: ldcserver ldcclient
+ldc: ldcserver ldcclient
 
 DMD = dmd
 GDC = gdc
-#LDC = ldc
+LDC = ldc2
 
 report:
 	dscanner --report src > dscanner-report.json
@@ -34,6 +34,14 @@ GDC_CLIENT_FLAGS =  -Imsgpack-d/src\
 	-O3\
 	-frelease\
 	-obin/dcd-client
+
+LDC_CLIENT_FLAGS = -Imsgpack-d/src\
+	-Imsgpack-d/src\
+	-release\
+	-inline\
+	-O5\
+	-oq\
+	-of=bin/dcd-client
 
 SERVER_SRC = src/actypes.d\
 	src/conversion/astconverter.d\
@@ -75,11 +83,20 @@ DMD_SERVER_FLAGS = -Icontainers/src\
 	-inline\
 	-ofbin/dcd-server
 
-GDC_SERVER_FLAGS =  -Imsgpack-d/src\
+GDC_SERVER_FLAGS =  -Icontainers/src\
+	-Imsgpack-d/src\
 	-Ilibdparse/src\
 	-O3\
 	-frelease\
 	-obin/dcd-server
+
+LDC_SERVER_FLAGS = -Icontainers/src\
+	-Imsgpack-d/src\
+	-Ilibdparse/src\
+	-O5\
+	-release\
+	-oq\
+	-of=bin/dcd-server
 
 dmdclient:
 	mkdir -p bin
@@ -101,8 +118,8 @@ gdcserver:
 	rm -f containers/src/std/allocator.d
 	${GDC} ${SERVER_SRC} ${GDC_SERVER_FLAGS}
 
-#ldcclient:
-#	${LDC} {CLIENT_SRC} ${LDC_CLIENT_FLAGS}
-#
-#ldcserver:
-#	${LDC} {SERVER_SRC} ${LDC_SERVER_FLAGS}
+ldcclient:
+	${LDC} ${CLIENT_SRC} ${LDC_CLIENT_FLAGS}
+
+ldcserver:
+	${LDC} ${SERVER_SRC} ${LDC_SERVER_FLAGS}
