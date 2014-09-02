@@ -39,13 +39,15 @@ issue.
 	* That one feature that you *REALLY* needed
 
 #Setup
-1. Install a recent D compiler. DCD is tested with 2.065 and the 2.066 betas.
+1. Install a recent D compiler. DCD is tested with 2.066 and LDC 0.14.0.
 1. Run ```git submodule update --init``` after cloning this repository to grab the MessagePack and Datapacked libraries and the parser from DScanner.
 1. Run ```make``` to build the client and server. (Or run build.bat on Windows). ```make ldc``` and ```make gdc``` will use the LDC or GDC compilers. The resulting executable will be much faster.
 1. Configure your text editor to call the dcd-client program. See the *editors* folder for directions on configuring your specific editor.
-1. Start the dcd-server program before editing code.
+1. Start the dcd-server program before editing code. (Unless, of course, your editor's plugin handles this for you)
 
 #Client
+Because DCD is designed to be used from a text editor, this section is written
+primarily for plugin authors.
 
 ##Get autocomplete information
 The primary use case of the client is to query the server for autocomplete information.
@@ -150,7 +152,7 @@ followed by the byte offset, followed by a newline character. For example:
 #Server
 The server must be running for the DCD client to provide autocomplete information.
 In future versions the client may start the server if it is not running, but for
-now it must be started manually.
+now it must be started manually or by an editor plugin.
 
 ## Configuration Files
 The server will attempt to read the file ```~/.config/dcd``` on Posix systems, or ```dcd.conf``` on Windows in the current working directory on startup.
