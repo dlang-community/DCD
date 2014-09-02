@@ -94,11 +94,10 @@ public:
 	{
 		// Compare the pointers because the strings have been interned.
 		// Identical strings MUST have the same address
+		int r = name.ptr > other.name.ptr;
 		if (name.ptr < other.name.ptr)
-			return -1;
-		if (name.ptr > other.name.ptr)
-			return 1;
-		return 0;
+			r = -1;
+		return r;
 	}
 
 	bool opEquals(ref const ACSymbol other) const pure nothrow @safe
