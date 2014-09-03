@@ -123,7 +123,7 @@ public:
 		auto app = appender!(ACSymbol*[])();
 		foreach (part; parts.equalRange(&s))
 			app.put(part);
-		foreach (extra; extraSymbols.equalRange(&s))
+		foreach (extra; aliasThisParts.equalRange(&s))
 			app.put(extra.getPartsByName(name));
 		foreach (im; parts.equalRange(&p))
 			foreach (part; im.type.parts.equalRange(&s))

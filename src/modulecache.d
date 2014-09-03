@@ -62,7 +62,7 @@ private struct CacheEntry
 		return path == other.path;
 	}
 
-	size_t toHash() const
+	size_t toHash() const nothrow @safe
 	{
 		import core.internal.hash : hashOf;
 		return hashOf(path);
