@@ -27,6 +27,10 @@ enum CompletionKind : char
 	/// be returned in a completion response.
 	dummy = '?',
 
+	/// Import symbol. This is used internally and will never
+	/// be returned in a completion response.
+	importSymbol = '*',
+
 	/// class names
 	className = 'c',
 

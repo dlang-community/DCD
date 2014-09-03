@@ -292,12 +292,11 @@ final class FirstPass : ASTVisitor
 		rootSymbol = currentSymbol;
 		currentScope = allocate!Scope(semanticAllocator, 0, size_t.max);
 		auto i = allocate!ImportInformation(semanticAllocator);
-		i.modulePath = "object";
-		i.importParts.insert("object");
+		i.modulePath = internString("object");
+		i.importParts.insert(i.modulePath);
 		currentScope.importInformation.insert(i);
 		moduleScope = currentScope;
 		mod.accept(this);
-		assert (currentSymbol.acSymbol.name is null);
 	}
 
 	override void visit(const EnumDeclaration dec)
@@ -328,10 +327,7 @@ final class FirstPass : ASTVisitor
 	override void visit(const ModuleDeclaration moduleDeclaration)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
-		foreach (identifier; moduleDeclaration.moduleName.identifiers)
-		{
-			moduleName.insert(internString(identifier.text));
-		}
+		rootSymbol.acSymbol.name = internString(moduleDeclaration.moduleName.identifiers[$ - 1].text);
 	}
 
 	override void visit(const StructBody structBody)
@@ -615,9 +611,6 @@ private:
 
 	/// Current protection type
 	IdType protection;
-
-	/// Package and module name
-	UnrolledList!string moduleName;
 
 	/// Current scope
 	Scope* currentScope;

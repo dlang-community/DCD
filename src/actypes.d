@@ -21,7 +21,6 @@ module actypes;
 import std.algorithm;
 import std.array;
 import std.container;
-//import std.stdio;
 import std.typecons;
 import std.allocator;
 
@@ -55,6 +54,9 @@ struct ACSymbol
 {
 public:
 
+	/**
+	 * Copying is disabled.
+	 */
 	@disable this();
 
 	/**
@@ -115,12 +117,18 @@ public:
 	 */
 	ACSymbol*[] getPartsByName(string name)
 	{
+		import std.range : chain;
 		ACSymbol s = ACSymbol(name);
-		auto er = parts.equalRange(&s);
-		if (er.empty)
-			return array(aliasThisParts.equalRange(&s));
-		else
-			return array(er);
+		ACSymbol p = ACSymbol(IMPORT_SYMBOL_NAME);
+		auto app = appender!(ACSymbol*[])();
+		foreach (part; parts.equalRange(&s))
+			app.put(part);
+		foreach (extra; extraSymbols.equalRange(&s))
+			app.put(extra.getPartsByName(name));
+		foreach (im; parts.equalRange(&p))
+			foreach (part; im.type.parts.equalRange(&s))
+				app.put(part);
+		return app.data();
 	}
 
 	/**
@@ -231,11 +239,16 @@ struct Scope
 		if (s is null)
 			return [];
 		UnrolledList!(ACSymbol*) symbols;
-		symbols.insert(s.symbols[]);
-		Scope* sc = s.parent;
+		Scope* sc = s;
 		while (sc !is null)
 		{
-			symbols.insert(sc.symbols[]);
+			foreach (item; sc.symbols[])
+			{
+				if (item.kind == CompletionKind.importSymbol) foreach (i; item.type.parts[])
+					symbols.insert(i);
+				else
+					symbols.insert(item);
+			}
 			sc = sc.parent;
 		}
 		return array(symbols[]);
@@ -253,7 +266,18 @@ struct Scope
 		ACSymbol s = ACSymbol(name);
 		auto er = symbols.equalRange(&s);
 		if (!er.empty)
-			return cast(typeof(return)) array(er);
+			return array(er);
+		ACSymbol ir = ACSymbol(IMPORT_SYMBOL_NAME);
+		auto r = symbols.equalRange(&ir);
+		if (!r.empty)
+		{
+			auto app = appender!(ACSymbol*[])();
+			foreach (e; r)
+				foreach (importedSymbol; e.type.parts.equalRange(&s))
+					app.put(importedSymbol);
+			if (app.data.length > 0)
+				return app.data;
+		}
 		if (parent is null)
 			return [];
 		return parent.getSymbolsByName(name);
@@ -275,6 +299,9 @@ struct Scope
 		return s.getSymbolsByName(name);
 	}
 
+	/**
+	 * Returns an array of symbols that are present at global scope
+	 */
 	ACSymbol*[] getSymbolsAtGlobalScope(string name)
 	{
 		if (parent !is null)
@@ -344,6 +371,16 @@ TTree!(ACSymbol*, true, "a < b", false) classSymbols;
 
 private immutable(string[24]) builtinTypeNames;
 
+/**
+ * Name given to the public import symbol. Its value is "public" because this
+ * is not a valid identifier. This is initialized to an interned string during
+ * static construction.
+ */
+immutable string IMPORT_SYMBOL_NAME;
+
+/**
+ * Translates the IDs for built-in types into an interned string.
+ */
 string getBuiltinTypeName(IdType id)
 {
 	switch (id)
@@ -406,6 +443,8 @@ static this()
 	builtinTypeNames[21] = internString("cdouble");
 	builtinTypeNames[22] = internString("cfloat");
 	builtinTypeNames[23] = internString("creal");
+
+	IMPORT_SYMBOL_NAME = internString("public");
 
 
 	auto bool_ = allocate!ACSymbol(Mallocator.it, "bool", CompletionKind.keyword);

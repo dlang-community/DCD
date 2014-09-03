@@ -2,6 +2,7 @@
 
 all: dmd
 dmd: dmdserver dmdclient
+debug: dmdclient debugserver
 gdc: gdcserver gdcclient
 ldc: ldcserver ldcclient
 
@@ -83,6 +84,13 @@ DMD_SERVER_FLAGS = -Icontainers/src\
 	-inline\
 	-ofbin/dcd-server
 
+DEBUG_SERVER_FLAGS = -Icontainers/src\
+	-Imsgpack-d/src\
+	-Ilibdparse/src\
+	-wi\
+	-g\
+	-ofbin/dcd-server
+
 GDC_SERVER_FLAGS =  -Icontainers/src\
 	-Imsgpack-d/src\
 	-Ilibdparse/src\
@@ -107,6 +115,12 @@ dmdserver:
 	mkdir -p bin
 	rm -f containers/src/std/allocator.d
 	${DMD} ${SERVER_SRC} ${DMD_SERVER_FLAGS}
+
+debugserver:
+	mkdir -p bin
+	rm -f containers/src/std/allocator.d
+	${DMD} ${SERVER_SRC} ${DEBUG_SERVER_FLAGS}
+
 
 gdcclient:
 	mkdir -p bin

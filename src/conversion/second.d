@@ -24,6 +24,7 @@ import semantic;
 import messages;
 import std.allocator;
 import stupidlog;
+import string_interning;
 
 /**
  * Second pass handles the following:
@@ -68,32 +69,35 @@ private:
 		}
 	}
 
+	/**
+	 * Creates package symbols as necessary to contain the given module symbol
+	 */
 	ACSymbol* createImportSymbols(ImportInformation* info, Scope* currentScope,
-		ACSymbol*[] moduleSymbols)
+		ACSymbol* moduleSymbol)
 	in
 	{
 		assert (info !is null);
-		foreach (s; moduleSymbols)
-			assert (s !is null);
+		assert (moduleSymbol !is null);
 	}
 	body
 	{
 		immutable string firstPart = info.importParts[].front;
-//		Log.trace("firstPart = ", firstPart);
 		ACSymbol*[] symbols = currentScope.getSymbolsByName(firstPart);
-		immutable bool found = symbols.length > 0;
-		ACSymbol* firstSymbol = found
-			? symbols[0] : allocate!ACSymbol(symbolAllocator, firstPart,
+		ACSymbol* firstSymbol = void;
+		if (symbols.length > 0)
+			firstSymbol = symbols[0];
+		else
+			firstSymbol = allocate!ACSymbol(symbolAllocator, firstPart,
 				CompletionKind.packageName);
-		if (!found)
-			currentScope.symbols.insert(firstSymbol);
-//		Log.trace(firstSymbol.name);
+		currentScope.symbols.insert(firstSymbol);
 		ACSymbol* currentSymbol = firstSymbol;
 		size_t i = 0;
 		foreach (string importPart; info.importParts[])
 		{
 			if (i++ == 0)
 				continue;
+			if (i + 2 >= info.importParts.length) // Skip the last item as it's the module name
+				break;
 			symbols = currentSymbol.getPartsByName(importPart);
 			ACSymbol* s = symbols.length > 0
 				? cast(ACSymbol*) symbols[0] : allocate!ACSymbol(symbolAllocator,
@@ -101,9 +105,7 @@ private:
 			currentSymbol.parts.insert(s);
 			currentSymbol = s;
 		}
-		currentSymbol.kind = CompletionKind.moduleName;
-		currentSymbol.parts.insert(moduleSymbols);
-//		Log.trace(currentSymbol.name);
+		currentSymbol.parts.insert(moduleSymbol);
 		return currentSymbol;
 	}
 
@@ -114,19 +116,21 @@ private:
 		foreach (importInfo; currentScope.importInformation[])
 		{
 			string location = ModuleCache.resolveImportLoctation(importInfo.modulePath);
-			ACSymbol*[] symbols = location is null ? [] : ModuleCache.getSymbolsInModule(location);
-			ACSymbol* moduleSymbol = createImportSymbols(importInfo, currentScope, symbols);
-			currentScope.symbols.insert(moduleSymbol);
-			currentScope.symbols.insert(symbols);
+			ACSymbol* symbol = location is null ? null : ModuleCache.getSymbolsInModule(location);
+			if (symbol is null)
+				continue;
+			ACSymbol* moduleSymbol = createImportSymbols(importInfo, currentScope, symbol);
+			currentScope.symbols.insert(symbol.parts[]);
 			if (importInfo.importedSymbols.length == 0)
 			{
 				if (importInfo.isPublic && currentScope.parent is null)
 				{
-					rootSymbol.acSymbol.parts.insert(symbols);
+					rootSymbol.acSymbol.parts.insert(allocate!ACSymbol(symbolAllocator,
+						IMPORT_SYMBOL_NAME, CompletionKind.importSymbol, symbol));
 				}
 				continue;
 			}
-			symbolLoop: foreach (symbol; symbols)
+			symbolLoop: foreach (sym; symbol.parts[])
 			{
 				foreach (tup; importInfo.importedSymbols[])
 				{
@@ -135,15 +139,13 @@ private:
 					if (tup[1] !is null)
 					{
 						ACSymbol* s = allocate!ACSymbol(symbolAllocator, tup[1],
-							symbol.kind, symbol.type);
-						// TODO: Compiler gets confused here, so cast the types.
-						s.parts.insert(symbol.parts[]);
-						// TODO: Re-format callTip with new name?
-						s.callTip = symbol.callTip;
-						s.doc = symbol.doc;
-						s.qualifier = symbol.qualifier;
-						s.location = symbol.location;
-						s.symbolFile = symbol.symbolFile;
+							sym.kind, sym.type);
+						s.parts.insert(sym.parts[]);
+						s.callTip = sym.callTip;
+						s.doc = sym.doc;
+						s.qualifier = sym.qualifier;
+						s.location = sym.location;
+						s.symbolFile = sym.symbolFile;
 						currentScope.symbols.insert(s);
 						moduleSymbol.parts.insert(s);
 						if (importInfo.isPublic && currentScope.parent is null)
@@ -151,10 +153,10 @@ private:
 					}
 					else
 					{
-						moduleSymbol.parts.insert(symbol);
-						currentScope.symbols.insert(symbol);
+						moduleSymbol.parts.insert(sym);
+						currentScope.symbols.insert(sym);
 						if (importInfo.isPublic && currentScope.parent is null)
-							rootSymbol.acSymbol.parts.insert(symbol);
+							rootSymbol.acSymbol.parts.insert(sym);
 					}
 				}
 			}

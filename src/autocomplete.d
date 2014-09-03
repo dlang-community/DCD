@@ -295,6 +295,7 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 
 bool isSelectiveImport(T)(T tokens)
 {
+	assert (tokens.length > 1);
 	size_t i = tokens.length - 1;
 	if (!(tokens[i] == tok!":" || tokens[i] == tok!","))
 		return false;
@@ -391,7 +392,7 @@ body
 	auto symbols = ModuleCache.getSymbolsInModule(ModuleCache.resolveImportLoctation(path));
 	import containers.hashset;
 	HashSet!string h;
-	foreach (s; symbols)
+	foreach (s; symbols.parts[])
 	{
 		auto a = ACSymbol(s.name);
 		if (!builtinSymbols.contains(&a) && !h.contains(s.name))
@@ -630,7 +631,8 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		}
 		TTree!(ACSymbol*, true, "a < b", false) parts;
 		parts.insert(symbols[0].parts[]);
-		parts.insert(symbols[0].aliasThisParts[]);
+		foreach (s; symbols[0].extraSymbols[])
+			parts.insert(s.parts[]);
 		foreach (s; parts[].filter!(a => a.name !is null
 			&& a.name.length > 0 && a.name[0] != '*'
 			&& (partial is null ? true : a.name.toUpper().startsWith(partial.toUpper()))
