@@ -95,6 +95,7 @@ static this()
  */
 struct ModuleCache
 {
+	/// No copying.
 	@disable this();
 
 	/**
@@ -219,7 +220,7 @@ struct ModuleCache
 		{
 			string dotDi = buildPath(path, moduleName) ~ ".di";
 			string dotD = dotDi[0 .. $ - 1];
-			string withoutSuffix = dotDi[0 .. $ - 2];
+			string withoutSuffix = dotDi[0 .. $ - 3];
 			if (exists(dotD) && isFile(dotD))
 				alternatives = (dotD) ~ alternatives;
 			else if (exists(dotDi) && isFile(dotDi))
@@ -244,6 +245,7 @@ struct ModuleCache
 		return importPaths[];
 	}
 
+	/// Count of autocomplete symbols that have been allocated
 	static uint symbolsAllocated;
 
 private:

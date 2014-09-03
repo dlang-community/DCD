@@ -394,12 +394,25 @@ body
 	HashSet!string h;
 	foreach (s; symbols.parts[])
 	{
-		auto a = ACSymbol(s.name);
-		if (!builtinSymbols.contains(&a) && !h.contains(s.name))
+		if (s.kind == CompletionKind.importSymbol) foreach (sy; s.type.parts[])
 		{
-			response.completionKinds ~= s.kind;
-			response.completions ~= s.name;
-			h.insert(s.name);
+			auto a = ACSymbol(sy.name);
+			if (!builtinSymbols.contains(&a) && sy.name !is null && !h.contains(sy.name))
+			{
+				response.completionKinds ~= sy.kind;
+				response.completions ~= sy.name;
+				h.insert(sy.name);
+			}
+		}
+		else
+		{
+			auto a = ACSymbol(s.name);
+			if (!builtinSymbols.contains(&a) && s.name !is null && !h.contains(s.name))
+			{
+				response.completionKinds ~= s.kind;
+				response.completions ~= s.name;
+				h.insert(s.name);
+			}
 		}
 	}
 	response.completionType = CompletionType.identifiers;

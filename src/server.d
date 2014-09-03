@@ -99,10 +99,9 @@ int main(string[] args)
 	scope(exit) Mallocator.it.deallocate(buffer);
 
 	sw.stop();
-	Log.info("Startup completed in ", sw.peek().to!("msecs", float), " milliseconds");
-//	float symbolMegs = (cast(float) (ACSymbol.sizeof * ModuleCache.symbolsAllocated)) / (1024f * 1024f);
-//	Log.info(ModuleCache.symbolsAllocated, " symbols allocated, taking up ",
-//		symbolMegs, " megabytes");
+	Log.info(ModuleCache.symbolsAllocated, " symbols cached.");
+	Log.info("Startup completed in ", sw.peek().to!("msecs", float), " milliseconds.");
+
 
 	// No relative paths
 	version (Posix) chdir("/");
