@@ -101,6 +101,8 @@ int main(string[] args)
 	sw.stop();
 	Log.info(ModuleCache.symbolsAllocated, " symbols cached.");
 	Log.info("Startup completed in ", sw.peek().to!("msecs", float), " milliseconds.");
+	import core.memory : GC;
+	GC.minimize();
 
 
 	// No relative paths
@@ -162,7 +164,10 @@ int main(string[] args)
 			s.send(responseBytes);
 		}
 		if (request.kind & RequestKind.addImport)
+		{
 			ModuleCache.addImportPaths(request.importPaths);
+			GC.minimize();
+		}
 		if (request.kind & RequestKind.autocomplete)
 		{
 			Log.info("Getting completions");
