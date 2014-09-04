@@ -146,7 +146,10 @@ private:
 			auto parts = currentSymbol.acSymbol.getPartsByName(aliasThis);
 			if (parts.length == 0 || parts[0].type is null)
 				continue;
-			currentSymbol.acSymbol.aliasThisParts.insert(parts[0].type);
+			ACSymbol* s = allocate!ACSymbol(symbolAllocator, IMPORT_SYMBOL_NAME,
+				CompletionKind.importSymbol);
+			s.type = parts[0].type;
+			currentSymbol.acSymbol.parts.insert(s);
 		}
 	}
 

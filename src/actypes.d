@@ -123,11 +123,8 @@ public:
 		auto app = appender!(ACSymbol*[])();
 		foreach (part; parts.equalRange(&s))
 			app.put(part);
-		foreach (extra; aliasThisParts.equalRange(&s))
-			app.put(extra.getPartsByName(name));
 		foreach (im; parts.equalRange(&p))
-			foreach (part; im.type.parts.equalRange(&s))
-				app.put(part);
+			app.put(im.type.getPartsByName(name));
 		return app.data();
 	}
 
@@ -141,11 +138,6 @@ public:
 	 * methods, etc.
 	 */
 	TTree!(ACSymbol*, true, "a < b", false) parts;
-
-	/**
-	 * Symbols included due to an alias this.
-	 */
-	TTree!(ACSymbol*, true, "a < b", false) aliasThisParts;
 
 	/**
 	 * Calltip to display if this is a function
