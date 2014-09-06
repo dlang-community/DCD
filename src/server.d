@@ -99,10 +99,11 @@ int main(string[] args)
 	scope(exit) Mallocator.it.deallocate(buffer);
 
 	sw.stop();
-	Log.info("Startup completed in ", sw.peek().to!("msecs", float), " milliseconds");
-//	float symbolMegs = (cast(float) (ACSymbol.sizeof * ModuleCache.symbolsAllocated)) / (1024f * 1024f);
-//	Log.info(ModuleCache.symbolsAllocated, " symbols allocated, taking up ",
-//		symbolMegs, " megabytes");
+	Log.info(ModuleCache.symbolsAllocated, " symbols cached.");
+	Log.info("Startup completed in ", sw.peek().to!("msecs", float), " milliseconds.");
+	import core.memory : GC;
+	GC.minimize();
+
 
 	// No relative paths
 	version (Posix) chdir("/");
@@ -155,8 +156,18 @@ int main(string[] args)
 			Log.info("Shutting down.");
 			break serverLoop;
 		}
+		else if (request.kind & RequestKind.query)
+		{
+			AutocompleteResponse response;
+			response.completionType = "ack";
+			ubyte[] responseBytes = msgpack.pack(response);
+			s.send(responseBytes);
+		}
 		if (request.kind & RequestKind.addImport)
+		{
 			ModuleCache.addImportPaths(request.importPaths);
+			GC.minimize();
+		}
 		if (request.kind & RequestKind.autocomplete)
 		{
 			Log.info("Getting completions");
@@ -191,8 +202,6 @@ int main(string[] args)
 				Log.error("Could not get symbol location", e.msg);
 			}
 		}
-		else
-			Log.error("Unknown request type");
 		Log.info("Request processed in ", requestWatch.peek().to!("msecs", float), " milliseconds");
 	}
 	return 0;

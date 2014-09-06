@@ -92,6 +92,7 @@ private:
 		case assocArray:
 		case templateName:
 		case mixinTemplateName:
+		case importSymbol:
 			break;
 		}
 
@@ -145,7 +146,10 @@ private:
 			auto parts = currentSymbol.acSymbol.getPartsByName(aliasThis);
 			if (parts.length == 0 || parts[0].type is null)
 				continue;
-			currentSymbol.acSymbol.aliasThisParts.insert(parts[0].type.parts[]);
+			ACSymbol* s = allocate!ACSymbol(symbolAllocator, IMPORT_SYMBOL_NAME,
+				CompletionKind.importSymbol);
+			s.type = parts[0].type;
+			currentSymbol.acSymbol.parts.insert(s);
 		}
 	}
 
@@ -154,7 +158,6 @@ private:
 		foreach (mix; currentSymbol.mixinTemplates[])
 		{
 			import stupidlog;
-			Log.trace(mix);
 			auto symbols = moduleScope.getSymbolsByNameAndCursor(mix[0],
 				currentSymbol.acSymbol.location);
 			if (symbols.length == 0)
@@ -204,7 +207,20 @@ private:
 		{
 			s = s.type;
 //			Log.trace("resolveInitializerType: ", __LINE__, ":", slice.front);
-			if (slice.front == "[]")
+			if (slice.front == "foreach")
+			{
+				if (s.qualifier == SymbolQualifier.array)
+					s = s.type;
+				else
+				{
+					ACSymbol*[] f = s.getPartsByName(internString("front"));
+					if (f.length > 0)
+						s = f[0].type;
+					else
+						s = null;
+				}
+			}
+			else if (slice.front == "[]")
 				s = s.type;
 			else
 			{

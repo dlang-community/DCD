@@ -1,0 +1,54 @@
+{
+  "issues": [
+    {
+      "key": "dscanner.suspicious.incomplete_operator_overloading",
+      "fileName": "src/modulecache.d",
+      "line": 46,
+      "column": 16,
+      "message": "'CacheEntry' has method 'opCmp', but not 'opEquals'."
+    },
+    {
+      "key": "dscanner.suspicious.length_subtraction",
+      "fileName": "src/autocomplete.d",
+      "line": 298,
+      "column": 20,
+      "message": "Avoid subtracting from '.length' as it may be unsigned."
+    },
+    {
+      "key": "dscanner.suspicious.length_subtraction",
+      "fileName": "src/autocomplete.d",
+      "line": 357,
+      "column": 26,
+      "message": "Avoid subtracting from '.length' as it may be unsigned."
+    },
+    {
+      "key": "dscanner.suspicious.length_subtraction",
+      "fileName": "src/autocomplete.d",
+      "line": 442,
+      "column": 68,
+      "message": "Avoid subtracting from '.length' as it may be unsigned."
+    },
+    {
+      "key": "dscanner.suspicious.length_subtraction",
+      "fileName": "src/autocomplete.d",
+      "line": 515,
+      "column": 12,
+      "message": "Avoid subtracting from '.length' as it may be unsigned."
+    },
+    {
+      "key": "dscanner.suspicious.length_subtraction",
+      "fileName": "src/autocomplete.d",
+      "line": 736,
+      "column": 26,
+      "message": "Avoid subtracting from '.length' as it may be unsigned."
+    }
+  ],
+  "interfaceCount": 0,
+  "classCount": 3,
+  "functionCount": 120,
+  "templateCount": 0,
+  "structCount": 11,
+  "statementCount": 1718,
+  "lineOfCodeCount": 2180,
+  "undocumentedPublicSymbols": 0
+}

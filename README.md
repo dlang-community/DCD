@@ -5,12 +5,18 @@ The D Completion Daemon is an auto-complete program for the D programming langua
 
 (The above is a screenshot of [Textadept](http://foicica.com/textadept/))
 
-DCD consists of a client and a server. The client (dcd-client) is used by a text editor script or from the command line.
-The server (dcd-server) is responsible for caching imported files, calculating autocomplete information, and sending it
-back to the client.
+DCD is not an IDE. DCD is designed to provide autocompletion for your favorite
+text editor. If you are looking for an IDE, try [one of these](http://wiki.dlang.org/IDEs).
+
+DCD consists of a client and a server. The client (dcd-client) is almost always
+used through a text editor script or plugin, though it can be used from the
+command line. The server (dcd-server) is responsible for caching imported files,
+calculating autocomplete information, and sending it back to the client.
 
 #Status
-This program is reasonably stable.
+This program is reasonably stable. Please report problems on the Github issue
+tracker. Please be sure that you have read the documentation before filing an
+issue.
 
 * Working:
 	* Autocompletion of properties of built-in types such as int, float, double, etc.
@@ -24,22 +30,24 @@ This program is reasonably stable.
 	* *import* statement completions
 	* Display of documentation comments in function call tips
 	* *alias this*
+	* *auto* declarations (Mostly)
 * Not working:
 	* Automatic starting of the server by the client
-	* UFCS
-	* Autocompletion of declarations with template arguments
-	* *auto* declarations
+	* UFCS suggestions
+	* Autocompletion of declarations with template arguments (This will work to some extent, but it won't do things like replace T with int)
 	* Determining the type of an enum member when no base type is specified, but the first member has an initialaizer
 	* That one feature that you *REALLY* needed
 
 #Setup
-1. Install a recent D compiler. DCD is tested with 2.065 and the 2.066 betas.
+1. Install a recent D compiler. DCD is tested with 2.066 and LDC 0.14.0.
 1. Run ```git submodule update --init``` after cloning this repository to grab the MessagePack and Datapacked libraries and the parser from DScanner.
-1. run the ```build.sh``` script to build the client and server. (Or build.bat on Windows, or ```dub build --config=dcd-client --build=release``` and ```dub build --config=dcd-server --build=release``` in case of DUB usage)
+1. Run ```make``` to build the client and server. (Or run build.bat on Windows). ```make ldc``` and ```make gdc``` will use the LDC or GDC compilers. The resulting executable will be much faster.
 1. Configure your text editor to call the dcd-client program. See the *editors* folder for directions on configuring your specific editor.
-1. Start the dcd-server program before editing code.
+1. Start the dcd-server program before editing code. (Unless, of course, your editor's plugin handles this for you)
 
 #Client
+Because DCD is designed to be used from a text editor, this section is written
+primarily for plugin authors.
 
 ##Get autocomplete information
 The primary use case of the client is to query the server for autocomplete information.
@@ -144,7 +152,7 @@ followed by the byte offset, followed by a newline character. For example:
 #Server
 The server must be running for the DCD client to provide autocomplete information.
 In future versions the client may start the server if it is not running, but for
-now it must be started manually.
+now it must be started manually or by an editor plugin.
 
 ## Configuration Files
 The server will attempt to read the file ```~/.config/dcd``` on Posix systems, or ```dcd.conf``` on Windows in the current working directory on startup.

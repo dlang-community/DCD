@@ -45,17 +45,27 @@ import messages;
 
 private struct CacheEntry
 {
-	ACSymbol*[] symbols;
+	ACSymbol* symbol;
 	SysTime modificationTime;
 	string path;
 
 	int opCmp(ref const CacheEntry other) const
 	{
+		int r = path > other.path;
 		if (path < other.path)
 			return -1;
-		if (path > other.path)
-			return 1;
-		return 0;
+		return r;
+	}
+
+	bool opEquals(ref const CacheEntry other) const
+	{
+		return path == other.path;
+	}
+
+	size_t toHash() const nothrow @safe
+	{
+		import core.internal.hash : hashOf;
+		return hashOf(path);
 	}
 
 	void opAssign(ref const CacheEntry other)
@@ -64,6 +74,9 @@ private struct CacheEntry
 	}
 }
 
+/**
+ * Returns: true if a file exists at the given path.
+ */
 bool existanceCheck(A)(A path)
 {
 	if (path.exists())
@@ -82,11 +95,8 @@ static this()
  */
 struct ModuleCache
 {
+	/// No copying.
 	@disable this();
-
-	static void clear()
-	{
-	}
 
 	/**
 	 * Adds the given path to the list of directories checked for imports
@@ -108,13 +118,16 @@ struct ModuleCache
 		}
 	}
 
+	/// TODO: Implement
+	static void clear() {}
+
 	/**
 	 * Params:
 	 *     moduleName = the name of the module in "a/b/c" form
 	 * Returns:
 	 *     The symbols defined in the given module
 	 */
-	static ACSymbol*[] getSymbolsInModule(string location)
+	static ACSymbol* getSymbolsInModule(string location)
 	{
 		import string_interning;
 		assert (location !is null);
@@ -124,8 +137,8 @@ struct ModuleCache
 			e.path = location;
 			auto r = cache.equalRange(&e);
 			if (!r.empty)
-				return r.front.symbols;
-			return [];
+				return r.front.symbol;
+			return null;
 		}
 
 		string cachedLocation = internString(location);
@@ -134,9 +147,7 @@ struct ModuleCache
 
 		recursionGuard.insert(cachedLocation);
 
-
-
-		ACSymbol*[] symbols;
+		ACSymbol* symbol;
 //		try
 //		{
 			import std.stdio;
@@ -144,7 +155,7 @@ struct ModuleCache
 			File f = File(cachedLocation);
 			immutable fileSize = cast(size_t)f.size;
 			if (fileSize == 0)
-				return symbols;
+				return null;
 			ubyte[] source = cast(ubyte[]) Mallocator.it.allocate(fileSize);
 			f.rawRead(source);
 			LexerConfig config;
@@ -156,6 +167,8 @@ struct ModuleCache
 				config, &parseStringCache);
 			Mallocator.it.deallocate(source);
 
+//			StopWatch sw;
+//			sw.start();
 			Module m = parseModuleSimple(tokens[], cachedLocation, semanticAllocator);
 
 			assert (symbolAllocator);
@@ -163,20 +176,17 @@ struct ModuleCache
 				semanticAllocator);
 			first.run();
 
+//			Log.trace(location, " finished in ", sw.peek.msecs, "msecs");
+
 			SecondPass second = SecondPass(first);
 			second.run();
 
 			ThirdPass third = ThirdPass(second, cachedLocation);
 			third.run();
 
-			symbols = cast(ACSymbol*[]) Mallocator.it.allocate(
-				third.rootSymbol.acSymbol.parts.length * (ACSymbol*).sizeof);
-			size_t i = 0;
-			foreach (part; third.rootSymbol.acSymbol.parts[])
-				symbols[i++] = part;
+			symbol = third.rootSymbol.acSymbol;
 
 			typeid(Scope).destroy(third.moduleScope);
-			typeid(SemanticSymbol).destroy(third.rootSymbol);
 			symbolsAllocated += first.symbolsAllocated;
 //		}
 //		catch (Exception ex)
@@ -187,11 +197,11 @@ struct ModuleCache
 		SysTime access;
 		SysTime modification;
 		getTimes(cachedLocation, access, modification);
-		CacheEntry* c = allocate!CacheEntry(Mallocator.it, symbols,
+		CacheEntry* c = allocate!CacheEntry(Mallocator.it, symbol,
 			modification, cachedLocation);
 		cache.insert(c);
 		recursionGuard.remove(cachedLocation);
-		return symbols;
+		return symbol;
 	}
 
 	/**
@@ -210,7 +220,7 @@ struct ModuleCache
 		{
 			string dotDi = buildPath(path, moduleName) ~ ".di";
 			string dotD = dotDi[0 .. $ - 1];
-			string withoutSuffix = dotDi[0 .. $ - 2];
+			string withoutSuffix = dotDi[0 .. $ - 3];
 			if (exists(dotD) && isFile(dotD))
 				alternatives = (dotD) ~ alternatives;
 			else if (exists(dotDi) && isFile(dotDi))
@@ -235,6 +245,7 @@ struct ModuleCache
 		return importPaths[];
 	}
 
+	/// Count of autocomplete symbols that have been allocated
 	static uint symbolsAllocated;
 
 private:

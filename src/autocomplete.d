@@ -295,6 +295,7 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 
 bool isSelectiveImport(T)(T tokens)
 {
+	assert (tokens.length > 1);
 	size_t i = tokens.length - 1;
 	if (!(tokens[i] == tok!":" || tokens[i] == tok!","))
 		return false;
@@ -391,14 +392,27 @@ body
 	auto symbols = ModuleCache.getSymbolsInModule(ModuleCache.resolveImportLoctation(path));
 	import containers.hashset;
 	HashSet!string h;
-	foreach (s; symbols)
+	foreach (s; symbols.parts[])
 	{
-		auto a = ACSymbol(s.name);
-		if (!builtinSymbols.contains(&a) && !h.contains(s.name))
+		if (s.kind == CompletionKind.importSymbol) foreach (sy; s.type.parts[])
 		{
-			response.completionKinds ~= s.kind;
-			response.completions ~= s.name;
-			h.insert(s.name);
+			auto a = ACSymbol(sy.name);
+			if (!builtinSymbols.contains(&a) && sy.name !is null && !h.contains(sy.name))
+			{
+				response.completionKinds ~= sy.kind;
+				response.completions ~= sy.name;
+				h.insert(sy.name);
+			}
+		}
+		else
+		{
+			auto a = ACSymbol(s.name);
+			if (!builtinSymbols.contains(&a) && s.name !is null && !h.contains(s.name))
+			{
+				response.completionKinds ~= s.kind;
+				response.completions ~= s.name;
+				h.insert(s.name);
+			}
 		}
 	}
 	response.completionType = CompletionType.identifiers;
@@ -416,6 +430,8 @@ ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 //		tokens.map!stringToken);
 	// Find the symbol corresponding to the beginning of the chain
 	ACSymbol*[] symbols;
+	if (tokens.length == 0)
+		return [];
 	if (tokens[0] == tok!"." && tokens.length > 1)
 	{
 		tokens = tokens[1 .. $];
@@ -626,17 +642,20 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			if (symbols.length == 0)
 				return;
 		}
-		TTree!(ACSymbol*, true, "a < b", false) parts;
-		parts.insert(symbols[0].parts[]);
-		parts.insert(symbols[0].aliasThisParts[]);
-		foreach (s; parts[].filter!(a => a.name !is null
-			&& a.name.length > 0 && a.name[0] != '*'
-			&& (partial is null ? true : a.name.toUpper().startsWith(partial.toUpper()))
-			&& !response.completions.canFind(a.name)))
+		foreach (sym; symbols[0].parts[])
 		{
-//			Log.trace("Adding ", s.name, " to the completion list");
-			response.completionKinds ~= s.kind;
-			response.completions ~= s.name.dup;
+			if (sym.kind == CompletionKind.importSymbol) foreach (s; sym.type.parts[])
+			{
+				response.completionKinds ~= s.kind;
+				response.completions ~= s.name.dup;
+			}
+			else if (sym.name !is null && sym.name.length > 0 && sym.name[0] != '*'
+				&& (partial is null ? true : sym.name.toUpper().startsWith(partial.toUpper()))
+				&& !response.completions.canFind(sym.name))
+			{
+				response.completionKinds ~= sym.kind;
+				response.completions ~= sym.name.dup;
+			}
 		}
 		response.completionType = CompletionType.identifiers;
 	}
@@ -848,10 +867,14 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
 			}
 			else if (isDir(name))
 			{
-				response.completions ~= name.baseName();
-				response.completionKinds ~=
-					exists(buildPath(name, "package.d")) || exists(buildPath(name, "package.di"))
-					? CompletionKind.moduleName : CompletionKind.packageName;
+				string n = name.baseName();
+				if (n[0] != '.')
+				{
+					response.completions ~= n;
+					response.completionKinds ~=
+						exists(buildPath(name, "package.d")) || exists(buildPath(name, "package.di"))
+						? CompletionKind.moduleName : CompletionKind.packageName;
+				}
 			}
 		}
 	}

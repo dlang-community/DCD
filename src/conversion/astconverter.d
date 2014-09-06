@@ -112,4 +112,4 @@ class SimpleParser : Parser
 	}
 }
 
-void doesNothing(string a, size_t b, size_t c, string d, bool e) {}
+void doesNothing(string, size_t, size_t, string, bool) {}

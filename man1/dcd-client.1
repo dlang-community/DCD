@@ -1,4 +1,4 @@
-.TH dcd-client 1 "March 6 2014" "" https://github.com/Hackerpilot/DCD
+.TH dcd-client 1 "August 11 2014" "" https://github.com/Hackerpilot/DCD
 .SH NAME
 dcd-client \- autocompletion client for the D programming language
 .PD
@@ -10,6 +10,7 @@ dcd-client \- autocompletion client for the D programming language
 .OP "\-h, \-\-help"
 .OP "\-l, \-\-symbolLocation"
 .OP "\-d, \-\-doc"
+.OP "\-q, \-\-query"
 .OP "\-\-shutdown"
 .OP "\-\-clearCache"
 .RI [ filename ]
@@ -20,16 +21,18 @@ dcd-client \- autocompletion client for the D programming language
 editor scripts.
 .PD
 .SH OPTIONS
+.B \-c, \-\-cursorPos
+.I cursorPosition
+.RS
+Provides auto-completion at the given cursor position. The cursor
+position is measured in bytes from the beginning of the source code.
+.RE
 .B -p, \-\-port
 .I portNumber
 .RS
 Choose the port number on which
 .B dcd-client
 listens.
-.RE
-.B -h, \-\-help
-.RS
-Prints a help message
 .RE
 .B \-I
 .I directory
@@ -42,11 +45,22 @@ so that they will be included in responses to future
 .B dcd-client
 requests.
 .RE
-.B \-c, \-\-cursorPos
-.I cursorPosition
+.B -h, \-\-help
 .RS
-Provides auto-completion at the given cursor position. The cursor
-position is measured in bytes from the beginning of the source code.
+Prints a help message
+.RE
+.B -l, \-\-symbolLocation
+.RS
+Get the file name and position that the symbol at the cursor location was defined.
+.RE
+.B \-d, \-\-doc
+.RS
+Gets documentation comments associated with the symbol at the cursor location.
+.RE
+.B \-q, \-\-query
+.RS
+Query the server statis. Returns 0 if the server is running. Returns 1 if the
+server could not be contacted.
 .RE
 .B \-\-shutdown
 .RS
