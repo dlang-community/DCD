@@ -163,6 +163,7 @@ private:
 						IMPORT_SYMBOL_NAME, CompletionKind.importSymbol, symbol));
 				else
 					currentScope.symbols.insert(symbol.parts[]);
+				currentScope.symbols.insert(moduleSymbol);
 				continue;
 			}
 

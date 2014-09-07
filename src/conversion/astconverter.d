@@ -29,12 +29,13 @@ import std.d.lexer;
 import std.d.parser;
 import std.typecons;
 
-Scope* generateAutocompleteTrees(const(Token)[] tokens, string symbolFile,
-	CAllocator symbolAllocator, CAllocator semanticAllocator)
+/**
+ * Used by autocompletion.
+ */
+Scope* generateAutocompleteTrees(const(Token)[] tokens, CAllocator symbolAllocator)
 {
-	Module m = parseModule(tokens, "editor buffer", semanticAllocator, &doesNothing);
-	auto first = scoped!FirstPass(m, symbolFile, symbolAllocator,
-		semanticAllocator);
+	Module m = parseModule(tokens, "stdin", symbolAllocator, &doesNothing);
+	auto first = scoped!FirstPass(m, "stdin", symbolAllocator, symbolAllocator);
 	first.run();
 
 	SecondPass second = SecondPass(first);
@@ -46,13 +47,22 @@ Scope* generateAutocompleteTrees(const(Token)[] tokens, string symbolFile,
 	return third.moduleScope;
 }
 
-Module parseModuleSimple(const(Token)[] tokens, string fileName, CAllocator p)
+/**
+ * Used by import symbol caching.
+ *
+ * Params:
+ *     tokens = the tokens that compose the file
+ *     fileName = the name of the file being parsed
+ *     parseAllocator = the allocator to use for the AST
+ * Returns: the parsed module
+ */
+Module parseModuleSimple(const(Token)[] tokens, string fileName, CAllocator parseAllocator)
 {
 	auto parser = scoped!SimpleParser();
 	parser.fileName = fileName;
 	parser.tokens = tokens;
 	parser.messageFunction = &doesNothing;
-	parser.allocator = p;
+	parser.allocator = parseAllocator;
 	return parser.parseModule();
 }
 

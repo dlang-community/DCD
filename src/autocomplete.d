@@ -48,7 +48,7 @@ import stupidlog;
  * Returns:
  *     the autocompletion response
  */
-AutocompleteResponse getDoc(const AutocompleteRequest request)
+public AutocompleteResponse getDoc(const AutocompleteRequest request)
 {
 //	Log.trace("Getting doc comments");
 	AutocompleteResponse response;
@@ -58,16 +58,8 @@ AutocompleteResponse getDoc(const AutocompleteRequest request)
 		allocator, &cache);
 	if (symbols.length == 0)
 		Log.error("Could not find symbol");
-	else foreach (symbol; symbols)
-	{
-		if (symbol.doc is null)
-		{
-//			Log.trace("Doc comment for ", symbol.name, " was null");
-			continue;
-		}
-//		Log.trace("Adding doc comment for ", symbol.name, ": ", symbol.doc);
+	else foreach (symbol; symbols.filter!(a => a.doc !is null))
 		response.docComments ~= formatComment(symbol.doc);
-	}
 	return response;
 }
 
@@ -78,9 +70,8 @@ AutocompleteResponse getDoc(const AutocompleteRequest request)
  * Returns:
  *     the autocompletion response
  */
-AutocompleteResponse findDeclaration(const AutocompleteRequest request)
+public AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 {
-//	Log.trace("Finding declaration");
 	AutocompleteResponse response;
 	auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 16)))();
 	auto cache = StringCache(StringCache.defaultBucketCount);
@@ -90,11 +81,9 @@ AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 	{
 		response.symbolLocation = symbols[0].location;
 		response.symbolFilePath = symbols[0].symbolFile.idup;
-//		Log.trace(symbols[0].name, " declared in ",
-//			response.symbolFilePath, " at ", response.symbolLocation);
 	}
 	else
-		Log.error("Could not find symbol");
+		Log.error("Could not find symbol declaration");
 	return response;
 }
 
@@ -105,41 +94,70 @@ AutocompleteResponse findDeclaration(const AutocompleteRequest request)
  * Returns:
  *     the autocompletion response
  */
-AutocompleteResponse complete(const AutocompleteRequest request)
+public AutocompleteResponse complete(const AutocompleteRequest request)
 {
-//	Log.info("Got a completion request");
-
 	const(Token)[] tokenArray;
 	auto cache = StringCache(StringCache.defaultBucketCount);
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
 		request.cursorPosition, &cache, tokenArray);
-	string partial;
-	IdType tokenType;
-
 	if (beforeTokens.length >= 2 && (beforeTokens[$ - 1] == tok!"("
 		|| beforeTokens[$ - 1] == tok!"["))
 	{
 		return parenCompletion(beforeTokens, tokenArray, request.cursorPosition);
 	}
-
-	if (beforeTokens.length >= 2 && isSelectiveImport(beforeTokens))
+	else if (beforeTokens.length >= 2 && isSelectiveImport(beforeTokens))
 	{
 		return selectiveImportCompletion(beforeTokens);
 	}
+	else
+	{
+		return dotCompletion(beforeTokens, tokenArray, request.cursorPosition);
+	}
+}
 
+/******************************************************************************/
+private:
+
+/**
+ * Handles dot completion for identifiers and types.
+ * Params:
+ *     beforeTokens = the tokens before the cursor
+ *     tokenArray = all tokens in the file
+ *     cursorPosition = the cursor position in bytes
+ * Returns:
+ *     the autocompletion response
+ */
+AutocompleteResponse dotCompletion(T)(T beforeTokens,
+	const(Token)[] tokenArray, size_t cursorPosition)
+{
 	AutocompleteResponse response;
+
+	// Partial symbol name appearing after the dot character and before the
+	// cursor.
+	string partial;
+
+	// Type of the token before the dot, or identifier if the cursor was at
+	// an identifier.
+	IdType significantTokenType;
+
 	if (beforeTokens.length >= 1 && beforeTokens[$ - 1] == tok!"identifier")
 	{
-		partial = beforeTokens[$ - 1].text;
-		tokenType = beforeTokens[$ - 1].type;
+		// Set partial to the slice of the identifier between the beginning
+		// of the identifier and the cursor. This improves the completion
+		// responses when the cursor is in the middle of an identifier instead
+		// of at the end
+		auto t = beforeTokens[$ - 1];
+		partial = t.text[0 .. cursorPosition - t.index];
+
+		significantTokenType = tok!"identifier";
 		beforeTokens = beforeTokens[0 .. $ - 1];
 	}
 	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] ==  tok!".")
-		tokenType = beforeTokens[$ - 2].type;
+		significantTokenType = beforeTokens[$ - 2].type;
 	else
 		return response;
-	auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 16)))();
-	switch (tokenType)
+
+	switch (significantTokenType)
 	{
 	case tok!"stringLiteral":
 	case tok!"wstringLiteral":
@@ -178,12 +196,11 @@ AutocompleteResponse complete(const AutocompleteRequest request)
 	case tok!")":
 	case tok!"]":
 	case tok!"this":
-		auto semanticAllocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024*16)));
-		Scope* completionScope = generateAutocompleteTrees(tokenArray,
-			"stdin", allocator, semanticAllocator);
+		auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024*16)));
+		Scope* completionScope = generateAutocompleteTrees(tokenArray, allocator);
 		scope(exit) typeid(Scope).destroy(completionScope);
 		response.setCompletions(completionScope, getExpression(beforeTokens),
-			request.cursorPosition, CompletionType.identifiers, false, partial);
+			cursorPosition, CompletionType.identifiers, false, partial);
 		break;
 	case tok!"(":
 	case tok!"{":
@@ -208,7 +225,7 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, size_t cursorPosition,
 	StringCache* cache, out const(Token)[] tokenArray)
 {
 	LexerConfig config;
-	config.fileName = "stdin";
+	config.fileName = "";
 	tokenArray = getTokensForParser(cast(ubyte[]) sourceCode, config, cache);
 	auto sortedTokens = assumeSorted(tokenArray);
 	return sortedTokens.lowerBound(cast(size_t) cursorPosition);
@@ -228,9 +245,7 @@ ACSymbol*[] getSymbolsForCompletion(const AutocompleteRequest request,
 	const(Token)[] tokenArray;
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
 		request.cursorPosition, cache, tokenArray);
-	auto semanticAllocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024*16)));
-	Scope* completionScope = generateAutocompleteTrees(tokenArray,
-		"stdin", allocator, semanticAllocator);
+	Scope* completionScope = generateAutocompleteTrees(tokenArray, allocator);
 	scope(exit) typeid(Scope).destroy(completionScope);
 	auto expression = getExpression(beforeTokens);
 	return getSymbolsByTokenChain(completionScope, expression,
@@ -251,7 +266,6 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 {
 	AutocompleteResponse response;
 	immutable(string)[] completions;
-	auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 16)))();
 	switch (beforeTokens[$ - 2].type)
 	{
 	case tok!"__traits":
@@ -279,9 +293,8 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	case tok!"identifier":
 	case tok!")":
 	case tok!"]":
-		auto semanticAllocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024*16)));
-		Scope* completionScope = generateAutocompleteTrees(tokenArray,
-			"stdin", allocator, semanticAllocator);
+		auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 16)))();
+		Scope* completionScope = generateAutocompleteTrees(tokenArray, allocator);
 		scope(exit) typeid(Scope).destroy(completionScope);
 		auto expression = getExpression(beforeTokens[0 .. $ - 1]);
 		response.setCompletions(completionScope, expression,
@@ -299,11 +312,11 @@ bool isSelectiveImport(T)(T tokens)
 	size_t i = tokens.length - 1;
 	if (!(tokens[i] == tok!":" || tokens[i] == tok!","))
 		return false;
-	bool r = false;
+	bool foundColon = false;
 	loop: while (true) switch (tokens[i].type)
 	{
 	case tok!":":
-		r = true;
+		foundColon = true;
 		goto case;
 	case tok!"identifier":
 	case tok!"=":
@@ -315,7 +328,7 @@ bool isSelectiveImport(T)(T tokens)
 			i--;
 		break;
 	case tok!"import":
-		return r;
+		return foundColon;
 	default:
 		return false;
 	}
@@ -392,28 +405,24 @@ body
 	auto symbols = ModuleCache.getSymbolsInModule(ModuleCache.resolveImportLoctation(path));
 	import containers.hashset;
 	HashSet!string h;
+
+	void addSymbolToResponses(ACSymbol* sy)
+	{
+		auto a = ACSymbol(sy.name);
+		if (!builtinSymbols.contains(&a) && sy.name !is null && !h.contains(sy.name))
+		{
+			response.completionKinds ~= sy.kind;
+			response.completions ~= sy.name;
+			h.insert(sy.name);
+		}
+	}
+
 	foreach (s; symbols.parts[])
 	{
 		if (s.kind == CompletionKind.importSymbol) foreach (sy; s.type.parts[])
-		{
-			auto a = ACSymbol(sy.name);
-			if (!builtinSymbols.contains(&a) && sy.name !is null && !h.contains(sy.name))
-			{
-				response.completionKinds ~= sy.kind;
-				response.completions ~= sy.name;
-				h.insert(sy.name);
-			}
-		}
+			addSymbolToResponses(sy);
 		else
-		{
-			auto a = ACSymbol(s.name);
-			if (!builtinSymbols.contains(&a) && s.name !is null && !h.contains(s.name))
-			{
-				response.completionKinds ~= s.kind;
-				response.completions ~= s.name;
-				h.insert(s.name);
-			}
-		}
+			addSymbolToResponses(s);
 	}
 	response.completionType = CompletionType.identifiers;
 	return response;
@@ -426,8 +435,6 @@ ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 	T tokens, size_t cursorPosition, CompletionType completionType)
 {
 	import std.d.lexer;
-//	Log.trace("Getting symbols from token chain",
-//		tokens.map!stringToken);
 	// Find the symbol corresponding to the beginning of the chain
 	ACSymbol*[] symbols;
 	if (tokens.length == 0)
@@ -435,7 +442,6 @@ ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 	if (tokens[0] == tok!"." && tokens.length > 1)
 	{
 		tokens = tokens[1 .. $];
-//		Log.trace("Looking for ", stringToken(tokens[0]), " at global scope");
 		symbols = completionScope.getSymbolsAtGlobalScope(stringToken(tokens[0]));
 	}
 	else
@@ -447,11 +453,6 @@ ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 			" from position ", cursorPosition);
 		return [];
 	}
-//	else
-//	{
-//		Log.trace("Found ", symbols[0].name, " at ", symbols[0].location,
-//			" with type ", symbols[0].type is null ? "null" : symbols[0].type.name);
-//	}
 
 	if (shouldSwapWithType(completionType, symbols[0].kind, 0, tokens.length - 1))
 	{
