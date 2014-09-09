@@ -128,22 +128,8 @@ final class FirstPass : ASTVisitor
 		currentSymbol.addChild(symbol);
 		if (dec.functionBody !is null)
 		{
-			import std.algorithm;
-			size_t scopeBegin = dec.name.index + dec.name.text.length;
-			size_t scopeEnd = max(
-				dec.functionBody.inStatement is null ? 0 : dec.functionBody.inStatement.blockStatement.endLocation,
-				dec.functionBody.outStatement is null ? 0 : dec.functionBody.outStatement.blockStatement.endLocation,
-				dec.functionBody.blockStatement is null ? 0 : dec.functionBody.blockStatement.endLocation,
-				dec.functionBody.bodyStatement is null ? 0 : dec.functionBody.bodyStatement.blockStatement.endLocation);
-			foreach (child; symbol.children)
-			{
-				if (child.acSymbol.location == size_t.max)
-				{
-//					Log.trace("Reassigning location of ", child.acSymbol.name);
-					child.acSymbol.location = scopeBegin + 1;
-				}
-			}
-			Scope* s = allocate!Scope(semanticAllocator, scopeBegin, scopeEnd);
+			Scope* s = createFunctionScope(dec.functionBody, semanticAllocator,
+				dec.name.index + dec.name.text.length);
 			currentScope.children.insert(s);
 			s.parent = currentScope;
 			currentScope = s;
@@ -515,9 +501,15 @@ private:
 		currentSymbol.addChild(symbol);
 		if (functionBody !is null)
 		{
+			Scope* s = createFunctionScope(functionBody, semanticAllocator,
+				location + 4); // 4 == "this".length
+			currentScope.children.insert(s);
+			s.parent = currentScope;
+			currentScope = s;
 			currentSymbol = symbol;
 			functionBody.accept(this);
 			currentSymbol = symbol.parent;
+			currentScope = s.parent;
 		}
 	}
 
@@ -532,9 +524,15 @@ private:
 		currentSymbol.addChild(symbol);
 		if (functionBody !is null)
 		{
+			Scope* s = createFunctionScope(functionBody, semanticAllocator,
+				location + 4); // 4 == "this".length
+			currentScope.children.insert(s);
+			s.parent = currentScope;
+			currentScope = s;
 			currentSymbol = symbol;
 			functionBody.accept(this);
 			currentSymbol = symbol.parent;
+			currentScope = s.parent;
 		}
 	}
 
@@ -637,6 +635,18 @@ void formatNode(A, T)(ref A appender, const T node)
 }
 
 private:
+
+Scope* createFunctionScope(const FunctionBody functionBody, CAllocator semanticAllocator,
+	size_t scopeBegin)
+{
+	import std.algorithm : max;
+	size_t scopeEnd = max(
+		functionBody.inStatement is null ? 0 : functionBody.inStatement.blockStatement.endLocation,
+		functionBody.outStatement is null ? 0 : functionBody.outStatement.blockStatement.endLocation,
+		functionBody.blockStatement is null ? 0 : functionBody.blockStatement.endLocation,
+		functionBody.bodyStatement is null ? 0 : functionBody.bodyStatement.blockStatement.endLocation);
+	return allocate!Scope(semanticAllocator, scopeBegin, scopeEnd);
+}
 
 string[] iotcToStringArray(A)(ref A allocator, const IdentifierOrTemplateChain iotc)
 {
