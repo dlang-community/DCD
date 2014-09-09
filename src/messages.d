@@ -119,17 +119,17 @@ enum RequestKind : ubyte
 	/// Autocompletion
 	autocomplete =   0b00000001,
 	/// Clear the completion cache
-	clearCache =	 0b00000010,
+	clearCache =     0b00000010,
 	/// Add import directory to server
-	addImport =	  0b00000100,
+	addImport =      0b00000100,
 	/// Shut down the server
-	shutdown =	   0b00001000,
+	shutdown =       0b00001000,
 	/// Get declaration location of given symbol
 	symbolLocation = 0b00010000,
 	/// Get the doc comments for the symbol
-	doc =			0b00100000,
+	doc =            0b00100000,
 	/// Query server status
-	query =		  0b01000000,
+	query =	         0b01000000,
 }
 
 /**
