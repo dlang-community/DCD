@@ -81,19 +81,19 @@ final class FirstPass : ASTVisitor
 	override void visit(const Constructor con)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(con).stringof);
-		visitConstructor(con.location, con.parameters, con.functionBody, con.comment);
+		visitConstructor(con.location, con.parameters, con.templateParameters, con.functionBody, con.comment);
 	}
 
 	override void visit(const SharedStaticConstructor con)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(con).stringof);
-		visitConstructor(con.location, null, con.functionBody, con.comment);
+		visitConstructor(con.location, null, null, con.functionBody, con.comment);
 	}
 
 	override void visit(const StaticConstructor con)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(con).stringof);
-		visitConstructor(con.location, null, con.functionBody, con.comment);
+		visitConstructor(con.location, null, null, con.functionBody, con.comment);
 	}
 
 	override void visit(const Destructor des)
@@ -121,7 +121,7 @@ final class FirstPass : ASTVisitor
 			CompletionKind.functionName, symbolFile, dec.name.index,
 			dec.returnType);
 		processParameters(symbol, dec.returnType, symbol.acSymbol.name,
-			dec.parameters);
+			dec.parameters, dec.templateParameters);
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
 		symbol.acSymbol.doc = internString(dec.comment);
@@ -483,18 +483,32 @@ private:
 		symbol.parent = currentSymbol;
 		symbol.protection = protection;
 		symbol.acSymbol.doc = internString(dec.comment);
+
+		size_t scopeBegin = dec.name.index + dec.name.text.length;
+		size_t scopeEnd = void;
+		static if (is (AggType == const(TemplateDeclaration)))
+			scopeEnd = dec.endLocation;
+		else
+			scopeEnd = dec.structBody is null ? scopeBegin : dec.structBody.endLocation;
+		Scope* s = allocate!Scope(semanticAllocator, scopeBegin, scopeEnd);
+		s.parent = currentScope;
+		currentScope.children.insert(s);
+		currentScope = s;
 		currentSymbol = symbol;
+		processTemplateParameters(currentSymbol, dec.templateParameters);
 		dec.accept(this);
 		currentSymbol = symbol.parent;
 		currentSymbol.addChild(symbol);
+		currentScope = currentScope.parent;
 	}
 
 	void visitConstructor(size_t location, const Parameters parameters,
+		const TemplateParameters templateParameters,
 		const FunctionBody functionBody, string doc)
 	{
 		SemanticSymbol* symbol = allocateSemanticSymbol("*constructor*",
 			CompletionKind.functionName, symbolFile, location);
-		processParameters(symbol, null, "this", parameters);
+		processParameters(symbol, null, "this", parameters, templateParameters);
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
 		symbol.acSymbol.doc = internString(doc);
@@ -537,8 +551,10 @@ private:
 	}
 
 	void processParameters(SemanticSymbol* symbol, const Type returnType,
-		string functionName, const Parameters parameters)
+		string functionName, const Parameters parameters,
+		const TemplateParameters templateParameters)
 	{
+		processTemplateParameters(symbol, templateParameters);
 		if (parameters !is null)
 		{
 			foreach (const Parameter p; parameters.parameters)
@@ -563,11 +579,50 @@ private:
 			}
 		}
 		symbol.acSymbol.callTip = formatCallTip(returnType, functionName,
-			parameters);
+			parameters, templateParameters);
+	}
+
+	void processTemplateParameters(SemanticSymbol* symbol, const TemplateParameters templateParameters)
+	{
+		if (templateParameters !is null && templateParameters.templateParameterList !is null)
+		{
+			foreach (const TemplateParameter p; templateParameters.templateParameterList.items)
+			{
+				string name;
+				CompletionKind kind;
+				size_t index;
+				Rebindable!(const(Type)) type;
+				if (p.templateAliasParameter !is null)
+				{
+					name = p.templateAliasParameter.identifier.text;
+					kind = CompletionKind.aliasName;
+					index = p.templateAliasParameter.identifier.index;
+				}
+				else if (p.templateTypeParameter !is null)
+				{
+					name = p.templateTypeParameter.identifier.text;
+					kind = CompletionKind.aliasName;
+					index = p.templateTypeParameter.identifier.index;
+				}
+				else if (p.templateValueParameter !is null)
+				{
+					name = p.templateValueParameter.identifier.text;
+					kind = CompletionKind.variableName;
+					index = p.templateValueParameter.identifier.index;
+					type = p.templateValueParameter.type;
+				}
+				else
+					continue;
+				SemanticSymbol* templateParameter = allocateSemanticSymbol(name, kind,
+					symbolFile, index, type);
+				symbol.addChild(templateParameter);
+				templateParameter.parent = symbol;
+			}
+		}
 	}
 
 	string formatCallTip(const Type returnType, string name,
-		const Parameters parameters)
+		const Parameters parameters, const TemplateParameters templateParameters)
 	{
 		QuickAllocator!1024 q;
 		auto app = Appender!(char, typeof(q), 1024)(q);
@@ -578,6 +633,8 @@ private:
 			app.put(' ');
 		}
 		app.put(name);
+		if (templateParameters !is null)
+			app.formatNode(templateParameters);
 		if (parameters is null)
 			app.put("()");
 		else
