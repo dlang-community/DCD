@@ -113,7 +113,7 @@ struct ModuleCache
 			{
 				import std.path: baseName;
 				if(fileName.baseName.startsWith(".#")) continue;
-				getSymbolsInModule(fileName);
+				getModuleSymbol(fileName);
 			}
 		}
 	}
@@ -127,79 +127,78 @@ struct ModuleCache
 	 * Returns:
 	 *     The symbols defined in the given module
 	 */
-	static ACSymbol* getSymbolsInModule(string location)
+	static ACSymbol* getModuleSymbol(string location)
 	{
 		import string_interning;
+		import std.stdio;
+		import std.typecons;
+
 		assert (location !is null);
-		if (!needsReparsing(location))
+
+		string cachedLocation = internString(location);
+
+		if (!needsReparsing(cachedLocation))
 		{
 			CacheEntry e;
-			e.path = location;
+			e.path = cachedLocation;
 			auto r = cache.equalRange(&e);
 			if (!r.empty)
 				return r.front.symbol;
 			return null;
 		}
 
-		string cachedLocation = internString(location);
-
 		Log.info("Getting symbols for ", cachedLocation);
 
 		recursionGuard.insert(cachedLocation);
 
 		ACSymbol* symbol;
-//		try
-//		{
-			import std.stdio;
-			import std.typecons;
-			File f = File(cachedLocation);
-			immutable fileSize = cast(size_t)f.size;
-			if (fileSize == 0)
-				return null;
-			ubyte[] source = cast(ubyte[]) Mallocator.it.allocate(fileSize);
-			f.rawRead(source);
-			LexerConfig config;
-			config.fileName = cachedLocation;
-			auto parseStringCache = StringCache(StringCache.defaultBucketCount);
-			auto semanticAllocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 64)));
-			const(Token)[] tokens = getTokensForParser(
-				(source.length >= 3 && source[0 .. 3] == "\xef\xbb\xbf"c) ? source[3 .. $] : source,
-				config, &parseStringCache);
-			Mallocator.it.deallocate(source);
+		File f = File(cachedLocation);
+		immutable fileSize = cast(size_t) f.size;
+		if (fileSize == 0)
+			return null;
+		ubyte[] source = cast(ubyte[]) Mallocator.it.allocate(fileSize);
+		f.rawRead(source);
+		LexerConfig config;
+		config.fileName = cachedLocation;
+		auto parseStringCache = StringCache(StringCache.defaultBucketCount);
+		auto semanticAllocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 64)));
+		const(Token)[] tokens = getTokensForParser(
+			(source.length >= 3 && source[0 .. 3] == "\xef\xbb\xbf"c) ? source[3 .. $] : source,
+			config, &parseStringCache);
+		Mallocator.it.deallocate(source);
 
-//			StopWatch sw;
-//			sw.start();
-			Module m = parseModuleSimple(tokens[], cachedLocation, semanticAllocator);
+		Module m = parseModuleSimple(tokens[], cachedLocation, semanticAllocator);
 
-			assert (symbolAllocator);
-			auto first = scoped!FirstPass(m, cachedLocation, symbolAllocator,
-				semanticAllocator);
-			first.run();
+		assert (symbolAllocator);
+		auto first = scoped!FirstPass(m, cachedLocation, symbolAllocator,
+			semanticAllocator);
+		first.run();
 
-//			Log.trace(location, " finished in ", sw.peek.msecs, "msecs");
+		SecondPass second = SecondPass(first);
+		second.run();
 
-			SecondPass second = SecondPass(first);
-			second.run();
+		ThirdPass third = ThirdPass(second, cachedLocation);
+		third.run();
 
-			ThirdPass third = ThirdPass(second, cachedLocation);
-			third.run();
+		symbol = third.rootSymbol.acSymbol;
 
-			symbol = third.rootSymbol.acSymbol;
+		typeid(Scope).destroy(third.moduleScope);
+		symbolsAllocated += first.symbolsAllocated;
 
-			typeid(Scope).destroy(third.moduleScope);
-			symbolsAllocated += first.symbolsAllocated;
-//		}
-//		catch (Exception ex)
-//		{
-//			Log.error("Couln't parse ", location, " due to exception: ", ex.msg);
-//			return [];
-//		}
 		SysTime access;
 		SysTime modification;
 		getTimes(cachedLocation, access, modification);
-		CacheEntry* c = allocate!CacheEntry(Mallocator.it, symbol,
-			modification, cachedLocation);
-		cache.insert(c);
+
+		CacheEntry e;
+		e.path = cachedLocation;
+		auto r = cache.equalRange(&e);
+		CacheEntry* c = r.empty ? allocate!CacheEntry(Mallocator.it)
+			: r.front;
+		c.symbol = symbol;
+		c.modificationTime = modification;
+		c.path = cachedLocation;
+		if (r.empty)
+			cache.insert(c);
 		recursionGuard.remove(cachedLocation);
 		return symbol;
 	}

@@ -402,7 +402,7 @@ body
 			k++;
 		}
 	}
-	auto symbols = ModuleCache.getSymbolsInModule(ModuleCache.resolveImportLoctation(path));
+	auto symbols = ModuleCache.getModuleSymbol(ModuleCache.resolveImportLoctation(path));
 	import containers.hashset;
 	HashSet!string h;
 

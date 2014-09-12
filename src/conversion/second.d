@@ -152,7 +152,7 @@ private:
 		foreach (importInfo; currentScope.importInformation[])
 		{
 			string location = ModuleCache.resolveImportLoctation(importInfo.modulePath);
-			ACSymbol* symbol = location is null ? null : ModuleCache.getSymbolsInModule(location);
+			ACSymbol* symbol = location is null ? null : ModuleCache.getModuleSymbol(location);
 			if (symbol is null)
 				continue;
 			ACSymbol* moduleSymbol = createImportSymbols(importInfo, currentScope, symbol);
