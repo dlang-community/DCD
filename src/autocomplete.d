@@ -861,6 +861,8 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
 
 		foreach (string name; dirEntries(p, SpanMode.shallow))
 		{
+                        import std.path: baseName;
+                        if (name.baseName.startsWith(".#")) continue;
 			if (isFile(name) && (name.endsWith(".d") || name.endsWith(".di")))
 			{
 				response.completions ~= name.baseName(".d").baseName(".di");
