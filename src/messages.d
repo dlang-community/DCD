@@ -130,6 +130,8 @@ enum RequestKind : ubyte
 	doc =            0b00100000,
 	/// Query server status
 	query =	         0b01000000,
+	/// Search for symbol
+	search =         0b10000000,
 }
 
 /**
@@ -161,6 +163,11 @@ struct AutocompleteRequest
 	 * The cursor position
 	 */
 	size_t cursorPosition;
+
+	/**
+	 * Name of symbol searched for
+	 */
+	string searchName;
 }
 
 /**
@@ -198,4 +205,9 @@ struct AutocompleteResponse
 	 * completion type is a function argument list.
 	 */
 	char[] completionKinds;
+
+	/**
+	 * Symbol locations for symbol searches.
+	 */
+	size_t[] locations;
 }

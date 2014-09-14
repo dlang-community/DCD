@@ -115,6 +115,71 @@ public AutocompleteResponse complete(const AutocompleteRequest request)
 	}
 }
 
+/**
+ *
+ */
+public AutocompleteResponse symbolSearch(const AutocompleteRequest request)
+{
+	import containers.ttree;
+
+	LexerConfig config;
+	config.fileName = "";
+	auto cache = StringCache(StringCache.defaultBucketCount);
+	const(Token)[] tokenArray = getTokensForParser(cast(ubyte[]) request.sourceCode,
+		config, &cache);
+	auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024*16)));
+	Scope* completionScope = generateAutocompleteTrees(tokenArray, allocator);
+	scope(exit) typeid(Scope).destroy(completionScope);
+
+	static struct SearchResults
+	{
+		void put(ACSymbol* symbol)
+		{
+			tree.insert(SearchResult(symbol));
+		}
+
+		static struct SearchResult
+		{
+			ACSymbol* symbol;
+
+			int opCmp(ref const SearchResult other) const pure nothrow
+			{
+				if (other.symbol.symbolFile < symbol.symbolFile)
+					return -1;
+				if (other.symbol.symbolFile > symbol.symbolFile)
+					return 1;
+				if (other.symbol.location < symbol.location)
+					return -1;
+				return other.symbol.location > symbol.location;
+			}
+		}
+
+		TTree!(SearchResult) tree;
+	}
+
+	SearchResults results;
+
+	foreach (symbol; completionScope.symbols[])
+	{
+		symbol.getAllPartsNamed(request.searchName, results);
+	}
+	foreach (s; ModuleCache.getAllSymbols())
+	{
+		s.symbol.getAllPartsNamed(request.searchName, results);
+	}
+
+	AutocompleteResponse response;
+
+	foreach (result; results.tree[])
+	{
+		response.locations ~= result.symbol.location;
+		response.completionKinds ~= result.symbol.kind;
+		response.completions ~= result.symbol.symbolFile;
+	}
+
+	return response;
+}
+
 /******************************************************************************/
 private:
 
