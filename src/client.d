@@ -44,13 +44,14 @@ int main(string[] args)
 	bool symbolLocation;
 	bool doc;
 	bool query;
+	string search;
 
 	try
 	{
 		getopt(args, "cursorPos|c", &cursorPos, "I", &importPaths,
 			"port|p", &port, "help|h", &help, "shutdown", &shutdown,
 			"clearCache", &clearCache, "symbolLocation|l", &symbolLocation,
-			"doc|d", &doc, "query|q", &query);
+			"doc|d", &doc, "query|q", &query, "search|s", &search);
 	}
 	catch (Exception e)
 	{
@@ -113,7 +114,7 @@ int main(string[] args)
 			return 0;
 		}
 	}
-	else if (cursorPos == size_t.max)
+	else if (search == null && cursorPos == size_t.max)
 	{
 		// cursor position is a required argument
 		printHelp(args[0]);
@@ -151,11 +152,14 @@ int main(string[] args)
 	request.importPaths = importPaths;
 	request.sourceCode = sourceCode;
 	request.cursorPosition = cursorPos;
+	request.searchName = search;
 
 	if (symbolLocation)
 		request.kind |= RequestKind.symbolLocation;
 	else if (doc)
 		request.kind |= RequestKind.doc;
+	else if(search)
+		request.kind |= RequestKind.search;
 	else
 		request.kind |= RequestKind.autocomplete;
 
@@ -171,11 +175,15 @@ int main(string[] args)
 		printLocationResponse(response);
 	else if (doc)
 		printDocResponse(response);
+	else if (search !is null)
+		printSearchResponse(response);
 	else
 		printCompletionResponse(response);
 
 	return 0;
 }
+
+private:
 
 void printHelp(string programName)
 {
@@ -210,6 +218,10 @@ Options:
     --doc | -d
         Gets documentation comments associated with the symbol at the cursor
         location.
+
+    --search | -s symbolName
+        Searches for symbolName in both stdin / the given file name as well as
+        others files cached by the server.
 
     --query | -q
         Query the server statis. Returns 0 if the server is running. Returns
@@ -297,5 +309,14 @@ void printCompletionResponse(AutocompleteResponse response)
 		// Deduplicate overloaded methods
 		foreach (line; app.data.sort.uniq)
 			writeln(line);
+	}
+}
+
+void printSearchResponse(const AutocompleteResponse response)
+{
+	foreach(i; 0 .. response.completions.length)
+	{
+		writefln("%s\t%s\t%s", response.completions[i], response.completionKinds[i],
+			response.locations[i]);
 	}
 }

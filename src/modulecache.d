@@ -244,6 +244,11 @@ struct ModuleCache
 		return importPaths[];
 	}
 
+	static auto getAllSymbols()
+	{
+		return cache[];
+	}
+
 	/// Count of autocomplete symbols that have been allocated
 	static uint symbolsAllocated;
 

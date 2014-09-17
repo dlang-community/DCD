@@ -32,6 +32,8 @@ import std.d.lexer;
 import messages;
 import string_interning;
 
+import std.range : isOutputRange;
+
 /**
  * Any special information about a variable declaration symbol.
  */
@@ -126,6 +128,21 @@ public:
 		foreach (im; parts.equalRange(&p))
 			app.put(im.type.getPartsByName(name));
 		return app.data();
+	}
+
+	/**
+	 * Adds all parts and parts of parts with the given name to the given output
+	 * range.
+	 */
+	void getAllPartsNamed(OR)(string name, ref OR outputRange)
+		if (isOutputRange!(OR, ACSymbol*))
+	{
+		foreach (part; parts[])
+		{
+			if (part.name == name)
+				outputRange.put(part);
+			part.getAllPartsNamed(name, outputRange);
+		}
 	}
 
 	/**

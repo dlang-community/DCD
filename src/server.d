@@ -202,6 +202,12 @@ int main(string[] args)
 				Log.error("Could not get symbol location", e.msg);
 			}
 		}
+		else if (request.kind & RequestKind.search)
+		{
+			AutocompleteResponse response = symbolSearch(request);
+			ubyte[] responseBytes = msgpack.pack(response);
+			s.send(responseBytes);
+		}
 		Log.info("Request processed in ", requestWatch.peek().to!("msecs", float), " milliseconds");
 	}
 	return 0;
