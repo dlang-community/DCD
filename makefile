@@ -72,6 +72,7 @@ SERVER_SRC = src/actypes.d\
 	containers/src/containers/hashset.d\
 	containers/src/containers/internal/hash.d\
 	containers/src/containers/internal/node.d\
+	containers/src/containers/internal/storage_type.d\
 	containers/src/containers/slist.d\
 	msgpack-d/src/msgpack.d
 

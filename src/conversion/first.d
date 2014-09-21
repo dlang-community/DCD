@@ -70,9 +70,10 @@ final class FirstPass : ASTVisitor
 	{
 		// Create a dummy symbol because we don't want unit test symbols leaking
 		// into the symbol they're declared in.
-		SemanticSymbol* s = allocateSemanticSymbol("*unittest*",
+		SemanticSymbol* s = allocateSemanticSymbol(internString("*unittest*"),
 			CompletionKind.dummy, null, 0);
 		s.parent = currentSymbol;
+		currentSymbol.addChild(s);
 		currentSymbol = s;
 		u.accept(this);
 		currentSymbol = s.parent;
@@ -384,9 +385,9 @@ final class FirstPass : ASTVisitor
 
 		if (blockStatement.declarationsAndStatements !is null)
 		{
-			currentScope = s;
+		currentScope = s;
 			visit (blockStatement.declarationsAndStatements);
-			currentScope = s.parent;
+		currentScope = s.parent;
 		}
 	}
 
