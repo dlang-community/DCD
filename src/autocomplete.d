@@ -105,9 +105,13 @@ public AutocompleteResponse complete(const AutocompleteRequest request)
 	{
 		return parenCompletion(beforeTokens, tokenArray, request.cursorPosition);
 	}
-	else if (beforeTokens.length >= 2 && isSelectiveImport(beforeTokens))
+	else if (beforeTokens.length >= 2)
 	{
-		return selectiveImportCompletion(beforeTokens);
+		ImportKind kind = determineImportKind(beforeTokens);
+		if (kind == ImportKind.neither)
+			return dotCompletion(beforeTokens, tokenArray, request.cursorPosition);
+		else
+			return importCompletion(beforeTokens, kind);
 	}
 	else
 	{
@@ -182,6 +186,13 @@ public AutocompleteResponse symbolSearch(const AutocompleteRequest request)
 
 /******************************************************************************/
 private:
+
+enum ImportKind
+{
+	selective,
+	normal,
+	neither
+}
 
 /**
  * Handles dot completion for identifiers and types.
@@ -371,12 +382,12 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	return response;
 }
 
-bool isSelectiveImport(T)(T tokens)
+ImportKind determineImportKind(T)(T tokens)
 {
 	assert (tokens.length > 1);
 	size_t i = tokens.length - 1;
-	if (!(tokens[i] == tok!":" || tokens[i] == tok!","))
-		return false;
+	if (!(tokens[i] == tok!":" || tokens[i] == tok!"," || tokens[i] == tok!"." || tokens[i] == tok!"identifier"))
+		return ImportKind.neither;
 	bool foundColon = false;
 	loop: while (true) switch (tokens[i].type)
 	{
@@ -388,16 +399,16 @@ bool isSelectiveImport(T)(T tokens)
 	case tok!".":
 	case tok!",":
 		if (i == 0)
-			return false;
+			return ImportKind.neither;
 		else
 			i--;
 		break;
 	case tok!"import":
-		return foundColon;
+		return foundColon ? ImportKind.selective : ImportKind.normal;
 	default:
-		return false;
+		return ImportKind.neither;
 	}
-	return false;
+	return ImportKind.neither;
 }
 
 unittest
@@ -410,13 +421,13 @@ unittest
 	t ~= Token(tok!":");
 	t ~= Token(tok!"identifier");
 	t ~= Token(tok!",");
-	assert (isSelectiveImport(t));
+	assert (determineImportKind(t) == ImportKind.selective);
 	Token[] t2;
 	t2 ~= Token(tok!"else");
 	t2 ~= Token(tok!":");
-	assert (!isSelectiveImport(t2));
+	assert (determineImportKind(t2) == ImportKind.neither);
 	import std.stdio;
-	writeln("Unittest for isSelectiveImport() passed");
+	writeln("Unittest for determineImportKind() passed");
 }
 
 /**
@@ -425,7 +436,7 @@ unittest
  * import std.algorithm: balancedParens;
  * ---
  */
-AutocompleteResponse selectiveImportCompletion(T)(T beforeTokens)
+AutocompleteResponse importCompletion(T)(T beforeTokens, ImportKind kind)
 in
 {
 	assert (beforeTokens.length >= 2);
@@ -433,19 +444,36 @@ in
 body
 {
 	AutocompleteResponse response;
-	size_t i = beforeTokens.length - 2;
-	loop: while (i > 0) switch (beforeTokens[i].type)
+	if (beforeTokens.length <= 2)
+		return response;
+
+	size_t i = beforeTokens.length - 1;
+
+	if (kind == ImportKind.normal)
+	{
+
+		while (beforeTokens[i].type != tok!"," && beforeTokens[i].type != tok!"import") i--;
+		setImportCompletions(beforeTokens[i .. $], response);
+		return response;
+	}
+
+	loop: while (true) switch (beforeTokens[i].type)
 	{
 	case tok!"identifier":
 	case tok!"=":
 	case tok!",":
 	case tok!".":
-	case tok!":":
 		i--;
 		break;
+	case tok!":":
+		i--;
+		while (beforeTokens[i].type == tok!"identifier" || beforeTokens[i].type == tok!".")
+			i--;
+		break loop;
 	default:
 		break loop;
 	}
+
 	size_t j = i;
 	loop2: while (j <= beforeTokens.length) switch (beforeTokens[j].type)
 	{
@@ -467,7 +495,15 @@ body
 			k++;
 		}
 	}
-	auto symbols = ModuleCache.getModuleSymbol(ModuleCache.resolveImportLoctation(path));
+
+	string resolvedLocation = ModuleCache.resolveImportLoctation(path);
+	if (resolvedLocation is null)
+	{
+		Log.error("Could not resolve location of ", path);
+		return response;
+	}
+	auto symbols = ModuleCache.getModuleSymbol(resolvedLocation);
+
 	import containers.hashset;
 	HashSet!string h;
 
@@ -491,6 +527,56 @@ body
 	}
 	response.completionType = CompletionType.identifiers;
 	return response;
+}
+
+/**
+ * Populates the response with completion information for an import statement
+ * Params:
+ *     tokens = the tokens after the "import" keyword and before the cursor
+ *     response = the response that should be populated
+ */
+void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
+{
+	response.completionType = CompletionType.identifiers;
+	auto moduleParts = tokens.filter!(a => a.type == tok!"identifier").map!("a.text").array();
+	string path = buildPath(moduleParts);
+
+	bool found = false;
+
+	foreach (importDirectory; ModuleCache.getImportPaths())
+	{
+		string p = buildPath(importDirectory, path);
+		if (!exists(p))
+			continue;
+
+		found = true;
+
+		foreach (string name; dirEntries(p, SpanMode.shallow))
+		{
+			import std.path: baseName;
+			if (name.baseName.startsWith(".#"))
+				continue;
+
+			if (isFile(name) && (name.endsWith(".d") || name.endsWith(".di")))
+			{
+				response.completions ~= name.baseName(".d").baseName(".di");
+				response.completionKinds ~= CompletionKind.moduleName;
+			}
+			else if (isDir(name))
+			{
+				string n = name.baseName();
+				if (n[0] != '.')
+				{
+					response.completions ~= n;
+					response.completionKinds ~=
+						exists(buildPath(name, "package.d")) || exists(buildPath(name, "package.di"))
+						? CompletionKind.moduleName : CompletionKind.packageName;
+				}
+			}
+		}
+	}
+	if (!found)
+		Log.error("Could not find ", moduleParts);
 }
 
 /**
@@ -666,14 +752,6 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	Scope* completionScope, T tokens, size_t cursorPosition,
 	CompletionType completionType, bool isBracket = false, string partial = null)
 {
-	// Autocomplete module imports instead of symbols
-	if (tokens.length > 0 && tokens[0].type == tok!"import")
-	{
-		if (completionType == CompletionType.identifiers)
-			setImportCompletions(tokens, response);
-		return;
-	}
-
 	// Handle the simple case where we get all symbols in scope and filter it
 	// based on the currently entered text.
 	if (partial !is null && tokens.length == 0)
@@ -903,49 +981,6 @@ T getExpression(T)(T beforeTokens)
 			i--;
 	}
 	return beforeTokens[i .. $];
-}
-
-/**
- * Populates the response with completion information for an import statement
- * Params:
- *     tokens = the tokens after the "import" keyword and before the cursor
- *     response = the response that should be populated
- */
-void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
-{
-	response.completionType = CompletionType.identifiers;
-	auto moduleParts = tokens.filter!(a => a.type == tok!"identifier").map!("a.text").array();
-	string path = buildPath(moduleParts);
-
-	foreach (importDirectory; ModuleCache.getImportPaths())
-	{
-		string p = buildPath(importDirectory, path);
-//		Log.trace("Checking for ", p);
-		if (!exists(p))
-			continue;
-
-		foreach (string name; dirEntries(p, SpanMode.shallow))
-		{
-                        import std.path: baseName;
-                        if (name.baseName.startsWith(".#")) continue;
-			if (isFile(name) && (name.endsWith(".d") || name.endsWith(".di")))
-			{
-				response.completions ~= name.baseName(".d").baseName(".di");
-				response.completionKinds ~= CompletionKind.moduleName;
-			}
-			else if (isDir(name))
-			{
-				string n = name.baseName();
-				if (n[0] != '.')
-				{
-					response.completions ~= n;
-					response.completionKinds ~=
-						exists(buildPath(name, "package.d")) || exists(buildPath(name, "package.di"))
-						? CompletionKind.moduleName : CompletionKind.packageName;
-				}
-			}
-		}
-	}
 }
 
 /**
