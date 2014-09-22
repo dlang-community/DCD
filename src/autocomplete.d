@@ -40,6 +40,7 @@ import constants;
 import modulecache;
 import conversion.astconverter;
 import stupidlog;
+import string_interning;
 
 /**
  * Gets documentation for the symbol at the cursor
@@ -805,33 +806,42 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	}
 	else if (completionType == CompletionType.calltips)
 	{
-//		Log.trace("Showing call tips for ", symbols[0].name, " of type ", symbols[0].kind);
+//		Log.trace("Showing call tips for ", symbols[0].name, " of kind ", symbols[0].kind);
 		if (symbols[0].kind != CompletionKind.functionName
 			&& symbols[0].callTip is null)
 		{
 			if (symbols[0].kind == CompletionKind.variableName)
 			{
 				auto dumb = symbols[0].type;
-				if (isBracket)
+				if (dumb !is null)
 				{
-					auto index = dumb.getPartsByName("opIndex");
-					if (index.length > 0)
+					if (dumb.kind == CompletionKind.functionName)
 					{
-						symbols = index;
+						symbols = [dumb];
+						goto setCallTips;
+					}
+					if (isBracket)
+					{
+						auto index = dumb.getPartsByName(internString("opIndex"));
+						if (index.length > 0)
+						{
+							symbols = index;
+							goto setCallTips;
+						}
+					}
+					auto call = dumb.getPartsByName(internString("opCall"));
+					if (call.length > 0)
+					{
+						symbols = call;
 						goto setCallTips;
 					}
 				}
-				auto call = dumb.getPartsByName("opCall");
-				if (call.length > 0)
-				{
-					symbols = call;
-					goto setCallTips;
-				}
+
 			}
 			if (symbols[0].kind == CompletionKind.structName
 				|| symbols[0].kind == CompletionKind.className)
 			{
-				auto constructor = symbols[0].getPartsByName("*constructor*");
+				auto constructor = symbols[0].getPartsByName(internString("*constructor*"));
 				if (constructor.length == 0)
 				{
 					// Build a call tip out of the struct fields
@@ -853,7 +863,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		response.completionType = CompletionType.calltips;
 		foreach (symbol; symbols)
 		{
-			if (symbol.kind != CompletionKind.aliasName)
+			if (symbol.kind != CompletionKind.aliasName && symbol.callTip !is null)
 				response.completions ~= symbol.callTip;
 		}
 	}
@@ -1015,7 +1025,8 @@ bool shouldSwapWithType(CompletionType completionType, CompletionKind kind,
 		|| kind == CompletionKind.memberVariableName
 		|| kind == CompletionKind.enumMember
 		|| kind == CompletionKind.functionName;
-	return completionType == CompletionType.identifiers && isInteresting;
+	return isInteresting && (completionType == CompletionType.identifiers
+		|| (completionType == completionType.calltips && kind == CompletionKind.variableName)) ;
 }
 
 /**

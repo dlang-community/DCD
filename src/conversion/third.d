@@ -271,7 +271,7 @@ private:
 		}
 	resolveSuffixes:
 		foreach (suffix; t.typeSuffixes)
-			s = processSuffix(s, suffix);
+			s = processSuffix(s, suffix, t);
 		return s;
 	}
 
@@ -291,7 +291,7 @@ private:
 		}
 	}
 
-	ACSymbol* processSuffix(ACSymbol* symbol, const TypeSuffix suffix)
+	ACSymbol* processSuffix(ACSymbol* symbol, const TypeSuffix suffix, const Type t)
 	{
 		import std.d.formatter;
 		if (suffix.star)
@@ -314,10 +314,9 @@ private:
 			s.type = symbol;
 			s.qualifier = SymbolQualifier.func;
 			QuickAllocator!1024 q;
-			auto app = Appender!(char, typeof(q), 1024)(q);
+			auto app = Appender!(char, typeof(q), 2048)(q);
 			scope(exit) q.deallocate(app.mem);
-			app.append(suffix.delegateOrFunction.text);
-			app.formatNode(suffix.parameters);
+			app.formatNode(t);
 			s.callTip = internString(cast(string) app[]);
 			return s;
 		}

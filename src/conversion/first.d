@@ -470,7 +470,6 @@ final class FirstPass : ASTVisitor
 				withStatement.statementNoCaseNoDefault.endLocation);
 			SemanticSymbol* symbol = allocateSemanticSymbol(WITH_SYMBOL_NAME,
 				CompletionKind.withSymbol, symbolFile, s.startLocation, null);
-			Log.trace("WithStatement bounds: ", s.startLocation, " ", s.endLocation);
 			s.parent = currentScope;
 			currentScope.children.insert(s);
 			populateInitializer(symbol, withStatement.expression, false);
