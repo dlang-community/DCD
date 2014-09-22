@@ -32,6 +32,7 @@ import std.string;
 import msgpack;
 import messages;
 import stupidlog;
+import dcd_version;
 
 int main(string[] args)
 {
@@ -44,6 +45,7 @@ int main(string[] args)
 	bool symbolLocation;
 	bool doc;
 	bool query;
+	bool printVersion;
 	string search;
 
 	try
@@ -51,7 +53,8 @@ int main(string[] args)
 		getopt(args, "cursorPos|c", &cursorPos, "I", &importPaths,
 			"port|p", &port, "help|h", &help, "shutdown", &shutdown,
 			"clearCache", &clearCache, "symbolLocation|l", &symbolLocation,
-			"doc|d", &doc, "query|q", &query, "search|s", &search);
+			"doc|d", &doc, "query|q", &query, "search|s", &search,
+			"version", &printVersion);
 	}
 	catch (Exception e)
 	{
@@ -61,7 +64,13 @@ int main(string[] args)
 
 	AutocompleteRequest request;
 
-	if (help)
+
+	if (printVersion)
+	{
+		writeln(DCD_VERSION);
+		return 0;
+	}
+	else if (help)
 	{
 		printHelp(args[0]);
 		return 0;
@@ -227,9 +236,12 @@ Options:
         Query the server statis. Returns 0 if the server is running. Returns
         1 if the server could not be contacted.
 
-    -IPATH
+    -I PATH
         Instructs the server to add PATH to its list of paths searced for
         imported modules.
+
+    --version
+        Prints the version number and then exits.
 
     --port PORTNUMBER | -p PORTNUMBER
         Uses PORTNUMBER to communicate with the server instead of the default

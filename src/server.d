@@ -40,6 +40,7 @@ import modulecache;
 import stupidlog;
 import actypes;
 import core.memory;
+import dcd_version;
 
 enum CONFIG_FILE_NAME = "dcd.conf";
 
@@ -58,17 +59,25 @@ int main(string[] args)
 
 	ushort port = 9166;
 	bool help;
+	bool printVersion;
 	string[] importPaths;
 
 	try
 	{
-		getopt(args, "port|p", &port, "I", &importPaths, "help|h", &help);
+		getopt(args, "port|p", &port, "I", &importPaths, "help|h", &help,
+			"version", & printVersion);
 	}
 	catch (ConvException e)
 	{
 		Log.fatal(e.msg);
 		printHelp(args[0]);
 		return 1;
+	}
+
+	if (printVersion)
+	{
+		writeln(DCD_VERSION);
+		return 0;
 	}
 
 	if (help)
@@ -277,8 +286,15 @@ void printHelp(string programName)
     Usage: %s options
 
 options:
-    -I path
-        Includes path in the listing of paths that are searched for file imports
+    -I PATH
+        Includes PATH in the listing of paths that are searched for file
+        imports.
+
+    --help | -h
+        Prints this help message.
+
+    --version
+        Prints the version number and then exits.
 
     --port PORTNUMBER | -pPORTNUMBER
         Listens on PORTNUMBER instead of the default port 9166.`, programName);

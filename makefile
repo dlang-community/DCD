@@ -21,6 +21,7 @@ clean:
 CLIENT_SRC = src/client.d\
 	src/messages.d\
 	src/stupidlog.d\
+	src/dcd_version.d\
 	msgpack-d/src/msgpack.d
 
 DMD_CLIENT_FLAGS = -Imsgpack-d/src\
@@ -57,6 +58,7 @@ SERVER_SRC = src/actypes.d\
 	src/server.d\
 	src/stupidlog.d\
 	src/string_interning.d\
+	src/dcd_version.d\
 	libdparse/src/std/d/ast.d\
 	libdparse/src/std/d/entities.d\
 	libdparse/src/std/d/lexer.d\
