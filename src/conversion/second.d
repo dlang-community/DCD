@@ -81,9 +81,11 @@ private:
 	 */
 	void assignToScopes(ACSymbol* currentSymbol)
 	{
-		Scope* s = moduleScope.getScopeByCursor(currentSymbol.location);
 		if (currentSymbol.kind != CompletionKind.moduleName)
+		{
+			Scope* s = moduleScope.getScopeByCursor(currentSymbol.location);
 			s.symbols.insert(currentSymbol);
+		}
 		foreach (part; currentSymbol.parts[])
 		{
 			if (part.kind != CompletionKind.keyword)

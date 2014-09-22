@@ -70,14 +70,19 @@ private:
 		case interfaceName:
 			resolveInheritance(currentSymbol);
 			break;
+		case withSymbol:
 		case variableName:
 		case memberVariableName:
 		case functionName:
 		case aliasName:
 			ACSymbol* t = resolveType(currentSymbol.initializer,
 				currentSymbol.type, currentSymbol.acSymbol.location);
-			while (t !is null && t.kind == CompletionKind.aliasName)
+			while (t !is null && (t.kind == CompletionKind.aliasName
+				|| (currentSymbol.acSymbol.kind == CompletionKind.withSymbol
+					&& t.kind == CompletionKind.variableName)))
+			{
 				t = t.type;
+			}
 			currentSymbol.acSymbol.type = t;
 			break;
 		case structName:

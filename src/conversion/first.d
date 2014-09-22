@@ -385,9 +385,9 @@ final class FirstPass : ASTVisitor
 
 		if (blockStatement.declarationsAndStatements !is null)
 		{
-		currentScope = s;
+			currentScope = s;
 			visit (blockStatement.declarationsAndStatements);
-		currentScope = s.parent;
+			currentScope = s.parent;
 		}
 	}
 
@@ -451,6 +451,30 @@ final class FirstPass : ASTVisitor
 		}
 		symbol.parent = currentSymbol;
 		currentSymbol.addChild(symbol);
+	}
+
+	override void visit(const WithStatement withStatement)
+	{
+		if (withStatement.expression !is null
+			&& withStatement.statementNoCaseNoDefault !is null)
+		{
+			Scope* s = allocate!Scope(semanticAllocator,
+				withStatement.statementNoCaseNoDefault.startLocation,
+				withStatement.statementNoCaseNoDefault.endLocation);
+			SemanticSymbol* symbol = allocateSemanticSymbol(WITH_SYMBOL_NAME,
+				CompletionKind.withSymbol, symbolFile, s.startLocation, null);
+			symbol.acSymbol.qualifier = SymbolQualifier.withSymbol;
+			Log.trace("WithStatement bounds: ", s.startLocation, " ", s.endLocation);
+			s.parent = currentScope;
+			currentScope.children.insert(s);
+			populateInitializer(symbol, withStatement.expression, false);
+			symbol.parent = currentSymbol;
+			currentSymbol.addChild(symbol);
+			withStatement.accept(this);
+			currentScope = currentScope.parent;
+		}
+		else
+			withStatement.accept(this);
 	}
 
 	alias visit = ASTVisitor.visit;
