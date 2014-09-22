@@ -366,8 +366,15 @@ final class FirstPass : ASTVisitor
 		foreach (bind; importDeclaration.importBindings.importBinds)
 		{
 			Tuple!(string, string) bindTuple;
-			bindTuple[0] = internString(bind.left.text);
-			bindTuple[1] = bind.right == tok!"" ? null : internString(bind.right.text);
+			if (bind.right == tok!"")
+			{
+				bindTuple[1] = internString(bind.left.text);
+			}
+			else
+			{
+				bindTuple[0] = internString(bind.left.text);
+				bindTuple[1] = internString(bind.right.text);
+			}
 			info.importedSymbols.insert(bindTuple);
 		}
 		info.isPublic = protection == tok!"public";

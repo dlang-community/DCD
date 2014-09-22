@@ -171,7 +171,7 @@ private:
 
 			foreach (tup; importInfo.importedSymbols[])
 			{
-				ACSymbol needle = ACSymbol(tup[0]);
+				ACSymbol needle = ACSymbol(tup[1]);
 				ACSymbol* sym;
 				auto r = symbol.parts.equalRange(&needle);
 				if (r.empty) foreach (sy; symbol.parts[])
@@ -187,9 +187,9 @@ private:
 					sym = r.front;
 				if (sym is null)
 					continue;
-				if (tup[1] !is null)
+				if (tup[0] !is null)
 				{
-					ACSymbol* s = allocate!ACSymbol(symbolAllocator, tup[1],
+					ACSymbol* s = allocate!ACSymbol(symbolAllocator, tup[0],
 						sym.kind, sym.type);
 					s.parts.insert(sym.parts[]);
 					s.callTip = sym.callTip;
