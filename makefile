@@ -40,7 +40,6 @@ GDC_CLIENT_FLAGS =  -Imsgpack-d/src\
 LDC_CLIENT_FLAGS = -Imsgpack-d/src\
 	-Imsgpack-d/src\
 	-release\
-	-inline\
 	-O5\
 	-oq\
 	-of=bin/dcd-client
