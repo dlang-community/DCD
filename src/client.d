@@ -319,7 +319,7 @@ void printCompletionResponse(AutocompleteResponse response)
 			}
 		}
 		// Deduplicate overloaded methods
-		foreach (line; app.data.sort.uniq)
+		foreach (line; app.data.sort().uniq)
 			writeln(line);
 	}
 }
