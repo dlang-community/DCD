@@ -427,7 +427,7 @@ unittest
 	t2 ~= Token(tok!"else");
 	t2 ~= Token(tok!":");
 	assert (determineImportKind(t2) == ImportKind.neither);
-	import std.stdio;
+	import std.stdio : writeln;
 	writeln("Unittest for determineImportKind() passed");
 }
 
@@ -505,7 +505,7 @@ body
 	}
 	auto symbols = ModuleCache.getModuleSymbol(resolvedLocation);
 
-	import containers.hashset;
+	import containers.hashset : HashSet;
 	HashSet!string h;
 
 	void addSymbolToResponses(ACSymbol* sy)
@@ -586,7 +586,6 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
 ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 	T tokens, size_t cursorPosition, CompletionType completionType)
 {
-	import std.d.lexer;
 	// Find the symbol corresponding to the beginning of the chain
 	ACSymbol*[] symbols;
 	if (tokens.length == 0)
@@ -778,7 +777,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 
 	if (completionType == CompletionType.identifiers)
 	{
-		import containers.ttree;
+		import containers.ttree : TTree;
 		if (symbols[0].qualifier == SymbolQualifier.func
 			|| symbols[0].kind == CompletionKind.functionName)
 		{
@@ -905,8 +904,11 @@ T getExpression(T)(T beforeTokens)
 	if (beforeTokens.length == 0)
 		return beforeTokens[0 .. 0];
 	size_t i = beforeTokens.length - 1;
+	size_t sliceEnd = beforeTokens.length;
 	IdType open;
 	IdType close;
+	uint skipCount = 0;
+
 	expressionLoop: while (true)
 	{
 		switch (beforeTokens[i].type)
@@ -938,6 +940,14 @@ T getExpression(T)(T beforeTokens)
 		case tok!"creal":
 		case tok!"this":
 		case tok!"identifier":
+		case tok!"stringLiteral":
+		case tok!"wstringLiteral":
+		case tok!"dstringLiteral":
+			if (i > 0 && beforeTokens[i - 1] == tok!"!")
+			{
+				sliceEnd -= 2;
+				i--;
+			}
 			break;
 		case tok!".":
 			break;
@@ -962,6 +972,9 @@ T getExpression(T)(T beforeTokens)
 				else if (beforeTokens[i].type == close)
 					depth--;
 			} while (true);
+
+			skipCount++;
+
 			// check the current token after skipping parens to the left.
 			// if it's a loop keyword, pretend we never skipped the parens.
 			if (i > 0) switch (beforeTokens[i - 1].type)
@@ -977,6 +990,13 @@ T getExpression(T)(T beforeTokens)
 				case tok!"catch":
 					i = bookmark + 1;
 					break expressionLoop;
+				case tok!"!":
+					if (skipCount == 1)
+					{
+						sliceEnd = i - 1;
+						i -= 2;
+					}
+					break expressionLoop;
 				default:
 					break;
 			}
@@ -990,7 +1010,7 @@ T getExpression(T)(T beforeTokens)
 		else
 			i--;
 	}
-	return beforeTokens[i .. $];
+	return beforeTokens[i .. sliceEnd];
 }
 
 /**
@@ -1037,8 +1057,7 @@ bool shouldSwapWithType(CompletionType completionType, CompletionKind kind,
  */
 string formatComment(string comment)
 {
-	import std.string;
-	import std.regex;
+	import std.regex : replaceFirst, replaceAll, regex;
 	enum tripleSlashRegex = `(?:\t )*///`;
 	enum slashStarRegex = `(?:^/\*\*+)|(?:\n?\s*\*+/$)|(?:(?<=\n)\s*\* ?)`;
 	enum slashPlusRegex = `(?:^/\+\++)|(?:\n?\s*\++/$)|(?:(?<=\n)\s*\+ ?)`;
