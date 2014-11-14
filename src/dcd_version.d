@@ -18,4 +18,4 @@
 
 module dcd_version;
 
-enum DCD_VERSION = "v0.4.0-beta2";
+enum DCD_VERSION = "v0.4.0";
