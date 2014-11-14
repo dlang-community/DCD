@@ -367,7 +367,21 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 			response.completionKinds ~= CompletionKind.keyword;
 		}
 		break;
+	case tok!"characterLiteral":
+	case tok!"doubleLiteral":
+	case tok!"dstringLiteral":
+	case tok!"floatLiteral":
 	case tok!"identifier":
+	case tok!"idoubleLiteral":
+	case tok!"ifloatLiteral":
+	case tok!"intLiteral":
+	case tok!"irealLiteral":
+	case tok!"longLiteral":
+	case tok!"realLiteral":
+	case tok!"stringLiteral":
+	case tok!"uintLiteral":
+	case tok!"ulongLiteral":
+	case tok!"wstringLiteral":
 	case tok!")":
 	case tok!"]":
 		auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 16)))();
