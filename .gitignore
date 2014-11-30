@@ -12,3 +12,6 @@ perf.data
 
 # Valgrind reports
 callgrind.*
+
+# DUB files
+.dub
