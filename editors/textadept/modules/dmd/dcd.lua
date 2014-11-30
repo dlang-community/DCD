@@ -151,6 +151,48 @@ function M.gotoDeclaration()
 	end
 end
 
+function M.searchForSymbol()
+	local button = -1
+	local sybolName = ""
+	if buffer.selection_empty then
+		button, symbolName = ui.dialogs.inputbox{
+			title = "Search for Symbol",
+			informative_text = "Name:"
+		}
+		if button == -1 then return end
+	else
+		symbolName = buffer:get_sel_text()
+	end
+	local result = runDCDClient("--search " .. symbolName)
+	local resultList = {}
+	local posDict = {}
+	local i = 0
+	for line in result:gmatch("(.-)\n") do
+		local path, kind, position = line:match("([%w_/.]+)\t(%w)\t(%d+)")
+		table.insert(resultList, symbolName)
+		table.insert(resultList, kind)
+		table.insert(resultList, path)
+		table.insert(resultList, position)
+		posDict[i + 1] = {path, tonumber(position)}
+		i = i + 1
+	end
+	for j, item in ipairs(resultList) do print (item) end
+	local button2, index = ui.dialogs.filteredlist{
+		title = "Go to symbol",
+		columns = {"Name", "Type", "File", "Position"},
+		items = resultList,
+		search_column = 3
+	}
+	if button2 ~= -1 then
+		if (posDict[index][1] ~= "stdin") then
+			io.open_file(posDict[index][1])
+		end
+		buffer:goto_pos(tonumber(posDict[index][2]))
+		buffer:word_right_end_extend()
+	end
+
+end
+
 events.connect(events.CALL_TIP_CLICK, function(arrow)
 	if buffer:get_lexer() ~= "dmd" then return end
 	if arrow == 1 then

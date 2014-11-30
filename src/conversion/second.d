@@ -81,9 +81,11 @@ private:
 	 */
 	void assignToScopes(ACSymbol* currentSymbol)
 	{
-		Scope* s = moduleScope.getScopeByCursor(currentSymbol.location);
 		if (currentSymbol.kind != CompletionKind.moduleName)
+		{
+			Scope* s = moduleScope.getScopeByCursor(currentSymbol.location);
 			s.symbols.insert(currentSymbol);
+		}
 		foreach (part; currentSymbol.parts[])
 		{
 			if (part.kind != CompletionKind.keyword)
@@ -152,7 +154,7 @@ private:
 		foreach (importInfo; currentScope.importInformation[])
 		{
 			string location = ModuleCache.resolveImportLoctation(importInfo.modulePath);
-			ACSymbol* symbol = location is null ? null : ModuleCache.getSymbolsInModule(location);
+			ACSymbol* symbol = location is null ? null : ModuleCache.getModuleSymbol(location);
 			if (symbol is null)
 				continue;
 			ACSymbol* moduleSymbol = createImportSymbols(importInfo, currentScope, symbol);
@@ -163,12 +165,13 @@ private:
 						IMPORT_SYMBOL_NAME, CompletionKind.importSymbol, symbol));
 				else
 					currentScope.symbols.insert(symbol.parts[]);
+				currentScope.symbols.insert(moduleSymbol);
 				continue;
 			}
 
 			foreach (tup; importInfo.importedSymbols[])
 			{
-				ACSymbol needle = ACSymbol(tup[0]);
+				ACSymbol needle = ACSymbol(tup[1]);
 				ACSymbol* sym;
 				auto r = symbol.parts.equalRange(&needle);
 				if (r.empty) foreach (sy; symbol.parts[])
@@ -184,9 +187,9 @@ private:
 					sym = r.front;
 				if (sym is null)
 					continue;
-				if (tup[1] !is null)
+				if (tup[0] !is null)
 				{
-					ACSymbol* s = allocate!ACSymbol(symbolAllocator, tup[1],
+					ACSymbol* s = allocate!ACSymbol(symbolAllocator, tup[0],
 						sym.kind, sym.type);
 					s.parts.insert(sym.parts[]);
 					s.callTip = sym.callTip;

@@ -32,6 +32,8 @@ import std.d.lexer;
 import messages;
 import string_interning;
 
+import std.range : isOutputRange;
+
 /**
  * Any special information about a variable declaration symbol.
  */
@@ -39,7 +41,7 @@ enum SymbolQualifier : ubyte
 {
 	/// _none
 	none,
-	/// the symbol is an _array
+	/// the symbol is an array
 	array,
 	/// the symbol is a associative array
 	assocArray,
@@ -58,6 +60,9 @@ public:
 	 * Copying is disabled.
 	 */
 	@disable this();
+
+	/// ditto
+	@disable this(this);
 
 	/**
 	 * Params:
@@ -126,6 +131,21 @@ public:
 		foreach (im; parts.equalRange(&p))
 			app.put(im.type.getPartsByName(name));
 		return app.data();
+	}
+
+	/**
+	 * Adds all parts and parts of parts with the given name to the given output
+	 * range.
+	 */
+	void getAllPartsNamed(OR)(string name, ref OR outputRange)
+		if (isOutputRange!(OR, ACSymbol*))
+	{
+		foreach (part; parts[])
+		{
+			if (part.name == name)
+				outputRange.put(part);
+			part.getAllPartsNamed(name, outputRange);
+		}
 	}
 
 	/**
@@ -236,8 +256,12 @@ struct Scope
 		{
 			foreach (item; sc.symbols[])
 			{
-				if (item.kind == CompletionKind.importSymbol) foreach (i; item.type.parts[])
-					symbols.insert(i);
+				if (item.kind == CompletionKind.importSymbol
+					|| item.kind == CompletionKind.withSymbol)
+				{
+					foreach (i; item.type.parts[])
+						symbols.insert(i);
+				}
 				else
 					symbols.insert(item);
 			}
@@ -259,6 +283,25 @@ struct Scope
 		auto er = symbols.equalRange(&s);
 		if (!er.empty)
 			return array(er);
+
+// Check symbols from "with" statement
+		ACSymbol ir2 = ACSymbol(WITH_SYMBOL_NAME);
+		auto r2 = symbols.equalRange(&ir2);
+		if (!r2.empty)
+		{
+			auto app = appender!(ACSymbol*[])();
+			foreach (e; r2)
+			{
+				if (e.type is null)
+					continue;
+				foreach (withSymbol; e.type.parts.equalRange(&s))
+					app.put(withSymbol);
+			}
+			if (app.data.length > 0)
+				return app.data;
+		}
+
+		// Check imported symbols
 		ACSymbol ir = ACSymbol(IMPORT_SYMBOL_NAME);
 		auto r = symbols.equalRange(&ir);
 		if (!r.empty)
@@ -369,6 +412,7 @@ private immutable(string[24]) builtinTypeNames;
  * static construction.
  */
 immutable string IMPORT_SYMBOL_NAME;
+immutable string WITH_SYMBOL_NAME;
 
 /**
  * Translates the IDs for built-in types into an interned string.
@@ -437,6 +481,7 @@ static this()
 	builtinTypeNames[23] = internString("creal");
 
 	IMPORT_SYMBOL_NAME = internString("public");
+	WITH_SYMBOL_NAME = internString("with");
 
 
 	auto bool_ = allocate!ACSymbol(Mallocator.it, "bool", CompletionKind.keyword);

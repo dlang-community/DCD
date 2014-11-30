@@ -70,9 +70,10 @@ final class FirstPass : ASTVisitor
 	{
 		// Create a dummy symbol because we don't want unit test symbols leaking
 		// into the symbol they're declared in.
-		SemanticSymbol* s = allocateSemanticSymbol("*unittest*",
+		SemanticSymbol* s = allocateSemanticSymbol(internString("*unittest*"),
 			CompletionKind.dummy, null, 0);
 		s.parent = currentSymbol;
+		currentSymbol.addChild(s);
 		currentSymbol = s;
 		u.accept(this);
 		currentSymbol = s.parent;
@@ -81,19 +82,19 @@ final class FirstPass : ASTVisitor
 	override void visit(const Constructor con)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(con).stringof);
-		visitConstructor(con.location, con.parameters, con.functionBody, con.comment);
+		visitConstructor(con.location, con.parameters, con.templateParameters, con.functionBody, con.comment);
 	}
 
 	override void visit(const SharedStaticConstructor con)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(con).stringof);
-		visitConstructor(con.location, null, con.functionBody, con.comment);
+		visitConstructor(con.location, null, null, con.functionBody, con.comment);
 	}
 
 	override void visit(const StaticConstructor con)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(con).stringof);
-		visitConstructor(con.location, null, con.functionBody, con.comment);
+		visitConstructor(con.location, null, null, con.functionBody, con.comment);
 	}
 
 	override void visit(const Destructor des)
@@ -121,29 +122,15 @@ final class FirstPass : ASTVisitor
 			CompletionKind.functionName, symbolFile, dec.name.index,
 			dec.returnType);
 		processParameters(symbol, dec.returnType, symbol.acSymbol.name,
-			dec.parameters);
+			dec.parameters, dec.templateParameters);
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
 		symbol.acSymbol.doc = internString(dec.comment);
 		currentSymbol.addChild(symbol);
 		if (dec.functionBody !is null)
 		{
-			import std.algorithm;
-			size_t scopeBegin = dec.name.index + dec.name.text.length;
-			size_t scopeEnd = max(
-				dec.functionBody.inStatement is null ? 0 : dec.functionBody.inStatement.blockStatement.endLocation,
-				dec.functionBody.outStatement is null ? 0 : dec.functionBody.outStatement.blockStatement.endLocation,
-				dec.functionBody.blockStatement is null ? 0 : dec.functionBody.blockStatement.endLocation,
-				dec.functionBody.bodyStatement is null ? 0 : dec.functionBody.bodyStatement.blockStatement.endLocation);
-			foreach (child; symbol.children)
-			{
-				if (child.acSymbol.location == size_t.max)
-				{
-//					Log.trace("Reassigning location of ", child.acSymbol.name);
-					child.acSymbol.location = scopeBegin + 1;
-				}
-			}
-			Scope* s = allocate!Scope(semanticAllocator, scopeBegin, scopeEnd);
+			Scope* s = createFunctionScope(dec.functionBody, semanticAllocator,
+				dec.name.index + dec.name.text.length);
 			currentScope.children.insert(s);
 			s.parent = currentScope;
 			currentScope = s;
@@ -379,8 +366,15 @@ final class FirstPass : ASTVisitor
 		foreach (bind; importDeclaration.importBindings.importBinds)
 		{
 			Tuple!(string, string) bindTuple;
-			bindTuple[0] = internString(bind.left.text);
-			bindTuple[1] = bind.right == tok!"" ? null : internString(bind.right.text);
+			if (bind.right == tok!"")
+			{
+				bindTuple[1] = internString(bind.left.text);
+			}
+			else
+			{
+				bindTuple[0] = internString(bind.left.text);
+				bindTuple[1] = internString(bind.right.text);
+			}
 			info.importedSymbols.insert(bindTuple);
 		}
 		info.isPublic = protection == tok!"public";
@@ -466,6 +460,28 @@ final class FirstPass : ASTVisitor
 		currentSymbol.addChild(symbol);
 	}
 
+	override void visit(const WithStatement withStatement)
+	{
+		if (withStatement.expression !is null
+			&& withStatement.statementNoCaseNoDefault !is null)
+		{
+			Scope* s = allocate!Scope(semanticAllocator,
+				withStatement.statementNoCaseNoDefault.startLocation,
+				withStatement.statementNoCaseNoDefault.endLocation);
+			SemanticSymbol* symbol = allocateSemanticSymbol(WITH_SYMBOL_NAME,
+				CompletionKind.withSymbol, symbolFile, s.startLocation, null);
+			s.parent = currentScope;
+			currentScope.children.insert(s);
+			populateInitializer(symbol, withStatement.expression, false);
+			symbol.parent = currentSymbol;
+			currentSymbol.addChild(symbol);
+			withStatement.accept(this);
+			currentScope = currentScope.parent;
+		}
+		else
+			withStatement.accept(this);
+	}
+
 	alias visit = ASTVisitor.visit;
 
 	/// Module scope
@@ -497,27 +513,47 @@ private:
 		symbol.parent = currentSymbol;
 		symbol.protection = protection;
 		symbol.acSymbol.doc = internString(dec.comment);
+
+		size_t scopeBegin = dec.name.index + dec.name.text.length;
+		size_t scopeEnd = void;
+		static if (is (AggType == const(TemplateDeclaration)))
+			scopeEnd = dec.endLocation;
+		else
+			scopeEnd = dec.structBody is null ? scopeBegin : dec.structBody.endLocation;
+		Scope* s = allocate!Scope(semanticAllocator, scopeBegin, scopeEnd);
+		s.parent = currentScope;
+		currentScope.children.insert(s);
+		currentScope = s;
 		currentSymbol = symbol;
+		processTemplateParameters(currentSymbol, dec.templateParameters);
 		dec.accept(this);
 		currentSymbol = symbol.parent;
 		currentSymbol.addChild(symbol);
+		currentScope = currentScope.parent;
 	}
 
 	void visitConstructor(size_t location, const Parameters parameters,
+		const TemplateParameters templateParameters,
 		const FunctionBody functionBody, string doc)
 	{
 		SemanticSymbol* symbol = allocateSemanticSymbol("*constructor*",
 			CompletionKind.functionName, symbolFile, location);
-		processParameters(symbol, null, "this", parameters);
+		processParameters(symbol, null, "this", parameters, templateParameters);
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
 		symbol.acSymbol.doc = internString(doc);
 		currentSymbol.addChild(symbol);
 		if (functionBody !is null)
 		{
+			Scope* s = createFunctionScope(functionBody, semanticAllocator,
+				location + 4); // 4 == "this".length
+			currentScope.children.insert(s);
+			s.parent = currentScope;
+			currentScope = s;
 			currentSymbol = symbol;
 			functionBody.accept(this);
 			currentSymbol = symbol.parent;
+			currentScope = s.parent;
 		}
 	}
 
@@ -532,15 +568,23 @@ private:
 		currentSymbol.addChild(symbol);
 		if (functionBody !is null)
 		{
+			Scope* s = createFunctionScope(functionBody, semanticAllocator,
+				location + 4); // 4 == "this".length
+			currentScope.children.insert(s);
+			s.parent = currentScope;
+			currentScope = s;
 			currentSymbol = symbol;
 			functionBody.accept(this);
 			currentSymbol = symbol.parent;
+			currentScope = s.parent;
 		}
 	}
 
 	void processParameters(SemanticSymbol* symbol, const Type returnType,
-		string functionName, const Parameters parameters)
+		string functionName, const Parameters parameters,
+		const TemplateParameters templateParameters)
 	{
+		processTemplateParameters(symbol, templateParameters);
 		if (parameters !is null)
 		{
 			foreach (const Parameter p; parameters.parameters)
@@ -565,11 +609,50 @@ private:
 			}
 		}
 		symbol.acSymbol.callTip = formatCallTip(returnType, functionName,
-			parameters);
+			parameters, templateParameters);
+	}
+
+	void processTemplateParameters(SemanticSymbol* symbol, const TemplateParameters templateParameters)
+	{
+		if (templateParameters !is null && templateParameters.templateParameterList !is null)
+		{
+			foreach (const TemplateParameter p; templateParameters.templateParameterList.items)
+			{
+				string name;
+				CompletionKind kind;
+				size_t index;
+				Rebindable!(const(Type)) type;
+				if (p.templateAliasParameter !is null)
+				{
+					name = p.templateAliasParameter.identifier.text;
+					kind = CompletionKind.aliasName;
+					index = p.templateAliasParameter.identifier.index;
+				}
+				else if (p.templateTypeParameter !is null)
+				{
+					name = p.templateTypeParameter.identifier.text;
+					kind = CompletionKind.aliasName;
+					index = p.templateTypeParameter.identifier.index;
+				}
+				else if (p.templateValueParameter !is null)
+				{
+					name = p.templateValueParameter.identifier.text;
+					kind = CompletionKind.variableName;
+					index = p.templateValueParameter.identifier.index;
+					type = p.templateValueParameter.type;
+				}
+				else
+					continue;
+				SemanticSymbol* templateParameter = allocateSemanticSymbol(name, kind,
+					symbolFile, index, type);
+				symbol.addChild(templateParameter);
+				templateParameter.parent = symbol;
+			}
+		}
 	}
 
 	string formatCallTip(const Type returnType, string name,
-		const Parameters parameters)
+		const Parameters parameters, const TemplateParameters templateParameters)
 	{
 		QuickAllocator!1024 q;
 		auto app = Appender!(char, typeof(q), 1024)(q);
@@ -580,6 +663,8 @@ private:
 			app.put(' ');
 		}
 		app.put(name);
+		if (templateParameters !is null)
+			app.formatNode(templateParameters);
 		if (parameters is null)
 			app.put("()");
 		else
@@ -637,6 +722,18 @@ void formatNode(A, T)(ref A appender, const T node)
 }
 
 private:
+
+Scope* createFunctionScope(const FunctionBody functionBody, CAllocator semanticAllocator,
+	size_t scopeBegin)
+{
+	import std.algorithm : max;
+	size_t scopeEnd = max(
+		functionBody.inStatement is null ? 0 : functionBody.inStatement.blockStatement.endLocation,
+		functionBody.outStatement is null ? 0 : functionBody.outStatement.blockStatement.endLocation,
+		functionBody.blockStatement is null ? 0 : functionBody.blockStatement.endLocation,
+		functionBody.bodyStatement is null ? 0 : functionBody.bodyStatement.blockStatement.endLocation);
+	return allocate!Scope(semanticAllocator, scopeBegin, scopeEnd);
+}
 
 string[] iotcToStringArray(A)(ref A allocator, const IdentifierOrTemplateChain iotc)
 {

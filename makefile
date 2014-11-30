@@ -21,6 +21,7 @@ clean:
 CLIENT_SRC = src/client.d\
 	src/messages.d\
 	src/stupidlog.d\
+	src/dcd_version.d\
 	msgpack-d/src/msgpack.d
 
 DMD_CLIENT_FLAGS = -Imsgpack-d/src\
@@ -39,7 +40,6 @@ GDC_CLIENT_FLAGS =  -Imsgpack-d/src\
 LDC_CLIENT_FLAGS = -Imsgpack-d/src\
 	-Imsgpack-d/src\
 	-release\
-	-inline\
 	-O5\
 	-oq\
 	-of=bin/dcd-client
@@ -57,6 +57,7 @@ SERVER_SRC = src/actypes.d\
 	src/server.d\
 	src/stupidlog.d\
 	src/string_interning.d\
+	src/dcd_version.d\
 	libdparse/src/std/d/ast.d\
 	libdparse/src/std/d/entities.d\
 	libdparse/src/std/d/lexer.d\
@@ -72,6 +73,7 @@ SERVER_SRC = src/actypes.d\
 	containers/src/containers/hashset.d\
 	containers/src/containers/internal/hash.d\
 	containers/src/containers/internal/node.d\
+	containers/src/containers/internal/storage_type.d\
 	containers/src/containers/slist.d\
 	msgpack-d/src/msgpack.d
 

@@ -1,4 +1,4 @@
-#Overview
+# Overview
 The D Completion Daemon is an auto-complete program for the D programming language.
 
 ![Teaser](teaser.png "This is what the future looks like - Jayce, League of Legends")
@@ -13,7 +13,7 @@ used through a text editor script or plugin, though it can be used from the
 command line. The server (dcd-server) is responsible for caching imported files,
 calculating autocomplete information, and sending it back to the client.
 
-#Status
+# Status
 This program is reasonably stable. Please report problems on the Github issue
 tracker. Please be sure that you have read the documentation before filing an
 issue.
@@ -31,25 +31,25 @@ issue.
 	* Display of documentation comments in function call tips
 	* *alias this*
 	* *auto* declarations (Mostly)
+	* *with* statements
 * Not working:
-	* Automatic starting of the server by the client
 	* UFCS suggestions
 	* Autocompletion of declarations with template arguments (This will work to some extent, but it won't do things like replace T with int)
 	* Determining the type of an enum member when no base type is specified, but the first member has an initialaizer
 	* That one feature that you *REALLY* needed
 
-#Setup
+# Setup
 1. Install a recent D compiler. DCD is tested with 2.066 and LDC 0.14.0.
 1. Run ```git submodule update --init``` after cloning this repository to grab the MessagePack and Datapacked libraries and the parser from DScanner.
 1. Run ```make``` to build the client and server. (Or run build.bat on Windows). ```make ldc``` and ```make gdc``` will use the LDC or GDC compilers. The resulting executable will be much faster.
 1. Configure your text editor to call the dcd-client program. See the *editors* folder for directions on configuring your specific editor.
 1. Start the dcd-server program before editing code. (Unless, of course, your editor's plugin handles this for you)
 
-#Client
+# Client
 Because DCD is designed to be used from a text editor, this section is written
 primarily for plugin authors.
 
-##Get autocomplete information
+## Get autocomplete information
 The primary use case of the client is to query the server for autocomplete information.
 To do this, provide the client with the file that the user is editing along with the
 cursor position (in bytes).
@@ -63,14 +63,14 @@ a left parethesis.
 
 The file name is optional. If it is not specified, input will be read from *stdin*.
 
-###Dot completion
+### Dot completion
 When the first line of output is "identifiers", the editor should display a
 completion list.
-####Output format
+#### Output format
 A line containing the string "identifiers" followed by the completions that are
 available, one per line. Each line consists of the completion name followed by a
 tab character, followed by a completion kind
-#####Completion kinds
+##### Completion kinds
 * c - class name
 * i - interface name
 * s - struct name
@@ -89,7 +89,7 @@ tab character, followed by a completion kind
 * t - template name
 * T - mixin template name
 
-####Example output
+#### Example output
 	identifiers
 	parts	v
 	name	v
@@ -101,18 +101,18 @@ tab character, followed by a completion kind
 	calltip	v
 	getPartByName	f
 
-####Note
+#### Note
 DCD's output will start with "identifiers" when completing at a left paren
 character if the keywords *pragma*, *scope*, *__traits*, *extern*, or *version*
 were just before the paren.
 
-###Parenthesis completion
+### Parenthesis completion
 When the first line of output is "calltips", the editor should display a function
 call tip.
-#####Output format
+##### Output format
 A line containing the string "calltips", followed by zero or more lines, each
 containing a call tip for an overload of the given function.
-#####Example output
+##### Example output
 	calltips
 	ACSymbol findSymbolInCurrentScope(size_t cursorPosition, string name)
 
@@ -123,21 +123,21 @@ comments associated with the symbol at the cursor position. In the case of
 functions there can be more than one documentation comment associated with a
 symbol. One doc comment will be printed per line. Newlines within the doc
 comments will be replaced with "\n".
-####Example output
+#### Example output
 	An example doc comment\nParams: a = first param\n    Returns: nothing
 	An example doc comment\nParams: a = first param\n     b = second param\n    Returns: nothing
 
-##Clear server's autocomplete cache
+## Clear server's autocomplete cache
 ```dcd-client --clearCache```
 
-##Add import search path
+## Add import search path
 Import paths can be added to the server without restarting it. To accomplish
 this, run the client with the -I option:
 
 	dcd-client -Ipath/to/imports
 
 
-##Find declaration of symbol at cursor
+## Find declaration of symbol at cursor
 ```dcd-client --symbolLocation -c 123```
 
 The "--symbolLocation" or "-l" flags cause the client to instruct the server
@@ -148,6 +148,36 @@ The output consists of the absolute path to the file followed by a tab character
 followed by the byte offset, followed by a newline character. For example:
 
 	/home/example/src/project/bar.d	3482
+
+## Search for symbols by name
+
+The "--search" or "-s" option causes the server to return location information
+for all symbols with the given name in both the file being edited as well as
+the server cache. The output format is one result per line, with the path, the
+symbol type, and the byte offset of the symbol separated by tab characters.
+
+### Example
+
+Search the server's cache for symbols named "toImpl". (Using echo to give an EOF
+in place of a file being edited.)
+```echo | dcd-client --search toImpl``
+
+```
+/usr/include/dmd/phobos/std/conv.d  f   48491
+/usr/include/dmd/phobos/std/conv.d  f   47527
+/usr/include/dmd/phobos/std/conv.d  f   47229
+/usr/include/dmd/phobos/std/conv.d  f   40358
+/usr/include/dmd/phobos/std/conv.d  f   38348
+/usr/include/dmd/phobos/std/conv.d  f   35619
+/usr/include/dmd/phobos/std/conv.d  f   32743
+/usr/include/dmd/phobos/std/conv.d  f   22486
+/usr/include/dmd/phobos/std/conv.d  f   16322
+/usr/include/dmd/phobos/std/conv.d  f   14829
+/usr/include/dmd/phobos/std/conv.d  f   14066
+/usr/include/dmd/phobos/std/conv.d  f   13058
+/usr/include/dmd/phobos/std/conv.d  f   12717
+/usr/include/dmd/phobos/std/conv.d  f   9494
+```
 
 #Server
 The server must be running for the DCD client to provide autocomplete information.
