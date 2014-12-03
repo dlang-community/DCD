@@ -19,3 +19,4 @@
 module dcd_version;
 
 enum DCD_VERSION = "v0.4.0";
+version (Windows) {} else enum GIT_HASH = import("githash.txt");

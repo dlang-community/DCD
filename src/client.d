@@ -67,7 +67,10 @@ int main(string[] args)
 
 	if (printVersion)
 	{
-		writeln(DCD_VERSION);
+		version (Windows)
+			writeln(DCD_VERSION);
+		else
+			write(DCD_VERSION, " ", GIT_HASH);
 		return 0;
 	}
 	else if (help)
