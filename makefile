@@ -11,7 +11,7 @@ GDC := gdc
 LDC := ldc2
 
 githash:
-	git log -n 1 --oneline | cut -f 1 -d ' ' > githash.txt
+	git log -1 --format="%H" > githash.txt
 
 report:
 	dscanner --report src > dscanner-report.json
@@ -132,7 +132,6 @@ debugserver: githash
 	mkdir -p bin
 	rm -f containers/src/std/allocator.d
 	${DMD} ${SERVER_SRC} ${DEBUG_SERVER_FLAGS}
-
 
 gdcclient: githash
 	mkdir -p bin

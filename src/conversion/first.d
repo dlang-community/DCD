@@ -174,8 +174,9 @@ final class FirstPass : ASTVisitor
 	override void visit(const BaseClass bc)
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(bc).stringof);
-		currentSymbol.baseClasses.insert(iotcToStringArray(symbolAllocator,
-			bc.identifierOrTemplateChain));
+		if (bc.type2.identifierOrTemplateChain !is null)
+			currentSymbol.baseClasses.insert(iotcToStringArray(symbolAllocator,
+				bc.type2.identifierOrTemplateChain));
 	}
 
 	override void visit(const VariableDeclaration dec)
