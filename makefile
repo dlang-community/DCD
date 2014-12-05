@@ -21,6 +21,7 @@ clean:
 	rm -rf bin
 	rm -f dscanner-report.json
 	rm -f githash.txt
+	rm -f *.o
 
 CLIENT_SRC := src/client.d\
 	src/messages.d\
