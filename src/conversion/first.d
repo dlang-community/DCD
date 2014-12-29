@@ -256,16 +256,16 @@ final class FirstPass : ASTVisitor
 	{
 //		Log.trace(__FUNCTION__, " ", typeof(dec).stringof);
 		if (dec.attributeDeclaration !is null
-			&& isProtection(dec.attributeDeclaration.attribute.attribute))
+			&& isProtection(dec.attributeDeclaration.attribute.attribute.type))
 		{
-			protection = dec.attributeDeclaration.attribute.attribute;
+			protection = dec.attributeDeclaration.attribute.attribute.type;
 			return;
 		}
 		IdType p = protection;
 		foreach (const Attribute attr; dec.attributes)
 		{
-			if (isProtection(attr.attribute))
-				protection = attr.attribute;
+			if (isProtection(attr.attribute.type))
+				protection = attr.attribute.type;
 		}
 		dec.accept(this);
 		protection = p;
