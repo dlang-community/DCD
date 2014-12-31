@@ -42,6 +42,7 @@ import actypes;
 import core.memory;
 import dcd_version;
 
+/// Name of the server configuration file
 enum CONFIG_FILE_NAME = "dcd.conf";
 
 version(linux) version = useXDG;
@@ -252,6 +253,9 @@ string getConfigurationLocation()
 	}
 }
 
+/**
+ * Prints a warning message to the user when an old config file is detected.
+ */
 void warnAboutOldConfigLocation()
 {
 	version (linux) if ("~/.config/dcd".expandTilde().exists()
@@ -282,6 +286,9 @@ string[] loadConfiguredImportDirs()
 		.array();
 }
 
+/**
+ * Implements the --help switch.
+ */
 void printHelp(string programName)
 {
     writefln(

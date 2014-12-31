@@ -47,11 +47,20 @@ import string_interning;
  */
 final class FirstPass : ASTVisitor
 {
+	/**
+	 * Params:
+	 *     mod = the module to visit
+	 *     symbolFile = path to the file being converted
+	 *     symbolAllocator = allocator used for the auto-complete symbols
+	 *     semanticAllocator = allocator used for semantic symbols
+	 */
 	this(Module mod, string symbolFile, CAllocator symbolAllocator,
 		CAllocator semanticAllocator)
 	in
 	{
+		assert (mod);
 		assert (symbolAllocator);
+		assert (semanticAllocator);
 	}
 	body
 	{
@@ -61,6 +70,9 @@ final class FirstPass : ASTVisitor
 		this.semanticAllocator = semanticAllocator;
 	}
 
+	/**
+	 * Runs the against the AST and produces symbols.
+	 */
 	void run()
 	{
 		visit(mod);
@@ -340,8 +352,8 @@ final class FirstPass : ASTVisitor
 
 	override void visit(const ImportDeclaration importDeclaration)
 	{
-		import std.typecons;
-		import std.algorithm;
+		import std.typecons : Tuple;
+		import std.algorithm : filter;
 //		Log.trace(__FUNCTION__, " ImportDeclaration");
 		foreach (single; importDeclaration.singleImports.filter!(
 			a => a !is null && a.identifierChain !is null))
@@ -401,8 +413,8 @@ final class FirstPass : ASTVisitor
 
 	override void visit(const VersionCondition versionCondition)
 	{
-		import std.algorithm;
-		import constants;
+		import std.algorithm : canFind;
+		import constants : predefinedVersions;
 		// TODO: This is a bit of a hack
 		if (predefinedVersions.canFind(versionCondition.token.text))
 			versionCondition.accept(this);
@@ -491,8 +503,10 @@ final class FirstPass : ASTVisitor
 	/// The module
 	SemanticSymbol* rootSymbol;
 
+	/// Allocator used for symbol allocation
 	CAllocator symbolAllocator;
 
+	/// Number of symbols allocated
 	uint symbolsAllocated;
 
 private:
@@ -515,12 +529,11 @@ private:
 		symbol.protection = protection;
 		symbol.acSymbol.doc = internString(dec.comment);
 
-		size_t scopeBegin = dec.name.index + dec.name.text.length;
-		size_t scopeEnd = void;
+		immutable size_t scopeBegin = dec.name.index + dec.name.text.length;
 		static if (is (AggType == const(TemplateDeclaration)))
-			scopeEnd = dec.endLocation;
+			immutable size_t scopeEnd = dec.endLocation;
 		else
-			scopeEnd = dec.structBody is null ? scopeBegin : dec.structBody.endLocation;
+			immutable size_t scopeEnd = dec.structBody is null ? scopeBegin : dec.structBody.endLocation;
 		Scope* s = allocate!Scope(semanticAllocator, scopeBegin, scopeEnd);
 		s.parent = currentScope;
 		currentScope.children.insert(s);
@@ -752,7 +765,7 @@ string[] iotcToStringArray(A)(ref A allocator, const IdentifierOrTemplateChain i
 
 static string convertChainToImportPath(const IdentifierChain ic)
 {
-	import std.path;
+	import std.path : dirSeparator;
 	QuickAllocator!1024 q;
 	auto app = Appender!(char, typeof(q), 1024)(q);
 	scope(exit) q.deallocate(app.mem);

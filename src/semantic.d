@@ -33,7 +33,9 @@ struct SemanticSymbol
 {
 public:
 
+	/// Disable default construction.
 	@disable this();
+	/// Disable copy construction
 	@disable this(this);
 
 	/**
@@ -104,7 +106,7 @@ Type argumentsType;
 
 static this()
 {
-	import std.allocator;
+	import std.allocator : allocate;
 	// _argptr has type void*
 	argptrType = allocate!Type(Mallocator.it);
 	argptrType.type2 = allocate!Type2(Mallocator.it);

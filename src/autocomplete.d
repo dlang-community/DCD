@@ -125,7 +125,7 @@ public AutocompleteResponse complete(const AutocompleteRequest request)
  */
 public AutocompleteResponse symbolSearch(const AutocompleteRequest request)
 {
-	import containers.ttree;
+	import containers.ttree : TTree;
 
 	LexerConfig config;
 	config.fileName = "";

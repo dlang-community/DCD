@@ -177,6 +177,9 @@ immutable string[] versions = [
 	"X86_64"
 ];
 
+/**
+ * Compiler-defined values for version() conditions.
+ */
 immutable string[] predefinedVersions = [
 	"AArch64",
 	"AIX",

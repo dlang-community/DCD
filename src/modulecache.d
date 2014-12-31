@@ -103,7 +103,6 @@ struct ModuleCache
 	 */
 	static void addImportPaths(string[] paths)
 	{
-		import core.memory;
 		foreach (path; paths.filter!(a => existanceCheck(a)))
 			importPaths.insert(path);
 
@@ -129,9 +128,9 @@ struct ModuleCache
 	 */
 	static ACSymbol* getModuleSymbol(string location)
 	{
-		import string_interning;
-		import std.stdio;
-		import std.typecons;
+		import string_interning : internString;
+		import std.stdio : File;
+		import std.typecons : scoped;
 
 		assert (location !is null);
 
@@ -156,17 +155,25 @@ struct ModuleCache
 		immutable fileSize = cast(size_t) f.size;
 		if (fileSize == 0)
 			return null;
-		ubyte[] source = cast(ubyte[]) Mallocator.it.allocate(fileSize);
-		f.rawRead(source);
-		LexerConfig config;
-		config.fileName = cachedLocation;
-		auto parseStringCache = StringCache(StringCache.defaultBucketCount);
-		auto semanticAllocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 64)));
-		const(Token)[] tokens = getTokensForParser(
-			(source.length >= 3 && source[0 .. 3] == "\xef\xbb\xbf"c) ? source[3 .. $] : source,
-			config, &parseStringCache);
-		Mallocator.it.deallocate(source);
 
+		const(Token)[] tokens;
+		{
+			ubyte[] source = cast(ubyte[]) Mallocator.it.allocate(fileSize);
+			scope (exit) Mallocator.it.deallocate(source);
+			f.rawRead(source);
+			LexerConfig config;
+			config.fileName = cachedLocation;
+			auto parseStringCache = StringCache(StringCache.defaultBucketCount);
+
+			// The first three bytes are sliced off here if the file starts with a
+			// Unicode byte order mark. The lexer/parser don't handle them.
+			tokens = getTokensForParser(
+				(source.length >= 3 && source[0 .. 3] == "\xef\xbb\xbf"c)
+				? source[3 .. $] : source,
+				config, &parseStringCache);
+		}
+
+		auto semanticAllocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 64)));
 		Module m = parseModuleSimple(tokens[], cachedLocation, semanticAllocator);
 
 		assert (symbolAllocator);
@@ -177,7 +184,7 @@ struct ModuleCache
 		SecondPass second = SecondPass(first);
 		second.run();
 
-		ThirdPass third = ThirdPass(second, cachedLocation);
+		ThirdPass third = ThirdPass(second);
 		third.run();
 
 		symbol = third.rootSymbol.acSymbol;

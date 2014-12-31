@@ -278,13 +278,12 @@ struct Scope
 	 */
 	ACSymbol*[] getSymbolsByName(string name)
 	{
-		import std.range;
 		ACSymbol s = ACSymbol(name);
 		auto er = symbols.equalRange(&s);
 		if (!er.empty)
 			return array(er);
 
-// Check symbols from "with" statement
+		// Check symbols from "with" statement
 		ACSymbol ir2 = ACSymbol(WITH_SYMBOL_NAME);
 		auto r2 = symbols.equalRange(&ir2);
 		if (!r2.empty)
@@ -412,6 +411,11 @@ private immutable(string[24]) builtinTypeNames;
  * static construction.
  */
 immutable string IMPORT_SYMBOL_NAME;
+
+/**
+ * Name given to the symbol in a "with" expression. Initialized during a static
+ * constructor.
+ */
 immutable string WITH_SYMBOL_NAME;
 
 /**
@@ -676,10 +680,5 @@ static this()
 	ucent_.type = ucent_;
 	builtinSymbols.insert(void_);
 	void_.type = void_;
-
-//	writeln(">>Builtin symbols");
-//	foreach (symbol; builtinSymbols[])
-//		writeln(symbol.name, " ", symbol.name.ptr);
-//	writeln("<<Builtin symbols");
 }
 

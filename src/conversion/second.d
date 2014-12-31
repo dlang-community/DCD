@@ -112,9 +112,12 @@ private:
 	}
 	body
 	{
+		// top-level package name
 		immutable string firstPart = info.importParts[].front;
-		ACSymbol*[] symbols = currentScope.getSymbolsByName(firstPart);
+
+		// top-level package symbol
 		ACSymbol* firstSymbol = void;
+		ACSymbol*[] symbols = currentScope.getSymbolsByName(firstPart);
 		if (symbols.length > 0)
 			firstSymbol = symbols[0];
 		else
@@ -124,13 +127,14 @@ private:
 		size_t i = 0;
 		foreach (string importPart; info.importParts[])
 		{
-			if (i++ == 0)
+			i++;
+			if (i == 1) // Skip the top-level package
 				continue;
 			if (i + 2 >= info.importParts.length) // Skip the last item as it's the module name
 				break;
 			symbols = currentSymbol.getPartsByName(importPart);
 			ACSymbol* s = null;
-			if (symbols.length > 0) foreach (sy; symbols)
+			foreach (sy; symbols)
 			{
 				if (sy.kind == CompletionKind.packageName)
 				{
@@ -147,19 +151,29 @@ private:
 		return currentSymbol;
 	}
 
+	/**
+	 * Creates or adds symbols to the given scope based off of the import
+	 * statements contained therein.
+	 */
 	void resolveImports(Scope* currentScope)
 	{
-		import modulecache;
-		import std.stdio;
+		import modulecache : ModuleCache;
 		foreach (importInfo; currentScope.importInformation[])
 		{
-			string location = ModuleCache.resolveImportLoctation(importInfo.modulePath);
-			ACSymbol* symbol = location is null ? null : ModuleCache.getModuleSymbol(location);
+			// Get symbol for the imported module
+			immutable string moduleAbsPath = ModuleCache.resolveImportLoctation(
+				importInfo.modulePath);
+			ACSymbol* symbol = moduleAbsPath is null ? null
+				: ModuleCache.getModuleSymbol(moduleAbsPath);
 			if (symbol is null)
 				continue;
+
 			ACSymbol* moduleSymbol = createImportSymbols(importInfo, currentScope, symbol);
+
+			// if this is a selective import
 			if (importInfo.importedSymbols.length == 0)
 			{
+				// if this import is at module scope
 				if (importInfo.isPublic && currentScope.parent is null)
 					rootSymbol.acSymbol.parts.insert(allocate!ACSymbol(symbolAllocator,
 						IMPORT_SYMBOL_NAME, CompletionKind.importSymbol, symbol));
@@ -168,9 +182,10 @@ private:
 				currentScope.symbols.insert(moduleSymbol);
 				continue;
 			}
-
-			foreach (tup; importInfo.importedSymbols[])
+			else foreach (tup; importInfo.importedSymbols[])
 			{
+				// Handle selective and renamed imports
+
 				ACSymbol needle = ACSymbol(tup[1]);
 				ACSymbol* sym;
 				auto r = symbol.parts.equalRange(&needle);
@@ -205,6 +220,8 @@ private:
 					rootSymbol.acSymbol.parts.insert(sym);
 			}
 		}
+
+		// Recurse to child scopes
 		foreach (childScope; currentScope.children)
 			resolveImports(childScope);
 	}

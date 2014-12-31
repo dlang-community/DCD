@@ -20,19 +20,12 @@ module string_interning;
 
 import std.d.lexer;
 
+/**
+ * Interns the given string and returns the interned version.
+ */
 string internString(string s)
 {
-//	import std.stdio;
-//	import std.string;
-//	size_t* p = s in dupCheck;
-//	auto r = stringCache.intern(s);
 	return stringCache.intern(s);
-//	if (p !is null)
-//		assert (*p == cast(size_t) r.ptr, format("%s, %016x, %016x", s, *p, r.ptr));
-//	else
-//		dupCheck[s] = cast(size_t) r.ptr;
-//	stderr.writefln("%s\t%016x", r, r.ptr);
-//	return r;
 }
 
 static this()

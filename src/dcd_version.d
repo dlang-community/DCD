@@ -18,5 +18,16 @@
 
 module dcd_version;
 
-enum DCD_VERSION = "v0.4.0";
-version (Windows) {} else enum GIT_HASH = import("githash.txt");
+/**
+ * Human-readable version number
+ */
+enum DCD_VERSION = "v0.4.1-dev";
+
+version (Windows) {}
+else
+{
+	/**
+	 * Current build's Git commit hash
+	 */
+	enum GIT_HASH = import("githash.txt");
+}
