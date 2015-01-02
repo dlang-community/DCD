@@ -120,7 +120,7 @@ struct ModuleCache
 	/// TODO: Implement
 	static void clear()
 	{
-		Log.warn("ModuleCache.clear is not yet implemented.");
+		Log.info("ModuleCache.clear is not yet implemented.");
 	}
 
 	/**
