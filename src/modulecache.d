@@ -164,8 +164,8 @@ struct ModuleCache
 			return null;
 
 		const(Token)[] tokens;
-        auto parseStringCache = StringCache(StringCache.defaultBucketCount);
-        {
+		auto parseStringCache = StringCache(StringCache.defaultBucketCount);
+		{
 			ubyte[] source = cast(ubyte[]) Mallocator.it.allocate(fileSize);
 			scope (exit) Mallocator.it.deallocate(source);
 			f.rawRead(source);
@@ -178,7 +178,7 @@ struct ModuleCache
 				(source.length >= 3 && source[0 .. 3] == "\xef\xbb\xbf"c)
 				? source[3 .. $] : source,
 				config, &parseStringCache);
-        }
+		}
 
 		auto semanticAllocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 64)));
 		Module m = parseModuleSimple(tokens[], cachedLocation, semanticAllocator);
