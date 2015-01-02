@@ -164,13 +164,13 @@ struct ModuleCache
 			return null;
 
 		const(Token)[] tokens;
+		auto parseStringCache = StringCache(StringCache.defaultBucketCount);
 		{
 			ubyte[] source = cast(ubyte[]) Mallocator.it.allocate(fileSize);
 			scope (exit) Mallocator.it.deallocate(source);
 			f.rawRead(source);
 			LexerConfig config;
 			config.fileName = cachedLocation;
-			auto parseStringCache = StringCache(StringCache.defaultBucketCount);
 
 			// The first three bytes are sliced off here if the file starts with a
 			// Unicode byte order mark. The lexer/parser don't handle them.
