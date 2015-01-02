@@ -103,7 +103,7 @@ struct ModuleCache
 	 */
 	static void addImportPaths(string[] paths)
 	{
-		foreach (path; paths.filter!(a => existanceCheck(a)))
+		foreach (path; paths.filter!(a => existanceCheck(a) && !importPaths[].canFind(a)))
 			importPaths.insert(path);
 
 		foreach (path; importPaths[])
@@ -118,7 +118,10 @@ struct ModuleCache
 	}
 
 	/// TODO: Implement
-	static void clear() {}
+	static void clear()
+	{
+		Log.warn("ModuleCache.clear is not yet implemented.");
+	}
 
 	/**
 	 * Params:
@@ -222,7 +225,7 @@ struct ModuleCache
 		if (isRooted(moduleName))
 			return moduleName;
 		string[] alternatives;
-		foreach (path; importPaths)
+		foreach (path; importPaths[])
 		{
 			string dotDi = buildPath(path, moduleName) ~ ".di";
 			string dotD = dotDi[0 .. $ - 1];
