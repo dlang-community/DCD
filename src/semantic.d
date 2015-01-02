@@ -106,7 +106,7 @@ Type argumentsType;
 
 static this()
 {
-	import std.allocator : allocate;
+	import std.allocator : allocate, Mallocator;
 	// _argptr has type void*
 	argptrType = allocate!Type(Mallocator.it);
 	argptrType.type2 = allocate!Type2(Mallocator.it);

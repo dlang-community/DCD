@@ -23,7 +23,7 @@ import std.d.lexer;
 /**
  * Interns the given string and returns the interned version.
  */
-string internString(string s)
+string internString(string s) nothrow @safe @nogc
 {
 	return stringCache.intern(s);
 }

@@ -68,7 +68,7 @@ public:
 	 * Params:
 	 *     name = the symbol's name
 	 */
-	this(string name)
+	this(string name) nothrow @safe
 	{
 		this.name = name is null ? name : internString(name);
 	}
@@ -78,7 +78,7 @@ public:
 	 *     name = the symbol's name
 	 *     kind = the symbol's completion kind
 	 */
-	this(string name, CompletionKind kind)
+	this(string name, CompletionKind kind) nothrow @safe @nogc
 	{
 		this.name = name is null ? name : internString(name);
 		this.kind = kind;
@@ -120,7 +120,7 @@ public:
 	/**
 	 * Gets all parts whose name matches the given string.
 	 */
-	ACSymbol*[] getPartsByName(string name)
+	ACSymbol*[] getPartsByName(string name) const
 	{
 		import std.range : chain;
 		ACSymbol s = ACSymbol(name);
@@ -137,7 +137,7 @@ public:
 	 * Adds all parts and parts of parts with the given name to the given output
 	 * range.
 	 */
-	void getAllPartsNamed(OR)(string name, ref OR outputRange)
+	void getAllPartsNamed(OR)(string name, ref OR outputRange) const
 		if (isOutputRange!(OR, ACSymbol*))
 	{
 		foreach (part; parts[])
@@ -225,7 +225,7 @@ struct Scope
 	 * Returns:
 	 *     the innermost scope that contains the given cursor position
 	 */
-	Scope* getScopeByCursor(size_t cursorPosition)
+	Scope* getScopeByCursor(size_t cursorPosition) const
 	{
 		if (cursorPosition < startLocation) return null;
 		if (cursorPosition > endLocation) return null;
@@ -245,7 +245,7 @@ struct Scope
 	 *     all symbols in the scope containing the cursor position, as well as
 	 *     the symbols in parent scopes of that scope.
 	 */
-	ACSymbol*[] getSymbolsInCursorScope(size_t cursorPosition)
+	ACSymbol*[] getSymbolsInCursorScope(size_t cursorPosition) const
 	{
 		auto s = getScopeByCursor(cursorPosition);
 		if (s is null)
@@ -276,7 +276,7 @@ struct Scope
 	 * Returns:
 	 *     all symbols in this scope or parent scopes with the given name
 	 */
-	ACSymbol*[] getSymbolsByName(string name)
+	ACSymbol*[] getSymbolsByName(string name) const
 	{
 		ACSymbol s = ACSymbol(name);
 		auto er = symbols.equalRange(&s);
@@ -325,7 +325,7 @@ struct Scope
 	 *     all symbols with the given name in the scope containing the cursor
 	 *     and its parent scopes
 	 */
-	ACSymbol*[] getSymbolsByNameAndCursor(string name, size_t cursorPosition)
+	ACSymbol*[] getSymbolsByNameAndCursor(string name, size_t cursorPosition) const
 	{
 		auto s = getScopeByCursor(cursorPosition);
 		if (s is null)
@@ -336,7 +336,7 @@ struct Scope
 	/**
 	 * Returns an array of symbols that are present at global scope
 	 */
-	ACSymbol*[] getSymbolsAtGlobalScope(string name)
+	ACSymbol*[] getSymbolsAtGlobalScope(string name) const
 	{
 		if (parent !is null)
 			return parent.getSymbolsAtGlobalScope(name);
@@ -421,7 +421,7 @@ immutable string WITH_SYMBOL_NAME;
 /**
  * Translates the IDs for built-in types into an interned string.
  */
-string getBuiltinTypeName(IdType id)
+string getBuiltinTypeName(IdType id) nothrow pure @nogc @safe
 {
 	switch (id)
 	{
