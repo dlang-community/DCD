@@ -118,7 +118,7 @@ class SimpleParser : Parser
 			if (currentIs(tok!"{"))
 				skipBraces();
 		}
-		return null;
+		return allocate!FunctionBody();
 	}
 }
 

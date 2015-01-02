@@ -397,6 +397,9 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	return response;
 }
 
+/**
+ * Determines if an import is selective, whole-module, or neither.
+ */
 ImportKind determineImportKind(T)(T tokens)
 {
 	assert (tokens.length > 1);

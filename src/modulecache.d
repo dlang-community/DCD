@@ -99,14 +99,18 @@ struct ModuleCache
 	@disable this();
 
 	/**
-	 * Adds the given path to the list of directories checked for imports
+	 * Adds the given path to the list of directories checked for imports.
+	 * Performs duplicate checking, so multiple instances of the same path will
+	 * not be present.
 	 */
 	static void addImportPaths(string[] paths)
 	{
-		foreach (path; paths.filter!(a => existanceCheck(a) && !importPaths[].canFind(a)))
-			importPaths.insert(path);
+		import string_interning : internString;
+		import std.array : array;
+		auto newPaths = paths.filter!(a => existanceCheck(a) && !importPaths[].canFind(a)).map!(internString).array;
+		importPaths.insert(newPaths);
 
-		foreach (path; importPaths[])
+		foreach (path; newPaths[])
 		{
 			foreach (fileName; dirEntries(path, "*.{d,di}", SpanMode.depth))
 			{
