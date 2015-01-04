@@ -141,14 +141,13 @@ int main(string[] args)
 		stderr.writefln("%s does not exist", args[1]);
 		return 1;
 	}
-	File f = usingStdin ? stdin : File(args[1]);
 	ubyte[] sourceCode;
 	if (usingStdin)
 	{
 		ubyte[4096] buf;
 		while (true)
 		{
-			auto b = f.rawRead(buf);
+			auto b = stdin.rawRead(buf);
 			if (b.length == 0)
 				break;
 			sourceCode ~= b;
@@ -156,6 +155,7 @@ int main(string[] args)
 	}
 	else
 	{
+		File f = File(args[1]);
 		sourceCode = uninitializedArray!(ubyte[])(to!size_t(f.size));
 		f.rawRead(sourceCode);
 	}
