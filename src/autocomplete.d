@@ -918,20 +918,7 @@ body
  */
 T getExpression(T)(T beforeTokens)
 {
-	if (beforeTokens.length == 0)
-		return beforeTokens[0 .. 0];
-	size_t i = beforeTokens.length - 1;
-	size_t sliceEnd = beforeTokens.length;
-	IdType open;
-	IdType close;
-	uint skipCount = 0;
-
-	expressionLoop: while (true)
-	{
-		switch (beforeTokens[i].type)
-		{
-		case tok!"import":
-			break expressionLoop;
+	enum TYPE_IDENT_AND_LITERAL_CASES = q{
 		case tok!"int":
 		case tok!"uint":
 		case tok!"long":
@@ -960,6 +947,31 @@ T getExpression(T)(T beforeTokens)
 		case tok!"stringLiteral":
 		case tok!"wstringLiteral":
 		case tok!"dstringLiteral":
+	};
+
+	if (beforeTokens.length == 0)
+		return beforeTokens[0 .. 0];
+	size_t i = beforeTokens.length - 1;
+	size_t sliceEnd = beforeTokens.length;
+	IdType open;
+	IdType close;
+	uint skipCount = 0;
+
+	expressionLoop: while (true)
+	{
+		switch (beforeTokens[i].type)
+		{
+		case tok!"import":
+			break expressionLoop;
+		mixin (TYPE_IDENT_AND_LITERAL_CASES);
+			if (i + 1 < beforeTokens.length) switch (beforeTokens[i + 1].type)
+			{
+			mixin (TYPE_IDENT_AND_LITERAL_CASES);
+				i++;
+				break expressionLoop;
+			default:
+				break;
+			}
 			if (i > 0 && beforeTokens[i - 1] == tok!"!")
 			{
 				sliceEnd -= 2;
