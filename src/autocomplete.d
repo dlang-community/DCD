@@ -949,6 +949,17 @@ T getExpression(T)(T beforeTokens)
 		case tok!"dstringLiteral":
 	};
 
+	enum EXPRESSION_LOOP_BREAK = q{
+		if (i + 1 < beforeTokens.length) switch (beforeTokens[i + 1].type)
+		{
+		mixin (TYPE_IDENT_AND_LITERAL_CASES);
+			i++;
+			break expressionLoop;
+		default:
+			break;
+		}
+	};
+
 	if (beforeTokens.length == 0)
 		return beforeTokens[0 .. 0];
 	size_t i = beforeTokens.length - 1;
@@ -964,14 +975,7 @@ T getExpression(T)(T beforeTokens)
 		case tok!"import":
 			break expressionLoop;
 		mixin (TYPE_IDENT_AND_LITERAL_CASES);
-			if (i + 1 < beforeTokens.length) switch (beforeTokens[i + 1].type)
-			{
-			mixin (TYPE_IDENT_AND_LITERAL_CASES);
-				i++;
-				break expressionLoop;
-			default:
-				break;
-			}
+			mixin (EXPRESSION_LOOP_BREAK);
 			if (i > 0 && beforeTokens[i - 1] == tok!"!")
 			{
 				sliceEnd -= 2;
@@ -988,6 +992,7 @@ T getExpression(T)(T beforeTokens)
 			open = tok!"]";
 			close = tok!"[";
 		skip:
+			mixin (EXPRESSION_LOOP_BREAK);
 			auto bookmark = i;
 			int depth = 1;
 			do
