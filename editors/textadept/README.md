@@ -1,5 +1,3 @@
 #Textadept Integration
 
-###Installation
-* Copy the dcd.lua and init.lua file into your ~/.textadept/modules/dmd/ folder.
-* Start the dcd-server program.
+The Textadept integration code has moved to [https://github.com/Hackerpilot/textadept-d](https://github.com/Hackerpilot/textadept-d).
