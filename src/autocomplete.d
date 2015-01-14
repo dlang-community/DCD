@@ -727,11 +727,13 @@ ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 				if (!p.isSliceExpression())
 				{
 					symbols = symbols[0].type is null ? [] : [symbols[0].type];
+					if (symbols.length == 0)
+						break loop;
 				}
 			}
 			else if (symbols[0].qualifier == SymbolQualifier.assocArray)
 			{
-				symbols = symbols[0].type is null ? [] :[symbols[0].type];
+				symbols = symbols[0].type is null ? [] : [symbols[0].type];
 				skip();
 			}
 			else

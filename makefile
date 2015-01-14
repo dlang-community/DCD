@@ -100,7 +100,8 @@ DEBUG_SERVER_FLAGS := -Icontainers/src\
 	-Ilibdparse/src\
 	-wi\
 	-g\
-	-ofbin/dcd-server
+	-ofbin/dcd-server\
+	-J.
 
 GDC_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
