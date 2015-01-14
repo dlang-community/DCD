@@ -112,7 +112,7 @@ static this()
 	argptrType.type2 = allocate!Type2(Mallocator.it);
 	argptrType.type2.builtinType = tok!"void";
 	TypeSuffix argptrTypeSuffix = allocate!TypeSuffix(Mallocator.it);
-	argptrTypeSuffix.star = true;
+	argptrTypeSuffix.star = Token(tok!"*");
 	argptrType.typeSuffixes = cast(TypeSuffix[]) Mallocator.it.allocate(TypeSuffix.sizeof);
 	argptrType.typeSuffixes[0] = argptrTypeSuffix;
 

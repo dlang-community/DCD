@@ -308,7 +308,7 @@ private:
 
 	ACSymbol* processSuffix(ACSymbol* symbol, const TypeSuffix suffix, const Type t)
 	{
-		if (suffix.star)
+		if (suffix.star.type != tok!"")
 			return symbol;
 		if (suffix.array || suffix.type)
 		{
