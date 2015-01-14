@@ -698,9 +698,9 @@ ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 				tokens.length - 1))
 			{
 				symbols = symbols[0].type is null ? [] : [symbols[0].type];
+				if (symbols.length == 0)
+					break loop;
 			}
-			if (symbols.length == 0)
-				break loop;
 			if (symbols[0].kind == CompletionKind.aliasName
 				&& (completionType == CompletionType.identifiers
 				|| i + 1 < tokens.length))
