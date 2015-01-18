@@ -481,14 +481,17 @@ final class FirstPass : ASTVisitor
 			Scope* s = allocate!Scope(semanticAllocator,
 				withStatement.statementNoCaseNoDefault.startLocation,
 				withStatement.statementNoCaseNoDefault.endLocation);
-			SemanticSymbol* symbol = allocateSemanticSymbol(WITH_SYMBOL_NAME,
-				CompletionKind.withSymbol, symbolFile, s.startLocation, null);
 			s.parent = currentScope;
 			currentScope.children.insert(s);
-			populateInitializer(symbol, withStatement.expression, false);
+			currentScope = s;
+			SemanticSymbol* symbol = allocateSemanticSymbol(WITH_SYMBOL_NAME,
+				CompletionKind.withSymbol, symbolFile, s.startLocation, null);
 			symbol.parent = currentSymbol;
-			currentSymbol.addChild(symbol);
+			currentSymbol = symbol;
+			populateInitializer(symbol, withStatement.expression, false);
 			withStatement.accept(this);
+			currentSymbol = currentSymbol.parent;
+			currentSymbol.addChild(symbol);
 			currentScope = currentScope.parent;
 		}
 		else
