@@ -273,7 +273,7 @@ final class FirstPass : ASTVisitor
 			protection = dec.attributeDeclaration.attribute.attribute.type;
 			return;
 		}
-		IdType p = protection;
+		immutable IdType p = protection;
 		foreach (const Attribute attr; dec.attributes)
 		{
 			if (isProtection(attr.attribute.type))

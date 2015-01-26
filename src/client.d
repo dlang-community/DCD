@@ -87,7 +87,7 @@ int main(string[] args)
 			request.kind = RequestKind.query;
 			if (sendRequest(socket, request))
 			{
-				AutocompleteResponse response = getResponse(socket);
+				const AutocompleteResponse response = getResponse(socket);
 				if (response.completionType == "ack")
 				{
 					writeln("Server is running");
@@ -134,7 +134,7 @@ int main(string[] args)
 	}
 
 	// Read in the source
-	bool usingStdin = args.length <= 1;
+	immutable bool usingStdin = args.length <= 1;
 	string fileName = usingStdin ? "stdin" : args[1];
 	if (!usingStdin && !exists(args[1]))
 	{
