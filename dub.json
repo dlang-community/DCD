@@ -5,10 +5,9 @@
 	"authors": ["Brian Schott"],
 	"dependencies": {
 		"msgpack-d": "~master",
-		"dcd:libdparse": "~master",
-		"dcd:containers": "~master" 
+		"dcd:libdparse": "~master"
 	},
-	"subPackages": ["./libdparse", "./containers"],
+	"subPackages": ["./libdparse"],
 	"sourcePaths": [],
 	"buildOptions": ["inline", "optimize"],
 	"configurations": [
@@ -23,8 +22,8 @@
 		"name": "dcd-server",
 		"targetType": "executable",
 		"targetName": "dcd-server",
-		"sourcePaths": ["src"],
+		"sourcePaths": ["src", "containers/src"],
 		"excludedSourceFiles": ["msgpack-d/*", "src/client.d"]
 	}
-	],
+	]
 }
