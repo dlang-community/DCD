@@ -314,15 +314,8 @@ final class FirstPass : ASTVisitor
 		currentSymbol.addChild(symbol);
 	}
 
-	override void visit(const EnumMember member)
-	{
-//		Log.trace(__FUNCTION__, " ", typeof(member).stringof);
-		SemanticSymbol* symbol = allocateSemanticSymbol(member.name.text,
-			CompletionKind.enumMember, symbolFile, member.name.index, member.type);
-		symbol.parent = currentSymbol;
-		symbol.acSymbol.doc = internString(member.comment);
-		currentSymbol.addChild(symbol);
-	}
+	mixin visitEnumMember!EnumMember;
+	mixin visitEnumMember!AnonymousEnumMember;
 
 	override void visit(const ModuleDeclaration moduleDeclaration)
 	{
@@ -513,6 +506,19 @@ final class FirstPass : ASTVisitor
 	uint symbolsAllocated;
 
 private:
+
+	template visitEnumMember(T)
+	{
+		override void visit(const T member)
+		{
+//			Log.trace(__FUNCTION__, " ", typeof(member).stringof);
+			SemanticSymbol* symbol = allocateSemanticSymbol(member.name.text,
+				CompletionKind.enumMember, symbolFile, member.name.index, member.type);
+			symbol.parent = currentSymbol;
+			symbol.acSymbol.doc = internString(member.comment);
+			currentSymbol.addChild(symbol);
+		}
+	}
 
 	void visitAggregateDeclaration(AggType)(AggType dec, CompletionKind kind)
 	{
