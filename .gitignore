@@ -17,4 +17,4 @@ callgrind.*
 githash.txt
 
 # Test results
-tests/tc*/actual.txt
+tests/tc*/actual*.txt

@@ -78,6 +78,21 @@ public:
 
 private:
 
+	bool shouldFollowtype(const ACSymbol* t, const SemanticSymbol* currentSymbol)
+	{
+		if (t is null)
+			return false;
+		if (currentSymbol.acSymbol.kind == CompletionKind.withSymbol
+			&& (t.kind == CompletionKind.variableName
+				|| t.kind == CompletionKind.aliasName))
+		{
+			return true;
+		}
+		if (t.kind == CompletionKind.aliasName)
+			return true;
+		return false;
+	}
+
 	void thirdPass(SemanticSymbol* currentSymbol)
 	{
 //		Log.trace("third pass on ", currentSymbol.acSymbol.name);
@@ -94,12 +109,8 @@ private:
 		case aliasName:
 			ACSymbol* t = resolveType(currentSymbol.initializer,
 				currentSymbol.type, currentSymbol.acSymbol.location);
-			while (t !is null && (t.kind == CompletionKind.aliasName
-				|| (currentSymbol.acSymbol.kind == CompletionKind.withSymbol
-					&& t.kind == CompletionKind.variableName)))
-			{
+			while (shouldFollowtype(t, currentSymbol))
 				t = t.type;
-			}
 			currentSymbol.acSymbol.type = t;
 			break;
 		case structName:
@@ -141,12 +152,12 @@ private:
 
 	void resolveInheritance(SemanticSymbol* currentSymbol)
 	{
-//		Log.trace("Resolving inheritance for ", currentSymbol.acSymbol.name);
 		outer: foreach (string[] base; currentSymbol.baseClasses)
 		{
 			ACSymbol* baseClass;
 			if (base.length == 0)
 				continue;
+			auto symbolScope = moduleScope.getScopeByCursor(currentSymbol.acSymbol.location);
 			auto symbols = moduleScope.getSymbolsByNameAndCursor(
 				base[0], currentSymbol.acSymbol.location);
 			if (symbols.length == 0)
@@ -160,6 +171,7 @@ private:
 				baseClass = symbols[0];
 			}
 			currentSymbol.acSymbol.parts.insert(baseClass.parts[]);
+			symbolScope.symbols.insert(baseClass.parts[]);
 		}
 	}
 
@@ -224,7 +236,7 @@ private:
 		slice.popFront();
 		auto s = symbols[0];
 
-		while (s !is null && s.type !is null && !slice.empty)
+		while (s !is null && s.type !is null && s !is s.type && !slice.empty)
 		{
 			s = s.type;
 			if (slice.front == "foreach")
@@ -243,12 +255,14 @@ private:
 			else if (slice.front == "[]")
 				s = s.type;
 			else
-			{
-				auto parts = s.getPartsByName(internString(slice.front));
-				if (parts.length == 0)
-					return null;
-				s = parts[0];
-			}
+				break;
+		}
+		while (s !is null && !slice.empty)
+		{
+			auto parts = s.getPartsByName(internString(slice.front));
+			if (parts.length == 0)
+				return null;
+			s = parts[0];
 			slice.popFront();
 		}
 		return s;
@@ -258,7 +272,8 @@ private:
 	{
 		if (t is null)
 			return resolveInitializerType(initializer, location);
-		if (t.type2 is null) return null;
+		if (t.type2 is null)
+			return null;
 		ACSymbol* s;
 		if (t.type2.builtinType != tok!"")
 			s = convertBuiltinType(t.type2);
