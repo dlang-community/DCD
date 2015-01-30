@@ -256,8 +256,8 @@ struct Scope
 		{
 			foreach (item; sc.symbols[])
 			{
-				if (item.kind == CompletionKind.importSymbol
-					|| item.kind == CompletionKind.withSymbol)
+				if (item.type !is null && (item.kind == CompletionKind.importSymbol
+					|| item.kind == CompletionKind.withSymbol))
 				{
 					foreach (i; item.type.parts[])
 						symbols.insert(i);
