@@ -21,7 +21,7 @@ module dcd_version;
 /**
  * Human-readable version number
  */
-enum DCD_VERSION = "v0.5.0-alpha";
+enum DCD_VERSION = "v0.5.0-beta3";
 
 version (Windows) {}
 else
