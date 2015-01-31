@@ -10,6 +10,8 @@ DMD := dmd
 GDC := gdc
 LDC := ldc2
 
+OBJ_DIR := objs
+
 githash:
 	git log -1 --format="%H" > githash.txt
 
@@ -22,6 +24,7 @@ clean:
 	rm -f dscanner-report.json
 	rm -f githash.txt
 	rm -f *.o
+	rm -rf $(OBJ_DIR)
 
 CLIENT_SRC := src/client.d\
 	src/messages.d\
@@ -85,6 +88,8 @@ SERVER_SRC := src/actypes.d\
 	containers/src/containers/slist.d\
 	msgpack-d/src/msgpack.d
 
+SERVER_OBJS = $(SERVER_SRC:%.d=$(OBJ_DIR)/%.o)
+
 DMD_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
 	-Ilibdparse/src\
@@ -114,11 +119,10 @@ GDC_SERVER_FLAGS := -Icontainers/src\
 LDC_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
 	-Ilibdparse/src\
+	-Isrc\
 	-J=.\
 	-O5\
 	-release\
-	-oq\
-	-of=bin/dcd-server
 
 dmdclient: githash
 	mkdir -p bin
@@ -148,5 +152,8 @@ gdcserver: githash
 ldcclient: githash
 	${LDC} ${CLIENT_SRC} ${LDC_CLIENT_FLAGS}
 
-ldcserver: githash
-	${LDC} ${SERVER_SRC} ${LDC_SERVER_FLAGS}
+$(OBJ_DIR)/%.o: $(SERVER_SRC)
+	$(LDC) $*.d $(LDC_SERVER_FLAGS) -od=$(OBJ_DIR) -op -c
+
+ldcserver: githash $(SERVER_OBJS)
+	${LDC} ${SERVER_OBJS} ${LDC_SERVER_FLAGS} -of=bin/dcd-server
