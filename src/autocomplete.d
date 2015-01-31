@@ -556,6 +556,12 @@ body
 void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
 {
 	response.completionType = CompletionType.identifiers;
+	string partial = null;
+	if (tokens[$ - 1].type == tok!"identifier")
+	{
+		partial = tokens[$ - 1].text;
+		tokens = tokens[0 .. $ - 1];
+	}
 	auto moduleParts = tokens.filter!(a => a.type == tok!"identifier").map!("a.text").array();
 	string path = buildPath(moduleParts);
 
@@ -575,15 +581,16 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
 			if (name.baseName.startsWith(".#"))
 				continue;
 
-			if (isFile(name) && (name.endsWith(".d") || name.endsWith(".di")))
+			auto n = name.baseName(".d").baseName(".di");
+			if (isFile(name) && (name.endsWith(".d") || name.endsWith(".di"))
+				&& (partial is null || n.startsWith(partial)))
 			{
-				response.completions ~= name.baseName(".d").baseName(".di");
+				response.completions ~= n;
 				response.completionKinds ~= CompletionKind.moduleName;
 			}
 			else if (isDir(name))
 			{
-				string n = name.baseName();
-				if (n[0] != '.')
+				if (n[0] != '.' && (partial is null || n.startsWith(partial)))
 				{
 					response.completions ~= n;
 					response.completionKinds ~=
