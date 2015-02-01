@@ -735,7 +735,7 @@ private:
 
 	CAllocator semanticAllocator;
 
-	Rebindable!(const AssignExpression) feExpression;
+	Rebindable!(const ExpressionNode) feExpression;
 }
 
 void formatNode(A, T)(ref A appender, const T node)
@@ -875,7 +875,7 @@ class InitializerVisitor : ASTVisitor
 
 	override void visit(const ArgumentList) {}
 
-	override void visit(const AssignExpression initializer)
+	override void visit(const Expression initializer)
 	{
 		on = true;
 		initializer.accept(this);
