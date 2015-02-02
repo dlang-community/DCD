@@ -56,14 +56,14 @@ int main(string[] args)
 			"doc|d", &doc, "query|q", &query, "search|s", &search,
 			"version", &printVersion);
 	}
-	catch (Exception e)
+	catch (ConvException e)
 	{
 		Log.fatal(e.msg);
+		printHelp(args[0]);
 		return 1;
 	}
 
 	AutocompleteRequest request;
-
 
 	if (printVersion)
 	{
@@ -155,6 +155,11 @@ int main(string[] args)
 	}
 	else
 	{
+		if (!exists(args[1]))
+		{
+			stderr.writeln("Could not find ", args[1]);
+			return 1;
+		}
 		File f = File(args[1]);
 		sourceCode = uninitializedArray!(ubyte[])(to!size_t(f.size));
 		f.rawRead(sourceCode);
