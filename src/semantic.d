@@ -70,16 +70,16 @@ public:
 	ACSymbol* acSymbol;
 
 	/// Base classes
-	UnrolledList!(string[]) baseClasses;
+	UnrolledList!(istring[]) baseClasses;
 
 	/// Variable type or function return type
 	const Type type;
 
 	/// Alias this symbols
-	UnrolledList!(string) aliasThis;
+	UnrolledList!(istring) aliasThis;
 
 	/// MixinTemplates
-	UnrolledList!(string[]) mixinTemplates;
+	UnrolledList!(istring[]) mixinTemplates;
 
 	/// Protection level for this symobol
 	IdType protection;
@@ -91,7 +91,7 @@ public:
 	UnrolledList!(SemanticSymbol*) children;
 
 	/// Assign expression identifier chain used for auto declarations
-	UnrolledList!(string) initializer;
+	UnrolledList!(istring) initializer;
 }
 
 /**

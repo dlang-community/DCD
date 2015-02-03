@@ -680,7 +680,7 @@ ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 		case tok!"ireal":
 		case tok!"creal":
 		case tok!"this":
-			symbols = symbols[0].getPartsByName(str(tokens[i].type));
+			symbols = symbols[0].getPartsByName(istring(str(tokens[i].type)));
 			if (symbols.length == 0)
 				break loop;
 			break;
@@ -695,7 +695,7 @@ ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 			}
 
 //			Log.trace("looking for ", tokens[i].text, " in ", symbols[0].name);
-			symbols = symbols[0].getPartsByName(tokens[i].text);
+			symbols = symbols[0].getPartsByName(istring(tokens[i].text));
 			if (symbols.length == 0)
 			{
 //				Log.trace("Couldn't find it.");
@@ -751,9 +751,9 @@ ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 				p.setTokens(tokens[h .. i].array());
 				ACSymbol*[] overloads;
 				if (p.isSliceExpression())
-					overloads = symbols[0].getPartsByName("opSlice");
+					overloads = symbols[0].getPartsByName(istring("opSlice"));
 				else
-					overloads = symbols[0].getPartsByName("opIndex");
+					overloads = symbols[0].getPartsByName(istring("opIndex"));
 				if (overloads.length > 0)
 				{
 					symbols = overloads[0].type is null ? [] : [overloads[0].type];
@@ -1120,9 +1120,9 @@ string formatComment(string comment)
 		.replaceAll(regex("\n"), `\n`).outdent();
 }
 
-string stringToken()(auto ref const Token a)
+istring stringToken()(auto ref const Token a)
 {
-	return a.text is null ? str(a.type) : a.text;
+	return a.text is null ? istring(str(a.type)) : istring(a.text);
 }
 
 //unittest

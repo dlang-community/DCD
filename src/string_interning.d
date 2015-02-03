@@ -23,9 +23,9 @@ import std.d.lexer;
 /**
  * Interns the given string and returns the interned version.
  */
-string internString(string s) nothrow @safe @nogc
+istring internString(string s) nothrow @safe @nogc
 {
-	return stringCache.intern(s);
+	return istring(stringCache.intern(s));
 }
 
 static this()
@@ -33,5 +33,19 @@ static this()
 	stringCache = StringCache(StringCache.defaultBucketCount);
 }
 
+alias istring = InternedString;
+
 //private size_t[string] dupCheck;
 private StringCache stringCache = void;
+
+private struct InternedString
+{
+    void opAssign(T)(T other) if (is(Unqual!T == istring))
+    {
+        this.data = other.data;
+    }
+	string data;
+    alias data this;
+private:
+	import std.traits : Unqual;
+}

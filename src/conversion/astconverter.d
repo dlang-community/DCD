@@ -28,14 +28,15 @@ import std.d.ast;
 import std.d.lexer;
 import std.d.parser;
 import std.typecons;
+import string_interning;
 
 /**
  * Used by autocompletion.
  */
 Scope* generateAutocompleteTrees(const(Token)[] tokens, CAllocator symbolAllocator)
 {
-	Module m = parseModule(tokens, "stdin", symbolAllocator, &doesNothing);
-	auto first = scoped!FirstPass(m, "stdin", symbolAllocator, symbolAllocator);
+	Module m = parseModule(tokens, internString("stdin"), symbolAllocator, &doesNothing);
+	auto first = scoped!FirstPass(m, internString("stdin"), symbolAllocator, symbolAllocator);
 	first.run();
 
 	SecondPass second = SecondPass(first);
