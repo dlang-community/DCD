@@ -69,9 +69,15 @@ public:
 	 * Params:
 	 *     name = the symbol's name
 	 */
+	this(string name) nothrow @safe
+	{
+		this.name = name is null ? istring(null) : internString(name);
+	}
+
+	/// ditto
 	this(istring name) nothrow @safe
 	{
-		this.name = name is null ? name : internString(name);
+		this.name = name;
 	}
 
 	/**
@@ -79,9 +85,16 @@ public:
 	 *     name = the symbol's name
 	 *     kind = the symbol's completion kind
 	 */
+	this(string name, CompletionKind kind) nothrow @safe @nogc
+	{
+		this.name = name is null ? istring(name) : internString(name);
+		this.kind = kind;
+	}
+
+	/// ditto
 	this(istring name, CompletionKind kind) nothrow @safe @nogc
 	{
-		this.name = name is null ? name : internString(name);
+		this.name = name;
 		this.kind = kind;
 	}
 
@@ -91,9 +104,17 @@ public:
 	 *     kind = the symbol's completion kind
 	 *     resolvedType = the resolved type of the symbol
 	 */
+	this(string name, CompletionKind kind, ACSymbol* type)
+	{
+		this.name = name is null ? istring(name) : internString(name);
+		this.kind = kind;
+		this.type = type;
+	}
+
+	/// ditto
 	this(istring name, CompletionKind kind, ACSymbol* type)
 	{
-		this.name = name is null ? name : internString(name);
+		this.name = name;
 		this.kind = kind;
 		this.type = type;
 	}
@@ -420,6 +441,22 @@ immutable istring ARGPTR_SYMBOL_NAME;
 immutable istring ARGUMENTS_SYMBOL_NAME;
 /// ditto
 immutable istring THIS_SYMBOL_NAME;
+/// ditto
+immutable istring UNITTEST_SYMBOL_NAME;
+immutable istring DOUBLE_LITERAL_SYMBOL_NAME;
+immutable istring FLOAT_LITERAL_SYMBOL_NAME;
+immutable istring IDOUBLE_LITERAL_SYMBOL_NAME;
+immutable istring IFLOAT_LITERAL_SYMBOL_NAME;
+immutable istring INT_LITERAL_SYMBOL_NAME;
+immutable istring LONG_LITERAL_SYMBOL_NAME;
+immutable istring REAL_LITERAL_SYMBOL_NAME;
+immutable istring IREAL_LITERAL_SYMBOL_NAME;
+immutable istring UINT_LITERAL_SYMBOL_NAME;
+immutable istring ULONG_LITERAL_SYMBOL_NAME;
+immutable istring CHAR_LITERAL_SYMBOL_NAME;
+immutable istring DSTRING_LITERAL_SYMBOL_NAME;
+immutable istring STRING_LITERAL_SYMBOL_NAME;
+immutable istring WSTRING_LITERAL_SYMBOL_NAME;
 
 /**
  * Translates the IDs for built-in types into an interned string.
@@ -494,7 +531,21 @@ static this()
 	ARGPTR_SYMBOL_NAME = internString("_argptr");
 	ARGUMENTS_SYMBOL_NAME = internString("_arguments");
 	THIS_SYMBOL_NAME = internString("this");
-
+	UNITTEST_SYMBOL_NAME = internString("*unittest*");
+	DOUBLE_LITERAL_SYMBOL_NAME = internString("*double");
+	FLOAT_LITERAL_SYMBOL_NAME = internString("*float");
+	IDOUBLE_LITERAL_SYMBOL_NAME = internString("*idouble");
+	IFLOAT_LITERAL_SYMBOL_NAME = internString("*ifloat");
+	INT_LITERAL_SYMBOL_NAME = internString("*int");
+	LONG_LITERAL_SYMBOL_NAME = internString("*long");
+	REAL_LITERAL_SYMBOL_NAME = internString("*real");
+	IREAL_LITERAL_SYMBOL_NAME = internString("*ireal");
+	UINT_LITERAL_SYMBOL_NAME = internString("*uint");
+	ULONG_LITERAL_SYMBOL_NAME = internString("*ulong");
+	CHAR_LITERAL_SYMBOL_NAME = internString("*char");
+	DSTRING_LITERAL_SYMBOL_NAME = internString("*dstring");
+	STRING_LITERAL_SYMBOL_NAME = internString("*string");
+	WSTRING_LITERAL_SYMBOL_NAME = internString("*wstring");
 
 	auto bool_ = allocate!ACSymbol(Mallocator.it, internString("bool"), CompletionKind.keyword);
 	auto int_ = allocate!ACSymbol(Mallocator.it, internString("int"), CompletionKind.keyword);

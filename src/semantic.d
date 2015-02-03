@@ -24,6 +24,7 @@ import std.d.ast;
 import std.d.lexer;
 import stupidlog;
 import containers.unrolledlist;
+import string_interning;
 
 /**
  * Intermediate form between ACSymbol and the AST classes. Stores enough
@@ -122,7 +123,7 @@ static this()
 	argumentsType.type2.symbol = allocate!Symbol(Mallocator.it);
 	argumentsType.type2.symbol.identifierOrTemplateChain = allocate!IdentifierOrTemplateChain(Mallocator.it);
 	IdentifierOrTemplateInstance i = allocate!IdentifierOrTemplateInstance(Mallocator.it);
-	i.identifier.text = "TypeInfo";
+	i.identifier.text = internString("TypeInfo");
 	i.identifier.type = tok!"identifier";
 	argumentsType.type2.symbol.identifierOrTemplateChain.identifiersOrTemplateInstances =
 		cast(IdentifierOrTemplateInstance[]) Mallocator.it.allocate(IdentifierOrTemplateInstance.sizeof);
