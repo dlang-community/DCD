@@ -680,7 +680,7 @@ ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 		case tok!"ireal":
 		case tok!"creal":
 		case tok!"this":
-			symbols = symbols[0].getPartsByName(str(tokens[i].type));
+			symbols = symbols[0].getPartsByName(internString(str(tokens[i].type)));
 			if (symbols.length == 0)
 				break loop;
 			break;
@@ -695,7 +695,7 @@ ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 			}
 
 //			Log.trace("looking for ", tokens[i].text, " in ", symbols[0].name);
-			symbols = symbols[0].getPartsByName(tokens[i].text);
+			symbols = symbols[0].getPartsByName(internString(tokens[i].text));
 			if (symbols.length == 0)
 			{
 //				Log.trace("Couldn't find it.");
@@ -751,9 +751,9 @@ ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 				p.setTokens(tokens[h .. i].array());
 				ACSymbol*[] overloads;
 				if (p.isSliceExpression())
-					overloads = symbols[0].getPartsByName("opSlice");
+					overloads = symbols[0].getPartsByName(internString("opSlice"));
 				else
-					overloads = symbols[0].getPartsByName("opIndex");
+					overloads = symbols[0].getPartsByName(internString("opIndex"));
 				if (overloads.length > 0)
 				{
 					symbols = overloads[0].type is null ? [] : [overloads[0].type];
@@ -866,7 +866,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			if (symbols[0].kind == CompletionKind.structName
 				|| symbols[0].kind == CompletionKind.className)
 			{
-				auto constructor = symbols[0].getPartsByName(internString("*constructor*"));
+				auto constructor = symbols[0].getPartsByName(CONSTRUCTOR_SYMBOL_NAME);
 				if (constructor.length == 0)
 				{
 					// Build a call tip out of the struct fields
@@ -1120,18 +1120,7 @@ string formatComment(string comment)
 		.replaceAll(regex("\n"), `\n`).outdent();
 }
 
-string stringToken()(auto ref const Token a)
+istring stringToken()(auto ref const Token a)
 {
-	return a.text is null ? str(a.type) : a.text;
+	return internString(a.text is null ? str(a.type) : a.text);
 }
-
-//unittest
-//{
-//	auto comment1 = "/**\n * This is some text\n */";
-//	auto result1 = formatComment(comment1);
-//	assert (result1 == `This is some text\n\n`, result1);
-//
-//	auto comment2 = "///some\n///text";
-//	auto result2 = formatComment(comment2);
-//	assert (result2 == `some\ntext\n\n`, result2);
-//}

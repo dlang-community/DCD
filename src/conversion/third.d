@@ -152,7 +152,7 @@ private:
 
 	void resolveInheritance(SemanticSymbol* currentSymbol)
 	{
-		outer: foreach (string[] base; currentSymbol.baseClasses)
+		outer: foreach (istring[] base; currentSymbol.baseClasses)
 		{
 			ACSymbol* baseClass;
 			if (base.length == 0)
@@ -283,7 +283,7 @@ private:
 		{
 			// TODO: global scoped symbol handling
 			size_t l = t.type2.symbol.identifierOrTemplateChain.identifiersOrTemplateInstances.length;
-			string[] symbolParts = (cast(string*) Mallocator.it.allocate(l * string.sizeof))[0 .. l];
+			istring[] symbolParts = (cast(istring*) Mallocator.it.allocate(l * istring.sizeof))[0 .. l];
 			scope(exit) Mallocator.it.deallocate(symbolParts);
 			expandSymbol(symbolParts, t.type2.symbol.identifierOrTemplateChain);
 			auto symbols = moduleScope.getSymbolsByNameAndCursor(
@@ -305,14 +305,14 @@ private:
 		return s;
 	}
 
-	static void expandSymbol(string[] strings, const IdentifierOrTemplateChain chain)
+	static void expandSymbol(istring[] strings, const IdentifierOrTemplateChain chain)
 	{
 		for (size_t i = 0; i < chain.identifiersOrTemplateInstances.length; ++i)
 		{
 			auto identOrTemplate = chain.identifiersOrTemplateInstances[i];
 			if (identOrTemplate is null)
 			{
-				strings[i] = null;
+				strings[i] = istring(null);
 				continue;
 			}
 			strings[i] = internString(identOrTemplate.templateInstance is null ?
@@ -327,7 +327,7 @@ private:
 			return symbol;
 		if (suffix.array || suffix.type)
 		{
-			ACSymbol* s = allocate!ACSymbol(symbolAllocator, null);
+			ACSymbol* s = allocate!ACSymbol(symbolAllocator, istring(null));
 			s.parts.insert(suffix.array ? arraySymbols[]
 				: assocArraySymbols[]);
 			s.type = symbol;
@@ -339,7 +339,7 @@ private:
 			import conversion.first : formatNode;
 			import memory.allocators : QuickAllocator;
 			import memory.appender : Appender;
-			ACSymbol* s = allocate!ACSymbol(symbolAllocator, null);
+			ACSymbol* s = allocate!ACSymbol(symbolAllocator, istring(null));
 			s.type = symbol;
 			s.qualifier = SymbolQualifier.func;
 			QuickAllocator!1024 q;
@@ -354,7 +354,7 @@ private:
 
 	ACSymbol* convertBuiltinType(const Type2 type2)
 	{
-		string stringRepresentation = getBuiltinTypeName(type2.builtinType);
+		istring stringRepresentation = getBuiltinTypeName(type2.builtinType);
 		ACSymbol s = ACSymbol(stringRepresentation);
 		assert(s.name.ptr == stringRepresentation.ptr);
 		return builtinSymbols.equalRange(&s).front();

@@ -141,7 +141,7 @@ struct ModuleCache
 
 		assert (location !is null);
 
-		string cachedLocation = internString(location);
+		istring cachedLocation = internString(location);
 
 		if (!needsReparsing(cachedLocation))
 		{

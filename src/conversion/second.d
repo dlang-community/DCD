@@ -113,7 +113,7 @@ private:
 	body
 	{
 		// top-level package name
-		immutable string firstPart = info.importParts[].front;
+		immutable istring firstPart = info.importParts[].front;
 
 		// top-level package symbol
 		ACSymbol* firstSymbol = void;
@@ -125,7 +125,7 @@ private:
 				CompletionKind.packageName);
 		ACSymbol* currentSymbol = firstSymbol;
 		size_t i = 0;
-		foreach (string importPart; info.importParts[])
+		foreach (importPart; info.importParts[])
 		{
 			i++;
 			if (i == 1) // Skip the top-level package

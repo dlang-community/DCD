@@ -54,7 +54,7 @@ final class FirstPass : ASTVisitor
 	 *     symbolAllocator = allocator used for the auto-complete symbols
 	 *     semanticAllocator = allocator used for semantic symbols
 	 */
-	this(Module mod, string symbolFile, CAllocator symbolAllocator,
+	this(Module mod, istring symbolFile, CAllocator symbolAllocator,
 		CAllocator semanticAllocator)
 	in
 	{
@@ -82,8 +82,8 @@ final class FirstPass : ASTVisitor
 	{
 		// Create a dummy symbol because we don't want unit test symbols leaking
 		// into the symbol they're declared in.
-		SemanticSymbol* s = allocateSemanticSymbol(internString("*unittest*"),
-			CompletionKind.dummy, null, 0);
+		SemanticSymbol* s = allocateSemanticSymbol(UNITTEST_SYMBOL_NAME,
+			CompletionKind.dummy, istring(null), 0);
 		s.parent = currentSymbol;
 		currentSymbol.addChild(s);
 		currentSymbol = s;
@@ -213,8 +213,8 @@ final class FirstPass : ASTVisitor
 			foreach (i, identifier; dec.autoDeclaration.identifiers)
 			{
 				SemanticSymbol* symbol = allocateSemanticSymbol(
-					identifier.text, CompletionKind.variableName, symbolFile,
-					identifier.index, null);
+					identifier.text, CompletionKind.variableName,
+					symbolFile, identifier.index, null);
 				populateInitializer(symbol, dec.autoDeclaration.initializers[i]);
 				symbol.protection = protection;
 				symbol.parent = currentSymbol;
@@ -231,10 +231,7 @@ final class FirstPass : ASTVisitor
 			foreach (name; aliasDeclaration.identifierList.identifiers)
 			{
 				SemanticSymbol* symbol = allocateSemanticSymbol(
-					name.text,
-					CompletionKind.aliasName,
-					symbolFile,
-					name.index,
+					name.text, CompletionKind.aliasName, symbolFile, name.index,
 					aliasDeclaration.type);
 				symbol.protection = protection;
 				symbol.parent = currentSymbol;
@@ -247,11 +244,8 @@ final class FirstPass : ASTVisitor
 			foreach (initializer; aliasDeclaration.initializers)
 			{
 				SemanticSymbol* symbol = allocateSemanticSymbol(
-					initializer.name.text,
-					CompletionKind.aliasName,
-					symbolFile,
-					initializer.name.index,
-					initializer.type);
+					initializer.name.text, CompletionKind.aliasName,
+					symbolFile, initializer.name.index, initializer.type);
 				symbol.protection = protection;
 				symbol.parent = currentSymbol;
 				symbol.acSymbol.doc = internString(aliasDeclaration.comment);
@@ -331,8 +325,8 @@ final class FirstPass : ASTVisitor
 		Scope* s = allocate!Scope(semanticAllocator, structBody.startLocation, structBody.endLocation);
 //		Log.trace("Added scope ", s.startLocation, " ", s.endLocation);
 
-		ACSymbol* thisSymbol = allocate!ACSymbol(symbolAllocator, "this",
-			CompletionKind.variableName, currentSymbol.acSymbol);
+		ACSymbol* thisSymbol = allocate!ACSymbol(symbolAllocator,
+			THIS_SYMBOL_NAME, CompletionKind.variableName, currentSymbol.acSymbol);
 		thisSymbol.location = s.startLocation;
 		thisSymbol.symbolFile = symbolFile;
 		s.symbols.insert(thisSymbol);
@@ -373,7 +367,7 @@ final class FirstPass : ASTVisitor
 		}
 		foreach (bind; importDeclaration.importBindings.importBinds)
 		{
-			Tuple!(string, string) bindTuple;
+			Tuple!(istring, istring) bindTuple;
 			if (bind.right == tok!"")
 			{
 				bindTuple[1] = internString(bind.left.text);
@@ -514,8 +508,9 @@ private:
 		override void visit(const T member)
 		{
 //			Log.trace(__FUNCTION__, " ", typeof(member).stringof);
-			SemanticSymbol* symbol = allocateSemanticSymbol(member.name.text,
-				CompletionKind.enumMember, symbolFile, member.name.index, member.type);
+			SemanticSymbol* symbol = allocateSemanticSymbol(
+				member.name.text, CompletionKind.enumMember, symbolFile,
+				member.name.index, member.type);
 			symbol.parent = currentSymbol;
 			symbol.acSymbol.doc = internString(member.comment);
 			currentSymbol.addChild(symbol);
@@ -561,9 +556,9 @@ private:
 		const TemplateParameters templateParameters,
 		const FunctionBody functionBody, string doc)
 	{
-		SemanticSymbol* symbol = allocateSemanticSymbol("*constructor*",
+		SemanticSymbol* symbol = allocateSemanticSymbol(CONSTRUCTOR_SYMBOL_NAME,
 			CompletionKind.functionName, symbolFile, location);
-		processParameters(symbol, null, "this", parameters, templateParameters);
+		processParameters(symbol, null, THIS_SYMBOL_NAME, parameters, templateParameters);
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
 		symbol.acSymbol.doc = internString(doc);
@@ -584,7 +579,7 @@ private:
 
 	void visitDestructor(size_t location, const FunctionBody functionBody, string doc)
 	{
-		SemanticSymbol* symbol = allocateSemanticSymbol("~this",
+		SemanticSymbol* symbol = allocateSemanticSymbol(DESTRUCTOR_SYMBOL_NAME,
 			CompletionKind.functionName, symbolFile, location);
 		symbol.acSymbol.callTip = "~this()";
 		symbol.protection = protection;
@@ -622,13 +617,15 @@ private:
 			}
 			if (parameters.hasVarargs)
 			{
-				SemanticSymbol* argptr = allocateSemanticSymbol("_argptr",
-					CompletionKind.variableName, null, size_t.max, argptrType);
+				SemanticSymbol* argptr = allocateSemanticSymbol(ARGPTR_SYMBOL_NAME,
+					CompletionKind.variableName, istring(null), size_t.max,
+					argptrType);
 				argptr.parent = symbol;
 				symbol.addChild(argptr);
 
-				SemanticSymbol* arguments = allocateSemanticSymbol("_arguments",
-					CompletionKind.variableName, null, size_t.max, argumentsType);
+				SemanticSymbol* arguments = allocateSemanticSymbol(
+					ARGUMENTS_SYMBOL_NAME, CompletionKind.variableName,
+					istring(null), size_t.max, argumentsType);
 				arguments.parent = symbol;
 				symbol.addChild(arguments);
 			}
@@ -668,8 +665,8 @@ private:
 				}
 				else
 					continue;
-				SemanticSymbol* templateParameter = allocateSemanticSymbol(name, kind,
-					symbolFile, index, type);
+				SemanticSymbol* templateParameter = allocateSemanticSymbol(name,
+					kind, symbolFile, index, type);
 				symbol.addChild(templateParameter);
 				templateParameter.parent = symbol;
 			}
@@ -705,7 +702,7 @@ private:
 	}
 
 	SemanticSymbol* allocateSemanticSymbol(string name, CompletionKind kind,
-		string symbolFile, size_t location = 0, const Type type = null)
+		istring symbolFile, size_t location = 0, const Type type = null)
 	in
 	{
 		assert (symbolAllocator !is null);
@@ -729,7 +726,7 @@ private:
 	SemanticSymbol* currentSymbol;
 
 	/// Path to the file being converted
-	string symbolFile;
+	istring symbolFile;
 
 	Module mod;
 
@@ -760,9 +757,9 @@ Scope* createFunctionScope(const FunctionBody functionBody, CAllocator semanticA
 	return allocate!Scope(semanticAllocator, scopeBegin, scopeEnd);
 }
 
-string[] iotcToStringArray(A)(ref A allocator, const IdentifierOrTemplateChain iotc)
+istring[] iotcToStringArray(A)(ref A allocator, const IdentifierOrTemplateChain iotc)
 {
-	string[] retVal = cast(string[]) allocator.allocate((string[]).sizeof
+	istring[] retVal = cast(istring[]) allocator.allocate((istring[]).sizeof
 		* iotc.identifiersOrTemplateInstances.length);
 	foreach (i, ioti; iotc.identifiersOrTemplateInstances)
 	{
@@ -774,7 +771,7 @@ string[] iotcToStringArray(A)(ref A allocator, const IdentifierOrTemplateChain i
 	return retVal;
 }
 
-static string convertChainToImportPath(const IdentifierChain ic)
+static istring convertChainToImportPath(const IdentifierChain ic)
 {
 	import std.path : dirSeparator;
 	QuickAllocator!1024 q;
@@ -802,7 +799,7 @@ class InitializerVisitor : ASTVisitor
 	override void visit(const IdentifierOrTemplateInstance ioti)
 	{
 		if (on && ioti.identifier != tok!"")
-			semanticSymbol.initializer.insert(ioti.identifier.text);
+			semanticSymbol.initializer.insert(internString(ioti.identifier.text));
 		ioti.accept(this);
 	}
 
@@ -812,53 +809,53 @@ class InitializerVisitor : ASTVisitor
 		// the prefix '*' so that that the third pass can tell the difference
 		// between "int.abc" and "10.abc".
 		if (on && primary.basicType != tok!"")
-			semanticSymbol.initializer.insert(str(primary.basicType.type));
+			semanticSymbol.initializer.insert(internString(str(primary.basicType.type)));
 		if (on) switch (primary.primary.type)
 		{
 		case tok!"identifier":
-			semanticSymbol.initializer.insert(primary.primary.text);
+			semanticSymbol.initializer.insert(internString(primary.primary.text));
 			break;
 		case tok!"doubleLiteral":
-			semanticSymbol.initializer.insert("*double");
+			semanticSymbol.initializer.insert(DOUBLE_LITERAL_SYMBOL_NAME);
 			break;
 		case tok!"floatLiteral":
-			semanticSymbol.initializer.insert("*float");
+			semanticSymbol.initializer.insert(FLOAT_LITERAL_SYMBOL_NAME);
 			break;
 		case tok!"idoubleLiteral":
-			semanticSymbol.initializer.insert("*idouble");
+			semanticSymbol.initializer.insert(IDOUBLE_LITERAL_SYMBOL_NAME);
 			break;
 		case tok!"ifloatLiteral":
-			semanticSymbol.initializer.insert("*ifloat");
+			semanticSymbol.initializer.insert(IFLOAT_LITERAL_SYMBOL_NAME);
 			break;
 		case tok!"intLiteral":
-			semanticSymbol.initializer.insert("*int");
+			semanticSymbol.initializer.insert(INT_LITERAL_SYMBOL_NAME);
 			break;
 		case tok!"longLiteral":
-			semanticSymbol.initializer.insert("*long");
+			semanticSymbol.initializer.insert(LONG_LITERAL_SYMBOL_NAME);
 			break;
 		case tok!"realLiteral":
-			semanticSymbol.initializer.insert("*real");
+			semanticSymbol.initializer.insert(REAL_LITERAL_SYMBOL_NAME);
 			break;
 		case tok!"irealLiteral":
-			semanticSymbol.initializer.insert("*ireal");
+			semanticSymbol.initializer.insert(IREAL_LITERAL_SYMBOL_NAME);
 			break;
 		case tok!"uintLiteral":
-			semanticSymbol.initializer.insert("*uint");
+			semanticSymbol.initializer.insert(UINT_LITERAL_SYMBOL_NAME);
 			break;
 		case tok!"ulongLiteral":
-			semanticSymbol.initializer.insert("*ulong");
+			semanticSymbol.initializer.insert(ULONG_LITERAL_SYMBOL_NAME);
 			break;
 		case tok!"characterLiteral":
-			semanticSymbol.initializer.insert("*char");
+			semanticSymbol.initializer.insert(CHAR_LITERAL_SYMBOL_NAME);
 			break;
 		case tok!"dstringLiteral":
-			semanticSymbol.initializer.insert("*dstring");
+			semanticSymbol.initializer.insert(DSTRING_LITERAL_SYMBOL_NAME);
 			break;
 		case tok!"stringLiteral":
-			semanticSymbol.initializer.insert("*string");
+			semanticSymbol.initializer.insert(STRING_LITERAL_SYMBOL_NAME);
 			break;
 		case tok!"wstringLiteral":
-			semanticSymbol.initializer.insert("*wstring");
+			semanticSymbol.initializer.insert(WSTRING_LITERAL_SYMBOL_NAME);
 			break;
 		default:
 			break;
@@ -870,7 +867,7 @@ class InitializerVisitor : ASTVisitor
 	{
 		unary.accept(this);
 		if (unary.indexExpression)
-			semanticSymbol.initializer.insert("[]");
+			semanticSymbol.initializer.insert(internString("[]"));
 	}
 
 	override void visit(const ArgumentList) {}
@@ -880,7 +877,7 @@ class InitializerVisitor : ASTVisitor
 		on = true;
 		initializer.accept(this);
 		if (appendForeach)
-			semanticSymbol.initializer.insert("foreach");
+			semanticSymbol.initializer.insert(internString("foreach"));
 		on = false;
 	}
 
