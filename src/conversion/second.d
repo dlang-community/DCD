@@ -54,8 +54,8 @@ public:
 	 */
 	void run()
 	{
-		rootSymbol.acSymbol.parts.insert(builtinSymbols[]);
 		assignToScopes(rootSymbol.acSymbol);
+		moduleScope.symbols.insert(builtinSymbols[]);
 		resolveImports(moduleScope);
 	}
 

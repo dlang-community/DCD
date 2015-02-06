@@ -870,12 +870,19 @@ class InitializerVisitor : ASTVisitor
 			semanticSymbol.initializer.insert(internString("[]"));
 	}
 
-	override void visit(const ArgumentList) {}
-
-	override void visit(const Expression initializer)
+	override void visit(const Initializer initializer)
 	{
 		on = true;
 		initializer.accept(this);
+		on = false;
+	}
+
+	override void visit(const ArgumentList) {}
+
+	override void visit(const Expression expression)
+	{
+		on = true;
+		expression.accept(this);
 		if (appendForeach)
 			semanticSymbol.initializer.insert(internString("foreach"));
 		on = false;

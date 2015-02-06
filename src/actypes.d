@@ -547,18 +547,18 @@ static this()
 	STRING_LITERAL_SYMBOL_NAME = internString("*string");
 	WSTRING_LITERAL_SYMBOL_NAME = internString("*wstring");
 
-	auto bool_ = allocate!ACSymbol(Mallocator.it, internString("bool"), CompletionKind.keyword);
-	auto int_ = allocate!ACSymbol(Mallocator.it, internString("int"), CompletionKind.keyword);
-	auto long_ = allocate!ACSymbol(Mallocator.it, internString("long"), CompletionKind.keyword);
-	auto byte_ = allocate!ACSymbol(Mallocator.it, internString("byte"), CompletionKind.keyword);
-	auto char_ = allocate!ACSymbol(Mallocator.it, internString("char"), CompletionKind.keyword);
-	auto dchar_ = allocate!ACSymbol(Mallocator.it, internString("dchar"), CompletionKind.keyword);
-	auto short_ = allocate!ACSymbol(Mallocator.it, internString("short"), CompletionKind.keyword);
-	auto ubyte_ = allocate!ACSymbol(Mallocator.it, internString("ubyte"), CompletionKind.keyword);
-	auto uint_ = allocate!ACSymbol(Mallocator.it, internString("uint"), CompletionKind.keyword);
-	auto ulong_ = allocate!ACSymbol(Mallocator.it, internString("ulong"), CompletionKind.keyword);
-	auto ushort_ = allocate!ACSymbol(Mallocator.it, internString("ushort"), CompletionKind.keyword);
-	auto wchar_ = allocate!ACSymbol(Mallocator.it, internString("wchar"), CompletionKind.keyword);
+	auto bool_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[13], CompletionKind.keyword);
+	auto int_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[0], CompletionKind.keyword);
+	auto long_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[8], CompletionKind.keyword);
+	auto byte_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[19], CompletionKind.keyword);
+	auto char_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[10], CompletionKind.keyword);
+	auto dchar_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[12], CompletionKind.keyword);
+	auto short_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[6], CompletionKind.keyword);
+	auto ubyte_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[20], CompletionKind.keyword);
+	auto uint_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[1], CompletionKind.keyword);
+	auto ulong_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[9], CompletionKind.keyword);
+	auto ushort_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[7], CompletionKind.keyword);
+	auto wchar_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[11], CompletionKind.keyword);
 
 	auto alignof_ = allocate!ACSymbol(Mallocator.it, internString("alignof"), CompletionKind.keyword);
 	auto mangleof_ = allocate!ACSymbol(Mallocator.it, internString("mangleof"), CompletionKind.keyword);
@@ -619,17 +619,17 @@ static this()
 		s.parts.insert(init);
 	}
 
-	auto cdouble_ = allocate!ACSymbol(Mallocator.it, internString("cdouble"), CompletionKind.keyword);
-	auto cent_ = allocate!ACSymbol(Mallocator.it, internString("cent"), CompletionKind.keyword);
-	auto cfloat_ = allocate!ACSymbol(Mallocator.it, internString("cfloat"), CompletionKind.keyword);
-	auto creal_ = allocate!ACSymbol(Mallocator.it, internString("creal"), CompletionKind.keyword);
-	auto double_ = allocate!ACSymbol(Mallocator.it, internString("double"), CompletionKind.keyword);
-	auto float_ = allocate!ACSymbol(Mallocator.it, internString("float"), CompletionKind.keyword);
-	auto idouble_ = allocate!ACSymbol(Mallocator.it, internString("idouble"), CompletionKind.keyword);
-	auto ifloat_ = allocate!ACSymbol(Mallocator.it, internString("ifloat"), CompletionKind.keyword);
-	auto ireal_ = allocate!ACSymbol(Mallocator.it, internString("ireal"), CompletionKind.keyword);
-	auto real_ = allocate!ACSymbol(Mallocator.it, internString("real"), CompletionKind.keyword);
-	auto ucent_ = allocate!ACSymbol(Mallocator.it, internString("ucent"), CompletionKind.keyword);
+	auto cdouble_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[21], CompletionKind.keyword);
+	auto cent_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[15], CompletionKind.keyword);
+	auto cfloat_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[22], CompletionKind.keyword);
+	auto creal_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[23], CompletionKind.keyword);
+	auto double_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[2], CompletionKind.keyword);
+	auto float_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[4], CompletionKind.keyword);
+	auto idouble_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[3], CompletionKind.keyword);
+	auto ifloat_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[5], CompletionKind.keyword);
+	auto ireal_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[18], CompletionKind.keyword);
+	auto real_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[17], CompletionKind.keyword);
+	auto ucent_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[16], CompletionKind.keyword);
 
 	ACSymbol*[11] floatTypeArray;
 	floatTypeArray[0] = cdouble_;
@@ -689,7 +689,7 @@ static this()
 	ifloat_.parts.insert(allocate!ACSymbol(Mallocator.it, internString("re"), CompletionKind.keyword, float_));
 	idouble_.parts.insert(allocate!ACSymbol(Mallocator.it, internString("re"), CompletionKind.keyword, double_));
 
-	auto void_ = allocate!ACSymbol(Mallocator.it, internString("void"), CompletionKind.keyword);
+	auto void_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[14], CompletionKind.keyword);
 
 	builtinSymbols.insert(bool_);
 	bool_.type = bool_;
