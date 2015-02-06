@@ -352,7 +352,7 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 		completions = scopes;
 		goto fillResponse;
 	case tok!"version":
-		completions = versions;
+		completions = predefinedVersions;
 		goto fillResponse;
 	case tok!"extern":
 		completions = linkages;
