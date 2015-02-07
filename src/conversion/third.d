@@ -26,6 +26,7 @@ import actypes;
 import messages;
 import std.allocator;
 import string_interning;
+import stupidlog;
 
 /**
  * Third pass handles the following:
@@ -95,7 +96,6 @@ private:
 
 	void thirdPass(SemanticSymbol* currentSymbol)
 	{
-//		Log.trace("third pass on ", currentSymbol.acSymbol.name);
 		with (CompletionKind) final switch (currentSymbol.acSymbol.kind)
 		{
 		case className:
@@ -242,6 +242,7 @@ private:
 			s = s.type;
 			if (slice.front == "foreach")
 			{
+//				Log.trace("foreach");
 				if (s.qualifier == SymbolQualifier.array)
 					s = s.type;
 				else
@@ -252,6 +253,7 @@ private:
 					else
 						s = null;
 				}
+				slice.popFront();
 			}
 			else if (slice.front == "[]")
 				s = s.type;

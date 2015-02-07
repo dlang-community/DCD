@@ -453,11 +453,7 @@ final class FirstPass : ASTVisitor
 				feType.identifier.text, CompletionKind.variableName,
 				symbolFile, feType.identifier.index, feType.type);
 		if (symbol.type is null && feExpression !is null)
-		{
-//			Log.trace("Populating initializer");
 			populateInitializer(symbol, feExpression, true);
-//			Log.trace(symbol.initializer[]);
-		}
 		symbol.parent = currentSymbol;
 		currentSymbol.addChild(symbol);
 	}
@@ -880,6 +876,15 @@ class InitializerVisitor : ASTVisitor
 	override void visit(const ArgumentList) {}
 
 	override void visit(const Expression expression)
+	{
+		on = true;
+		expression.accept(this);
+		if (appendForeach)
+			semanticSymbol.initializer.insert(internString("foreach"));
+		on = false;
+	}
+
+	override void visit(const ExpressionNode expression)
 	{
 		on = true;
 		expression.accept(this);
