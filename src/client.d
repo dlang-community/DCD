@@ -46,6 +46,7 @@ int main(string[] args)
 	bool doc;
 	bool query;
 	bool printVersion;
+	bool outline;
 	string search;
 
 	try
@@ -54,7 +55,7 @@ int main(string[] args)
 			"port|p", &port, "help|h", &help, "shutdown", &shutdown,
 			"clearCache", &clearCache, "symbolLocation|l", &symbolLocation,
 			"doc|d", &doc, "query|q", &query, "search|s", &search,
-			"version", &printVersion);
+			"version", &printVersion, "outline|o", &outline);
 	}
 	catch (ConvException e)
 	{
@@ -126,7 +127,7 @@ int main(string[] args)
 			return 0;
 		}
 	}
-	else if (search == null && cursorPos == size_t.max)
+	else if (search == null && cursorPos == size_t.max && !outline)
 	{
 		// cursor position is a required argument
 		printHelp(args[0]);
@@ -177,6 +178,8 @@ int main(string[] args)
 		request.kind |= RequestKind.doc;
 	else if(search)
 		request.kind |= RequestKind.search;
+	else if(outline)
+		request.kind |= RequestKind.outline;
 	else
 		request.kind |= RequestKind.autocomplete;
 
@@ -194,6 +197,8 @@ int main(string[] args)
 		printDocResponse(response);
 	else if (search !is null)
 		printSearchResponse(response);
+	else if (outline)
+		printOutline(response);
 	else
 		printCompletionResponse(response);
 
@@ -339,4 +344,11 @@ void printSearchResponse(const AutocompleteResponse response)
 		writefln("%s\t%s\t%s", response.completions[i], response.completionKinds[i],
 			response.locations[i]);
 	}
+}
+
+void printOutline(const AutocompleteResponse response)
+{
+	assert(response.completions.length == response.completionKinds.length);
+	assert(response.completions.length == response.locations.length);
+	printSearchResponse(response);
 }
