@@ -577,7 +577,7 @@ private:
 	{
 		SemanticSymbol* symbol = allocateSemanticSymbol(DESTRUCTOR_SYMBOL_NAME,
 			CompletionKind.functionName, symbolFile, location);
-		symbol.acSymbol.callTip = "~this()";
+		symbol.acSymbol.callTip = internString("~this()");
 		symbol.protection = protection;
 		symbol.parent = currentSymbol;
 		symbol.acSymbol.doc = internString(doc);
@@ -669,7 +669,7 @@ private:
 		}
 	}
 
-	string formatCallTip(const Type returnType, string name,
+	istring formatCallTip(const Type returnType, string name,
 		const Parameters parameters, const TemplateParameters templateParameters)
 	{
 		QuickAllocator!1024 q;

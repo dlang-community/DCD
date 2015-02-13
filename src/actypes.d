@@ -184,7 +184,7 @@ public:
 	/**
 	 * Calltip to display if this is a function
 	 */
-	string callTip;
+	istring callTip;
 
 	/**
 	 * Module containing the symbol.
