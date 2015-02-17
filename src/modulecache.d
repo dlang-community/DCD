@@ -153,8 +153,6 @@ struct ModuleCache
 			return null;
 		}
 
-		Log.info("Getting symbols for ", cachedLocation);
-
 		recursionGuard.insert(cachedLocation);
 
 		ACSymbol* symbol;
