@@ -101,23 +101,28 @@ public AutocompleteResponse complete(const AutocompleteRequest request)
 	auto cache = StringCache(StringCache.defaultBucketCount);
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
 		request.cursorPosition, &cache, tokenArray);
-	if (beforeTokens.length >= 2 && (beforeTokens[$ - 1] == tok!"("
-		|| beforeTokens[$ - 1] == tok!"["))
+	if (beforeTokens.length >= 2)
 	{
-		return parenCompletion(beforeTokens, tokenArray, request.cursorPosition);
-	}
-	else if (beforeTokens.length >= 2)
-	{
-		ImportKind kind = determineImportKind(beforeTokens);
-		if (kind == ImportKind.neither)
-			return dotCompletion(beforeTokens, tokenArray, request.cursorPosition);
+		if (beforeTokens[$ - 1] == tok!"(" || beforeTokens[$ - 1] == tok!"[")
+		{
+			return parenCompletion(beforeTokens, tokenArray, request.cursorPosition);
+		}
+		else if (beforeTokens[$ - 1] == tok!",")
+		{
+			immutable size_t end = goBackToOpenParen(beforeTokens);
+			if (end != size_t.max)
+				return parenCompletion(beforeTokens[0 .. end], tokenArray, request.cursorPosition);
+		}
 		else
-			return importCompletion(beforeTokens, kind);
+		{
+			ImportKind kind = determineImportKind(beforeTokens);
+			if (kind == ImportKind.neither)
+				return dotCompletion(beforeTokens, tokenArray, request.cursorPosition);
+			else
+				return importCompletion(beforeTokens, kind);
+		}
 	}
-	else
-	{
-		return dotCompletion(beforeTokens, tokenArray, request.cursorPosition);
-	}
+	return dotCompletion(beforeTokens, tokenArray, request.cursorPosition);
 }
 
 /**
@@ -922,42 +927,43 @@ body
 	return generatedStructConstructorCalltip;
 }
 
+private enum TYPE_IDENT_AND_LITERAL_CASES = q{
+	case tok!"int":
+	case tok!"uint":
+	case tok!"long":
+	case tok!"ulong":
+	case tok!"char":
+	case tok!"wchar":
+	case tok!"dchar":
+	case tok!"bool":
+	case tok!"byte":
+	case tok!"ubyte":
+	case tok!"short":
+	case tok!"ushort":
+	case tok!"cent":
+	case tok!"ucent":
+	case tok!"float":
+	case tok!"ifloat":
+	case tok!"cfloat":
+	case tok!"idouble":
+	case tok!"cdouble":
+	case tok!"double":
+	case tok!"real":
+	case tok!"ireal":
+	case tok!"creal":
+	case tok!"this":
+	case tok!"identifier":
+	case tok!"stringLiteral":
+	case tok!"wstringLiteral":
+	case tok!"dstringLiteral":
+};
+
+
 /**
  *
  */
 T getExpression(T)(T beforeTokens)
 {
-	enum TYPE_IDENT_AND_LITERAL_CASES = q{
-		case tok!"int":
-		case tok!"uint":
-		case tok!"long":
-		case tok!"ulong":
-		case tok!"char":
-		case tok!"wchar":
-		case tok!"dchar":
-		case tok!"bool":
-		case tok!"byte":
-		case tok!"ubyte":
-		case tok!"short":
-		case tok!"ushort":
-		case tok!"cent":
-		case tok!"ucent":
-		case tok!"float":
-		case tok!"ifloat":
-		case tok!"cfloat":
-		case tok!"idouble":
-		case tok!"cdouble":
-		case tok!"double":
-		case tok!"real":
-		case tok!"ireal":
-		case tok!"creal":
-		case tok!"this":
-		case tok!"identifier":
-		case tok!"stringLiteral":
-		case tok!"wstringLiteral":
-		case tok!"dstringLiteral":
-	};
-
 	enum EXPRESSION_LOOP_BREAK = q{
 		if (i + 1 < beforeTokens.length) switch (beforeTokens[i + 1].type)
 		{
@@ -1055,6 +1061,75 @@ T getExpression(T)(T beforeTokens)
 			i--;
 	}
 	return beforeTokens[i .. sliceEnd];
+}
+
+size_t goBackToOpenParen(T)(T beforeTokens)
+in
+{
+	assert (beforeTokens.length > 0);
+}
+body
+{
+	size_t i = beforeTokens.length - 1;
+	IdType open;
+	IdType close;
+	while (true) switch (beforeTokens[i].type)
+	{
+	case tok!",":
+	case tok!".":
+	case tok!"doubleLiteral":
+	case tok!"floatLiteral":
+	case tok!"idoubleLiteral":
+    case tok!"ifloatLiteral":
+	case tok!"intLiteral":
+	case tok!"longLiteral":
+	case tok!"realLiteral":
+    case tok!"irealLiteral":
+	case tok!"uintLiteral":
+	case tok!"ulongLiteral":
+	case tok!"characterLiteral":
+	mixin(TYPE_IDENT_AND_LITERAL_CASES);
+		if (i == 0)
+			return size_t.max;
+		else
+			i--;
+		break;
+	case tok!"(":
+	case tok!"[":
+		return i + 1;
+	case tok!")":
+		open = tok!")";
+		close = tok!"(";
+		goto skip;
+	case tok!"}":
+		open = tok!"}";
+		close = tok!"{";
+		goto skip;
+	case tok!"]":
+		open = tok!"]";
+		close = tok!"[";
+	skip:
+		if (i == 0)
+			return size_t.max;
+		else
+			i--;
+		int depth = 1;
+		do
+		{
+			if (depth == 0 || i == 0)
+				break;
+			else
+				i--;
+			if (beforeTokens[i].type == open)
+				depth++;
+			else if (beforeTokens[i].type == close)
+				depth--;
+		} while (true);
+		break;
+	default:
+		return size_t.max;
+	}
+	return size_t.max;
 }
 
 /**
