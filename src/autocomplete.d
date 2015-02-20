@@ -1077,6 +1077,8 @@ body
 	{
 	case tok!",":
 	case tok!".":
+	case tok!"*":
+	case tok!"&":
 	case tok!"doubleLiteral":
 	case tok!"floatLiteral":
 	case tok!"idoubleLiteral":
