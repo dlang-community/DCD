@@ -152,6 +152,7 @@ private:
 
 	void resolveInheritance(SemanticSymbol* currentSymbol)
 	{
+		import std.algorithm : filter;
 		outer: foreach (istring[] base; currentSymbol.baseClasses)
 		{
 			ACSymbol* baseClass;
@@ -170,8 +171,16 @@ private:
 					continue outer;
 				baseClass = symbols[0];
 			}
-			currentSymbol.acSymbol.parts.insert(baseClass.parts[]);
-			symbolScope.symbols.insert(baseClass.parts[]);
+			currentSymbol.acSymbol.parts.insert(baseClass.parts[].filter!(
+				a => a.name.ptr != CONSTRUCTOR_SYMBOL_NAME.ptr));
+			symbolScope.symbols.insert(baseClass.parts[].filter!(
+				a => a.name.ptr != CONSTRUCTOR_SYMBOL_NAME.ptr));
+			if (baseClass.kind == CompletionKind.className)
+			{
+				auto s = allocate!ACSymbol(symbolAllocator,
+					SUPER_SYMBOL_NAME, CompletionKind.variableName, baseClass);
+				symbolScope.symbols.insert(s);
+			}
 		}
 	}
 

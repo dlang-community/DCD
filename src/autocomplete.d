@@ -278,6 +278,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens,
 	case tok!")":
 	case tok!"]":
 	case tok!"this":
+	case tok!"super":
 		auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024*16)));
 		Scope* completionScope = generateAutocompleteTrees(tokenArray, allocator);
 		scope(exit) typeid(Scope).destroy(completionScope);
@@ -387,6 +388,8 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	case tok!"uintLiteral":
 	case tok!"ulongLiteral":
 	case tok!"wstringLiteral":
+	case tok!"this":
+	case tok!"super":
 	case tok!")":
 	case tok!"]":
 		auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 16)))();
@@ -685,6 +688,7 @@ ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 		case tok!"ireal":
 		case tok!"creal":
 		case tok!"this":
+		case tok!"super":
 			symbols = symbols[0].getPartsByName(internString(str(tokens[i].type)));
 			if (symbols.length == 0)
 				break loop;
@@ -952,6 +956,7 @@ private enum TYPE_IDENT_AND_LITERAL_CASES = q{
 	case tok!"ireal":
 	case tok!"creal":
 	case tok!"this":
+	case tok!"super":
 	case tok!"identifier":
 	case tok!"stringLiteral":
 	case tok!"wstringLiteral":
