@@ -442,20 +442,36 @@ immutable istring ARGUMENTS_SYMBOL_NAME;
 /// ditto
 immutable istring THIS_SYMBOL_NAME;
 /// ditto
+immutable istring SUPER_SYMBOL_NAME;
+/// ditto
 immutable istring UNITTEST_SYMBOL_NAME;
+/// ditto
 immutable istring DOUBLE_LITERAL_SYMBOL_NAME;
+/// ditto
 immutable istring FLOAT_LITERAL_SYMBOL_NAME;
+/// ditto
 immutable istring IDOUBLE_LITERAL_SYMBOL_NAME;
+/// ditto
 immutable istring IFLOAT_LITERAL_SYMBOL_NAME;
+/// ditto
 immutable istring INT_LITERAL_SYMBOL_NAME;
+/// ditto
 immutable istring LONG_LITERAL_SYMBOL_NAME;
+/// ditto
 immutable istring REAL_LITERAL_SYMBOL_NAME;
+/// ditto
 immutable istring IREAL_LITERAL_SYMBOL_NAME;
+/// ditto
 immutable istring UINT_LITERAL_SYMBOL_NAME;
+/// ditto
 immutable istring ULONG_LITERAL_SYMBOL_NAME;
+/// ditto
 immutable istring CHAR_LITERAL_SYMBOL_NAME;
+/// ditto
 immutable istring DSTRING_LITERAL_SYMBOL_NAME;
+/// ditto
 immutable istring STRING_LITERAL_SYMBOL_NAME;
+/// ditto
 immutable istring WSTRING_LITERAL_SYMBOL_NAME;
 
 /**
@@ -531,6 +547,7 @@ static this()
 	ARGPTR_SYMBOL_NAME = internString("_argptr");
 	ARGUMENTS_SYMBOL_NAME = internString("_arguments");
 	THIS_SYMBOL_NAME = internString("this");
+	SUPER_SYMBOL_NAME = internString("super");
 	UNITTEST_SYMBOL_NAME = internString("*unittest*");
 	DOUBLE_LITERAL_SYMBOL_NAME = internString("*double");
 	FLOAT_LITERAL_SYMBOL_NAME = internString("*float");
