@@ -59,7 +59,7 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request)
 		allocator, &cache);
 	if (symbols.length == 0)
 		Log.error("Could not find symbol");
-	else foreach (symbol; symbols.filter!(a => a.doc !is null))
+	else foreach (symbol; symbols.filter!(a => !a.doc.empty))
 		response.docComments ~= formatComment(symbol.doc);
 	return response;
 }
@@ -1187,7 +1187,7 @@ string formatComment(string comment)
 	enum tripleSlashRegex = `(?:\t )*///`;
 	enum slashStarRegex = `(?:^/\*\*+)|(?:\n?\s*\*+/$)|(?:(?<=\n)\s*\* ?)`;
 	enum slashPlusRegex = `(?:^/\+\++)|(?:\n?\s*\++/$)|(?:(?<=\n)\s*\+ ?)`;
-	if (comment is null)
+	if (comment.length < 3)
 		return null;
 	string re;
 	if (comment[0 .. 3] == "///")
