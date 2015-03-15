@@ -221,6 +221,12 @@ int main(string[] args)
 			ubyte[] responseBytes = msgpack.pack(response);
 			s.send(responseBytes);
 		}
+		else if (request.kind & RequestKind.outline)
+		{
+			AutocompleteResponse response = getOutline(request);
+			ubyte[] responseBytes = msgpack.pack(response);
+			s.send(responseBytes);
+		}
 		Log.info("Request processed in ", requestWatch.peek().to!("msecs", float), " milliseconds");
 	}
 	return 0;

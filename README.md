@@ -179,6 +179,32 @@ in place of a file being edited.)
 /usr/include/dmd/phobos/std/conv.d  f   9494
 ```
 
+### Outline
+```dcd-client --outline```
+
+The "--outline" or "-o" flags cause the server to return
+basic outline of file.
+
+The output format is one result per line, with the symbol scope name
+(class name, struct name, etc, or ```.``` if global),
+the symbol declaration string (with type and arguments),
+the symbol type and the line of the symbol separated by tab characters.
+
+For example:
+
+    .	auto  byToken(ubyte[] range, StringCache* cache)	f	1829
+    .	auto  byToken(ubyte[] range)	f	1818
+    ByteCombine	ulong ByteCombine	v	2342
+    ByteCombine	ulong ByteCombine	v	2344
+    DLexer	this()	f	532
+    DLexer	this()	f	541
+    DLexer	void popFront()	f	554
+    DLexer	bool isWhitespace()	f	564
+    StringCache	this()	f	1984
+    StringCache	~this()	f	2012
+    StringCache.Block	ubyte[] bytes	v	2184
+    StringCache.Block	size_t used	v	2185
+
 #Server
 The server must be running for the DCD client to provide autocomplete information.
 In future versions the client may start the server if it is not running, but for
