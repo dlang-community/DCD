@@ -190,6 +190,62 @@ public AutocompleteResponse symbolSearch(const AutocompleteRequest request)
 	return response;
 }
 
+/**
+ * Finds usage of the symbol at the cursor position in the current document.
+ * Params:
+ *     request = the autocompletion request
+ * Returns:
+ *     the autocompletion response
+ */
+public AutocompleteResponse findLocalUsage(const AutocompleteRequest request)
+{
+	AutocompleteResponse response;
+
+	auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 16)))();
+	auto cache = StringCache(StringCache.defaultBucketCount);
+
+	const(Token)[] tokenArray;
+	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
+		request.cursorPosition, &cache, tokenArray);
+	Scope* completionScope = generateAutocompleteTrees(tokenArray, allocator);
+	scope(exit) typeid(Scope).destroy(completionScope);
+
+	ACSymbol* findSymbolDeclaration(T)(T tokens)
+	{
+		if (tokens.empty)
+		{
+			return null;
+		}
+		auto expression = getExpression(tokens);
+		ACSymbol*[] symbols = getSymbolsByTokenChain(completionScope, expression,
+			tokens.back().index, CompletionType.location);
+		return symbols.length ? symbols.front() : null;
+	}
+
+	auto requiredSymbol = findSymbolDeclaration(beforeTokens);
+	if (requiredSymbol is null)
+	{
+		return response;
+	}
+
+	response.symbolLocation = requiredSymbol.location;
+	response.symbolFilePath = requiredSymbol.symbolFile;
+	response.completions = [requiredSymbol.name];
+	response.completionKinds = [requiredSymbol.kind];
+	foreach (i, t; tokenArray)
+	{
+		if (t.type == tok!"identifier" && t.text == requiredSymbol.name)
+		{
+			auto declaration = findSymbolDeclaration(tokenArray[0 .. i + 1]);
+			if (declaration is requiredSymbol)
+			{
+				response.locations ~= t.index;
+			}
+		}
+	}
+	return response;
+}
+
 /******************************************************************************/
 private:
 

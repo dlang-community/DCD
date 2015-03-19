@@ -46,6 +46,7 @@ int main(string[] args)
 	bool doc;
 	bool query;
 	bool printVersion;
+	bool localUsage;
 	string search;
 
 	try
@@ -54,6 +55,7 @@ int main(string[] args)
 			"port|p", &port, "help|h", &help, "shutdown", &shutdown,
 			"clearCache", &clearCache, "symbolLocation|l", &symbolLocation,
 			"doc|d", &doc, "query|q", &query, "search|s", &search,
+			"localUsage|u", &localUsage,
 			"version", &printVersion);
 	}
 	catch (ConvException e)
@@ -177,6 +179,8 @@ int main(string[] args)
 		request.kind |= RequestKind.doc;
 	else if(search)
 		request.kind |= RequestKind.search;
+	else if (localUsage)
+		request.kind |= RequestKind.localUsage;
 	else
 		request.kind |= RequestKind.autocomplete;
 
@@ -194,6 +198,8 @@ int main(string[] args)
 		printDocResponse(response);
 	else if (search !is null)
 		printSearchResponse(response);
+	else if (localUsage)
+		printLocalUsageResponse(response);
 	else
 		printCompletionResponse(response);
 
@@ -239,6 +245,10 @@ Options:
     --search | -s symbolName
         Searches for symbolName in both stdin / the given file name as well as
         others files cached by the server.
+
+    --localUsage | -u
+	Finds the usages of the symbol at the cursor location in the current
+	source code.
 
     --query | -q
         Query the server statis. Returns 0 if the server is running. Returns
@@ -300,7 +310,7 @@ void printDocResponse(AutocompleteResponse response)
 		writeln(doc);
 }
 
-void printLocationResponse(AutocompleteResponse response)
+void printLocationResponse(const AutocompleteResponse response)
 {
 	if (response.symbolFilePath is null)
 		writeln("Not found");
@@ -338,5 +348,16 @@ void printSearchResponse(const AutocompleteResponse response)
 	{
 		writefln("%s\t%s\t%s", response.completions[i], response.completionKinds[i],
 			response.locations[i]);
+	}
+}
+
+void printLocalUsageResponse(const AutocompleteResponse response)
+{
+	printLocationResponse(response);
+	if (response.completions.length && response.completionKinds.length)
+		writefln("%s\t%s", response.completions.front(), response.completionKinds.front());
+	foreach (loc; response.locations)
+	{
+		writeln(loc);
 	}
 }

@@ -179,6 +179,27 @@ in place of a file being edited.)
 /usr/include/dmd/phobos/std/conv.d  f   9494
 ```
 
+## Find usage of symbol at cursor
+```dcd-client --localUsage -c 123```
+
+The "--localUsage" or "-u" flags cause the client to instruct the server
+to return the path to the file and the byte offset of the declaration and byte
+offsets for all symbol usages in current source code.
+
+#### Output format
+A line containing the output as described in [Find declaration of symbol at cursor](#find-declaration-of-symbol-at-cursor) followed
+by the symbol name and the symbol kind separated by tab character.
+Then the offsets of symbol usage presented in the current source code will be printed, one per line.
+
+#### Example output
+```
+stdin	92
+a	v
+92
+133
+148
+```
+
 #Server
 The server must be running for the DCD client to provide autocomplete information.
 In future versions the client may start the server if it is not running, but for
