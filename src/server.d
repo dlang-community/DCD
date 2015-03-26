@@ -121,12 +121,23 @@ int main(string[] args)
 	// No relative paths
 	version (Posix) chdir("/");
 
+	version (LittleEndian)
+		immutable expectedClient = IPv4Union([127, 0, 0, 1]);
+	else
+		immutable expectedClient = IPv4Union([1, 0, 0, 127]);
+
 	serverLoop: while (true)
 	{
 		auto s = socket.accept();
 		s.blocking = true;
 
-		// TODO: Restrict connections to localhost
+		// Only accept connections from localhost
+		IPv4Union actual;
+		InternetAddress clientAddr = cast(InternetAddress) s.remoteAddress();
+		actual.i = clientAddr.addr;
+		// Shut down if somebody tries connecting from outside
+		enforce(actual.i = expectedClient.i, "Connection attempted from "
+			~ clientAddr.toAddrString());
 
 		scope (exit)
 		{
@@ -251,6 +262,15 @@ string getConfigurationLocation()
 	{
 		return CONFIG_FILE_NAME;
 	}
+}
+
+/// IP v4 address as bytes and a uint
+union IPv4Union
+{
+	/// the bytes
+	ubyte[4] b;
+	/// the uint
+	uint i;
 }
 
 /**
