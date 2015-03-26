@@ -250,8 +250,8 @@ string getConfigurationLocation()
 			configDir = environment.get("HOME", null);
 			if (configDir !is null)
 				configDir = buildPath(configDir, ".config", "dcd", CONFIG_FILE_NAME);
-			else
-				configDir = "/etc/";
+			if (!exists(configDir))
+				configDir = buildPath("/etc/", CONFIG_FILE_NAME);
 		}
 		else
 		{
