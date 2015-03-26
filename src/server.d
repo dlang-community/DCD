@@ -248,9 +248,10 @@ string getConfigurationLocation()
 		if (configDir is null)
 		{
 			configDir = environment.get("HOME", null);
-			if (configDir is null)
-				throw new Exception("Both $XDG_CONFIG_HOME and $HOME are unset");
-			configDir = buildPath(configDir, ".config", "dcd", CONFIG_FILE_NAME);
+			if (configDir !is null)
+				configDir = buildPath(configDir, ".config", "dcd", CONFIG_FILE_NAME);
+			else
+				configDir = "/etc/";
 		}
 		else
 		{
