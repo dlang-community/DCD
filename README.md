@@ -45,6 +45,9 @@ issue.
 1. Configure your text editor to call the dcd-client program. See the *editors* folder for directions on configuring your specific editor.
 1. Start the dcd-server program before editing code. (Unless, of course, your editor's plugin handles this for you)
 
+### OS X w/ Homebrew
+```brew install dcd``` followed by points 4 & 5 above.
+
 # Client
 Because DCD is designed to be used from a text editor, this section is written
 primarily for plugin authors.
