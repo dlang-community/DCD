@@ -117,25 +117,27 @@ enum CompletionType : string
 /**
  * Request kind
  */
-enum RequestKind : ubyte
+enum RequestKind : ushort
 {
-	uninitialized =  0b00000000,
+	uninitialized =  0b000000000,
 	/// Autocompletion
-	autocomplete =   0b00000001,
+	autocomplete =   0b000000001,
 	/// Clear the completion cache
-	clearCache =     0b00000010,
+	clearCache =     0b000000010,
 	/// Add import directory to server
-	addImport =      0b00000100,
+	addImport =      0b000000100,
 	/// Shut down the server
-	shutdown =       0b00001000,
+	shutdown =       0b000001000,
 	/// Get declaration location of given symbol
-	symbolLocation = 0b00010000,
+	symbolLocation = 0b000010000,
 	/// Get the doc comments for the symbol
-	doc =            0b00100000,
+	doc =            0b000100000,
 	/// Query server status
-	query =	         0b01000000,
+	query =	         0b001000000,
 	/// Search for symbol
-	search =         0b10000000,
+	search =         0b010000000,
+	/// Local symbol usage
+	localUsage =     0b100000000,
 }
 
 /**
