@@ -536,7 +536,8 @@ body
 	void addSymbolToResponses(ACSymbol* sy)
 	{
 		auto a = ACSymbol(sy.name);
-		if (!builtinSymbols.contains(&a) && sy.name !is null && !h.contains(sy.name))
+		if (!builtinSymbols.contains(&a) && sy.name !is null && !h.contains(sy.name)
+				&& sy.name != CONSTRUCTOR_SYMBOL_NAME)
 		{
 			response.completionKinds ~= sy.kind;
 			response.completions ~= sy.name;
