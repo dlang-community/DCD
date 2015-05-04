@@ -124,6 +124,7 @@ immutable string[] predefinedVersions = [
 	"D_PIC",
 	"DragonFlyBSD",
 	"D_SIMD",
+	"D_Warnings",
 	"D_SoftFloat",
 	"D_Version2",
 	"D_X32",
