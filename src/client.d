@@ -53,7 +53,7 @@ int main(string[] args)
 		getopt(args, "cursorPos|c", &cursorPos, "I", &importPaths,
 			"port|p", &port, "help|h", &help, "shutdown", &shutdown,
 			"clearCache", &clearCache, "symbolLocation|l", &symbolLocation,
-			"doc|d", &doc, "query|q", &query, "search|s", &search,
+			"doc|d", &doc, "query|status|q", &query, "search|s", &search,
 			"version", &printVersion);
 	}
 	catch (ConvException e)
@@ -240,7 +240,7 @@ Options:
         Searches for symbolName in both stdin / the given file name as well as
         others files cached by the server.
 
-    --query | -q
+    --query | -q | --status
         Query the server statis. Returns 0 if the server is running. Returns
         1 if the server could not be contacted.
 
