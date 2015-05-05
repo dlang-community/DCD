@@ -25,6 +25,7 @@ module constants;
  */
 immutable string[] pragmas = [
 	"lib",
+	"mangle",
 	"msg",
 	"startaddress"
 ];
