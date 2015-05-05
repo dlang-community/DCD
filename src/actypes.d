@@ -756,5 +756,9 @@ static this()
 	ucent_.type = ucent_;
 	builtinSymbols.insert(void_);
 	void_.type = void_;
+
+
+	foreach (s; ["__DATE__", "__EOF__", "__TIME__", "__TIMESTAMP__", "__VENDOR__", "__VERSION__"])
+		builtinSymbols.insert(allocate!ACSymbol(Mallocator.it, internString(s), CompletionKind.keyword));
 }
 
