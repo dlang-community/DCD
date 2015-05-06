@@ -758,7 +758,9 @@ static this()
 	void_.type = void_;
 
 
-	foreach (s; ["__DATE__", "__EOF__", "__TIME__", "__TIMESTAMP__", "__VENDOR__", "__VERSION__"])
+	foreach (s; ["__DATE__", "__EOF__", "__TIME__", "__TIMESTAMP__", "__VENDOR__",
+			"__VERSION__", "__FUNCTION__", "__PRETTY_FUNCTION__", "__MODULE__",
+			"__FILE__", "__LINE__"])
 		builtinSymbols.insert(allocate!ACSymbol(Mallocator.it, internString(s), CompletionKind.keyword));
 }
 
