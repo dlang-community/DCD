@@ -29,6 +29,7 @@ import std.process;
 import std.datetime;
 import std.conv;
 import std.allocator;
+import std.exception : enforce;
 
 import core.memory;
 

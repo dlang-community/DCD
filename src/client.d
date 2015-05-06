@@ -258,6 +258,8 @@ Options:
 
 TcpSocket createSocket(ushort port)
 {
+	import core.time : dur;
+
 	TcpSocket socket = new TcpSocket(AddressFamily.INET);
 	socket.setOption(SocketOptionLevel.SOCKET, SocketOption.RCVTIMEO, dur!"seconds"(5));
 	socket.connect(new InternetAddress("localhost", port));
