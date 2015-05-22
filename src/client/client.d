@@ -28,10 +28,10 @@ import std.path;
 import std.file;
 import std.conv;
 import std.string;
+import std.experimental.logger;
 
 import msgpack;
 import messages;
-import stupidlog;
 import dcd_version;
 
 int main(string[] args)
@@ -58,7 +58,7 @@ int main(string[] args)
 	}
 	catch (ConvException e)
 	{
-		Log.fatal(e.msg);
+		fatal(e.msg);
 		printHelp(args[0]);
 		return 1;
 	}

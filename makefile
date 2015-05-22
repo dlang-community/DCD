@@ -26,10 +26,9 @@ clean:
 	rm -f *.o
 	rm -rf $(OBJ_DIR)
 
-CLIENT_SRC := src/client.d\
-	src/messages.d\
-	src/stupidlog.d\
-	src/dcd_version.d\
+CLIENT_SRC := \
+	$(shell find src/common -name "*.d")\
+	$(shell find src/client -name "*.d")\
 	msgpack-d/src/msgpack.d
 
 DMD_CLIENT_FLAGS := -Imsgpack-d/src\
@@ -55,20 +54,10 @@ LDC_CLIENT_FLAGS := -Imsgpack-d/src\
 	-oq\
 	-of=bin/dcd-client
 
-SERVER_SRC := src/actypes.d\
-	src/conversion/astconverter.d\
-	src/conversion/first.d\
-	src/conversion/second.d\
-	src/conversion/third.d\
-	src/autocomplete.d\
-	src/constants.d\
-	src/messages.d\
-	src/modulecache.d\
-	src/semantic.d\
-	src/server.d\
-	src/stupidlog.d\
-	src/string_interning.d\
-	src/dcd_version.d\
+SERVER_SRC := \
+	$(shell find src/common -name "*.d")\
+	$(shell find src/server -name "*.d")\
+	$(shell find dsymbol/src -name "*.d")\
 	libdparse/src/std/d/ast.d\
 	libdparse/src/std/d/entities.d\
 	libdparse/src/std/d/lexer.d\
@@ -93,6 +82,7 @@ SERVER_OBJS = $(SERVER_SRC:%.d=$(OBJ_DIR)/%.o)
 DMD_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
 	-Ilibdparse/src\
+	-Idsymbol/src\
 	-J.\
 	-wi\
 	-O\

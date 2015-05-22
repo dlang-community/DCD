@@ -117,7 +117,7 @@ A line containing the string "calltips", followed by zero or more lines, each
 containing a call tip for an overload of the given function.
 ##### Example output
 	calltips
-	ACSymbol findSymbolInCurrentScope(size_t cursorPosition, string name)
+	Symbol findSymbolInCurrentScope(size_t cursorPosition, string name)
 
 ## Doc comment display
 ```dcd-client --doc -c 4298```

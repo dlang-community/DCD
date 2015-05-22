@@ -30,16 +30,18 @@ import std.datetime;
 import std.conv;
 import std.allocator;
 import std.exception : enforce;
+import std.experimental.logger;
 
 import core.memory;
 
 import msgpack;
 
+import dsymbol.string_interning;
+
 import messages;
 import autocomplete;
-import modulecache;
-import stupidlog;
-import actypes;
+import dsymbol.modulecache;
+import dsymbol.symbol;
 import core.memory;
 import dcd_version;
 
@@ -53,11 +55,8 @@ version(OSX) version = useXDG;
 
 int main(string[] args)
 {
-	Log.info("Starting up...");
+	info("Starting up...");
 	StopWatch sw = StopWatch(AutoStart.yes);
-
-	Log.output = stdout;
-	Log.level = LogLevel.trace;
 
 	ushort port = 9166;
 	bool help;
@@ -71,7 +70,7 @@ int main(string[] args)
 	}
 	catch (ConvException e)
 	{
-		Log.fatal(e.msg);
+		fatal(e.msg);
 		printHelp(args[0]);
 		return 1;
 	}
@@ -100,21 +99,21 @@ int main(string[] args)
 	socket.listen(0);
 	scope (exit)
 	{
-		Log.info("Shutting down sockets...");
+		info("Shutting down sockets...");
 		socket.shutdown(SocketShutdown.BOTH);
 		socket.close();
-		Log.info("Sockets shut down.");
+		info("Sockets shut down.");
 	}
 
 	ModuleCache.addImportPaths(importPaths);
-	Log.info("Import directories: ", ModuleCache.getImportPaths());
+	info("Import directories: ", ModuleCache.getImportPaths());
 
 	ubyte[] buffer = cast(ubyte[]) Mallocator.it.allocate(1024 * 1024 * 4); // 4 megabytes should be enough for anybody...
 	scope(exit) Mallocator.it.deallocate(buffer);
 
 	sw.stop();
-	Log.info(ModuleCache.symbolsAllocated, " symbols cached.");
-	Log.info("Startup completed in ", sw.peek().to!("msecs", float), " milliseconds.");
+	info(ModuleCache.symbolsAllocated, " symbols cached.");
+	info("Startup completed in ", sw.peek().to!("msecs", float), " milliseconds.");
 	import core.memory : GC;
 	GC.minimize();
 
@@ -165,7 +164,7 @@ int main(string[] args)
 
 		if (bytesReceived == Socket.ERROR)
 		{
-			Log.error("Socket recieve failed");
+			warning("Socket recieve failed");
 			break;
 		}
 
@@ -173,12 +172,12 @@ int main(string[] args)
 		msgpack.unpack(buffer[size_t.sizeof .. bytesReceived], request);
 		if (request.kind & RequestKind.clearCache)
 		{
-			Log.info("Clearing cache.");
+			info("Clearing cache.");
 			ModuleCache.clear();
 		}
 		else if (request.kind & RequestKind.shutdown)
 		{
-			Log.info("Shutting down.");
+			info("Shutting down.");
 			break serverLoop;
 		}
 		else if (request.kind & RequestKind.query)
@@ -195,14 +194,14 @@ int main(string[] args)
 		}
 		if (request.kind & RequestKind.autocomplete)
 		{
-			Log.info("Getting completions");
+			info("Getting completions");
 			AutocompleteResponse response = complete(request);
 			ubyte[] responseBytes = msgpack.pack(response);
 			s.send(responseBytes);
 		}
 		else if (request.kind & RequestKind.doc)
 		{
-			Log.info("Getting doc comment");
+			info("Getting doc comment");
 			try
 			{
 				AutocompleteResponse response = getDoc(request);
@@ -211,7 +210,7 @@ int main(string[] args)
 			}
 			catch (Exception e)
 			{
-				Log.error("Could not get DDoc information", e.msg);
+				warning("Could not get DDoc information", e.msg);
 			}
 		}
 		else if (request.kind & RequestKind.symbolLocation)
@@ -224,7 +223,7 @@ int main(string[] args)
 			}
 			catch (Exception e)
 			{
-				Log.error("Could not get symbol location", e.msg);
+				warning("Could not get symbol location", e.msg);
 			}
 		}
 		else if (request.kind & RequestKind.search)
@@ -233,7 +232,7 @@ int main(string[] args)
 			ubyte[] responseBytes = msgpack.pack(response);
 			s.send(responseBytes);
 		}
-		Log.info("Request processed in ", requestWatch.peek().to!("msecs", float), " milliseconds");
+		info("Request processed in ", requestWatch.peek().to!("msecs", float), " milliseconds");
 	}
 	return 0;
 }
@@ -283,11 +282,11 @@ void warnAboutOldConfigLocation()
 	version (linux) if ("~/.config/dcd".expandTilde().exists()
 		&& "~/.config/dcd".expandTilde().isFile())
 	{
-		Log.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-		Log.error("!! Upgrade warning:");
-		Log.error("!! '~/.config/dcd' should be moved to '$XDG_CONFIG_HOME/dcd/dcd.conf'");
-		Log.error("!! or '$HOME/.config/dcd/dcd.conf'");
-		Log.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+		warning("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+		warning("!! Upgrade warning:");
+		warning("!! '~/.config/dcd' should be moved to '$XDG_CONFIG_HOME/dcd/dcd.conf'");
+		warning("!! or '$HOME/.config/dcd/dcd.conf'");
+		warning("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 	}
 }
 
@@ -300,7 +299,7 @@ string[] loadConfiguredImportDirs()
 	immutable string configLocation = getConfigurationLocation();
 	if (!configLocation.exists())
 		return [];
-	Log.info("Loading configuration from ", configLocation);
+	info("Loading configuration from ", configLocation);
 	File f = File(configLocation, "rt");
 	return f.byLine(KeepTerminator.no)
 		.filter!(a => a.length > 0 && existanceCheck(a))

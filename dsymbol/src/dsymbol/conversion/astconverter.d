@@ -16,19 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module conversion.astconverter;
+module dsymbol.conversion.astconverter;
 
-import actypes;
-import conversion.first;
-import conversion.second;
-import conversion.third;
+import dsymbol.conversion.first;
+import dsymbol.conversion.second;
+import dsymbol.conversion.third;
+import dsymbol.scope_;
+import dsymbol.string_interning;
+import dsymbol.symbol;
 import memory.allocators;
 import std.allocator;
 import std.d.ast;
 import std.d.lexer;
 import std.d.parser;
 import std.typecons;
-import string_interning;
 
 /**
  * Used by autocompletion.

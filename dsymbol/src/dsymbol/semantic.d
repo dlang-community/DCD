@@ -16,18 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module semantic;
+module dsymbol.semantic;
 
-import messages;
-import actypes;
+import dsymbol.symbol;
 import std.d.ast;
 import std.d.lexer;
-import stupidlog;
 import containers.unrolledlist;
-import string_interning;
 
 /**
- * Intermediate form between ACSymbol and the AST classes. Stores enough
+ * Intermediate form between DSymbol and the AST classes. Stores enough
  * information to resolve things like base classes and alias this.
  */
 struct SemanticSymbol
@@ -46,7 +43,7 @@ public:
 	 *    symbolFile = the file name for this symbol
 	 *    location = the location of this symbol
 	 */
-	this(ACSymbol* acSymbol, const Type type = null)
+	this(DSymbol* acSymbol, const Type type = null)
 	{
 		this.acSymbol = acSymbol;
 		this.type = type;
@@ -68,7 +65,7 @@ public:
 	}
 
 	/// Autocompletion symbol
-	ACSymbol* acSymbol;
+	DSymbol* acSymbol;
 
 	/// Base classes
 	UnrolledList!(istring[]) baseClasses;
@@ -107,6 +104,7 @@ Type argumentsType;
 
 static this()
 {
+	import dsymbol.string_interning : internString;
 	import std.allocator : allocate, Mallocator;
 	// _argptr has type void*
 	argptrType = allocate!Type(Mallocator.it);

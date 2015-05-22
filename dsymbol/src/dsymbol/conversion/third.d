@@ -16,17 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module conversion.third;
+module dsymbol.conversion.third;
 
-import std.d.ast;
-import std.d.lexer;
-import conversion.second;
-import semantic;
-import actypes;
+import dsymbol.conversion.second;
+import dsymbol.semantic;
+import dsymbol.string_interning;
+import dsymbol.symbol;
+import dsymbol.scope_;
+import dsymbol.builtin.names;
+import dsymbol.builtin.symbols;
 import messages;
 import std.allocator;
-import string_interning;
-import stupidlog;
+import std.d.ast;
+import std.d.lexer;
 
 /**
  * Third pass handles the following:
@@ -73,13 +75,13 @@ public:
 	Scope* moduleScope;
 
 	/**
-	 * The Symbol allocator
+	 * The symbol allocator
 	 */
 	CAllocator symbolAllocator;
 
 private:
 
-	bool shouldFollowtype(const ACSymbol* t, const SemanticSymbol* currentSymbol)
+	bool shouldFollowtype(const DSymbol* t, const SemanticSymbol* currentSymbol)
 	{
 		if (t is null)
 			return false;
@@ -107,7 +109,7 @@ private:
 		case memberVariableName:
 		case functionName:
 		case aliasName:
-			ACSymbol* t = resolveType(currentSymbol.initializer,
+			DSymbol* t = resolveType(currentSymbol.initializer,
 				currentSymbol.type, currentSymbol.acSymbol.location);
 			while (shouldFollowtype(t, currentSymbol))
 				t = t.type;
@@ -155,7 +157,7 @@ private:
 		import std.algorithm : filter;
 		outer: foreach (istring[] base; currentSymbol.baseClasses)
 		{
-			ACSymbol* baseClass;
+			DSymbol* baseClass;
 			if (base.length == 0)
 				continue;
 			auto symbolScope = moduleScope.getScopeByCursor(currentSymbol.acSymbol.location);
@@ -177,7 +179,7 @@ private:
 				a => a.name.ptr != CONSTRUCTOR_SYMBOL_NAME.ptr));
 			if (baseClass.kind == CompletionKind.className)
 			{
-				auto s = allocate!ACSymbol(symbolAllocator,
+				auto s = allocate!DSymbol(symbolAllocator,
 					SUPER_SYMBOL_NAME, CompletionKind.variableName, baseClass);
 				symbolScope.symbols.insert(s);
 			}
@@ -191,7 +193,7 @@ private:
 			auto parts = currentSymbol.acSymbol.getPartsByName(aliasThis);
 			if (parts.length == 0 || parts[0].type is null)
 				continue;
-			ACSymbol* s = allocate!ACSymbol(symbolAllocator, IMPORT_SYMBOL_NAME,
+			DSymbol* s = allocate!DSymbol(symbolAllocator, IMPORT_SYMBOL_NAME,
 				CompletionKind.importSymbol);
 			s.type = parts[0].type;
 			currentSymbol.acSymbol.parts.insert(s);
@@ -222,7 +224,7 @@ private:
 		}
 	}
 
-	ACSymbol* resolveInitializerType(I)(ref const I initializer, size_t location)
+	DSymbol* resolveInitializerType(I)(ref const I initializer, size_t location)
 	{
 		if (initializer.empty)
 			return null;
@@ -256,7 +258,7 @@ private:
 					s = s.type;
 				else
 				{
-					ACSymbol*[] f = s.getPartsByName(internString("front"));
+					DSymbol*[] f = s.getPartsByName(internString("front"));
 					if (f.length > 0)
 						s = f[0].type;
 					else
@@ -280,13 +282,13 @@ private:
 		return s;
 	}
 
-	ACSymbol* resolveType(I)(ref const I initializer, const Type t, size_t location)
+	DSymbol* resolveType(I)(ref const I initializer, const Type t, size_t location)
 	{
 		if (t is null)
 			return resolveInitializerType(initializer, location);
 		if (t.type2 is null)
 			return null;
-		ACSymbol* s;
+		DSymbol* s;
 		if (t.type2.builtinType != tok!"")
 			s = convertBuiltinType(t.type2);
 		else if (t.type2.typeConstructor != tok!"")
@@ -333,13 +335,13 @@ private:
 		}
 	}
 
-	ACSymbol* processSuffix(ACSymbol* symbol, const TypeSuffix suffix, const Type t)
+	DSymbol* processSuffix(DSymbol* symbol, const TypeSuffix suffix, const Type t)
 	{
 		if (suffix.star.type != tok!"")
 			return symbol;
 		if (suffix.array || suffix.type)
 		{
-			ACSymbol* s = allocate!ACSymbol(symbolAllocator, istring(null));
+			DSymbol* s = allocate!DSymbol(symbolAllocator, istring(null));
 			s.parts.insert(suffix.array ? arraySymbols[]
 				: assocArraySymbols[]);
 			s.type = symbol;
@@ -348,10 +350,10 @@ private:
 		}
 		if (suffix.parameters)
 		{
-			import conversion.first : formatNode;
+			import dsymbol.conversion.first : formatNode;
 			import memory.allocators : QuickAllocator;
 			import memory.appender : Appender;
-			ACSymbol* s = allocate!ACSymbol(symbolAllocator, istring(null));
+			DSymbol* s = allocate!DSymbol(symbolAllocator, istring(null));
 			s.type = symbol;
 			s.qualifier = SymbolQualifier.func;
 			QuickAllocator!1024 q;
@@ -364,10 +366,10 @@ private:
 		return null;
 	}
 
-	ACSymbol* convertBuiltinType(const Type2 type2)
+	DSymbol* convertBuiltinType(const Type2 type2)
 	{
 		istring stringRepresentation = getBuiltinTypeName(type2.builtinType);
-		ACSymbol s = ACSymbol(stringRepresentation);
+		DSymbol s = DSymbol(stringRepresentation);
 		assert(s.name.ptr == stringRepresentation.ptr);
 		return builtinSymbols.equalRange(&s).front();
 	}

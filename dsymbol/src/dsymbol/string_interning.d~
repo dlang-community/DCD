@@ -38,6 +38,11 @@ alias istring = InternedString;
 //private size_t[string] dupCheck;
 private StringCache stringCache = void;
 
+void checkStringCache()
+{
+	stringCache.sanityCheck();
+}
+
 private struct InternedString
 {
     void opAssign(T)(T other) if (is(Unqual!T == istring))

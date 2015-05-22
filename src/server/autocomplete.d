@@ -19,28 +19,34 @@
 module autocomplete;
 
 import std.algorithm;
+import std.allocator;
 import std.array;
 import std.conv;
+import std.experimental.logger;
 import std.file;
 import std.path;
 import std.range;
 import std.stdio;
+import std.string;
+import std.typecons;
 import std.uni;
+
 import std.d.ast;
 import std.d.lexer;
 import std.d.parser;
-import std.string;
-import std.typecons;
-import memory.allocators;
-import std.allocator;
 
-import messages;
-import actypes;
+import dsymbol.conversion.astconverter;
+import dsymbol.modulecache;
+import dsymbol.string_interning;
+import dsymbol.symbol;
+import dsymbol.scope_;
+import dsymbol.builtin.names;
+import dsymbol.builtin.symbols;
+
+import memory.allocators;
+
 import constants;
-import modulecache;
-import conversion.astconverter;
-import stupidlog;
-import string_interning;
+import messages;
 
 /**
  * Gets documentation for the symbol at the cursor
@@ -51,14 +57,14 @@ import string_interning;
  */
 public AutocompleteResponse getDoc(const AutocompleteRequest request)
 {
-//	Log.trace("Getting doc comments");
+//	trace("Getting doc comments");
 	AutocompleteResponse response;
 	auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 16)))();
 	auto cache = StringCache(StringCache.defaultBucketCount);
-	ACSymbol*[] symbols = getSymbolsForCompletion(request, CompletionType.ddoc,
+	DSymbol*[] symbols = getSymbolsForCompletion(request, CompletionType.ddoc,
 		allocator, &cache);
 	if (symbols.length == 0)
-		Log.error("Could not find symbol");
+		warning("Could not find symbol");
 	else foreach (symbol; symbols.filter!(a => !a.doc.empty))
 		response.docComments ~= formatComment(symbol.doc);
 	return response;
@@ -76,7 +82,7 @@ public AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 	AutocompleteResponse response;
 	auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 16)))();
 	auto cache = StringCache(StringCache.defaultBucketCount);
-	ACSymbol*[] symbols = getSymbolsForCompletion(request,
+	DSymbol*[] symbols = getSymbolsForCompletion(request,
 		CompletionType.location, allocator, &cache);
 	if (symbols.length > 0)
 	{
@@ -84,7 +90,7 @@ public AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 		response.symbolFilePath = symbols[0].symbolFile.idup;
 	}
 	else
-		Log.error("Could not find symbol declaration");
+		warning("Could not find symbol declaration");
 	return response;
 }
 
@@ -143,14 +149,14 @@ public AutocompleteResponse symbolSearch(const AutocompleteRequest request)
 
 	static struct SearchResults
 	{
-		void put(ACSymbol* symbol)
+		void put(DSymbol* symbol)
 		{
 			tree.insert(SearchResult(symbol));
 		}
 
 		static struct SearchResult
 		{
-			ACSymbol* symbol;
+			DSymbol* symbol;
 
 			int opCmp(ref const SearchResult other) const pure nothrow
 			{
@@ -322,7 +328,7 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, size_t cursorPosition,
  *     all symbols that should be considered for the autocomplete list based on
  *     the request's source code, cursor position, and completion type.
  */
-ACSymbol*[] getSymbolsForCompletion(const AutocompleteRequest request,
+DSymbol*[] getSymbolsForCompletion(const AutocompleteRequest request,
 	const CompletionType type, CAllocator allocator, StringCache* cache)
 {
 	const(Token)[] tokenArray;
@@ -525,7 +531,7 @@ body
 	string resolvedLocation = ModuleCache.resolveImportLoctation(path);
 	if (resolvedLocation is null)
 	{
-		Log.error("Could not resolve location of ", path);
+		warning("Could not resolve location of ", path);
 		return response;
 	}
 	auto symbols = ModuleCache.getModuleSymbol(resolvedLocation);
@@ -533,9 +539,9 @@ body
 	import containers.hashset : HashSet;
 	HashSet!string h;
 
-	void addSymbolToResponses(ACSymbol* sy)
+	void addSymbolToResponses(DSymbol* sy)
 	{
-		auto a = ACSymbol(sy.name);
+		auto a = DSymbol(sy.name);
 		if (!builtinSymbols.contains(&a) && sy.name !is null && !h.contains(sy.name)
 				&& sy.name != CONSTRUCTOR_SYMBOL_NAME)
 		{
@@ -610,17 +616,17 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
 		}
 	}
 	if (!found)
-		Log.error("Could not find ", moduleParts);
+		warning("Could not find ", moduleParts);
 }
 
 /**
  *
  */
-ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
+DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 	T tokens, size_t cursorPosition, CompletionType completionType)
 {
 	// Find the symbol corresponding to the beginning of the chain
-	ACSymbol*[] symbols;
+	DSymbol*[] symbols;
 	if (tokens.length == 0)
 		return [];
 	if (tokens[0] == tok!"." && tokens.length > 1)
@@ -633,7 +639,7 @@ ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 
 	if (symbols.length == 0)
 	{
-		Log.error("Could not find declaration of ", stringToken(tokens[0]),
+		warning("Could not find declaration of ", stringToken(tokens[0]),
 			" from position ", cursorPosition);
 		return [];
 	}
@@ -759,7 +765,7 @@ ACSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 				skip();
 				Parser p = new Parser();
 				p.setTokens(tokens[h .. i].array());
-				ACSymbol*[] overloads;
+				DSymbol*[] overloads;
 				if (p.isSliceExpression())
 					overloads = symbols[0].getPartsByName(internString("opSlice"));
 				else
@@ -805,7 +811,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	if (tokens.length == 0)
 		return;
 
-	ACSymbol*[] symbols = getSymbolsByTokenChain(completionScope, tokens,
+	DSymbol*[] symbols = getSymbolsByTokenChain(completionScope, tokens,
 		cursorPosition, completionType);
 
 	if (symbols.length == 0)
@@ -904,7 +910,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	}
 }
 
-string generateStructConstructorCalltip(const ACSymbol* symbol)
+string generateStructConstructorCalltip(const DSymbol* symbol)
 in
 {
 	assert (symbol.kind == CompletionKind.structName);

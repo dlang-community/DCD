@@ -16,8 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module modulecache;
+module dsymbol.modulecache;
 
+import containers.dynamicarray;
+import containers.hashset;
+import containers.ttree;
+import containers.unrolledlist;
+import dsymbol.conversion.astconverter;
+import dsymbol.conversion.first;
+import dsymbol.conversion.second;
+import dsymbol.conversion.third;
+import dsymbol.scope_;
+import dsymbol.semantic;
+import dsymbol.symbol;
+import memory.allocators;
 import std.algorithm;
 import std.allocator;
 import std.conv;
@@ -25,27 +37,16 @@ import std.d.ast;
 import std.datetime;
 import std.d.lexer;
 import std.d.parser;
+import std.experimental.logger;
 import std.file;
 import std.lexer;
 import std.path;
 
-import actypes;
-import semantic;
-import memory.allocators;
-import containers.ttree;
-import containers.hashset;
-import containers.unrolledlist;
-import conversion.astconverter;
-import conversion.first;
-import conversion.second;
-import conversion.third;
-import containers.dynamicarray;
-import stupidlog;
 import messages;
 
 private struct CacheEntry
 {
-	ACSymbol* symbol;
+	DSymbol* symbol;
 	SysTime modificationTime;
 	string path;
 
@@ -81,7 +82,7 @@ bool existanceCheck(A)(A path)
 {
 	if (path.exists())
 		return true;
-	Log.error("Cannot cache modules in ", path, " because it does not exist");
+	warning("Cannot cache modules in ", path, " because it does not exist");
 	return false;
 }
 
@@ -105,7 +106,7 @@ struct ModuleCache
 	 */
 	static void addImportPaths(string[] paths)
 	{
-		import string_interning : internString;
+		import dsymbol.string_interning : internString;
 		import std.array : array;
 		auto newPaths = paths.filter!(a => existanceCheck(a) && !importPaths[].canFind(a)).map!(internString).array;
 		importPaths.insert(newPaths);
@@ -124,7 +125,7 @@ struct ModuleCache
 	/// TODO: Implement
 	static void clear()
 	{
-		Log.info("ModuleCache.clear is not yet implemented.");
+		info("ModuleCache.clear is not yet implemented.");
 	}
 
 	/**
@@ -133,9 +134,9 @@ struct ModuleCache
 	 * Returns:
 	 *     The symbols defined in the given module
 	 */
-	static ACSymbol* getModuleSymbol(string location)
+	static DSymbol* getModuleSymbol(string location)
 	{
-		import string_interning : internString;
+		import dsymbol.string_interning : internString;
 		import std.stdio : File;
 		import std.typecons : scoped;
 
@@ -155,7 +156,7 @@ struct ModuleCache
 
 		recursionGuard.insert(cachedLocation);
 
-		ACSymbol* symbol;
+		DSymbol* symbol;
 		File f = File(cachedLocation);
 		immutable fileSize = cast(size_t) f.size;
 		if (fileSize == 0)

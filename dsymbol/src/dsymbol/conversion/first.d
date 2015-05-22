@@ -16,21 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module conversion.first;
+module dsymbol.conversion.first;
 
-import actypes;
-import std.d.formatter;
-import std.allocator;
+import containers.unrolledlist;
+import dsymbol.builtin.names;
+import dsymbol.builtin.symbols;
+import dsymbol.import_;
+import dsymbol.scope_;
+import dsymbol.semantic;
+import dsymbol.semantic;
+import dsymbol.string_interning;
+import dsymbol.symbol;
 import memory.allocators;
 import memory.appender;
 import messages;
-import semantic;
+import std.allocator;
 import std.d.ast;
+import std.d.formatter;
 import std.d.lexer;
 import std.typecons;
-import stupidlog;
-import containers.unrolledlist;
-import string_interning;
 
 /**
  * First Pass handles the following:
@@ -325,7 +329,7 @@ final class FirstPass : ASTVisitor
 		Scope* s = allocate!Scope(semanticAllocator, structBody.startLocation, structBody.endLocation);
 //		Log.trace("Added scope ", s.startLocation, " ", s.endLocation);
 
-		ACSymbol* thisSymbol = allocate!ACSymbol(symbolAllocator,
+		DSymbol* thisSymbol = allocate!DSymbol(symbolAllocator,
 			THIS_SYMBOL_NAME, CompletionKind.variableName, currentSymbol.acSymbol);
 		thisSymbol.location = s.startLocation;
 		thisSymbol.symbolFile = symbolFile;
@@ -705,7 +709,7 @@ private:
 	}
 	body
 	{
-		ACSymbol* acSymbol = allocate!ACSymbol(symbolAllocator, name, kind);
+		DSymbol* acSymbol = allocate!DSymbol(symbolAllocator, name, kind);
 		acSymbol.location = location;
 		acSymbol.symbolFile = symbolFile;
 		symbolsAllocated++;

@@ -16,15 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module conversion.second;
+module dsymbol.conversion.second;
 
-import conversion.first;
-import actypes;
-import semantic;
-import messages;
+import dsymbol.conversion.first;
+import dsymbol.semantic;
+import dsymbol.string_interning;
+import dsymbol.symbol;
+import dsymbol.scope_;
+import dsymbol.import_;
+import dsymbol.builtin.symbols;
+import dsymbol.builtin.names;
 import std.allocator;
-import stupidlog;
-import string_interning;
 
 /**
  * Second pass handles the following:
@@ -79,7 +81,7 @@ private:
 	/**
 	 * Assigns symbols to scopes based on their location.
 	 */
-	void assignToScopes(ACSymbol* currentSymbol)
+	void assignToScopes(DSymbol* currentSymbol)
 	{
 		if (currentSymbol.kind != CompletionKind.moduleName)
 		{
@@ -102,8 +104,8 @@ private:
 	 * Returns: A package symbol that can be used for auto-completing qualified
 	 * symbol names.
 	 */
-	ACSymbol* createImportSymbols(ImportInformation* info, Scope* currentScope,
-		ACSymbol* moduleSymbol)
+	DSymbol* createImportSymbols(ImportInformation* info, Scope* currentScope,
+		DSymbol* moduleSymbol)
 	in
 	{
 		assert (info !is null);
@@ -116,14 +118,14 @@ private:
 		immutable istring firstPart = info.importParts[].front;
 
 		// top-level package symbol
-		ACSymbol* firstSymbol = void;
-		ACSymbol*[] symbols = currentScope.getSymbolsByName(firstPart);
+		DSymbol* firstSymbol = void;
+		DSymbol*[] symbols = currentScope.getSymbolsByName(firstPart);
 		if (symbols.length > 0)
 			firstSymbol = symbols[0];
 		else
-			firstSymbol = allocate!ACSymbol(symbolAllocator, firstPart,
+			firstSymbol = allocate!DSymbol(symbolAllocator, firstPart,
 				CompletionKind.packageName);
-		ACSymbol* currentSymbol = firstSymbol;
+		DSymbol* currentSymbol = firstSymbol;
 		size_t i = 0;
 		foreach (importPart; info.importParts[])
 		{
@@ -133,7 +135,7 @@ private:
 			if (i + 2 >= info.importParts.length) // Skip the last item as it's the module name
 				break;
 			symbols = currentSymbol.getPartsByName(importPart);
-			ACSymbol* s = null;
+			DSymbol* s = null;
 			foreach (sy; symbols)
 			{
 				if (sy.kind == CompletionKind.packageName)
@@ -143,7 +145,7 @@ private:
 				}
 			}
 			if (s is null)
-				s = allocate!ACSymbol(symbolAllocator, importPart, CompletionKind.packageName);
+				s = allocate!DSymbol(symbolAllocator, importPart, CompletionKind.packageName);
 			currentSymbol.parts.insert(s);
 			currentSymbol = s;
 		}
@@ -157,25 +159,25 @@ private:
 	 */
 	void resolveImports(Scope* currentScope)
 	{
-		import modulecache : ModuleCache;
+		import dsymbol.modulecache : ModuleCache;
 		foreach (importInfo; currentScope.importInformation[])
 		{
 			// Get symbol for the imported module
 			immutable string moduleAbsPath = ModuleCache.resolveImportLoctation(
 				importInfo.modulePath);
-			ACSymbol* symbol = moduleAbsPath is null ? null
+			DSymbol* symbol = moduleAbsPath is null ? null
 				: ModuleCache.getModuleSymbol(moduleAbsPath);
 			if (symbol is null)
 				continue;
 
-			ACSymbol* moduleSymbol = createImportSymbols(importInfo, currentScope, symbol);
+			DSymbol* moduleSymbol = createImportSymbols(importInfo, currentScope, symbol);
 
 			// if this is a selective import
 			if (importInfo.importedSymbols.length == 0)
 			{
 				// if this import is at module scope
 				if (importInfo.isPublic && currentScope.parent is null)
-					rootSymbol.acSymbol.parts.insert(allocate!ACSymbol(symbolAllocator,
+					rootSymbol.acSymbol.parts.insert(allocate!DSymbol(symbolAllocator,
 						IMPORT_SYMBOL_NAME, CompletionKind.importSymbol, symbol));
 				else
 					currentScope.symbols.insert(symbol.parts[]);
@@ -186,8 +188,8 @@ private:
 			{
 				// Handle selective and renamed imports
 
-				ACSymbol needle = ACSymbol(tup[1]);
-				ACSymbol* sym;
+				DSymbol needle = DSymbol(tup[1]);
+				DSymbol* sym;
 				auto r = symbol.parts.equalRange(&needle);
 				if (r.empty) foreach (sy; symbol.parts[])
 				{
@@ -204,7 +206,7 @@ private:
 					continue;
 				if (tup[0] !is null)
 				{
-					ACSymbol* s = allocate!ACSymbol(symbolAllocator, tup[0],
+					DSymbol* s = allocate!DSymbol(symbolAllocator, tup[0],
 						sym.kind, sym.type);
 					s.parts.insert(sym.parts[]);
 					s.callTip = sym.callTip;
