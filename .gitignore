@@ -12,3 +12,9 @@ perf.data
 
 # Valgrind reports
 callgrind.*
+
+# Git hash file
+githash.txt
+
+# Test results
+tests/tc*/actual*.txt

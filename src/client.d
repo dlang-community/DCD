@@ -32,6 +32,7 @@ import std.string;
 import msgpack;
 import messages;
 import stupidlog;
+import dcd_version;
 
 int main(string[] args)
 {
@@ -44,6 +45,7 @@ int main(string[] args)
 	bool symbolLocation;
 	bool doc;
 	bool query;
+	bool printVersion;
 	string search;
 
 	try
@@ -51,17 +53,27 @@ int main(string[] args)
 		getopt(args, "cursorPos|c", &cursorPos, "I", &importPaths,
 			"port|p", &port, "help|h", &help, "shutdown", &shutdown,
 			"clearCache", &clearCache, "symbolLocation|l", &symbolLocation,
-			"doc|d", &doc, "query|q", &query, "search|s", &search);
+			"doc|d", &doc, "query|status|q", &query, "search|s", &search,
+			"version", &printVersion);
 	}
-	catch (Exception e)
+	catch (ConvException e)
 	{
 		Log.fatal(e.msg);
+		printHelp(args[0]);
 		return 1;
 	}
 
 	AutocompleteRequest request;
 
-	if (help)
+	if (printVersion)
+	{
+		version (Windows)
+			writeln(DCD_VERSION);
+		else
+			write(DCD_VERSION, " ", GIT_HASH);
+		return 0;
+	}
+	else if (help)
 	{
 		printHelp(args[0]);
 		return 0;
@@ -75,7 +87,7 @@ int main(string[] args)
 			request.kind = RequestKind.query;
 			if (sendRequest(socket, request))
 			{
-				AutocompleteResponse response = getResponse(socket);
+				const AutocompleteResponse response = getResponse(socket);
 				if (response.completionType == "ack")
 				{
 					writeln("Server is running");
@@ -122,21 +134,20 @@ int main(string[] args)
 	}
 
 	// Read in the source
-	bool usingStdin = args.length <= 1;
+	immutable bool usingStdin = args.length <= 1;
 	string fileName = usingStdin ? "stdin" : args[1];
 	if (!usingStdin && !exists(args[1]))
 	{
 		stderr.writefln("%s does not exist", args[1]);
 		return 1;
 	}
-	File f = usingStdin ? stdin : File(args[1]);
 	ubyte[] sourceCode;
 	if (usingStdin)
 	{
 		ubyte[4096] buf;
 		while (true)
 		{
-			auto b = f.rawRead(buf);
+			auto b = stdin.rawRead(buf);
 			if (b.length == 0)
 				break;
 			sourceCode ~= b;
@@ -144,6 +155,12 @@ int main(string[] args)
 	}
 	else
 	{
+		if (!exists(args[1]))
+		{
+			stderr.writeln("Could not find ", args[1]);
+			return 1;
+		}
+		File f = File(args[1]);
 		sourceCode = uninitializedArray!(ubyte[])(to!size_t(f.size));
 		f.rawRead(sourceCode);
 	}
@@ -223,13 +240,16 @@ Options:
         Searches for symbolName in both stdin / the given file name as well as
         others files cached by the server.
 
-    --query | -q
+    --query | -q | --status
         Query the server statis. Returns 0 if the server is running. Returns
         1 if the server could not be contacted.
 
-    -IPATH
+    -I PATH
         Instructs the server to add PATH to its list of paths searced for
         imported modules.
+
+    --version
+        Prints the version number and then exits.
 
     --port PORTNUMBER | -p PORTNUMBER
         Uses PORTNUMBER to communicate with the server instead of the default
@@ -238,6 +258,8 @@ Options:
 
 TcpSocket createSocket(ushort port)
 {
+	import core.time : dur;
+
 	TcpSocket socket = new TcpSocket(AddressFamily.INET);
 	socket.setOption(SocketOptionLevel.SOCKET, SocketOption.RCVTIMEO, dur!"seconds"(5));
 	socket.connect(new InternetAddress("localhost", port));
@@ -307,7 +329,7 @@ void printCompletionResponse(AutocompleteResponse response)
 			}
 		}
 		// Deduplicate overloaded methods
-		foreach (line; app.data.sort.uniq)
+		foreach (line; app.data.sort().uniq)
 			writeln(line);
 	}
 }

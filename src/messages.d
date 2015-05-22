@@ -31,6 +31,10 @@ enum CompletionKind : char
 	/// be returned in a completion response.
 	importSymbol = '*',
 
+	/// With symbol. This is used internally and will never
+	/// be returned in a completion response.
+	withSymbol = 'w',
+
 	/// class names
 	className = 'c',
 

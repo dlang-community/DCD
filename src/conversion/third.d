@@ -26,6 +26,7 @@ import actypes;
 import messages;
 import std.allocator;
 import string_interning;
+import stupidlog;
 
 /**
  * Third pass handles the following:
@@ -40,43 +41,75 @@ import string_interning;
 struct ThirdPass
 {
 public:
-	this(ref SecondPass second, string name = "none") pure
+
+	/**
+	 * Params:
+	 *     second = The second conversion pass. Results are taken from this to
+	 *         run the third pass.
+	 */
+	this(ref SecondPass second) pure
 	{
 		this.rootSymbol = second.rootSymbol;
 		this.moduleScope = second.moduleScope;
-		this.name = name;
 		this.symbolAllocator = second.symbolAllocator;
 	}
 
-	string name;
-
+	/**
+	 * Runs the third pass.
+	 */
 	void run()
 	{
 		thirdPass(rootSymbol);
 	}
 
+	/**
+	 * The module-level symbol
+	 */
 	SemanticSymbol* rootSymbol;
+
+	/**
+	 * The module-level scope
+	 */
 	Scope* moduleScope;
+
+	/**
+	 * The Symbol allocator
+	 */
 	CAllocator symbolAllocator;
 
 private:
 
+	bool shouldFollowtype(const ACSymbol* t, const SemanticSymbol* currentSymbol)
+	{
+		if (t is null)
+			return false;
+		if (currentSymbol.acSymbol.kind == CompletionKind.withSymbol
+			&& (t.kind == CompletionKind.variableName
+				|| t.kind == CompletionKind.aliasName))
+		{
+			return true;
+		}
+		if (t.kind == CompletionKind.aliasName)
+			return true;
+		return false;
+	}
+
 	void thirdPass(SemanticSymbol* currentSymbol)
 	{
-//		Log.trace("third pass on ", currentSymbol.acSymbol.name);
 		with (CompletionKind) final switch (currentSymbol.acSymbol.kind)
 		{
 		case className:
 		case interfaceName:
 			resolveInheritance(currentSymbol);
 			break;
+		case withSymbol:
 		case variableName:
 		case memberVariableName:
 		case functionName:
 		case aliasName:
 			ACSymbol* t = resolveType(currentSymbol.initializer,
 				currentSymbol.type, currentSymbol.acSymbol.location);
-			while (t !is null && t.kind == CompletionKind.aliasName)
+			while (shouldFollowtype(t, currentSymbol))
 				t = t.type;
 			currentSymbol.acSymbol.type = t;
 			break;
@@ -101,6 +134,8 @@ private:
 			thirdPass(child);
 		}
 
+		// Alias this and mixin templates are resolved after child nodes are
+		// resolved so that the correct symbol information will be available.
 		with (CompletionKind) switch (currentSymbol.acSymbol.kind)
 		{
 		case className:
@@ -117,12 +152,13 @@ private:
 
 	void resolveInheritance(SemanticSymbol* currentSymbol)
 	{
-//		Log.trace("Resolving inheritance for ", currentSymbol.acSymbol.name);
-		outer: foreach (string[] base; currentSymbol.baseClasses)
+		import std.algorithm : filter;
+		outer: foreach (istring[] base; currentSymbol.baseClasses)
 		{
 			ACSymbol* baseClass;
 			if (base.length == 0)
 				continue;
+			auto symbolScope = moduleScope.getScopeByCursor(currentSymbol.acSymbol.location);
 			auto symbols = moduleScope.getSymbolsByNameAndCursor(
 				base[0], currentSymbol.acSymbol.location);
 			if (symbols.length == 0)
@@ -135,7 +171,16 @@ private:
 					continue outer;
 				baseClass = symbols[0];
 			}
-			currentSymbol.acSymbol.parts.insert(baseClass.parts[]);
+			currentSymbol.acSymbol.parts.insert(baseClass.parts[].filter!(
+				a => a.name.ptr != CONSTRUCTOR_SYMBOL_NAME.ptr));
+			symbolScope.symbols.insert(baseClass.parts[].filter!(
+				a => a.name.ptr != CONSTRUCTOR_SYMBOL_NAME.ptr));
+			if (baseClass.kind == CompletionKind.className)
+			{
+				auto s = allocate!ACSymbol(symbolAllocator,
+					SUPER_SYMBOL_NAME, CompletionKind.variableName, baseClass);
+				symbolScope.symbols.insert(s);
+			}
 		}
 	}
 
@@ -157,7 +202,6 @@ private:
 	{
 		foreach (mix; currentSymbol.mixinTemplates[])
 		{
-			import stupidlog;
 			auto symbols = moduleScope.getSymbolsByNameAndCursor(mix[0],
 				currentSymbol.acSymbol.location);
 			if (symbols.length == 0)
@@ -182,33 +226,32 @@ private:
 	{
 		if (initializer.empty)
 			return null;
-//		import stupidlog;
-//		Log.trace("resolveInitializerType: ", __LINE__, ":", initializer[]);
 		auto slice = initializer[];
 		bool literal = slice.front[0] == '*';
 		if (literal && initializer.length > 1)
 		{
-//			Log.trace("Popping ", slice.front, " from slice");
 			slice.popFront();
 			literal = false;
 		}
+		immutable string leftmostType = literal ? slice.front[1 .. $] : slice.front;
 		auto symbols = moduleScope.getSymbolsByNameAndCursor(internString(
 			literal ? slice.front[1 .. $] : slice.front), location);
+
 		if (symbols.length == 0)
-		{
-//			Log.trace("Could not find ", literal ? slice.front[1 .. $] : slice.front);
 			return null;
-		}
+
 		if (literal)
 			return symbols[0];
+
 		slice.popFront();
 		auto s = symbols[0];
-		while (s !is null && s.type !is null && !slice.empty)
+
+		while (s !is null && s.type !is null && s !is s.type && !slice.empty)
 		{
 			s = s.type;
-//			Log.trace("resolveInitializerType: ", __LINE__, ":", slice.front);
 			if (slice.front == "foreach")
 			{
+//				Log.trace("foreach");
 				if (s.qualifier == SymbolQualifier.array)
 					s = s.type;
 				else
@@ -219,16 +262,19 @@ private:
 					else
 						s = null;
 				}
+				slice.popFront();
 			}
 			else if (slice.front == "[]")
 				s = s.type;
 			else
-			{
-				auto parts = s.getPartsByName(internString(slice.front));
-				if (parts.length == 0)
-					return null;
-				s = parts[0];
-			}
+				break;
+		}
+		while (s !is null && !slice.empty)
+		{
+			auto parts = s.getPartsByName(internString(slice.front));
+			if (parts.length == 0)
+				return null;
+			s = parts[0];
 			slice.popFront();
 		}
 		return s;
@@ -238,7 +284,8 @@ private:
 	{
 		if (t is null)
 			return resolveInitializerType(initializer, location);
-		if (t.type2 is null) return null;
+		if (t.type2 is null)
+			return null;
 		ACSymbol* s;
 		if (t.type2.builtinType != tok!"")
 			s = convertBuiltinType(t.type2);
@@ -248,7 +295,7 @@ private:
 		{
 			// TODO: global scoped symbol handling
 			size_t l = t.type2.symbol.identifierOrTemplateChain.identifiersOrTemplateInstances.length;
-			string[] symbolParts = (cast(string*) Mallocator.it.allocate(l * string.sizeof))[0 .. l];
+			istring[] symbolParts = (cast(istring*) Mallocator.it.allocate(l * istring.sizeof))[0 .. l];
 			scope(exit) Mallocator.it.deallocate(symbolParts);
 			expandSymbol(symbolParts, t.type2.symbol.identifierOrTemplateChain);
 			auto symbols = moduleScope.getSymbolsByNameAndCursor(
@@ -266,18 +313,18 @@ private:
 		}
 	resolveSuffixes:
 		foreach (suffix; t.typeSuffixes)
-			s = processSuffix(s, suffix);
+			s = processSuffix(s, suffix, t);
 		return s;
 	}
 
-	static void expandSymbol(string[] strings, const IdentifierOrTemplateChain chain)
+	static void expandSymbol(istring[] strings, const IdentifierOrTemplateChain chain)
 	{
 		for (size_t i = 0; i < chain.identifiersOrTemplateInstances.length; ++i)
 		{
 			auto identOrTemplate = chain.identifiersOrTemplateInstances[i];
 			if (identOrTemplate is null)
 			{
-				strings[i] = null;
+				strings[i] = istring(null);
 				continue;
 			}
 			strings[i] = internString(identOrTemplate.templateInstance is null ?
@@ -286,14 +333,13 @@ private:
 		}
 	}
 
-	ACSymbol* processSuffix(ACSymbol* symbol, const TypeSuffix suffix)
+	ACSymbol* processSuffix(ACSymbol* symbol, const TypeSuffix suffix, const Type t)
 	{
-		import std.d.formatter;
-		if (suffix.star)
+		if (suffix.star.type != tok!"")
 			return symbol;
 		if (suffix.array || suffix.type)
 		{
-			ACSymbol* s = allocate!ACSymbol(symbolAllocator, null);
+			ACSymbol* s = allocate!ACSymbol(symbolAllocator, istring(null));
 			s.parts.insert(suffix.array ? arraySymbols[]
 				: assocArraySymbols[]);
 			s.type = symbol;
@@ -302,17 +348,16 @@ private:
 		}
 		if (suffix.parameters)
 		{
-			import conversion.first;
-			import memory.allocators;
-			import memory.appender;
-			ACSymbol* s = allocate!ACSymbol(symbolAllocator, null);
+			import conversion.first : formatNode;
+			import memory.allocators : QuickAllocator;
+			import memory.appender : Appender;
+			ACSymbol* s = allocate!ACSymbol(symbolAllocator, istring(null));
 			s.type = symbol;
 			s.qualifier = SymbolQualifier.func;
 			QuickAllocator!1024 q;
-			auto app = Appender!(char, typeof(q), 1024)(q);
+			auto app = Appender!(char, typeof(q), 2048)(q);
 			scope(exit) q.deallocate(app.mem);
-			app.append(suffix.delegateOrFunction.text);
-			app.formatNode(suffix.parameters);
+			app.formatNode(t);
 			s.callTip = internString(cast(string) app[]);
 			return s;
 		}
@@ -321,12 +366,9 @@ private:
 
 	ACSymbol* convertBuiltinType(const Type2 type2)
 	{
-		import std.stdio;
-		string stringRepresentation = getBuiltinTypeName(type2.builtinType);
-//		writefln(">> %s %016X", stringRepresentation, stringRepresentation.ptr);
+		istring stringRepresentation = getBuiltinTypeName(type2.builtinType);
 		ACSymbol s = ACSymbol(stringRepresentation);
 		assert(s.name.ptr == stringRepresentation.ptr);
-//		writefln(">> %s %016X", s.name, s.name.ptr);
 		return builtinSymbols.equalRange(&s).front();
 	}
 }

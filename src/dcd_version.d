@@ -16,36 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module string_interning;
-
-import std.d.lexer;
+module dcd_version;
 
 /**
- * Interns the given string and returns the interned version.
+ * Human-readable version number
  */
-istring internString(string s) nothrow @safe @nogc
+enum DCD_VERSION = "v0.6.1-dev";
+
+version (Windows) {}
+else
 {
-	return istring(stringCache.intern(s));
-}
-
-static this()
-{
-	stringCache = StringCache(StringCache.defaultBucketCount);
-}
-
-alias istring = InternedString;
-
-//private size_t[string] dupCheck;
-private StringCache stringCache = void;
-
-private struct InternedString
-{
-    void opAssign(T)(T other) if (is(Unqual!T == istring))
-    {
-        this.data = other.data;
-    }
-	string data;
-    alias data this;
-private:
-	import std.traits : Unqual;
+	/**
+	 * Current build's Git commit hash
+	 */
+	enum GIT_HASH = import("githash.txt");
 }

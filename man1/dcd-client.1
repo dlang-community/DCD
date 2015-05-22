@@ -9,10 +9,12 @@ dcd-client \- autocompletion client for the D programming language
 .OP "\-I" directory
 .OP "\-h, \-\-help"
 .OP "\-l, \-\-symbolLocation"
+.OP "\-s, \-\-search" symbolName
 .OP "\-d, \-\-doc"
 .OP "\-q, \-\-query"
 .OP "\-\-shutdown"
 .OP "\-\-clearCache"
+.OP "\-\-version"
 .RI [ filename ]
 .YS
 .PD
@@ -52,6 +54,13 @@ Prints a help message
 .B -l, \-\-symbolLocation
 .RS
 Get the file name and position that the symbol at the cursor location was defined.
+.RE
+.B -s, \-\-search
+.I symbolName
+.RS
+List locations at which symbols with the given
+.I symbolName
+can be found.
 .RE
 .B \-d, \-\-doc
 .RS

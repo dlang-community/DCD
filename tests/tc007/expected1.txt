@@ -1,0 +1,12 @@
+identifiers
+alignof	k
+dup	k
+idup	k
+init	k
+length	k
+mangleof	k
+ptr	k
+reverse	k
+sizeof	k
+sort	k
+stringof	k

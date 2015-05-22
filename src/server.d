@@ -29,6 +29,7 @@ import std.process;
 import std.datetime;
 import std.conv;
 import std.allocator;
+import std.exception : enforce;
 
 import core.memory;
 
@@ -40,7 +41,9 @@ import modulecache;
 import stupidlog;
 import actypes;
 import core.memory;
+import dcd_version;
 
+/// Name of the server configuration file
 enum CONFIG_FILE_NAME = "dcd.conf";
 
 version(linux) version = useXDG;
@@ -58,17 +61,28 @@ int main(string[] args)
 
 	ushort port = 9166;
 	bool help;
+	bool printVersion;
 	string[] importPaths;
 
 	try
 	{
-		getopt(args, "port|p", &port, "I", &importPaths, "help|h", &help);
+		getopt(args, "port|p", &port, "I", &importPaths, "help|h", &help,
+			"version", & printVersion);
 	}
 	catch (ConvException e)
 	{
 		Log.fatal(e.msg);
 		printHelp(args[0]);
 		return 1;
+	}
+
+	if (printVersion)
+	{
+		version (Windows)
+			writeln(DCD_VERSION);
+		else
+			write(DCD_VERSION, " ", GIT_HASH);
+		return 0;
 	}
 
 	if (help)
@@ -108,12 +122,23 @@ int main(string[] args)
 	// No relative paths
 	version (Posix) chdir("/");
 
+	version (LittleEndian)
+		immutable expectedClient = IPv4Union([127, 0, 0, 1]);
+	else
+		immutable expectedClient = IPv4Union([1, 0, 0, 127]);
+
 	serverLoop: while (true)
 	{
 		auto s = socket.accept();
 		s.blocking = true;
 
-		// TODO: Restrict connections to localhost
+		// Only accept connections from localhost
+		IPv4Union actual;
+		InternetAddress clientAddr = cast(InternetAddress) s.remoteAddress();
+		actual.i = clientAddr.addr;
+		// Shut down if somebody tries connecting from outside
+		enforce(actual.i = expectedClient.i, "Connection attempted from "
+			~ clientAddr.toAddrString());
 
 		scope (exit)
 		{
@@ -224,9 +249,10 @@ string getConfigurationLocation()
 		if (configDir is null)
 		{
 			configDir = environment.get("HOME", null);
-			if (configDir is null)
-				throw new Exception("Both $XDG_CONFIG_HOME and $HOME are unset");
-			configDir = buildPath(configDir, ".config", "dcd", CONFIG_FILE_NAME);
+			if (configDir !is null)
+				configDir = buildPath(configDir, ".config", "dcd", CONFIG_FILE_NAME);
+			if (!exists(configDir))
+				configDir = buildPath("/etc/", CONFIG_FILE_NAME);
 		}
 		else
 		{
@@ -240,6 +266,18 @@ string getConfigurationLocation()
 	}
 }
 
+/// IP v4 address as bytes and a uint
+union IPv4Union
+{
+	/// the bytes
+	ubyte[4] b;
+	/// the uint
+	uint i;
+}
+
+/**
+ * Prints a warning message to the user when an old config file is detected.
+ */
 void warnAboutOldConfigLocation()
 {
 	version (linux) if ("~/.config/dcd".expandTilde().exists()
@@ -270,6 +308,9 @@ string[] loadConfiguredImportDirs()
 		.array();
 }
 
+/**
+ * Implements the --help switch.
+ */
 void printHelp(string programName)
 {
     writefln(
@@ -277,8 +318,15 @@ void printHelp(string programName)
     Usage: %s options
 
 options:
-    -I path
-        Includes path in the listing of paths that are searched for file imports
+    -I PATH
+        Includes PATH in the listing of paths that are searched for file
+        imports.
+
+    --help | -h
+        Prints this help message.
+
+    --version
+        Prints the version number and then exits.
 
     --port PORTNUMBER | -pPORTNUMBER
         Listens on PORTNUMBER instead of the default port 9166.`, programName);

@@ -99,15 +99,18 @@ struct ModuleCache
 	@disable this();
 
 	/**
-	 * Adds the given path to the list of directories checked for imports
+	 * Adds the given path to the list of directories checked for imports.
+	 * Performs duplicate checking, so multiple instances of the same path will
+	 * not be present.
 	 */
 	static void addImportPaths(string[] paths)
 	{
-		import core.memory;
-		foreach (path; paths.filter!(a => existanceCheck(a)))
-			importPaths.insert(path);
+		import string_interning : internString;
+		import std.array : array;
+		auto newPaths = paths.filter!(a => existanceCheck(a) && !importPaths[].canFind(a)).map!(internString).array;
+		importPaths.insert(newPaths);
 
-		foreach (path; importPaths[])
+		foreach (path; newPaths[])
 		{
 			foreach (fileName; dirEntries(path, "*.{d,di}", SpanMode.depth))
 			{
@@ -119,7 +122,10 @@ struct ModuleCache
 	}
 
 	/// TODO: Implement
-	static void clear() {}
+	static void clear()
+	{
+		Log.info("ModuleCache.clear is not yet implemented.");
+	}
 
 	/**
 	 * Params:
@@ -129,13 +135,13 @@ struct ModuleCache
 	 */
 	static ACSymbol* getModuleSymbol(string location)
 	{
-		import string_interning;
-		import std.stdio;
-		import std.typecons;
+		import string_interning : internString;
+		import std.stdio : File;
+		import std.typecons : scoped;
 
 		assert (location !is null);
 
-		string cachedLocation = internString(location);
+		istring cachedLocation = internString(location);
 
 		if (!needsReparsing(cachedLocation))
 		{
@@ -147,8 +153,6 @@ struct ModuleCache
 			return null;
 		}
 
-		Log.info("Getting symbols for ", cachedLocation);
-
 		recursionGuard.insert(cachedLocation);
 
 		ACSymbol* symbol;
@@ -156,17 +160,25 @@ struct ModuleCache
 		immutable fileSize = cast(size_t) f.size;
 		if (fileSize == 0)
 			return null;
-		ubyte[] source = cast(ubyte[]) Mallocator.it.allocate(fileSize);
-		f.rawRead(source);
-		LexerConfig config;
-		config.fileName = cachedLocation;
-		auto parseStringCache = StringCache(StringCache.defaultBucketCount);
-		auto semanticAllocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 64)));
-		const(Token)[] tokens = getTokensForParser(
-			(source.length >= 3 && source[0 .. 3] == "\xef\xbb\xbf"c) ? source[3 .. $] : source,
-			config, &parseStringCache);
-		Mallocator.it.deallocate(source);
 
+		const(Token)[] tokens;
+		auto parseStringCache = StringCache(StringCache.defaultBucketCount);
+		{
+			ubyte[] source = cast(ubyte[]) Mallocator.it.allocate(fileSize);
+			scope (exit) Mallocator.it.deallocate(source);
+			f.rawRead(source);
+			LexerConfig config;
+			config.fileName = cachedLocation;
+
+			// The first three bytes are sliced off here if the file starts with a
+			// Unicode byte order mark. The lexer/parser don't handle them.
+			tokens = getTokensForParser(
+				(source.length >= 3 && source[0 .. 3] == "\xef\xbb\xbf"c)
+				? source[3 .. $] : source,
+				config, &parseStringCache);
+		}
+
+		auto semanticAllocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 64)));
 		Module m = parseModuleSimple(tokens[], cachedLocation, semanticAllocator);
 
 		assert (symbolAllocator);
@@ -177,7 +189,7 @@ struct ModuleCache
 		SecondPass second = SecondPass(first);
 		second.run();
 
-		ThirdPass third = ThirdPass(second, cachedLocation);
+		ThirdPass third = ThirdPass(second);
 		third.run();
 
 		symbol = third.rootSymbol.acSymbol;
@@ -215,7 +227,7 @@ struct ModuleCache
 		if (isRooted(moduleName))
 			return moduleName;
 		string[] alternatives;
-		foreach (path; importPaths)
+		foreach (path; importPaths[])
 		{
 			string dotDi = buildPath(path, moduleName) ~ ".di";
 			string dotD = dotDi[0 .. $ - 1];

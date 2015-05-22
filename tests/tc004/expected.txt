@@ -1,0 +1,6 @@
+identifiers
+stdint	M
+stdio	M
+stdiobase	M
+stream	M
+string	M

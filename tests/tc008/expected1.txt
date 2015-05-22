@@ -1,0 +1,2 @@
+calltips
+void doStuff(int a, int b)

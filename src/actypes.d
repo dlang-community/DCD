@@ -31,6 +31,7 @@ import std.d.lexer;
 
 import messages;
 import string_interning;
+public import string_interning : istring;
 
 import std.range : isOutputRange;
 
@@ -41,7 +42,7 @@ enum SymbolQualifier : ubyte
 {
 	/// _none
 	none,
-	/// the symbol is an _array
+	/// the symbol is an array
 	array,
 	/// the symbol is a associative array
 	assocArray,
@@ -61,13 +62,22 @@ public:
 	 */
 	@disable this();
 
+	/// ditto
+	@disable this(this);
+
 	/**
 	 * Params:
 	 *     name = the symbol's name
 	 */
-	this(string name)
+	this(string name) nothrow @safe
 	{
-		this.name = name is null ? name : internString(name);
+		this.name = name is null ? istring(null) : internString(name);
+	}
+
+	/// ditto
+	this(istring name) nothrow @safe
+	{
+		this.name = name;
 	}
 
 	/**
@@ -75,9 +85,16 @@ public:
 	 *     name = the symbol's name
 	 *     kind = the symbol's completion kind
 	 */
-	this(string name, CompletionKind kind)
+	this(string name, CompletionKind kind) nothrow @safe @nogc
 	{
-		this.name = name is null ? name : internString(name);
+		this.name = name is null ? istring(name) : internString(name);
+		this.kind = kind;
+	}
+
+	/// ditto
+	this(istring name, CompletionKind kind) nothrow @safe @nogc
+	{
+		this.name = name;
 		this.kind = kind;
 	}
 
@@ -89,7 +106,15 @@ public:
 	 */
 	this(string name, CompletionKind kind, ACSymbol* type)
 	{
-		this.name = name is null ? name : internString(name);
+		this.name = name is null ? istring(name) : internString(name);
+		this.kind = kind;
+		this.type = type;
+	}
+
+	/// ditto
+	this(istring name, CompletionKind kind, ACSymbol* type)
+	{
+		this.name = name;
 		this.kind = kind;
 		this.type = type;
 	}
@@ -117,7 +142,7 @@ public:
 	/**
 	 * Gets all parts whose name matches the given string.
 	 */
-	ACSymbol*[] getPartsByName(string name)
+	ACSymbol*[] getPartsByName(istring name) const
 	{
 		import std.range : chain;
 		ACSymbol s = ACSymbol(name);
@@ -134,7 +159,7 @@ public:
 	 * Adds all parts and parts of parts with the given name to the given output
 	 * range.
 	 */
-	void getAllPartsNamed(OR)(string name, ref OR outputRange)
+	void getAllPartsNamed(OR)(string name, ref OR outputRange) const
 		if (isOutputRange!(OR, ACSymbol*))
 	{
 		foreach (part; parts[])
@@ -148,7 +173,7 @@ public:
 	/**
 	 * Symbol's name
 	 */
-	string name;
+	istring name;
 
 	/**
 	 * Symbols that compose this symbol, such as enum members, class variables,
@@ -159,17 +184,17 @@ public:
 	/**
 	 * Calltip to display if this is a function
 	 */
-	string callTip;
+	istring callTip;
 
 	/**
 	 * Module containing the symbol.
 	 */
-	string symbolFile;
+	istring symbolFile;
 
 	/**
 	 * Documentation for the symbol.
 	 */
-	string doc;
+	istring doc;
 
 	/**
 	 * The symbol that represents the type.
@@ -222,7 +247,7 @@ struct Scope
 	 * Returns:
 	 *     the innermost scope that contains the given cursor position
 	 */
-	Scope* getScopeByCursor(size_t cursorPosition)
+	Scope* getScopeByCursor(size_t cursorPosition) const
 	{
 		if (cursorPosition < startLocation) return null;
 		if (cursorPosition > endLocation) return null;
@@ -242,7 +267,7 @@ struct Scope
 	 *     all symbols in the scope containing the cursor position, as well as
 	 *     the symbols in parent scopes of that scope.
 	 */
-	ACSymbol*[] getSymbolsInCursorScope(size_t cursorPosition)
+	ACSymbol*[] getSymbolsInCursorScope(size_t cursorPosition) const
 	{
 		auto s = getScopeByCursor(cursorPosition);
 		if (s is null)
@@ -253,8 +278,12 @@ struct Scope
 		{
 			foreach (item; sc.symbols[])
 			{
-				if (item.kind == CompletionKind.importSymbol) foreach (i; item.type.parts[])
-					symbols.insert(i);
+				if (item.type !is null && (item.kind == CompletionKind.importSymbol
+					|| item.kind == CompletionKind.withSymbol))
+				{
+					foreach (i; item.type.parts[])
+						symbols.insert(i);
+				}
 				else
 					symbols.insert(item);
 			}
@@ -269,13 +298,31 @@ struct Scope
 	 * Returns:
 	 *     all symbols in this scope or parent scopes with the given name
 	 */
-	ACSymbol*[] getSymbolsByName(string name)
+	ACSymbol*[] getSymbolsByName(istring name) const
 	{
-		import std.range;
 		ACSymbol s = ACSymbol(name);
 		auto er = symbols.equalRange(&s);
 		if (!er.empty)
 			return array(er);
+
+		// Check symbols from "with" statement
+		ACSymbol ir2 = ACSymbol(WITH_SYMBOL_NAME);
+		auto r2 = symbols.equalRange(&ir2);
+		if (!r2.empty)
+		{
+			auto app = appender!(ACSymbol*[])();
+			foreach (e; r2)
+			{
+				if (e.type is null)
+					continue;
+				foreach (withSymbol; e.type.parts.equalRange(&s))
+					app.put(withSymbol);
+			}
+			if (app.data.length > 0)
+				return app.data;
+		}
+
+		// Check imported symbols
 		ACSymbol ir = ACSymbol(IMPORT_SYMBOL_NAME);
 		auto r = symbols.equalRange(&ir);
 		if (!r.empty)
@@ -300,7 +347,7 @@ struct Scope
 	 *     all symbols with the given name in the scope containing the cursor
 	 *     and its parent scopes
 	 */
-	ACSymbol*[] getSymbolsByNameAndCursor(string name, size_t cursorPosition)
+	ACSymbol*[] getSymbolsByNameAndCursor(istring name, size_t cursorPosition) const
 	{
 		auto s = getScopeByCursor(cursorPosition);
 		if (s is null)
@@ -311,7 +358,7 @@ struct Scope
 	/**
 	 * Returns an array of symbols that are present at global scope
 	 */
-	ACSymbol*[] getSymbolsAtGlobalScope(string name)
+	ACSymbol*[] getSymbolsAtGlobalScope(istring name) const
 	{
 		if (parent !is null)
 			return parent.getSymbolsAtGlobalScope(name);
@@ -343,11 +390,11 @@ struct Scope
 struct ImportInformation
 {
 	/// Import statement parts
-	UnrolledList!string importParts;
+	UnrolledList!istring importParts;
 	/// module relative path
-	string modulePath;
+	istring modulePath;
 	/// symbols to import from this module
-	UnrolledList!(Tuple!(string, string), false) importedSymbols;
+	UnrolledList!(Tuple!(istring, istring), false) importedSymbols;
 	/// true if the import is public
 	bool isPublic;
 }
@@ -378,19 +425,59 @@ TTree!(ACSymbol*, true, "a < b", false) aggregateSymbols;
  */
 TTree!(ACSymbol*, true, "a < b", false) classSymbols;
 
-private immutable(string[24]) builtinTypeNames;
+private immutable(istring[24]) builtinTypeNames;
 
-/**
- * Name given to the public import symbol. Its value is "public" because this
- * is not a valid identifier. This is initialized to an interned string during
- * static construction.
- */
-immutable string IMPORT_SYMBOL_NAME;
+/// Constants for buit-in or dummy symbol names
+immutable istring IMPORT_SYMBOL_NAME;
+/// ditto
+immutable istring WITH_SYMBOL_NAME;
+/// ditto
+immutable istring CONSTRUCTOR_SYMBOL_NAME;
+/// ditto
+immutable istring DESTRUCTOR_SYMBOL_NAME;
+/// ditto
+immutable istring ARGPTR_SYMBOL_NAME;
+/// ditto
+immutable istring ARGUMENTS_SYMBOL_NAME;
+/// ditto
+immutable istring THIS_SYMBOL_NAME;
+/// ditto
+immutable istring SUPER_SYMBOL_NAME;
+/// ditto
+immutable istring UNITTEST_SYMBOL_NAME;
+/// ditto
+immutable istring DOUBLE_LITERAL_SYMBOL_NAME;
+/// ditto
+immutable istring FLOAT_LITERAL_SYMBOL_NAME;
+/// ditto
+immutable istring IDOUBLE_LITERAL_SYMBOL_NAME;
+/// ditto
+immutable istring IFLOAT_LITERAL_SYMBOL_NAME;
+/// ditto
+immutable istring INT_LITERAL_SYMBOL_NAME;
+/// ditto
+immutable istring LONG_LITERAL_SYMBOL_NAME;
+/// ditto
+immutable istring REAL_LITERAL_SYMBOL_NAME;
+/// ditto
+immutable istring IREAL_LITERAL_SYMBOL_NAME;
+/// ditto
+immutable istring UINT_LITERAL_SYMBOL_NAME;
+/// ditto
+immutable istring ULONG_LITERAL_SYMBOL_NAME;
+/// ditto
+immutable istring CHAR_LITERAL_SYMBOL_NAME;
+/// ditto
+immutable istring DSTRING_LITERAL_SYMBOL_NAME;
+/// ditto
+immutable istring STRING_LITERAL_SYMBOL_NAME;
+/// ditto
+immutable istring WSTRING_LITERAL_SYMBOL_NAME;
 
 /**
  * Translates the IDs for built-in types into an interned string.
  */
-string getBuiltinTypeName(IdType id)
+istring getBuiltinTypeName(IdType id) nothrow pure @nogc @safe
 {
 	switch (id)
 	{
@@ -454,53 +541,74 @@ static this()
 	builtinTypeNames[23] = internString("creal");
 
 	IMPORT_SYMBOL_NAME = internString("public");
+	WITH_SYMBOL_NAME = internString("with");
+	CONSTRUCTOR_SYMBOL_NAME = internString("*constructor*");
+	DESTRUCTOR_SYMBOL_NAME = internString("~this");
+	ARGPTR_SYMBOL_NAME = internString("_argptr");
+	ARGUMENTS_SYMBOL_NAME = internString("_arguments");
+	THIS_SYMBOL_NAME = internString("this");
+	SUPER_SYMBOL_NAME = internString("super");
+	UNITTEST_SYMBOL_NAME = internString("*unittest*");
+	DOUBLE_LITERAL_SYMBOL_NAME = internString("*double");
+	FLOAT_LITERAL_SYMBOL_NAME = internString("*float");
+	IDOUBLE_LITERAL_SYMBOL_NAME = internString("*idouble");
+	IFLOAT_LITERAL_SYMBOL_NAME = internString("*ifloat");
+	INT_LITERAL_SYMBOL_NAME = internString("*int");
+	LONG_LITERAL_SYMBOL_NAME = internString("*long");
+	REAL_LITERAL_SYMBOL_NAME = internString("*real");
+	IREAL_LITERAL_SYMBOL_NAME = internString("*ireal");
+	UINT_LITERAL_SYMBOL_NAME = internString("*uint");
+	ULONG_LITERAL_SYMBOL_NAME = internString("*ulong");
+	CHAR_LITERAL_SYMBOL_NAME = internString("*char");
+	DSTRING_LITERAL_SYMBOL_NAME = internString("*dstring");
+	STRING_LITERAL_SYMBOL_NAME = internString("*string");
+	WSTRING_LITERAL_SYMBOL_NAME = internString("*wstring");
 
+	auto bool_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[13], CompletionKind.keyword);
+	auto int_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[0], CompletionKind.keyword);
+	auto long_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[8], CompletionKind.keyword);
+	auto byte_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[19], CompletionKind.keyword);
+	auto char_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[10], CompletionKind.keyword);
+	auto dchar_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[12], CompletionKind.keyword);
+	auto short_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[6], CompletionKind.keyword);
+	auto ubyte_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[20], CompletionKind.keyword);
+	auto uint_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[1], CompletionKind.keyword);
+	auto ulong_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[9], CompletionKind.keyword);
+	auto ushort_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[7], CompletionKind.keyword);
+	auto wchar_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[11], CompletionKind.keyword);
 
-	auto bool_ = allocate!ACSymbol(Mallocator.it, "bool", CompletionKind.keyword);
-	auto int_ = allocate!ACSymbol(Mallocator.it, "int", CompletionKind.keyword);
-	auto long_ = allocate!ACSymbol(Mallocator.it, "long", CompletionKind.keyword);
-	auto byte_ = allocate!ACSymbol(Mallocator.it, "byte", CompletionKind.keyword);
-	auto char_ = allocate!ACSymbol(Mallocator.it, "char", CompletionKind.keyword);
-	auto dchar_ = allocate!ACSymbol(Mallocator.it, "dchar", CompletionKind.keyword);
-	auto short_ = allocate!ACSymbol(Mallocator.it, "short", CompletionKind.keyword);
-	auto ubyte_ = allocate!ACSymbol(Mallocator.it, "ubyte", CompletionKind.keyword);
-	auto uint_ = allocate!ACSymbol(Mallocator.it, "uint", CompletionKind.keyword);
-	auto ulong_ = allocate!ACSymbol(Mallocator.it, "ulong", CompletionKind.keyword);
-	auto ushort_ = allocate!ACSymbol(Mallocator.it, "ushort", CompletionKind.keyword);
-	auto wchar_ = allocate!ACSymbol(Mallocator.it, "wchar", CompletionKind.keyword);
-
-	auto alignof_ = allocate!ACSymbol(Mallocator.it, "alignof", CompletionKind.keyword);
-	auto mangleof_ = allocate!ACSymbol(Mallocator.it, "mangleof", CompletionKind.keyword);
-	auto sizeof_ = allocate!ACSymbol(Mallocator.it, "sizeof", CompletionKind.keyword);
-	auto stringof_ = allocate!ACSymbol(Mallocator.it, "init", CompletionKind.keyword);
-	auto init = allocate!ACSymbol(Mallocator.it, "stringof", CompletionKind.keyword);
+	auto alignof_ = allocate!ACSymbol(Mallocator.it, internString("alignof"), CompletionKind.keyword);
+	auto mangleof_ = allocate!ACSymbol(Mallocator.it, internString("mangleof"), CompletionKind.keyword);
+	auto sizeof_ = allocate!ACSymbol(Mallocator.it, internString("sizeof"), CompletionKind.keyword);
+	auto stringof_ = allocate!ACSymbol(Mallocator.it, internString("init"), CompletionKind.keyword);
+	auto init = allocate!ACSymbol(Mallocator.it, internString("stringof"), CompletionKind.keyword);
 
 	arraySymbols.insert(alignof_);
-	arraySymbols.insert(allocate!ACSymbol(Mallocator.it, "dup", CompletionKind.keyword));
-	arraySymbols.insert(allocate!ACSymbol(Mallocator.it, "idup", CompletionKind.keyword));
+	arraySymbols.insert(allocate!ACSymbol(Mallocator.it, internString("dup"), CompletionKind.keyword));
+	arraySymbols.insert(allocate!ACSymbol(Mallocator.it, internString("idup"), CompletionKind.keyword));
 	arraySymbols.insert(init);
-	arraySymbols.insert(allocate!ACSymbol(Mallocator.it, "length", CompletionKind.keyword, ulong_));
+	arraySymbols.insert(allocate!ACSymbol(Mallocator.it, internString("length"), CompletionKind.keyword, ulong_));
 	arraySymbols.insert(mangleof_);
-	arraySymbols.insert(allocate!ACSymbol(Mallocator.it, "ptr", CompletionKind.keyword));
-	arraySymbols.insert(allocate!ACSymbol(Mallocator.it, "reverse", CompletionKind.keyword));
+	arraySymbols.insert(allocate!ACSymbol(Mallocator.it, internString("ptr"), CompletionKind.keyword));
+	arraySymbols.insert(allocate!ACSymbol(Mallocator.it, internString("reverse"), CompletionKind.keyword));
 	arraySymbols.insert(sizeof_);
-	arraySymbols.insert(allocate!ACSymbol(Mallocator.it, "sort", CompletionKind.keyword));
+	arraySymbols.insert(allocate!ACSymbol(Mallocator.it, internString("sort"), CompletionKind.keyword));
 	arraySymbols.insert(stringof_);
 
 	assocArraySymbols.insert(alignof_);
-	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, "byKey", CompletionKind.keyword));
-	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, "byValue", CompletionKind.keyword));
-	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, "dup", CompletionKind.keyword));
-	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, "get", CompletionKind.keyword));
-	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, "init", CompletionKind.keyword));
-	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, "keys", CompletionKind.keyword));
-	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, "length", CompletionKind.keyword, ulong_));
+	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, internString("byKey"), CompletionKind.keyword));
+	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, internString("byValue"), CompletionKind.keyword));
+	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, internString("dup"), CompletionKind.keyword));
+	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, internString("get"), CompletionKind.keyword));
+	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, internString("init"), CompletionKind.keyword));
+	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, internString("keys"), CompletionKind.keyword));
+	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, internString("length"), CompletionKind.keyword, ulong_));
 	assocArraySymbols.insert(mangleof_);
-	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, "rehash", CompletionKind.keyword));
+	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, internString("rehash"), CompletionKind.keyword));
 	assocArraySymbols.insert(sizeof_);
 	assocArraySymbols.insert(stringof_);
 	assocArraySymbols.insert(init);
-	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, "values", CompletionKind.keyword));
+	assocArraySymbols.insert(allocate!ACSymbol(Mallocator.it, internString("values"), CompletionKind.keyword));
 
 	ACSymbol*[11] integralTypeArray;
 	integralTypeArray[0] = bool_;
@@ -518,9 +626,9 @@ static this()
 
 	foreach (s; integralTypeArray)
 	{
-		s.parts.insert(allocate!ACSymbol(Mallocator.it, "init", CompletionKind.keyword, s));
-		s.parts.insert(allocate!ACSymbol(Mallocator.it, "min", CompletionKind.keyword, s));
-		s.parts.insert(allocate!ACSymbol(Mallocator.it, "max", CompletionKind.keyword, s));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, internString("init"), CompletionKind.keyword, s));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, internString("min"), CompletionKind.keyword, s));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, internString("max"), CompletionKind.keyword, s));
 		s.parts.insert(alignof_);
 		s.parts.insert(sizeof_);
 		s.parts.insert(stringof_);
@@ -528,17 +636,17 @@ static this()
 		s.parts.insert(init);
 	}
 
-	auto cdouble_ = allocate!ACSymbol(Mallocator.it, "cdouble", CompletionKind.keyword);
-	auto cent_ = allocate!ACSymbol(Mallocator.it, "cent", CompletionKind.keyword);
-	auto cfloat_ = allocate!ACSymbol(Mallocator.it, "cfloat", CompletionKind.keyword);
-	auto creal_ = allocate!ACSymbol(Mallocator.it, "creal", CompletionKind.keyword);
-	auto double_ = allocate!ACSymbol(Mallocator.it, "double", CompletionKind.keyword);
-	auto float_ = allocate!ACSymbol(Mallocator.it, "float", CompletionKind.keyword);
-	auto idouble_ = allocate!ACSymbol(Mallocator.it, "idouble", CompletionKind.keyword);
-	auto ifloat_ = allocate!ACSymbol(Mallocator.it, "ifloat", CompletionKind.keyword);
-	auto ireal_ = allocate!ACSymbol(Mallocator.it, "ireal", CompletionKind.keyword);
-	auto real_ = allocate!ACSymbol(Mallocator.it, "real", CompletionKind.keyword);
-	auto ucent_ = allocate!ACSymbol(Mallocator.it, "ucent", CompletionKind.keyword);
+	auto cdouble_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[21], CompletionKind.keyword);
+	auto cent_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[15], CompletionKind.keyword);
+	auto cfloat_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[22], CompletionKind.keyword);
+	auto creal_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[23], CompletionKind.keyword);
+	auto double_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[2], CompletionKind.keyword);
+	auto float_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[4], CompletionKind.keyword);
+	auto idouble_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[3], CompletionKind.keyword);
+	auto ifloat_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[5], CompletionKind.keyword);
+	auto ireal_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[18], CompletionKind.keyword);
+	auto real_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[17], CompletionKind.keyword);
+	auto ucent_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[16], CompletionKind.keyword);
 
 	ACSymbol*[11] floatTypeArray;
 	floatTypeArray[0] = cdouble_;
@@ -556,49 +664,49 @@ static this()
 	foreach (s; floatTypeArray)
 	{
 		s.parts.insert(alignof_);
-		s.parts.insert(allocate!ACSymbol(Mallocator.it, "dig", CompletionKind.keyword, s));
-		s.parts.insert(allocate!ACSymbol(Mallocator.it, "epsilon", CompletionKind.keyword, s));
-		s.parts.insert(allocate!ACSymbol(Mallocator.it, "infinity", CompletionKind.keyword, s));
-		s.parts.insert(allocate!ACSymbol(Mallocator.it, "init", CompletionKind.keyword, s));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, internString("dig"), CompletionKind.keyword, s));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, internString("epsilon"), CompletionKind.keyword, s));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, internString("infinity"), CompletionKind.keyword, s));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, internString("init"), CompletionKind.keyword, s));
 		s.parts.insert(mangleof_);
-		s.parts.insert(allocate!ACSymbol(Mallocator.it, "mant_dig", CompletionKind.keyword, int_));
-		s.parts.insert(allocate!ACSymbol(Mallocator.it, "max", CompletionKind.keyword, s));
-		s.parts.insert(allocate!ACSymbol(Mallocator.it, "max_10_exp", CompletionKind.keyword, int_));
-		s.parts.insert(allocate!ACSymbol(Mallocator.it, "max_exp", CompletionKind.keyword, int_));
-		s.parts.insert(allocate!ACSymbol(Mallocator.it, "min", CompletionKind.keyword, s));
-		s.parts.insert(allocate!ACSymbol(Mallocator.it, "min_exp", CompletionKind.keyword, int_));
-		s.parts.insert(allocate!ACSymbol(Mallocator.it, "min_10_exp", CompletionKind.keyword, int_));
-		s.parts.insert(allocate!ACSymbol(Mallocator.it, "min_normal", CompletionKind.keyword, s));
-		s.parts.insert(allocate!ACSymbol(Mallocator.it, "nan", CompletionKind.keyword, s));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, internString("mant_dig"), CompletionKind.keyword, int_));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, internString("max"), CompletionKind.keyword, s));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, internString("max_10_exp"), CompletionKind.keyword, int_));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, internString("max_exp"), CompletionKind.keyword, int_));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, internString("min"), CompletionKind.keyword, s));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, internString("min_exp"), CompletionKind.keyword, int_));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, internString("min_10_exp"), CompletionKind.keyword, int_));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, internString("min_normal"), CompletionKind.keyword, s));
+		s.parts.insert(allocate!ACSymbol(Mallocator.it, internString("nan"), CompletionKind.keyword, s));
 		s.parts.insert(sizeof_);
 		s.parts.insert(stringof_);
 	}
 
-	aggregateSymbols.insert(allocate!ACSymbol(Mallocator.it, "tupleof", CompletionKind.keyword));
+	aggregateSymbols.insert(allocate!ACSymbol(Mallocator.it, internString("tupleof"), CompletionKind.keyword));
 	aggregateSymbols.insert(mangleof_);
 	aggregateSymbols.insert(alignof_);
 	aggregateSymbols.insert(sizeof_);
 	aggregateSymbols.insert(stringof_);
 	aggregateSymbols.insert(init);
 
-	classSymbols.insert(allocate!ACSymbol(Mallocator.it, "classInfo", CompletionKind.variableName));
-	classSymbols.insert(allocate!ACSymbol(Mallocator.it, "tupleof", CompletionKind.variableName));
-	classSymbols.insert(allocate!ACSymbol(Mallocator.it, "__vptr", CompletionKind.variableName));
-	classSymbols.insert(allocate!ACSymbol(Mallocator.it, "__monitor", CompletionKind.variableName));
+	classSymbols.insert(allocate!ACSymbol(Mallocator.it, internString("classInfo"), CompletionKind.variableName));
+	classSymbols.insert(allocate!ACSymbol(Mallocator.it, internString("tupleof"), CompletionKind.variableName));
+	classSymbols.insert(allocate!ACSymbol(Mallocator.it, internString("__vptr"), CompletionKind.variableName));
+	classSymbols.insert(allocate!ACSymbol(Mallocator.it, internString("__monitor"), CompletionKind.variableName));
 	classSymbols.insert(mangleof_);
 	classSymbols.insert(alignof_);
 	classSymbols.insert(sizeof_);
 	classSymbols.insert(stringof_);
 	classSymbols.insert(init);
 
-	ireal_.parts.insert(allocate!ACSymbol(Mallocator.it, "im", CompletionKind.keyword, real_));
-	ifloat_.parts.insert(allocate!ACSymbol(Mallocator.it, "im", CompletionKind.keyword, float_));
-	idouble_.parts.insert(allocate!ACSymbol(Mallocator.it, "im", CompletionKind.keyword, double_));
-	ireal_.parts.insert(allocate!ACSymbol(Mallocator.it, "re", CompletionKind.keyword, real_));
-	ifloat_.parts.insert(allocate!ACSymbol(Mallocator.it, "re", CompletionKind.keyword, float_));
-	idouble_.parts.insert(allocate!ACSymbol(Mallocator.it, "re", CompletionKind.keyword, double_));
+	ireal_.parts.insert(allocate!ACSymbol(Mallocator.it, internString("im"), CompletionKind.keyword, real_));
+	ifloat_.parts.insert(allocate!ACSymbol(Mallocator.it, internString("im"), CompletionKind.keyword, float_));
+	idouble_.parts.insert(allocate!ACSymbol(Mallocator.it, internString("im"), CompletionKind.keyword, double_));
+	ireal_.parts.insert(allocate!ACSymbol(Mallocator.it, internString("re"), CompletionKind.keyword, real_));
+	ifloat_.parts.insert(allocate!ACSymbol(Mallocator.it, internString("re"), CompletionKind.keyword, float_));
+	idouble_.parts.insert(allocate!ACSymbol(Mallocator.it, internString("re"), CompletionKind.keyword, double_));
 
-	auto void_ = allocate!ACSymbol(Mallocator.it, "void", CompletionKind.keyword);
+	auto void_ = allocate!ACSymbol(Mallocator.it, builtinTypeNames[14], CompletionKind.keyword);
 
 	builtinSymbols.insert(bool_);
 	bool_.type = bool_;
@@ -649,9 +757,10 @@ static this()
 	builtinSymbols.insert(void_);
 	void_.type = void_;
 
-//	writeln(">>Builtin symbols");
-//	foreach (symbol; builtinSymbols[])
-//		writeln(symbol.name, " ", symbol.name.ptr);
-//	writeln("<<Builtin symbols");
+
+	foreach (s; ["__DATE__", "__EOF__", "__TIME__", "__TIMESTAMP__", "__VENDOR__",
+			"__VERSION__", "__FUNCTION__", "__PRETTY_FUNCTION__", "__MODULE__",
+			"__FILE__", "__LINE__"])
+		builtinSymbols.insert(allocate!ACSymbol(Mallocator.it, internString(s), CompletionKind.keyword));
 }
 
