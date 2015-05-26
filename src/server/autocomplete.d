@@ -35,7 +35,7 @@ import std.d.ast;
 import std.d.lexer;
 import std.d.parser;
 
-import dsymbol.conversion.astconverter;
+import dsymbol.conversion;
 import dsymbol.modulecache;
 import dsymbol.string_interning;
 import dsymbol.symbol;
