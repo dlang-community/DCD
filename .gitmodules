@@ -14,3 +14,6 @@
 	path = libdparse
 	url = https://github.com/Hackerpilot/libdparse.git
 	branch = master
+[submodule "dsymbol"]
+	path = dsymbol
+	url = https://github.com/Hackerpilot/dsymbol.git
