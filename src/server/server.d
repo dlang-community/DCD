@@ -184,7 +184,6 @@ int main(string[] args)
 		if (request.kind & RequestKind.addImport)
 		{
 			ModuleCache.addImportPaths(request.importPaths);
-			GC.minimize();
 		}
 		if (request.kind & RequestKind.autocomplete)
 		{
