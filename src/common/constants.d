@@ -130,7 +130,6 @@ immutable string[] predefinedVersions = [
 	"D_SIMD",
 	"D_SoftFloat",
 	"D_Version2",
-	"D_Warnings",
 	"D_X32",
 	"FreeBSD",
 	"FreeStanding",
