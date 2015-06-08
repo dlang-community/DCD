@@ -445,14 +445,14 @@ ImportKind determineImportKind(T)(T tokens)
 
 unittest
 {
-	Token[] t;
-	t ~= Token(tok!"import");
-	t ~= Token(tok!"identifier");
-	t ~= Token(tok!".");
-	t ~= Token(tok!"identifier");
-	t ~= Token(tok!":");
-	t ~= Token(tok!"identifier");
-	t ~= Token(tok!",");
+Token[] t = [
+Token(tok!"import"),
+Token(tok!"identifier"),
+Token(tok!"."),
+Token(tok!"identifier"),
+Token(tok!":"),
+Token(tok!"identifier"),
+Token(tok!",")];
 	assert (determineImportKind(t) == ImportKind.selective);
 	Token[] t2;
 	t2 ~= Token(tok!"else");
@@ -528,7 +528,7 @@ body
 		}
 	}
 
-	string resolvedLocation = ModuleCache.resolveImportLoctation(path);
+	string resolvedLocation = ModuleCache.resolveImportLocation(path);
 	if (resolvedLocation is null)
 	{
 		warning("Could not resolve location of ", path);

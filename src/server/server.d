@@ -32,8 +32,6 @@ import std.allocator;
 import std.exception : enforce;
 import std.experimental.logger;
 
-import core.memory;
-
 import msgpack;
 
 import dsymbol.string_interning;
@@ -42,7 +40,6 @@ import messages;
 import autocomplete;
 import dsymbol.modulecache;
 import dsymbol.symbol;
-import core.memory;
 import dcd_version;
 
 /// Name of the server configuration file
@@ -114,9 +111,6 @@ int main(string[] args)
 	sw.stop();
 	info(ModuleCache.symbolsAllocated, " symbols cached.");
 	info("Startup completed in ", sw.peek().to!("msecs", float), " milliseconds.");
-	import core.memory : GC;
-	GC.minimize();
-
 
 	// No relative paths
 	version (Posix) chdir("/");
@@ -190,7 +184,6 @@ int main(string[] args)
 		if (request.kind & RequestKind.addImport)
 		{
 			ModuleCache.addImportPaths(request.importPaths);
-			GC.minimize();
 		}
 		if (request.kind & RequestKind.autocomplete)
 		{
