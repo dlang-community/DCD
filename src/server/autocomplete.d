@@ -528,7 +528,7 @@ body
 		}
 	}
 
-	string resolvedLocation = ModuleCache.resolveImportLoctation(path);
+	string resolvedLocation = ModuleCache.resolveImportLocation(path);
 	if (resolvedLocation is null)
 	{
 		warning("Could not resolve location of ", path);
