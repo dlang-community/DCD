@@ -24,6 +24,7 @@ module constants;
  * Pragma arguments
  */
 immutable string[] pragmas = [
+	"inline",
 	"lib",
 	"mangle",
 	"msg",
@@ -39,7 +40,7 @@ immutable string[] linkages = [
 	"D",
 	"Pascal",
 	"System",
-	"Windows",
+	"Windows"
 ];
 
 /**
