@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module messages;
+module common.messages;
 
 /**
  * The type of completion list being returned
@@ -42,31 +42,37 @@ enum CompletionType : string
 	/**
 	 * The response contains documentation comments for the symbol.
 	 */
-	ddoc = "ddoc"
+	ddoc = "ddoc",
 }
 
 /**
  * Request kind
  */
-enum RequestKind : ubyte
+enum RequestKind : ushort
 {
-	uninitialized =  0b00000000,
+	// dfmt off
+
+	uninitialized =  0b00000000_00000000,
 	/// Autocompletion
-	autocomplete =   0b00000001,
+	autocomplete =   0b00000000_00000001,
 	/// Clear the completion cache
-	clearCache =     0b00000010,
+	clearCache =     0b00000000_00000010,
 	/// Add import directory to server
-	addImport =      0b00000100,
+	addImport =      0b00000000_00000100,
 	/// Shut down the server
-	shutdown =       0b00001000,
+	shutdown =       0b00000000_00001000,
 	/// Get declaration location of given symbol
-	symbolLocation = 0b00010000,
+	symbolLocation = 0b00000000_00010000,
 	/// Get the doc comments for the symbol
-	doc =            0b00100000,
+	doc =            0b00000000_00100000,
 	/// Query server status
-	query =	         0b01000000,
+	query =	         0b00000000_01000000,
 	/// Search for symbol
-	search =         0b10000000,
+	search =         0b00000000_10000000,
+	/// List import directories
+	listImports =    0b00000001_00000000,
+
+	// dfmt on
 }
 
 /**
@@ -145,4 +151,9 @@ struct AutocompleteResponse
 	 * Symbol locations for symbol searches.
 	 */
 	size_t[] locations;
+
+	/**
+	 * Import paths that are registered by the server.
+	 */
+	string[] importPaths;
 }

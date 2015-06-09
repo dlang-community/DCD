@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module autocomplete;
+module server.autocomplete;
 
 import std.algorithm;
 import std.allocator;
@@ -45,8 +45,8 @@ import dsymbol.builtin.symbols;
 
 import memory.allocators;
 
-import constants;
-import messages;
+import common.constants;
+import common.messages;
 
 /**
  * Gets documentation for the symbol at the cursor

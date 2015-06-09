@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module client;
+module client.client;
 
 import std.socket;
 import std.stdio;
@@ -31,8 +31,8 @@ import std.string;
 import std.experimental.logger;
 
 import msgpack;
-import messages;
-import dcd_version;
+import common.messages;
+import common.dcd_version;
 
 int main(string[] args)
 {
@@ -46,6 +46,7 @@ int main(string[] args)
 	bool doc;
 	bool query;
 	bool printVersion;
+	bool listImports;
 	string search;
 
 	try
@@ -54,7 +55,7 @@ int main(string[] args)
 			"port|p", &port, "help|h", &help, "shutdown", &shutdown,
 			"clearCache", &clearCache, "symbolLocation|l", &symbolLocation,
 			"doc|d", &doc, "query|status|q", &query, "search|s", &search,
-			"version", &printVersion);
+			"version", &printVersion, "listImports", &listImports);
 	}
 	catch (ConvException e)
 	{
@@ -125,6 +126,16 @@ int main(string[] args)
 				return 1;
 			return 0;
 		}
+	}
+	else if (listImports)
+	{
+		request.kind |= RequestKind.listImports;
+		TcpSocket socket = createSocket(port);
+		scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
+		sendRequest(socket, request);
+		AutocompleteResponse response = getResponse(socket);
+		printImportList(response);
+		return 0;
 	}
 	else if (search == null && cursorPos == size_t.max)
 	{
@@ -341,4 +352,11 @@ void printSearchResponse(const AutocompleteResponse response)
 		writefln("%s\t%s\t%s", response.completions[i], response.completionKinds[i],
 			response.locations[i]);
 	}
+}
+
+void printImportList(const AutocompleteResponse response)
+{
+	import std.algorithm.iteration : each;
+
+	response.importPaths.each!(a => writeln(a));
 }

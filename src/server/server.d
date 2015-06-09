@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module server;
+module server.server;
 
 import std.socket;
 import std.stdio;
@@ -36,11 +36,11 @@ import msgpack;
 
 import dsymbol.string_interning;
 
-import messages;
-import autocomplete;
+import common.messages;
+import server.autocomplete;
 import dsymbol.modulecache;
 import dsymbol.symbol;
-import dcd_version;
+import common.dcd_version;
 
 /// Name of the server configuration file
 enum CONFIG_FILE_NAME = "dcd.conf";
@@ -147,7 +147,7 @@ int main(string[] args)
 		(cast(ubyte*) &messageLength)[0..size_t.sizeof] = buffer[0..size_t.sizeof];
 		while (bytesReceived < messageLength + size_t.sizeof)
 		{
-			auto b = s.receive(buffer[bytesReceived .. $]);
+			immutable b = s.receive(buffer[bytesReceived .. $]);
 			if (b == Socket.ERROR)
 			{
 				bytesReceived = Socket.ERROR;
@@ -180,12 +180,21 @@ int main(string[] args)
 			response.completionType = "ack";
 			ubyte[] responseBytes = msgpack.pack(response);
 			s.send(responseBytes);
+			continue;
 		}
 		if (request.kind & RequestKind.addImport)
 		{
 			ModuleCache.addImportPaths(request.importPaths);
 		}
-		if (request.kind & RequestKind.autocomplete)
+		if (request.kind & RequestKind.listImports)
+		{
+			AutocompleteResponse response;
+			response.importPaths = ModuleCache.getImportPaths().array();
+			ubyte[] responseBytes = msgpack.pack(response);
+			info("Returning import path list");
+			s.send(responseBytes);
+		}
+		else if (request.kind & RequestKind.autocomplete)
 		{
 			info("Getting completions");
 			AutocompleteResponse response = complete(request);
