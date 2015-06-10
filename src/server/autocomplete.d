@@ -421,7 +421,7 @@ ImportKind determineImportKind(T)(T tokens)
 	if (!(tokens[i] == tok!":" || tokens[i] == tok!"," || tokens[i] == tok!"." || tokens[i] == tok!"identifier"))
 		return ImportKind.neither;
 	bool foundColon = false;
-	loop: while (true) switch (tokens[i].type)
+	while (true) switch (tokens[i].type)
 	{
 	case tok!":":
 		foundColon = true;
@@ -445,20 +445,17 @@ ImportKind determineImportKind(T)(T tokens)
 
 unittest
 {
-Token[] t = [
-Token(tok!"import"),
-Token(tok!"identifier"),
-Token(tok!"."),
-Token(tok!"identifier"),
-Token(tok!":"),
-Token(tok!"identifier"),
-Token(tok!",")];
-	assert (determineImportKind(t) == ImportKind.selective);
+	import std.stdio : writeln;
+
+	Token[] t = [
+		Token(tok!"import"), Token(tok!"identifier"), Token(tok!"."),
+		Token(tok!"identifier"), Token(tok!":"), Token(tok!"identifier"), Token(tok!",")
+	];
+	assert(determineImportKind(t) == ImportKind.selective);
 	Token[] t2;
 	t2 ~= Token(tok!"else");
 	t2 ~= Token(tok!":");
-	assert (determineImportKind(t2) == ImportKind.neither);
-	import std.stdio : writeln;
+	assert(determineImportKind(t2) == ImportKind.neither);
 	writeln("Unittest for determineImportKind() passed");
 }
 
@@ -819,11 +816,9 @@ void setCompletions(T)(ref AutocompleteResponse response,
 
 	if (completionType == CompletionType.identifiers)
 	{
-		import containers.ttree : TTree;
 		if (symbols[0].qualifier == SymbolQualifier.func
 			|| symbols[0].kind == CompletionKind.functionName)
 		{
-//			Log.trace("Completion list for return type of function ", symbols[0].name);
 			symbols = symbols[0].type is null ? [] : [symbols[0].type];
 			if (symbols.length == 0)
 				return;
@@ -1021,7 +1016,7 @@ T getExpression(T)(T beforeTokens)
 			close = tok!"[";
 		skip:
 			mixin (EXPRESSION_LOOP_BREAK);
-			auto bookmark = i;
+			immutable bookmark = i;
 			int depth = 1;
 			do
 			{
