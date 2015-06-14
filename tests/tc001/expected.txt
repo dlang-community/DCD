@@ -1,6 +1,5 @@
 identifiers
 algorithm	M
-allocator	M
 array	M
 ascii	M
 base64	M
