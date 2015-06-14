@@ -48,6 +48,8 @@ import memory.allocators;
 import common.constants;
 import common.messages;
 
+private alias ASTAllocator = CAllocatorImpl!(AllocatorList!(n => Region!Mallocator(1024 * 64)));
+
 /**
  * Gets documentation for the symbol at the cursor
  * Params:
@@ -59,7 +61,7 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request)
 {
 //	trace("Getting doc comments");
 	AutocompleteResponse response;
-	auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 16)))();
+	auto allocator = scoped!(ASTAllocator)();
 	auto cache = StringCache(StringCache.defaultBucketCount);
 	DSymbol*[] symbols = getSymbolsForCompletion(request, CompletionType.ddoc,
 		allocator, &cache);
@@ -80,7 +82,7 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request)
 public AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 {
 	AutocompleteResponse response;
-	auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 16)))();
+	auto allocator = scoped!(ASTAllocator)();
 	auto cache = StringCache(StringCache.defaultBucketCount);
 	DSymbol*[] symbols = getSymbolsForCompletion(request,
 		CompletionType.location, allocator, &cache);
@@ -143,7 +145,7 @@ public AutocompleteResponse symbolSearch(const AutocompleteRequest request)
 	auto cache = StringCache(StringCache.defaultBucketCount);
 	const(Token)[] tokenArray = getTokensForParser(cast(ubyte[]) request.sourceCode,
 		config, &cache);
-	auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024*16)));
+	auto allocator = scoped!(ASTAllocator)();
 	Scope* completionScope = generateAutocompleteTrees(tokenArray, allocator);
 	scope(exit) typeid(Scope).destroy(completionScope);
 
@@ -285,7 +287,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens,
 	case tok!"]":
 	case tok!"this":
 	case tok!"super":
-		auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024*16)));
+		auto allocator = scoped!(ASTAllocator)();
 		Scope* completionScope = generateAutocompleteTrees(tokenArray, allocator);
 		scope(exit) typeid(Scope).destroy(completionScope);
 		response.setCompletions(completionScope, getExpression(beforeTokens),
@@ -398,7 +400,7 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	case tok!"super":
 	case tok!")":
 	case tok!"]":
-		auto allocator = scoped!(CAllocatorImpl!(BlockAllocator!(1024 * 16)))();
+		auto allocator = scoped!(ASTAllocator)();
 		Scope* completionScope = generateAutocompleteTrees(tokenArray, allocator);
 		scope(exit) typeid(Scope).destroy(completionScope);
 		auto expression = getExpression(beforeTokens[0 .. $ - 1]);
