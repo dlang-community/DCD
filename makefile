@@ -63,8 +63,12 @@ SERVER_SRC := \
 	libdparse/src/std/d/lexer.d\
 	libdparse/src/std/d/parser.d\
 	libdparse/src/std/lexer.d\
-	libdparse/src/std/allocator.d\
 	libdparse/src/std/d/formatter.d\
+	containers/src/std/experimental/allocator/mallocator.d\
+	containers/src/std/experimental/allocator/package.d\
+	containers/src/std/experimental/allocator/common.d\
+	containers/src/std/experimental/allocator/gc_allocator.d\
+	containers/src/std/experimental/allocator/typed.d\
 	containers/src/memory/allocators.d\
 	containers/src/memory/appender.d\
 	containers/src/containers/dynamicarray.d\
@@ -96,7 +100,8 @@ DEBUG_SERVER_FLAGS := -Icontainers/src\
 	-wi\
 	-g\
 	-ofbin/dcd-server\
-	-J.
+	-J.\
+	-debug
 
 GDC_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
@@ -116,27 +121,27 @@ LDC_SERVER_FLAGS := -Icontainers/src\
 
 dmdclient: githash
 	mkdir -p bin
-	rm -f containers/src/std/allocator.d
+	rm -f libdparse/src/std/allocator.d
 	${DMD} ${CLIENT_SRC} ${DMD_CLIENT_FLAGS}
 
 dmdserver: githash
 	mkdir -p bin
-	rm -f containers/src/std/allocator.d
+	rm -f libdparse/src/std/allocator.d
 	${DMD} ${SERVER_SRC} ${DMD_SERVER_FLAGS}
 
 debugserver: githash
 	mkdir -p bin
-	rm -f containers/src/std/allocator.d
+	rm -f libdparse/src/std/allocator.d
 	${DMD} ${SERVER_SRC} ${DEBUG_SERVER_FLAGS}
 
 gdcclient: githash
 	mkdir -p bin
-	rm -f containers/src/std/allocator.d
+	rm -f libdparse/src/std/allocator.d
 	${GDC} ${CLIENT_SRC} ${GDC_CLIENT_FLAGS}
 
 gdcserver: githash
 	mkdir -p bin
-	rm -f containers/src/std/allocator.d
+	rm -f libdparse/src/std/allocator.d
 	${GDC} ${SERVER_SRC} ${GDC_SERVER_FLAGS}
 
 ldcclient: githash

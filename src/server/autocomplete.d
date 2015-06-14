@@ -19,7 +19,7 @@
 module server.autocomplete;
 
 import std.algorithm;
-import std.allocator;
+import std.experimental.allocator;
 import std.array;
 import std.conv;
 import std.experimental.logger;
@@ -329,7 +329,7 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, size_t cursorPosition,
  *     the request's source code, cursor position, and completion type.
  */
 DSymbol*[] getSymbolsForCompletion(const AutocompleteRequest request,
-	const CompletionType type, CAllocator allocator, StringCache* cache)
+	const CompletionType type, IAllocator allocator, StringCache* cache)
 {
 	const(Token)[] tokenArray;
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,

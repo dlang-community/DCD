@@ -28,7 +28,7 @@ import std.array;
 import std.process;
 import std.datetime;
 import std.conv;
-import std.allocator;
+import std.experimental.allocator;
 import std.exception : enforce;
 import std.experimental.logger;
 
