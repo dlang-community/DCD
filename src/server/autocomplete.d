@@ -63,11 +63,11 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request)
 	AutocompleteResponse response;
 	auto allocator = scoped!(ASTAllocator)();
 	auto cache = StringCache(StringCache.defaultBucketCount);
-	DSymbol*[] symbols = getSymbolsForCompletion(request, CompletionType.ddoc,
+	ScopeSymbolPair pair = getSymbolsForCompletion(request, CompletionType.ddoc,
 		allocator, &cache);
-	if (symbols.length == 0)
+	if (pair.symbols.length == 0)
 		warning("Could not find symbol");
-	else foreach (symbol; symbols.filter!(a => !a.doc.empty))
+	else foreach (symbol; pair.symbols.filter!(a => !a.doc.empty))
 		response.docComments ~= formatComment(symbol.doc);
 	return response;
 }
@@ -84,12 +84,12 @@ public AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 	AutocompleteResponse response;
 	auto allocator = scoped!(ASTAllocator)();
 	auto cache = StringCache(StringCache.defaultBucketCount);
-	DSymbol*[] symbols = getSymbolsForCompletion(request,
+	ScopeSymbolPair pair = getSymbolsForCompletion(request,
 		CompletionType.location, allocator, &cache);
-	if (symbols.length > 0)
+	if (pair.symbols.length > 0)
 	{
-		response.symbolLocation = symbols[0].location;
-		response.symbolFilePath = symbols[0].symbolFile.idup;
+		response.symbolLocation = pair.symbols[0].location;
+		response.symbolFilePath = pair.symbols[0].symbolFile.idup;
 	}
 	else
 		warning("Could not find symbol declaration");
@@ -322,6 +322,21 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, size_t cursorPosition,
 	return sortedTokens.lowerBound(cast(size_t) cursorPosition);
 }
 
+struct ScopeSymbolPair
+{
+	~this()
+	{
+		if (scope_ !is null)
+		{
+			scope_.destroySymbols();
+			typeid(Scope).destroy(scope_);
+		}
+	}
+
+	DSymbol*[] symbols;
+	Scope* scope_;
+}
+
 /**
  * Params:
  *     request = the autocompletion request
@@ -330,17 +345,16 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, size_t cursorPosition,
  *     all symbols that should be considered for the autocomplete list based on
  *     the request's source code, cursor position, and completion type.
  */
-DSymbol*[] getSymbolsForCompletion(const AutocompleteRequest request,
+ScopeSymbolPair getSymbolsForCompletion(const AutocompleteRequest request,
 	const CompletionType type, IAllocator allocator, StringCache* cache)
 {
 	const(Token)[] tokenArray;
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
 		request.cursorPosition, cache, tokenArray);
 	Scope* completionScope = generateAutocompleteTrees(tokenArray, allocator);
-	scope(exit) typeid(Scope).destroy(completionScope);
 	auto expression = getExpression(beforeTokens);
-	return getSymbolsByTokenChain(completionScope, expression,
-		request.cursorPosition, type);
+	return ScopeSymbolPair(getSymbolsByTokenChain(completionScope, expression,
+		request.cursorPosition, type), completionScope);
 }
 
 /**
@@ -550,9 +564,9 @@ body
 		}
 	}
 
-	foreach (s; symbols.parts[])
+	foreach (s; symbols.opSlice())
 	{
-		if (s.kind == CompletionKind.importSymbol) foreach (sy; s.type.parts[])
+		if (s.kind == CompletionKind.importSymbol) foreach (sy; s.type.opSlice())
 			addSymbolToResponses(sy);
 		else
 			addSymbolToResponses(s);
@@ -825,9 +839,9 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			if (symbols.length == 0)
 				return;
 		}
-		foreach (sym; symbols[0].parts[])
+		foreach (sym; symbols[0].opSlice())
 		{
-			if (sym.kind == CompletionKind.importSymbol) foreach (s; sym.type.parts[])
+			if (sym.kind == CompletionKind.importSymbol) foreach (s; sym.type.opSlice())
 			{
 				response.completionKinds ~= s.kind;
 				response.completions ~= s.name.dup;
@@ -916,8 +930,8 @@ body
 {
 	string generatedStructConstructorCalltip = "this(";
 	size_t i = 0;
-	immutable c = count(symbol.parts[].filter!(a => a.kind == CompletionKind.variableName));
-	foreach (part; array(symbol.parts[]).sort!((a, b) => a.location < b.location))
+	immutable c = count(symbol.opSlice().filter!(a => a.kind == CompletionKind.variableName));
+	foreach (part; array(symbol.opSlice()).sort!((a, b) => a.location < b.location))
 	{
 		if (part.kind != CompletionKind.variableName)
 			continue;
