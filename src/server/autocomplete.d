@@ -63,11 +63,11 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request)
 	AutocompleteResponse response;
 	auto allocator = scoped!(ASTAllocator)();
 	auto cache = StringCache(StringCache.defaultBucketCount);
-	ScopeSymbolPair pair = getSymbolsForCompletion(request, CompletionType.ddoc,
+	SymbolStuff stuff = getSymbolsForCompletion(request, CompletionType.ddoc,
 		allocator, &cache);
-	if (pair.symbols.length == 0)
+	if (stuff.symbols.length == 0)
 		warning("Could not find symbol");
-	else foreach (symbol; pair.symbols.filter!(a => !a.doc.empty))
+	else foreach (symbol; stuff.symbols.filter!(a => !a.doc.empty))
 		response.docComments ~= formatComment(symbol.doc);
 	return response;
 }
@@ -84,12 +84,13 @@ public AutocompleteResponse findDeclaration(const AutocompleteRequest request)
 	AutocompleteResponse response;
 	auto allocator = scoped!(ASTAllocator)();
 	auto cache = StringCache(StringCache.defaultBucketCount);
-	ScopeSymbolPair pair = getSymbolsForCompletion(request,
+	SymbolStuff stuff = getSymbolsForCompletion(request,
 		CompletionType.location, allocator, &cache);
-	if (pair.symbols.length > 0)
+	scope(exit) stuff.destroy();
+	if (stuff.symbols.length > 0)
 	{
-		response.symbolLocation = pair.symbols[0].location;
-		response.symbolFilePath = pair.symbols[0].symbolFile.idup;
+		response.symbolLocation = stuff.symbols[0].location;
+		response.symbolFilePath = stuff.symbols[0].symbolFile.idup;
 	}
 	else
 		warning("Could not find symbol declaration");
@@ -146,8 +147,8 @@ public AutocompleteResponse symbolSearch(const AutocompleteRequest request)
 	const(Token)[] tokenArray = getTokensForParser(cast(ubyte[]) request.sourceCode,
 		config, &cache);
 	auto allocator = scoped!(ASTAllocator)();
-	Scope* completionScope = generateAutocompleteTrees(tokenArray, allocator);
-	scope(exit) typeid(Scope).destroy(completionScope);
+	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator);
+	scope(exit) pair.destroy();
 
 	static struct SearchResults
 	{
@@ -177,7 +178,7 @@ public AutocompleteResponse symbolSearch(const AutocompleteRequest request)
 
 	SearchResults results;
 
-	foreach (symbol; completionScope.symbols[])
+	foreach (symbol; pair.scope_.symbols)
 	{
 		symbol.getAllPartsNamed(request.searchName, results);
 	}
@@ -288,9 +289,9 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens,
 	case tok!"this":
 	case tok!"super":
 		auto allocator = scoped!(ASTAllocator)();
-		Scope* completionScope = generateAutocompleteTrees(tokenArray, allocator);
-		scope(exit) typeid(Scope).destroy(completionScope);
-		response.setCompletions(completionScope, getExpression(beforeTokens),
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator);
+		scope(exit) pair.destroy();
+		response.setCompletions(pair.scope_, getExpression(beforeTokens),
 			cursorPosition, CompletionType.identifiers, false, partial);
 		break;
 	case tok!"(":
@@ -322,21 +323,6 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, size_t cursorPosition,
 	return sortedTokens.lowerBound(cast(size_t) cursorPosition);
 }
 
-struct ScopeSymbolPair
-{
-	~this()
-	{
-		if (scope_ !is null)
-		{
-			scope_.destroySymbols();
-			typeid(Scope).destroy(scope_);
-		}
-	}
-
-	DSymbol*[] symbols;
-	Scope* scope_;
-}
-
 /**
  * Params:
  *     request = the autocompletion request
@@ -345,16 +331,29 @@ struct ScopeSymbolPair
  *     all symbols that should be considered for the autocomplete list based on
  *     the request's source code, cursor position, and completion type.
  */
-ScopeSymbolPair getSymbolsForCompletion(const AutocompleteRequest request,
+SymbolStuff getSymbolsForCompletion(const AutocompleteRequest request,
 	const CompletionType type, IAllocator allocator, StringCache* cache)
 {
 	const(Token)[] tokenArray;
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
 		request.cursorPosition, cache, tokenArray);
-	Scope* completionScope = generateAutocompleteTrees(tokenArray, allocator);
+	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator);
 	auto expression = getExpression(beforeTokens);
-	return ScopeSymbolPair(getSymbolsByTokenChain(completionScope, expression,
-		request.cursorPosition, type), completionScope);
+	return SymbolStuff(getSymbolsByTokenChain(pair.scope_, expression,
+		request.cursorPosition, type), pair.symbol, pair.scope_);
+}
+
+struct SymbolStuff
+{
+	void destroy()
+	{
+		typeid(DSymbol).destroy(symbol);
+		typeid(Scope).destroy(scope_);
+	}
+
+	DSymbol*[] symbols;
+	DSymbol* symbol;
+	Scope* scope_;
 }
 
 /**
@@ -415,10 +414,10 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	case tok!")":
 	case tok!"]":
 		auto allocator = scoped!(ASTAllocator)();
-		Scope* completionScope = generateAutocompleteTrees(tokenArray, allocator);
-		scope(exit) typeid(Scope).destroy(completionScope);
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator);
+		scope(exit) pair.destroy();
 		auto expression = getExpression(beforeTokens[0 .. $ - 1]);
-		response.setCompletions(completionScope, expression,
+		response.setCompletions(pair.scope_, expression,
 			cursorPosition, CompletionType.calltips, beforeTokens[$ - 1] == tok!"[");
 		break;
 	default:
