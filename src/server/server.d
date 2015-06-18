@@ -103,7 +103,7 @@ int main(string[] args)
 	}
 
 	ModuleCache.addImportPaths(importPaths);
-	info("Import directories: ", ModuleCache.getImportPaths());
+	infof("Import directories:\n    %-(%s\n    %)", ModuleCache.getImportPaths());
 
 	ubyte[] buffer = cast(ubyte[]) Mallocator.it.allocate(1024 * 1024 * 4); // 4 megabytes should be enough for anybody...
 	scope(exit) Mallocator.it.deallocate(buffer);
