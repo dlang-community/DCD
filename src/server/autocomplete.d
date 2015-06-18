@@ -48,7 +48,7 @@ import memory.allocators;
 import common.constants;
 import common.messages;
 
-private alias ASTAllocator = CAllocatorImpl!(AllocatorList!(n => Region!Mallocator(1024 * 32)));
+private alias ASTAllocator = CAllocatorImpl!(AllocatorList!(n => Region!Mallocator(1024 * 64)));
 
 /**
  * Gets documentation for the symbol at the cursor
@@ -527,6 +527,12 @@ body
 	{
 	case tok!":": break loop2;
 	default: j++; break;
+	}
+
+	if (i >= j)
+	{
+		warning("Malformed import statement");
+		return response;
 	}
 
 	string path;
