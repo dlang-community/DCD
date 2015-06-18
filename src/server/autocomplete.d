@@ -48,7 +48,7 @@ import memory.allocators;
 import common.constants;
 import common.messages;
 
-private alias ASTAllocator = CAllocatorImpl!(AllocatorList!(n => Region!Mallocator(1024 * 64)));
+private alias ASTAllocator = CAllocatorImpl!(AllocatorList!(n => Region!Mallocator(1024 * 32)));
 
 /**
  * Gets documentation for the symbol at the cursor
@@ -147,7 +147,8 @@ public AutocompleteResponse symbolSearch(const AutocompleteRequest request)
 	const(Token)[] tokenArray = getTokensForParser(cast(ubyte[]) request.sourceCode,
 		config, &cache);
 	auto allocator = scoped!(ASTAllocator)();
-	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator);
+	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
+		request.cursorPosition);
 	scope(exit) pair.destroy();
 
 	static struct SearchResults
@@ -289,7 +290,8 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens,
 	case tok!"this":
 	case tok!"super":
 		auto allocator = scoped!(ASTAllocator)();
-		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator);
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
+			cursorPosition);
 		scope(exit) pair.destroy();
 		response.setCompletions(pair.scope_, getExpression(beforeTokens),
 			cursorPosition, CompletionType.identifiers, false, partial);
@@ -337,7 +339,8 @@ SymbolStuff getSymbolsForCompletion(const AutocompleteRequest request,
 	const(Token)[] tokenArray;
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
 		request.cursorPosition, cache, tokenArray);
-	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator);
+	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
+		request.cursorPosition);
 	auto expression = getExpression(beforeTokens);
 	return SymbolStuff(getSymbolsByTokenChain(pair.scope_, expression,
 		request.cursorPosition, type), pair.symbol, pair.scope_);
@@ -414,7 +417,8 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	case tok!")":
 	case tok!"]":
 		auto allocator = scoped!(ASTAllocator)();
-		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator);
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
+			cursorPosition);
 		scope(exit) pair.destroy();
 		auto expression = getExpression(beforeTokens[0 .. $ - 1]);
 		response.setCompletions(pair.scope_, expression,
