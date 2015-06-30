@@ -229,13 +229,13 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens,
 		// responses when the cursor is in the middle of an identifier instead
 		// of at the end
 		auto t = beforeTokens[$ - 1];
-		if (cursorPosition - t.index >= 0 && cursorPosition - t.index < t.text.length)
+		if (cursorPosition - t.index >= 0 && cursorPosition - t.index <= t.text.length)
 		{
 			partial = t.text[0 .. cursorPosition - t.index];
-
-			significantTokenType = tok!"identifier";
-			beforeTokens = beforeTokens[0 .. $ - 1];
 		}
+
+		significantTokenType = tok!"identifier";
+		beforeTokens = beforeTokens[0 .. $ - 1];
 	}
 	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] ==  tok!".")
 		significantTokenType = beforeTokens[$ - 2].type;
