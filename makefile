@@ -68,12 +68,14 @@ SERVER_SRC := \
 	containers/src/std/experimental/allocator/package.d\
 	containers/src/std/experimental/allocator/common.d\
 	containers/src/std/experimental/allocator/gc_allocator.d\
+	containers/src/std/experimental/allocator/allocator_list.d\
 	containers/src/std/experimental/allocator/typed.d\
 	containers/src/memory/allocators.d\
 	containers/src/memory/appender.d\
 	containers/src/containers/dynamicarray.d\
 	containers/src/containers/ttree.d\
 	containers/src/containers/unrolledlist.d\
+	containers/src/containers/openhashset.d\
 	containers/src/containers/hashset.d\
 	containers/src/containers/internal/hash.d\
 	containers/src/containers/internal/node.d\
@@ -101,7 +103,6 @@ DEBUG_SERVER_FLAGS := -Icontainers/src\
 	-g\
 	-ofbin/dcd-server\
 	-J.\
-	-debug
 
 GDC_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
