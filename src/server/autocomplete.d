@@ -20,6 +20,7 @@ module server.autocomplete;
 
 import std.algorithm;
 import std.experimental.allocator;
+import std.experimental.logger;
 import std.array;
 import std.conv;
 import std.experimental.logger;
@@ -48,8 +49,6 @@ import memory.allocators;
 import common.constants;
 import common.messages;
 
-private alias ASTAllocator = CAllocatorImpl!(AllocatorList!(n => Region!Mallocator(1024 * 64)));
-
 /**
  * Gets documentation for the symbol at the cursor
  * Params:
@@ -57,14 +56,15 @@ private alias ASTAllocator = CAllocatorImpl!(AllocatorList!(n => Region!Mallocat
  * Returns:
  *     the autocompletion response
  */
-public AutocompleteResponse getDoc(const AutocompleteRequest request)
+public AutocompleteResponse getDoc(const AutocompleteRequest request,
+	ref ModuleCache moduleCache)
 {
 //	trace("Getting doc comments");
 	AutocompleteResponse response;
 	auto allocator = scoped!(ASTAllocator)();
 	auto cache = StringCache(StringCache.defaultBucketCount);
 	SymbolStuff stuff = getSymbolsForCompletion(request, CompletionType.ddoc,
-		allocator, &cache);
+		allocator, cache, moduleCache);
 	if (stuff.symbols.length == 0)
 		warning("Could not find symbol");
 	else foreach (symbol; stuff.symbols.filter!(a => !a.doc.empty))
@@ -79,13 +79,14 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request)
  * Returns:
  *     the autocompletion response
  */
-public AutocompleteResponse findDeclaration(const AutocompleteRequest request)
+public AutocompleteResponse findDeclaration(const AutocompleteRequest request,
+	ref ModuleCache moduleCache)
 {
 	AutocompleteResponse response;
 	auto allocator = scoped!(ASTAllocator)();
 	auto cache = StringCache(StringCache.defaultBucketCount);
 	SymbolStuff stuff = getSymbolsForCompletion(request,
-		CompletionType.location, allocator, &cache);
+		CompletionType.location, allocator, cache, moduleCache);
 	scope(exit) stuff.destroy();
 	if (stuff.symbols.length > 0)
 	{
@@ -104,40 +105,45 @@ public AutocompleteResponse findDeclaration(const AutocompleteRequest request)
  * Returns:
  *     the autocompletion response
  */
-public AutocompleteResponse complete(const AutocompleteRequest request)
+public AutocompleteResponse complete(const AutocompleteRequest request,
+	ref ModuleCache moduleCache)
 {
 	const(Token)[] tokenArray;
-	auto cache = StringCache(StringCache.defaultBucketCount);
+	auto stringCache = StringCache(StringCache.defaultBucketCount);
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
-		request.cursorPosition, &cache, tokenArray);
+		request.cursorPosition, stringCache, tokenArray);
 	if (beforeTokens.length >= 2)
 	{
 		if (beforeTokens[$ - 1] == tok!"(" || beforeTokens[$ - 1] == tok!"[")
 		{
-			return parenCompletion(beforeTokens, tokenArray, request.cursorPosition);
+			return parenCompletion(beforeTokens, tokenArray, request.cursorPosition,
+				moduleCache);
 		}
 		else if (beforeTokens[$ - 1] == tok!",")
 		{
 			immutable size_t end = goBackToOpenParen(beforeTokens);
 			if (end != size_t.max)
-				return parenCompletion(beforeTokens[0 .. end], tokenArray, request.cursorPosition);
+				return parenCompletion(beforeTokens[0 .. end], tokenArray,
+					request.cursorPosition, moduleCache);
 		}
 		else
 		{
 			ImportKind kind = determineImportKind(beforeTokens);
 			if (kind == ImportKind.neither)
-				return dotCompletion(beforeTokens, tokenArray, request.cursorPosition);
+				return dotCompletion(beforeTokens, tokenArray, request.cursorPosition,
+					moduleCache);
 			else
-				return importCompletion(beforeTokens, kind);
+				return importCompletion(beforeTokens, kind, moduleCache);
 		}
 	}
-	return dotCompletion(beforeTokens, tokenArray, request.cursorPosition);
+	return dotCompletion(beforeTokens, tokenArray, request.cursorPosition, moduleCache);
 }
 
 /**
  *
  */
-public AutocompleteResponse symbolSearch(const AutocompleteRequest request)
+public AutocompleteResponse symbolSearch(const AutocompleteRequest request,
+	ref ModuleCache moduleCache)
 {
 	import containers.ttree : TTree;
 
@@ -148,7 +154,7 @@ public AutocompleteResponse symbolSearch(const AutocompleteRequest request)
 		config, &cache);
 	auto allocator = scoped!(ASTAllocator)();
 	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
-		request.cursorPosition);
+		request.cursorPosition, moduleCache);
 	scope(exit) pair.destroy();
 
 	static struct SearchResults
@@ -183,7 +189,7 @@ public AutocompleteResponse symbolSearch(const AutocompleteRequest request)
 	{
 		symbol.getAllPartsNamed(request.searchName, results);
 	}
-	foreach (s; ModuleCache.getAllSymbols())
+	foreach (s; moduleCache.getAllSymbols())
 	{
 		s.symbol.getAllPartsNamed(request.searchName, results);
 	}
@@ -203,7 +209,7 @@ public AutocompleteResponse symbolSearch(const AutocompleteRequest request)
 /******************************************************************************/
 private:
 
-enum ImportKind
+enum ImportKind : ubyte
 {
 	selective,
 	normal,
@@ -219,8 +225,8 @@ enum ImportKind
  * Returns:
  *     the autocompletion response
  */
-AutocompleteResponse dotCompletion(T)(T beforeTokens,
-	const(Token)[] tokenArray, size_t cursorPosition)
+AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
+	size_t cursorPosition, ref ModuleCache moduleCache)
 {
 	AutocompleteResponse response;
 
@@ -239,8 +245,8 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens,
 		// responses when the cursor is in the middle of an identifier instead
 		// of at the end
 		auto t = beforeTokens[$ - 1];
-		partial = t.text[0 .. cursorPosition - t.index];
-
+		if (cursorPosition - t.index >= 0 && cursorPosition - t.index <= t.text.length)
+			partial = t.text[0 .. cursorPosition - t.index];
 		significantTokenType = tok!"identifier";
 		beforeTokens = beforeTokens[0 .. $ - 1];
 	}
@@ -291,7 +297,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens,
 	case tok!"super":
 		auto allocator = scoped!(ASTAllocator)();
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
-			cursorPosition);
+			cursorPosition, moduleCache);
 		scope(exit) pair.destroy();
 		response.setCompletions(pair.scope_, getExpression(beforeTokens),
 			cursorPosition, CompletionType.identifiers, false, partial);
@@ -316,11 +322,11 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens,
  *     a sorted range of tokens before the cursor position
  */
 auto getTokensBeforeCursor(const(ubyte[]) sourceCode, size_t cursorPosition,
-	StringCache* cache, out const(Token)[] tokenArray)
+	ref StringCache cache, out const(Token)[] tokenArray)
 {
 	LexerConfig config;
 	config.fileName = "";
-	tokenArray = getTokensForParser(cast(ubyte[]) sourceCode, config, cache);
+	tokenArray = getTokensForParser(cast(ubyte[]) sourceCode, config, &cache);
 	auto sortedTokens = assumeSorted(tokenArray);
 	return sortedTokens.lowerBound(cast(size_t) cursorPosition);
 }
@@ -334,13 +340,14 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, size_t cursorPosition,
  *     the request's source code, cursor position, and completion type.
  */
 SymbolStuff getSymbolsForCompletion(const AutocompleteRequest request,
-	const CompletionType type, IAllocator allocator, StringCache* cache)
+	const CompletionType type, IAllocator allocator, ref StringCache cache,
+	ref ModuleCache moduleCache)
 {
 	const(Token)[] tokenArray;
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
 		request.cursorPosition, cache, tokenArray);
 	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
-		request.cursorPosition);
+		request.cursorPosition, moduleCache);
 	auto expression = getExpression(beforeTokens);
 	return SymbolStuff(getSymbolsByTokenChain(pair.scope_, expression,
 		request.cursorPosition, type), pair.symbol, pair.scope_);
@@ -369,7 +376,7 @@ struct SymbolStuff
  *     the autocompletion response
  */
 AutocompleteResponse parenCompletion(T)(T beforeTokens,
-	const(Token)[] tokenArray, size_t cursorPosition)
+	const(Token)[] tokenArray, size_t cursorPosition, ref ModuleCache moduleCache)
 {
 	AutocompleteResponse response;
 	immutable(string)[] completions;
@@ -418,7 +425,7 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	case tok!"]":
 		auto allocator = scoped!(ASTAllocator)();
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
-			cursorPosition);
+			cursorPosition, moduleCache);
 		scope(exit) pair.destroy();
 		auto expression = getExpression(beforeTokens[0 .. $ - 1]);
 		response.setCompletions(pair.scope_, expression,
@@ -437,7 +444,8 @@ ImportKind determineImportKind(T)(T tokens)
 {
 	assert (tokens.length > 1);
 	size_t i = tokens.length - 1;
-	if (!(tokens[i] == tok!":" || tokens[i] == tok!"," || tokens[i] == tok!"." || tokens[i] == tok!"identifier"))
+	if (!(tokens[i] == tok!":" || tokens[i] == tok!"," || tokens[i] == tok!"."
+			|| tokens[i] == tok!"identifier"))
 		return ImportKind.neither;
 	bool foundColon = false;
 	while (true) switch (tokens[i].type)
@@ -484,7 +492,8 @@ unittest
  * import std.algorithm: balancedParens;
  * ---
  */
-AutocompleteResponse importCompletion(T)(T beforeTokens, ImportKind kind)
+AutocompleteResponse importCompletion(T)(T beforeTokens, ImportKind kind,
+	ref ModuleCache moduleCache)
 in
 {
 	assert (beforeTokens.length >= 2);
@@ -501,7 +510,7 @@ body
 	{
 
 		while (beforeTokens[i].type != tok!"," && beforeTokens[i].type != tok!"import") i--;
-		setImportCompletions(beforeTokens[i .. $], response);
+		setImportCompletions(beforeTokens[i .. $], response, moduleCache);
 		return response;
 	}
 
@@ -550,13 +559,13 @@ body
 		}
 	}
 
-	string resolvedLocation = ModuleCache.resolveImportLocation(path);
+	string resolvedLocation = moduleCache.resolveImportLocation(path);
 	if (resolvedLocation is null)
 	{
 		warning("Could not resolve location of ", path);
 		return response;
 	}
-	auto symbols = ModuleCache.getModuleSymbol(resolvedLocation);
+	auto symbols = moduleCache.getModuleSymbol(internString(resolvedLocation));
 
 	import containers.hashset : HashSet;
 	HashSet!string h;
@@ -575,8 +584,9 @@ body
 
 	foreach (s; symbols.opSlice())
 	{
-		if (s.kind == CompletionKind.importSymbol) foreach (sy; s.type.opSlice())
-			addSymbolToResponses(sy);
+		if (s.kind == CompletionKind.importSymbol && s.type !is null)
+			foreach (sy; s.type.opSlice())
+				addSymbolToResponses(sy);
 		else
 			addSymbolToResponses(s);
 	}
@@ -590,7 +600,8 @@ body
  *     tokens = the tokens after the "import" keyword and before the cursor
  *     response = the response that should be populated
  */
-void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
+void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
+	ref ModuleCache cache)
 {
 	response.completionType = CompletionType.identifiers;
 	string partial = null;
@@ -604,7 +615,7 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response)
 
 	bool found = false;
 
-	foreach (importDirectory; ModuleCache.getImportPaths())
+	foreach (importDirectory; cache.getImportPaths())
 	{
 		string p = buildPath(importDirectory, path);
 		if (!exists(p))
@@ -732,11 +743,11 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 					break loop;
 			}
 
-//			Log.trace("looking for ", tokens[i].text, " in ", symbols[0].name);
+//			trace("looking for ", tokens[i].text, " in ", symbols[0].name);
 			symbols = symbols[0].getPartsByName(internString(tokens[i].text));
 			if (symbols.length == 0)
 			{
-//				Log.trace("Couldn't find it.");
+//				trace("Couldn't find it.");
 				break loop;
 			}
 			if (shouldSwapWithType(completionType, symbols[0].kind, i,
@@ -820,7 +831,8 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	// based on the currently entered text.
 	if (partial !is null && tokens.length == 0)
 	{
-		foreach (s; completionScope.getSymbolsInCursorScope(cursorPosition)
+		auto currentSymbols = completionScope.getSymbolsInCursorScope(cursorPosition);
+		foreach (s; currentSymbols
 			.filter!(a => a.name.toUpper().startsWith(partial.toUpper())))
 		{
 			response.completionKinds ~= s.kind;
@@ -848,26 +860,24 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			if (symbols.length == 0)
 				return;
 		}
-		foreach (sym; symbols[0].opSlice())
+		if (symbols[0].kind != CompletionKind.importSymbol)
 		{
-			if (sym.kind == CompletionKind.importSymbol) foreach (s; sym.type.opSlice())
+			foreach (sym; symbols[0].opSlice())
 			{
-				response.completionKinds ~= s.kind;
-				response.completions ~= s.name.dup;
-			}
-			else if (sym.name !is null && sym.name.length > 0 && sym.name[0] != '*'
-				&& (partial is null ? true : sym.name.toUpper().startsWith(partial.toUpper()))
-				&& !response.completions.canFind(sym.name))
-			{
-				response.completionKinds ~= sym.kind;
-				response.completions ~= sym.name.dup;
+				if (sym.name !is null && sym.name.length > 0 && sym.name[0] != '*'
+					&& (partial is null ? true : sym.name.toUpper().startsWith(partial.toUpper()))
+					&& !response.completions.canFind(sym.name))
+				{
+					response.completionKinds ~= sym.kind;
+					response.completions ~= sym.name.dup;
+				}
 			}
 		}
 		response.completionType = CompletionType.identifiers;
 	}
 	else if (completionType == CompletionType.calltips)
 	{
-//		Log.trace("Showing call tips for ", symbols[0].name, " of kind ", symbols[0].kind);
+//		trace("Showing call tips for ", symbols[0].name, " of kind ", symbols[0].kind);
 		if (symbols[0].kind != CompletionKind.functionName
 			&& symbols[0].callTip is null)
 		{

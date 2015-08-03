@@ -58,12 +58,13 @@ int main(string[] args)
 	ushort port = 9166;
 	bool help;
 	bool printVersion;
+	bool ignoreConfig;
 	string[] importPaths;
 
 	try
 	{
 		getopt(args, "port|p", &port, "I", &importPaths, "help|h", &help,
-			"version", & printVersion);
+			"version", &printVersion, "ignoreConfig", &ignoreConfig);
 	}
 	catch (ConvException e)
 	{
@@ -87,7 +88,8 @@ int main(string[] args)
 		return 0;
 	}
 
-	importPaths ~= loadConfiguredImportDirs();
+	if (!ignoreConfig)
+		importPaths ~= loadConfiguredImportDirs();
 
 	auto socket = new TcpSocket(AddressFamily.INET);
 	socket.blocking = true;
@@ -102,14 +104,15 @@ int main(string[] args)
 		info("Sockets shut down.");
 	}
 
-	ModuleCache.addImportPaths(importPaths);
-	infof("Import directories:\n    %-(%s\n    %)", ModuleCache.getImportPaths());
+	ModuleCache cache = ModuleCache(new ASTAllocator);
+	cache.addImportPaths(importPaths);
+	infof("Import directories:\n    %-(%s\n    %)", cache.getImportPaths());
 
 	ubyte[] buffer = cast(ubyte[]) Mallocator.it.allocate(1024 * 1024 * 4); // 4 megabytes should be enough for anybody...
 	scope(exit) Mallocator.it.deallocate(buffer);
 
 	sw.stop();
-	info(ModuleCache.symbolsAllocated, " symbols cached.");
+	info(cache.symbolsAllocated, " symbols cached.");
 	info("Startup completed in ", sw.peek().to!("msecs", float), " milliseconds.");
 
 	// No relative paths
@@ -167,7 +170,7 @@ int main(string[] args)
 		if (request.kind & RequestKind.clearCache)
 		{
 			info("Clearing cache.");
-			ModuleCache.clear();
+			cache.clear();
 		}
 		else if (request.kind & RequestKind.shutdown)
 		{
@@ -184,12 +187,12 @@ int main(string[] args)
 		}
 		if (request.kind & RequestKind.addImport)
 		{
-			ModuleCache.addImportPaths(request.importPaths);
+			cache.addImportPaths(request.importPaths);
 		}
 		if (request.kind & RequestKind.listImports)
 		{
 			AutocompleteResponse response;
-			response.importPaths = ModuleCache.getImportPaths().array();
+			response.importPaths = cache.getImportPaths().array();
 			ubyte[] responseBytes = msgpack.pack(response);
 			info("Returning import path list");
 			s.send(responseBytes);
@@ -197,7 +200,7 @@ int main(string[] args)
 		else if (request.kind & RequestKind.autocomplete)
 		{
 			info("Getting completions");
-			AutocompleteResponse response = complete(request);
+			AutocompleteResponse response = complete(request, cache);
 			ubyte[] responseBytes = msgpack.pack(response);
 			s.send(responseBytes);
 		}
@@ -206,7 +209,7 @@ int main(string[] args)
 			info("Getting doc comment");
 			try
 			{
-				AutocompleteResponse response = getDoc(request);
+				AutocompleteResponse response = getDoc(request, cache);
 				ubyte[] responseBytes = msgpack.pack(response);
 				s.send(responseBytes);
 			}
@@ -219,7 +222,7 @@ int main(string[] args)
 		{
 			try
 			{
-				AutocompleteResponse response = findDeclaration(request);
+				AutocompleteResponse response = findDeclaration(request, cache);
 				ubyte[] responseBytes = msgpack.pack(response);
 				s.send(responseBytes);
 			}
@@ -230,7 +233,7 @@ int main(string[] args)
 		}
 		else if (request.kind & RequestKind.search)
 		{
-			AutocompleteResponse response = symbolSearch(request);
+			AutocompleteResponse response = symbolSearch(request, cache);
 			ubyte[] responseBytes = msgpack.pack(response);
 			s.send(responseBytes);
 		}
@@ -304,7 +307,7 @@ string[] loadConfiguredImportDirs()
 	info("Loading configuration from ", configLocation);
 	File f = File(configLocation, "rt");
 	return f.byLine(KeepTerminator.no)
-		.filter!(a => a.length > 0 && existanceCheck(a))
+		.filter!(a => a.length > 0 && a[0] != '#' && existanceCheck(a))
 		.map!(a => a.idup)
 		.array();
 }
