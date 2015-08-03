@@ -4,20 +4,20 @@ S doStuff(int x) { return S(); }
 
 void main(string[] args)
 {
-	auto a = 10;
-	auto b = S(1, 2);
-	int c = 4;
-	auto d = doStuff();
+	auto alpha = 10;
+	auto bravo = S(1, 2);
+	int charlie = 4;
+	auto delta = doStuff();
 	{
-		a.
+		alpha.
 	}
 	{
-		b.
+		bravo.
 	}
 	{
-		c.
+		charlie.
 	}
 	{
-		d.
+		delta.
 	}
 }
