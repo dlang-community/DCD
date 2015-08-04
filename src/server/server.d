@@ -29,6 +29,7 @@ import std.process;
 import std.datetime;
 import std.conv;
 import std.experimental.allocator;
+import std.experimental.allocator.mallocator;
 import std.exception : enforce;
 import std.experimental.logger;
 
@@ -108,8 +109,8 @@ int main(string[] args)
 	cache.addImportPaths(importPaths);
 	infof("Import directories:\n    %-(%s\n    %)", cache.getImportPaths());
 
-	ubyte[] buffer = cast(ubyte[]) Mallocator.it.allocate(1024 * 1024 * 4); // 4 megabytes should be enough for anybody...
-	scope(exit) Mallocator.it.deallocate(buffer);
+	ubyte[] buffer = cast(ubyte[]) Mallocator.instance.allocate(1024 * 1024 * 4); // 4 megabytes should be enough for anybody...
+	scope(exit) Mallocator.instance.deallocate(buffer);
 
 	sw.stop();
 	info(cache.symbolsAllocated, " symbols cached.");
