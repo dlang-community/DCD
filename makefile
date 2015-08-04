@@ -34,7 +34,6 @@ CLIENT_SRC := \
 DMD_CLIENT_FLAGS := -Imsgpack-d/src\
 	-Imsgpack-d/src\
 	-J.\
-	-release\
 	-inline\
 	-O\
 	-wi\
