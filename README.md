@@ -16,7 +16,9 @@ calculating autocomplete information, and sending it back to the client.
 # Status
 This program is reasonably stable. Please report problems on the Github issue
 tracker. Please be sure that you have read the documentation before filing an
-issue.
+issue. (If you want to help your bug to get fixed faster, you can create a
+[test case](https://github.com/Hackerpilot/DCD/wiki/Testing) that helps isolate
+the issue.)
 
 * Working:
 	* Autocompletion of properties of built-in types such as int, float, double, etc.
