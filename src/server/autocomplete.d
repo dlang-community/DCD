@@ -736,7 +736,8 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 		case tok!"identifier":
 			// Use function return type instead of the function itself
 			if (symbols[0].qualifier == SymbolQualifier.func
-				|| symbols[0].kind == CompletionKind.functionName)
+				|| symbols[0].kind == CompletionKind.functionName
+				|| symbols[0].kind == CompletionKind.aliasName)
 			{
 				symbols = symbols[0].type is null ? [] :[symbols[0].type];
 				if (symbols.length == 0)
@@ -853,24 +854,23 @@ void setCompletions(T)(ref AutocompleteResponse response,
 
 	if (completionType == CompletionType.identifiers)
 	{
-		if (symbols[0].qualifier == SymbolQualifier.func
-			|| symbols[0].kind == CompletionKind.functionName)
+		while (symbols[0].qualifier == SymbolQualifier.func
+			|| symbols[0].kind == CompletionKind.functionName
+			|| symbols[0].kind == CompletionKind.importSymbol
+			|| symbols[0].kind == CompletionKind.aliasName)
 		{
 			symbols = symbols[0].type is null ? [] : [symbols[0].type];
 			if (symbols.length == 0)
 				return;
 		}
-		if (symbols[0].kind != CompletionKind.importSymbol)
+		foreach (sym; symbols[0].opSlice())
 		{
-			foreach (sym; symbols[0].opSlice())
+			if (sym.name !is null && sym.name.length > 0 && sym.kind != CompletionKind.importSymbol
+				&& (partial is null ? true : sym.name.toUpper().startsWith(partial.toUpper()))
+				&& !response.completions.canFind(sym.name))
 			{
-				if (sym.name !is null && sym.name.length > 0 && sym.name[0] != '*'
-					&& (partial is null ? true : sym.name.toUpper().startsWith(partial.toUpper()))
-					&& !response.completions.canFind(sym.name))
-				{
-					response.completionKinds ~= sym.kind;
-					response.completions ~= sym.name.dup;
-				}
+				response.completionKinds ~= sym.kind;
+				response.completions ~= sym.name.dup;
 			}
 		}
 		response.completionType = CompletionType.identifiers;
@@ -1206,6 +1206,8 @@ bool shouldSwapWithType(CompletionType completionType, CompletionKind kind,
 	immutable bool isInteresting =
 		kind == CompletionKind.variableName
 		|| kind == CompletionKind.memberVariableName
+		|| kind == CompletionKind.importSymbol
+		|| kind == CompletionKind.aliasName
 		|| kind == CompletionKind.enumMember
 		|| kind == CompletionKind.functionName;
 	return isInteresting && (completionType == CompletionType.identifiers

@@ -18,3 +18,5 @@ githash.txt
 
 # Test results
 tests/tc*/actual*.txt
+stderr.txt
+stdout.txt

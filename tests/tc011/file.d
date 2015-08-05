@@ -6,9 +6,3 @@ unittest
 {
 	p.
 }
-
-unittest
-{
-	p.Point p1;
-	p1.
-}

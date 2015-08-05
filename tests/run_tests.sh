@@ -14,7 +14,7 @@ sleep 1s;
 
 # Start up the server
 echo "Starting server..."
-../bin/dcd-server --ignoreConfig -I $IMPORTS 2>/dev/null > /dev/null &
+../bin/dcd-server --ignoreConfig -I $IMPORTS 2>stderr.txt > stdout.txt &
 sleep 1s;
 
 # Run tests

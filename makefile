@@ -61,15 +61,9 @@ SERVER_SRC := \
 	libdparse/src/std/d/entities.d\
 	libdparse/src/std/d/lexer.d\
 	libdparse/src/std/d/parser.d\
-	libdparse/src/std/lexer.d\
 	libdparse/src/std/d/formatter.d\
-	containers/src/std/experimental/allocator/mallocator.d\
-	containers/src/std/experimental/allocator/package.d\
-	containers/src/std/experimental/allocator/common.d\
-	containers/src/std/experimental/allocator/gc_allocator.d\
-	containers/src/std/experimental/allocator/building_blocks/allocator_list.d\
-	containers/src/std/experimental/allocator/building_blocks/stats_collector.d\
-	containers/src/std/experimental/allocator/typed.d\
+	libdparse/src/std/lexer.d\
+	$(shell find containers/src/std/experimental/allocator/ -name "*.d")\
 	containers/src/memory/allocators.d\
 	containers/src/memory/appender.d\
 	containers/src/containers/dynamicarray.d\
