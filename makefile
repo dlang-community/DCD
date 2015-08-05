@@ -68,6 +68,7 @@ SERVER_SRC := \
 	containers/src/std/experimental/allocator/common.d\
 	containers/src/std/experimental/allocator/gc_allocator.d\
 	containers/src/std/experimental/allocator/building_blocks/allocator_list.d\
+	containers/src/std/experimental/allocator/building_blocks/stats_collector.d\
 	containers/src/std/experimental/allocator/typed.d\
 	containers/src/memory/allocators.d\
 	containers/src/memory/appender.d\
