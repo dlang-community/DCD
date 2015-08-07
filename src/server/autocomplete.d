@@ -734,9 +734,14 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 				break loop;
 			break;
 		case tok!"identifier":
-			// Use function return type instead of the function itself
-			if (symbols[0].qualifier == SymbolQualifier.func
+			trace(symbols[0].qualifier, " ", symbols[0].kind);
+
+			// Use type instead of the symbol itself for certain symbol kinds
+			while (symbols[0].qualifier == SymbolQualifier.func
 				|| symbols[0].kind == CompletionKind.functionName
+				|| (symbols[0].kind == CompletionKind.moduleName
+					&& symbols[0].type !is null && symbols[0].type.kind == CompletionKind.importSymbol)
+				|| symbols[0].kind == CompletionKind.importSymbol
 				|| symbols[0].kind == CompletionKind.aliasName)
 			{
 				symbols = symbols[0].type is null ? [] :[symbols[0].type];
@@ -744,7 +749,7 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 					break loop;
 			}
 
-//			trace("looking for ", tokens[i].text, " in ", symbols[0].name);
+			trace("looking for ", tokens[i].text, " in ", symbols[0].name);
 			symbols = symbols[0].getPartsByName(internString(tokens[i].text));
 			if (symbols.length == 0)
 			{
@@ -758,7 +763,8 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 				if (symbols.length == 0)
 					break loop;
 			}
-			if (symbols[0].kind == CompletionKind.aliasName
+			if ((symbols[0].kind == CompletionKind.aliasName
+				|| symbols[0].kind == CompletionKind.moduleName)
 				&& (completionType == CompletionType.identifiers
 				|| i + 1 < tokens.length))
 			{
@@ -877,10 +883,18 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	}
 	else if (completionType == CompletionType.calltips)
 	{
-//		trace("Showing call tips for ", symbols[0].name, " of kind ", symbols[0].kind);
+		//trace("Showing call tips for ", symbols[0].name, " of kind ", symbols[0].kind);
 		if (symbols[0].kind != CompletionKind.functionName
 			&& symbols[0].callTip is null)
 		{
+			if (symbols[0].kind == CompletionKind.aliasName)
+			{
+				trace("Got here");
+				if (symbols[0].type is null)
+					return;
+				symbols = [symbols[0].type];
+				trace("Got there", symbols[0].kind);
+			}
 			if (symbols[0].kind == CompletionKind.variableName)
 			{
 				auto dumb = symbols[0].type;
@@ -907,7 +921,6 @@ void setCompletions(T)(ref AutocompleteResponse response,
 						goto setCallTips;
 					}
 				}
-
 			}
 			if (symbols[0].kind == CompletionKind.structName
 				|| symbols[0].kind == CompletionKind.className)
@@ -1188,9 +1201,8 @@ body
 bool shouldSwapWithType(CompletionType completionType, CompletionKind kind,
 	size_t current, size_t max) pure nothrow @safe
 {
-	// Modules and packages never have types, so always return false
-	if (kind == CompletionKind.moduleName
-		|| kind == CompletionKind.packageName
+	// packages never have types, so always return false
+	if (kind == CompletionKind.packageName
 		|| kind == CompletionKind.className
 		|| kind == CompletionKind.structName
 		|| kind == CompletionKind.interfaceName

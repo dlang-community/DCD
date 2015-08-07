@@ -1,0 +1,1 @@
+void writeln(string);
