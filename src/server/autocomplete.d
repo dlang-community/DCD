@@ -889,11 +889,9 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		{
 			if (symbols[0].kind == CompletionKind.aliasName)
 			{
-				trace("Got here");
 				if (symbols[0].type is null)
 					return;
 				symbols = [symbols[0].type];
-				trace("Got there", symbols[0].kind);
 			}
 			if (symbols[0].kind == CompletionKind.variableName)
 			{
