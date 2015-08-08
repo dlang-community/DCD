@@ -1,51 +1,42 @@
-del /f containers\src\std\allocator.d
+set containers_modules=
+for /r "containers/src" %%F in (*.d) do call set containers_modules=%%containers_modules%% "%%F"
+
+set common_modules=
+for /r "src/common" %%F in (*.d) do call set common_modules=%%common_modules%% "%%F"
+
+set server_modules=
+for /r "src/server" %%F in (*.d) do call set server_modules=%%server_modules%% "%%F"
+
+set dsymbol_modules=
+for /r "dsymbol/src" %%F in (*.d) do call set dsymbol_modules=%%dsymbol_modules%% "%%F"
+
+set libdparse_modules=
+for /r "libdparse/src" %%F in (*.d) do call set libdparse_modules=%%libdparse_modules%% "%%F"
+
+set client_name=bin\dcd_client
+set server_name=bin\dcd_server
 
 dmd^
- src\client.d^
- src\messages.d^
- src\stupidlog.d^
- src\dcd_version.d^
- msgpack-d/src/msgpack.d^
- -Imsgpack-d/src^
+ src\client\client.d^
+ src\common\messages.d^
+ src\common\dcd_version.d^
+ msgpack-d\src\msgpack.d^
+ -Imsgpack-d\src^
  -release -inline -O -wi^
- -ofdcd-client
+ -of%client_name%
 
 dmd^
- src\actypes.d^
- src\conversion/package.d^
- src\conversion/first.d^
- src\conversion/second.d^
- src\conversion/third.d^
- src\autocomplete.d^
- src\constants.d^
- src\messages.d^
- src\modulecache.d^
- src\semantic.d^
- src\server.d^
- src\stupidlog.d^
- src\string_interning.d^
- src\dcd_version.d^
- libdparse/src/std/d/ast.d^
- libdparse/src/std/d/entities.d^
- libdparse/src/std/d/lexer.d^
- libdparse/src/std/d/parser.d^
- libdparse/src/std/lexer.d^
- libdparse/src/std/allocator.d^
- libdparse/src/std/d/formatter.d^
- containers/src/memory/allocators.d^
- containers/src/memory/appender.d^
- containers/src/containers/dynamicarray.d^
- containers/src/containers/ttree.d^
- containers/src/containers/unrolledlist.d^
- containers/src/containers/hashset.d^
- containers/src/containers/internal/hash.d^
- containers/src/containers/internal/node.d^
- containers/src/containers/internal/storage_type.d^
- containers/src/containers/slist.d^
+ %server_modules%^
+ %dsymbol_modules%^
+ %libdparse_modules%^
+ %common_modules%^
+ %containers_modules%^
  msgpack-d/src/msgpack.d^
  -Icontainers/src^
  -Imsgpack-d/src^
  -Ilibdparse/src^
  -wi -O -release^
- -ofdcd-server
-
+ -of%server_name%
+ 
+if exist %server_name%.obj del %server_name%.obj
+if exist %client_name%.obj del %client_name%.obj
