@@ -26,16 +26,14 @@ clean:
 	rm -f *.o
 	rm -rf $(OBJ_DIR)
 
-CLIENT_SRC := src/client.d\
-	src/messages.d\
-	src/stupidlog.d\
-	src/dcd_version.d\
+CLIENT_SRC := \
+	$(shell find src/common -name "*.d")\
+	$(shell find src/client -name "*.d")\
 	msgpack-d/src/msgpack.d
 
 DMD_CLIENT_FLAGS := -Imsgpack-d/src\
 	-Imsgpack-d/src\
 	-J.\
-	-release\
 	-inline\
 	-O\
 	-wi\
@@ -55,32 +53,23 @@ LDC_CLIENT_FLAGS := -Imsgpack-d/src\
 	-oq\
 	-of=bin/dcd-client
 
-SERVER_SRC := src/actypes.d\
-	src/conversion/astconverter.d\
-	src/conversion/first.d\
-	src/conversion/second.d\
-	src/conversion/third.d\
-	src/autocomplete.d\
-	src/constants.d\
-	src/messages.d\
-	src/modulecache.d\
-	src/semantic.d\
-	src/server.d\
-	src/stupidlog.d\
-	src/string_interning.d\
-	src/dcd_version.d\
+SERVER_SRC := \
+	$(shell find src/common -name "*.d")\
+	$(shell find src/server -name "*.d")\
+	$(shell find dsymbol/src -name "*.d")\
 	libdparse/src/std/d/ast.d\
 	libdparse/src/std/d/entities.d\
 	libdparse/src/std/d/lexer.d\
 	libdparse/src/std/d/parser.d\
-	libdparse/src/std/lexer.d\
-	libdparse/src/std/allocator.d\
 	libdparse/src/std/d/formatter.d\
+	libdparse/src/std/lexer.d\
+	$(shell find containers/src/std/experimental/allocator/ -name "*.d")\
 	containers/src/memory/allocators.d\
 	containers/src/memory/appender.d\
 	containers/src/containers/dynamicarray.d\
 	containers/src/containers/ttree.d\
 	containers/src/containers/unrolledlist.d\
+	containers/src/containers/openhashset.d\
 	containers/src/containers/hashset.d\
 	containers/src/containers/internal/hash.d\
 	containers/src/containers/internal/node.d\
@@ -93,6 +82,7 @@ SERVER_OBJS = $(SERVER_SRC:%.d=$(OBJ_DIR)/%.o)
 DMD_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
 	-Ilibdparse/src\
+	-Idsymbol/src\
 	-J.\
 	-wi\
 	-O\
@@ -106,7 +96,7 @@ DEBUG_SERVER_FLAGS := -Icontainers/src\
 	-wi\
 	-g\
 	-ofbin/dcd-server\
-	-J.
+	-J.\
 
 GDC_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
@@ -126,27 +116,27 @@ LDC_SERVER_FLAGS := -Icontainers/src\
 
 dmdclient: githash
 	mkdir -p bin
-	rm -f containers/src/std/allocator.d
+	rm -f libdparse/src/std/allocator.d
 	${DMD} ${CLIENT_SRC} ${DMD_CLIENT_FLAGS}
 
 dmdserver: githash
 	mkdir -p bin
-	rm -f containers/src/std/allocator.d
+	rm -f libdparse/src/std/allocator.d
 	${DMD} ${SERVER_SRC} ${DMD_SERVER_FLAGS}
 
 debugserver: githash
 	mkdir -p bin
-	rm -f containers/src/std/allocator.d
+	rm -f libdparse/src/std/allocator.d
 	${DMD} ${SERVER_SRC} ${DEBUG_SERVER_FLAGS}
 
 gdcclient: githash
 	mkdir -p bin
-	rm -f containers/src/std/allocator.d
+	rm -f libdparse/src/std/allocator.d
 	${GDC} ${CLIENT_SRC} ${GDC_CLIENT_FLAGS}
 
 gdcserver: githash
 	mkdir -p bin
-	rm -f containers/src/std/allocator.d
+	rm -f libdparse/src/std/allocator.d
 	${GDC} ${SERVER_SRC} ${GDC_SERVER_FLAGS}
 
 ldcclient: githash

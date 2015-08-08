@@ -1,9 +1,6 @@
 [submodule "msgpack-d"]
 	path = msgpack-d
 	url = https://github.com/msgpack/msgpack-d.git
-[submodule "editors/ktexteditor"]
-	path = editors/ktexteditor
-	url = https://github.com/Dav1dde/lumen.git
 [submodule "datapicked"]
 	path = datapicked
 	url = https://github.com/blackwhale/datapicked.git
@@ -14,3 +11,6 @@
 	path = libdparse
 	url = https://github.com/Hackerpilot/libdparse.git
 	branch = master
+[submodule "dsymbol"]
+	path = dsymbol
+	url = https://github.com/Hackerpilot/dsymbol.git

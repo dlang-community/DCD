@@ -16,7 +16,9 @@ calculating autocomplete information, and sending it back to the client.
 # Status
 This program is reasonably stable. Please report problems on the Github issue
 tracker. Please be sure that you have read the documentation before filing an
-issue.
+issue. (If you want to help your bug to get fixed faster, you can create a
+[test case](https://github.com/Hackerpilot/DCD/wiki/Testing) that helps isolate
+the issue.)
 
 * Working:
 	* Autocompletion of properties of built-in types such as int, float, double, etc.
@@ -39,10 +41,10 @@ issue.
 	* That one feature that you *REALLY* needed
 
 # Setup
-1. Install a recent D compiler. DCD is tested with 2.066 and LDC 0.14.0.
+1. Install a recent D compiler. DCD is tested with DMD 2.067.1 and DMD 2.068.0.
 1. Run ```git submodule update --init``` after cloning this repository to grab the MessagePack and Datapacked libraries and the parser from DScanner.
 1. Run ```make``` to build the client and server. (Or run build.bat on Windows). ```make ldc``` and ```make gdc``` will use the LDC or GDC compilers. The resulting executable will be much faster.
-1. Configure your text editor to call the dcd-client program. See the *editors* folder for directions on configuring your specific editor.
+1. Configure your text editor to call the dcd-client program. See the [wiki](https://github.com/Hackerpilot/DCD/wiki/IDEs-and-Editors-with-DCD-support) for information on configuring your specific editor.
 1. Start the dcd-server program before editing code. (Unless, of course, your editor's plugin handles this for you)
 
 ### OS X w/ Homebrew
@@ -117,7 +119,7 @@ A line containing the string "calltips", followed by zero or more lines, each
 containing a call tip for an overload of the given function.
 ##### Example output
 	calltips
-	ACSymbol findSymbolInCurrentScope(size_t cursorPosition, string name)
+	Symbol findSymbolInCurrentScope(size_t cursorPosition, string name)
 
 ## Doc comment display
 ```dcd-client --doc -c 4298```
@@ -190,7 +192,8 @@ now it must be started manually or by an editor plugin.
 ## Configuration Files
 The server will attempt to read the file ```~/.config/dcd``` on Posix systems, or ```dcd.conf``` on Windows in the current working directory on startup.
 If it exists, each line of the file is interpreted as a path that should be
-searched when looking for module imports.
+searched when looking for module imports. Lines that start with the "#" character
+are ignored.
 
 Keep in mind that DCD treats import paths the same way that the compiler does.
 For example, a configuration file like this will not work as expected:
