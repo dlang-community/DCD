@@ -13,8 +13,8 @@ for /r "dsymbol/src" %%F in (*.d) do call set dsymbol_modules=%%dsymbol_modules%
 set libdparse_modules=
 for /r "libdparse/src" %%F in (*.d) do call set libdparse_modules=%%libdparse_modules%% "%%F"
 
-set client_name=bin\dcd_client
-set server_name=bin\dcd_server
+set client_name=bin\dcd-client
+set server_name=bin\dcd-server
 
 dmd^
  src\client\client.d^
