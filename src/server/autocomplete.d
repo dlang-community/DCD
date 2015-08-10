@@ -734,7 +734,7 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 				break loop;
 			break;
 		case tok!"identifier":
-			trace(symbols[0].qualifier, " ", symbols[0].kind);
+//			trace(symbols[0].qualifier, " ", symbols[0].kind);
 
 			// Use type instead of the symbol itself for certain symbol kinds
 			while (symbols[0].qualifier == SymbolQualifier.func
@@ -749,7 +749,7 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 					break loop;
 			}
 
-			trace("looking for ", tokens[i].text, " in ", symbols[0].name);
+//			trace("looking for ", tokens[i].text, " in ", symbols[0].name);
 			symbols = symbols[0].getPartsByName(internString(tokens[i].text));
 			if (symbols.length == 0)
 			{
