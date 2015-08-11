@@ -1,6 +1,5 @@
-# DCD
 language: d
 script:
-	- git submodule update --init --recursive
-	- make debug
-	- cd test && ./run_tests.sh
+    - git submodule update --init --recursive
+    - make debug
+    - cd test && ./run_tests.sh
