@@ -2,5 +2,5 @@ sudo: false
 language: d
 script:
     - git submodule update --init --recursive
-    - make debug
+    - make debug -j2
     - cd tests && ./run_tests.sh
