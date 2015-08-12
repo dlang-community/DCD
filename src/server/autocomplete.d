@@ -68,7 +68,9 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request,
 	if (stuff.symbols.length == 0)
 		warning("Could not find symbol");
 	else foreach (symbol; stuff.symbols.filter!(a => !a.doc.empty))
-		response.docComments ~= formatComment(symbol.doc);
+		response.docComments ~= formatComment(symbol.doc) ~ r"\n";
+	if (response.docComments.length) 
+		response.docComments[$-1].length -= 2;
 	return response;
 }
 
