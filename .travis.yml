@@ -1,3 +1,4 @@
+sudo: false
 language: d
 script:
     - git submodule update --init --recursive
