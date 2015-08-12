@@ -13,6 +13,9 @@ for /r "dsymbol/src" %%F in (*.d) do call set dsymbol_modules=%%dsymbol_modules%
 set libdparse_modules=
 for /r "libdparse/src" %%F in (*.d) do call set libdparse_modules=%%libdparse_modules%% "%%F"
 
+set allocator_modules=
+for /r "libdparse/experimental_allocator/src" %%F in (*.d) do call set allocator_modules=%%allocator_modules%% "%%F"
+
 set client_name=bin\dcd-client
 set server_name=bin\dcd-server
 
@@ -31,6 +34,7 @@ dmd^
  %libdparse_modules%^
  %common_modules%^
  %containers_modules%^
+ %allocator_modules%^
  msgpack-d/src/msgpack.d^
  -Icontainers/src^
  -Imsgpack-d/src^
