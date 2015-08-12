@@ -1,0 +1,10 @@
+identifiers
+a	v
+alignof	k
+b	v
+c	v
+init	k
+mangleof	k
+sizeof	k
+stringof	k
+tupleof	k
