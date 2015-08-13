@@ -184,18 +184,12 @@ public AutocompleteResponse symbolSearch(const AutocompleteRequest request,
 	}
 
 	SearchResults results;
-
 	foreach (symbol; pair.scope_.symbols)
-	{
 		symbol.getAllPartsNamed(request.searchName, results);
-	}
 	foreach (s; moduleCache.getAllSymbols())
-	{
 		s.symbol.getAllPartsNamed(request.searchName, results);
-	}
 
 	AutocompleteResponse response;
-
 	foreach (result; results.tree[])
 	{
 		response.locations ~= result.symbol.location;
@@ -260,7 +254,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	case tok!"stringLiteral":
 	case tok!"wstringLiteral":
 	case tok!"dstringLiteral":
-		foreach (symbol; (cast() arraySymbols)[])
+		foreach (symbol; arraySymbols)
 		{
 			response.completionKinds ~= symbol.kind;
 			response.completions ~= symbol.name.dup;
@@ -398,9 +392,9 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 		completions = pragmas;
 	fillResponse:
 		response.completionType = CompletionType.identifiers;
-		for (size_t i = 0; i < completions.length; i++)
+		foreach (completion; completions)
 		{
-			response.completions ~= completions[i];
+			response.completions ~= completion;
 			response.completionKinds ~= CompletionKind.keyword;
 		}
 		break;
@@ -544,20 +538,11 @@ body
 		return response;
 	}
 
-	string path;
-	{
-		size_t k = 0;
-		foreach (token; beforeTokens[i + 1 .. j])
-		{
-			if (token.type == tok!"identifier")
-			{
-				if (k != 0)
-					path ~= "/";
-				path ~= token.text;
-			}
-			k++;
-		}
-	}
+	immutable string path = beforeTokens[i + 1 .. j]
+		.filter!(token => token.type == tok!"identifier")
+		.map!(token => cast() token.text)
+		.joiner(dirSeparator)
+		.text();
 
 	string resolvedLocation = moduleCache.resolveImportLocation(path);
 	if (resolvedLocation is null)
