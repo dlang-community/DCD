@@ -309,8 +309,8 @@ AutocompleteResponse getResponse(TcpSocket socket)
 
 void printDocResponse(AutocompleteResponse response)
 {
-	foreach (doc; response.docComments)
-		writeln(doc);
+	import std.array: join;
+    response.docComments.join(r"\n\n").writeln;
 }
 
 void printLocationResponse(AutocompleteResponse response)
