@@ -1,0 +1,14 @@
+identifiers
+alignof	k
+byKey	k
+byValue	k
+dup	k
+get	k
+init	k
+keys	k
+length	k
+mangleof	k
+rehash	k
+sizeof	k
+stringof	k
+values	k
