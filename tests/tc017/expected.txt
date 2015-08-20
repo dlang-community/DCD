@@ -1,0 +1,4 @@
+identifiers
+BAR	v
+FOO	v
+S	s
