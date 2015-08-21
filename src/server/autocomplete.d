@@ -159,14 +159,14 @@ public AutocompleteResponse symbolSearch(const AutocompleteRequest request,
 
 	static struct SearchResults
 	{
-		void put(DSymbol* symbol)
+		void put(const(DSymbol)* symbol)
 		{
 			tree.insert(SearchResult(symbol));
 		}
 
 		static struct SearchResult
 		{
-			DSymbol* symbol;
+			const(DSymbol)* symbol;
 
 			int opCmp(ref const SearchResult other) const pure nothrow
 			{
@@ -555,7 +555,7 @@ body
 	import containers.hashset : HashSet;
 	HashSet!string h;
 
-	void addSymbolToResponses(DSymbol* sy)
+	void addSymbolToResponses(const(DSymbol)* sy)
 	{
 		auto a = DSymbol(sy.name);
 		if (!builtinSymbols.contains(&a) && sy.name !is null && !h.contains(sy.name)
@@ -819,7 +819,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	Scope* completionScope, T tokens, size_t cursorPosition,
 	CompletionType completionType, bool isBracket = false, string partial = null)
 {
-	static void addSymToResponse(DSymbol* s, ref AutocompleteResponse r, string p,
+	static void addSymToResponse(const(DSymbol)* s, ref AutocompleteResponse r, string p,
 		size_t[] circularGuard = [])
 	{
 		if (circularGuard.canFind(cast(size_t) s))
@@ -828,7 +828,8 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		{
 			if (sym.name !is null && sym.name.length > 0 && sym.kind != CompletionKind.importSymbol
 				&& (p is null ? true : sym.name.toUpper().startsWith(p.toUpper()))
-				&& !r.completions.canFind(sym.name))
+				&& !r.completions.canFind(sym.name)
+				&& sym.name[0] != '*')
 			{
 				r.completionKinds ~= sym.kind;
 				r.completions ~= sym.name.dup;
@@ -949,25 +950,26 @@ void setCompletions(T)(ref AutocompleteResponse response,
 string generateStructConstructorCalltip(const DSymbol* symbol)
 in
 {
-	assert (symbol.kind == CompletionKind.structName);
+	assert(symbol.kind == CompletionKind.structName);
 }
 body
 {
 	string generatedStructConstructorCalltip = "this(";
-	size_t i = 0;
-	immutable c = count(symbol.opSlice().filter!(a => a.kind == CompletionKind.variableName));
-	foreach (part; array(symbol.opSlice()).sort!((a, b) => a.location < b.location))
+	const(DSymbol)*[] fields = symbol.opSlice().filter!(
+		a => a.kind == CompletionKind.variableName).map!(a => cast(const(DSymbol)*) a.ptr).array();
+	fields.sort!((a, b) => a.location < b.location);
+	foreach (i, field; fields)
 	{
-		if (part.kind != CompletionKind.variableName)
+		if (field.kind != CompletionKind.variableName)
 			continue;
 		i++;
-		if (part.type !is null)
+		if (field.type !is null)
 		{
-			generatedStructConstructorCalltip ~= part.type.name;
+			generatedStructConstructorCalltip ~= field.type.name;
 			generatedStructConstructorCalltip ~= " ";
 		}
-		generatedStructConstructorCalltip ~= part.name;
-		if (i < c)
+		generatedStructConstructorCalltip ~= field.name;
+		if (i < fields.length)
 			generatedStructConstructorCalltip ~= ", ";
 	}
 	generatedStructConstructorCalltip ~= ")";

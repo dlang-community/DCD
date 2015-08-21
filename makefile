@@ -68,7 +68,6 @@ SERVER_SRC := \
 	libdparse/src/std/lexer.d\
 	$(shell find containers/experimental_allocator/src/std/experimental/allocator/ -name "*.d")\
 	containers/src/memory/allocators.d\
-	containers/src/memory/appender.d\
 	containers/src/containers/dynamicarray.d\
 	containers/src/containers/ttree.d\
 	containers/src/containers/unrolledlist.d\
@@ -77,6 +76,7 @@ SERVER_SRC := \
 	containers/src/containers/internal/hash.d\
 	containers/src/containers/internal/node.d\
 	containers/src/containers/internal/storage_type.d\
+	containers/src/containers/internal/element_type.d\
 	containers/src/containers/slist.d\
 	msgpack-d/src/msgpack.d
 
