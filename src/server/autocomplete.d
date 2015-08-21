@@ -819,6 +819,22 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	Scope* completionScope, T tokens, size_t cursorPosition,
 	CompletionType completionType, bool isBracket = false, string partial = null)
 {
+	static void addSymToResponse(DSymbol* s, ref AutocompleteResponse r, string p)
+	{
+		foreach (sym; s.opSlice())
+		{
+			if (sym.name !is null && sym.name.length > 0 && sym.kind != CompletionKind.importSymbol
+				&& (p is null ? true : sym.name.toUpper().startsWith(p.toUpper()))
+				&& !r.completions.canFind(sym.name))
+			{
+				r.completionKinds ~= sym.kind;
+				r.completions ~= sym.name.dup;
+			}
+			if (sym.kind == CompletionKind.importSymbol && !sym.skipOver && sym.type !is null)
+				addSymToResponse(sym.type, r, p);
+		}
+	}
+
 	// Handle the simple case where we get all symbols in scope and filter it
 	// based on the currently entered text.
 	if (partial !is null && tokens.length == 0)
@@ -854,16 +870,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			if (symbols.length == 0)
 				return;
 		}
-		foreach (sym; symbols[0].opSlice())
-		{
-			if (sym.name !is null && sym.name.length > 0 && sym.kind != CompletionKind.importSymbol
-				&& (partial is null ? true : sym.name.toUpper().startsWith(partial.toUpper()))
-				&& !response.completions.canFind(sym.name))
-			{
-				response.completionKinds ~= sym.kind;
-				response.completions ~= sym.name.dup;
-			}
-		}
+		addSymToResponse(symbols[0], response, partial);
 		response.completionType = CompletionType.identifiers;
 	}
 	else if (completionType == CompletionType.calltips)
