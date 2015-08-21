@@ -819,8 +819,11 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	Scope* completionScope, T tokens, size_t cursorPosition,
 	CompletionType completionType, bool isBracket = false, string partial = null)
 {
-	static void addSymToResponse(DSymbol* s, ref AutocompleteResponse r, string p)
+	static void addSymToResponse(DSymbol* s, ref AutocompleteResponse r, string p,
+		size_t[] circularGuard = [])
 	{
+		if (circularGuard.canFind(cast(size_t) s))
+			return;
 		foreach (sym; s.opSlice())
 		{
 			if (sym.name !is null && sym.name.length > 0 && sym.kind != CompletionKind.importSymbol
@@ -831,7 +834,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				r.completions ~= sym.name.dup;
 			}
 			if (sym.kind == CompletionKind.importSymbol && !sym.skipOver && sym.type !is null)
-				addSymToResponse(sym.type, r, p);
+				addSymToResponse(sym.type, r, p, circularGuard ~ (cast(size_t) s));
 		}
 	}
 
