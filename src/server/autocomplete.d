@@ -44,8 +44,6 @@ import dsymbol.scope_;
 import dsymbol.builtin.names;
 import dsymbol.builtin.symbols;
 
-import memory.allocators;
-
 import common.constants;
 import common.messages;
 
