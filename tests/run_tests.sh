@@ -42,5 +42,9 @@ if [ $fail_count -eq 0 ]; then
 	echo -e "${GREEN}${pass_count} tests passed and ${fail_count} failed.${NORMAL}"
 else
 	echo -e "${RED}${pass_count} tests passed and ${fail_count} failed.${NORMAL}"
+	echo -e "${RED}STDERR:${NORMAL}"
+	cat stderr.txt
+	echo -e "${RED}STDOUT:${NORMAL}"
+	cat stdout.txt
 	exit 1
 fi
