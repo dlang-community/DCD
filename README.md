@@ -1,4 +1,4 @@
-# DCD [![CI status](https://travis-ci.org/Hackerpilot/DCD.svg)](https://travis-ci.org/Hackerpilot/DCD/)
+# DCD [![CI status](https://travis-ci.org/Hackerpilot/DCD.svg?branch=master)](https://travis-ci.org/Hackerpilot/DCD/)
 The D Completion Daemon is an auto-complete program for the D programming language.
 
 ![Teaser](teaser.png "This is what the future looks like - Jayce, League of Legends")
