@@ -1,0 +1,2 @@
+calltips
+this(int[] array, int*[] arrayOfPointers, int* pointer, int plain)
