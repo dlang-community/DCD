@@ -96,6 +96,7 @@ DMD_SERVER_FLAGS := -Icontainers/src\
 DEBUG_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
 	-Ilibdparse/src\
+	-Idsymbol/src\
 	-Icontainers/experimental_allocator/src\
 	-wi\
 	-g\
@@ -105,6 +106,7 @@ DEBUG_SERVER_FLAGS := -Icontainers/src\
 GDC_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
 	-Ilibdparse/src\
+	-Idsymbol/src\
 	-Icontainers/experimental_allocator/src\
 	-J.\
 	-O3\
@@ -114,6 +116,7 @@ GDC_SERVER_FLAGS := -Icontainers/src\
 LDC_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
 	-Ilibdparse/src\
+	-Idsymbol/src\
 	-Icontainers/experimental_allocator/src\
 	-Isrc\
 	-J=.\
