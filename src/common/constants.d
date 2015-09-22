@@ -82,6 +82,7 @@ immutable string[] traits = [
 	"isScalar",
 	"isStaticArray",
 	"isStaticFunction",
+	"isTemplate",
 	"isUnsigned",
 	"isVirtualFunction",
 	"isVirtualMethod",
