@@ -842,8 +842,8 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	if (partial !is null && tokens.length == 0)
 	{
 		auto currentSymbols = completionScope.getSymbolsInCursorScope(cursorPosition);
-		foreach (s; currentSymbols
-			.filter!(a => a.name.toUpper().startsWith(partial.toUpper())))
+		foreach (s; currentSymbols.filter!(a => isPublicCompletionKind(a.kind)
+				&& a.name.toUpper().startsWith(partial.toUpper())))
 		{
 			response.completionKinds ~= s.kind;
 			response.completions ~= s.name.dup;
