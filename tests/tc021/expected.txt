@@ -1,0 +1,5 @@
+identifiers
+idouble	k
+ifloat	k
+int	k
+ireal	k
