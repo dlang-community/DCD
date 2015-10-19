@@ -21,7 +21,7 @@ module common.dcd_version;
 /**
  * Human-readable version number
  */
-enum DCD_VERSION = "v0.7.0";
+enum DCD_VERSION = "v0.7.1";
 
 version (Windows) {}
 else
