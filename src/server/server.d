@@ -53,19 +53,18 @@ version(OSX) version = useXDG;
 
 int main(string[] args)
 {
-	info("Starting up...");
-	StopWatch sw = StopWatch(AutoStart.yes);
-
 	ushort port = 9166;
 	bool help;
 	bool printVersion;
 	bool ignoreConfig;
 	string[] importPaths;
+	LogLevel level = globalLogLevel;
 
 	try
 	{
 		getopt(args, "port|p", &port, "I", &importPaths, "help|h", &help,
-			"version", &printVersion, "ignoreConfig", &ignoreConfig);
+			"version", &printVersion, "ignoreConfig", &ignoreConfig,
+			"logLevel", &level);
 	}
 	catch (ConvException e)
 	{
@@ -73,6 +72,11 @@ int main(string[] args)
 		printHelp(args[0]);
 		return 1;
 	}
+
+	globalLogLevel = level;
+
+	info("Starting up...");
+	StopWatch sw = StopWatch(AutoStart.yes);
 
 	if (printVersion)
 	{
@@ -334,5 +338,9 @@ options:
         Prints the version number and then exits.
 
     --port PORTNUMBER | -pPORTNUMBER
-        Listens on PORTNUMBER instead of the default port 9166.`, programName);
+        Listens on PORTNUMBER instead of the default port 9166.
+
+    --logLevel LEVEL
+        The logging level. Valid values are 'all', 'trace', 'info', 'warning',
+        'error', 'critical', 'fatal', and 'off'`, programName);
 }
