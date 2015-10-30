@@ -501,7 +501,9 @@ body
 	if (kind == ImportKind.normal)
 	{
 
-		while (beforeTokens[i].type != tok!"," && beforeTokens[i].type != tok!"import") i--;
+		while (beforeTokens[i].type != tok!"," && beforeTokens[i].type != tok!"import"
+				&& beforeTokens[i].type != tok!"=" )
+			i--;
 		setImportCompletions(beforeTokens[i .. $], response, moduleCache);
 		return response;
 	}
