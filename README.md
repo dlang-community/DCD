@@ -41,7 +41,7 @@ the issue.)
 	* That one feature that you *REALLY* needed
 
 # Setup
-1. Install a recent D compiler. DCD is tested with DMD 2.068.2, DMD 2.069.0-rc1, and LDC 0.16 (Do not use DMD 2.068.1)
+1. Install a recent D compiler. DCD is tested with DMD 2.068.2, DMD 2.069.0-rc2, and LDC 0.16 (Do not use DMD 2.068.1)
 1. Run ```git submodule update --init --recursive``` after cloning this repository to grab the various dependencies.
 1. Run ```make``` to build the client and server. (Or run build.bat on Windows). ```make ldc``` and ```make gdc``` will use the LDC or GDC compilers. The resulting executable will be much faster.
 1. Configure your text editor to call the dcd-client program. See the [wiki](https://github.com/Hackerpilot/DCD/wiki/IDEs-and-Editors-with-DCD-support) for information on configuring your specific editor.
