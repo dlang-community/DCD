@@ -32,9 +32,9 @@ import std.string;
 import std.typecons;
 import std.uni;
 
-import std.d.ast;
-import std.d.lexer;
-import std.d.parser;
+import dparse.ast;
+import dparse.lexer;
+import dparse.parser;
 
 import dsymbol.conversion;
 import dsymbol.modulecache;
@@ -635,6 +635,49 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
 		warning("Could not find ", moduleParts);
 }
 
+static void skip(alias O, alias C, T)(T t, ref size_t i)
+{
+	int depth = 1;
+	while (i < t.length) switch (t[i].type)
+	{
+	case O:
+		i++;
+		depth++;
+		break;
+	case C:
+		i++;
+		depth--;
+		if (depth <= 0)
+			return;
+		break;
+	default:
+		i++;
+		break;
+	}
+}
+
+bool isSliceExpression(T)(T tokens, size_t index)
+{
+	while (index < tokens.length) switch (tokens[index].type)
+	{
+	case tok!"[":
+		skip!(tok!"[", tok!"]")(tokens, index);
+		break;
+	case tok!"(":
+		skip!(tok!"(", tok!")")(tokens, index);
+		break;
+	case tok!"]":
+	case tok!"}":
+		return false;
+	case tok!"..":
+		return true;
+	default:
+		index++;
+		break;
+	}
+	return false;
+}
+
 /**
  *
  */
@@ -766,11 +809,8 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 			close = tok!"]";
 			if (symbols[0].qualifier == SymbolQualifier.array)
 			{
-				auto h = i;
 				skip();
-				Parser p = new Parser();
-				p.setTokens(tokens[h .. i].array());
-				if (!p.isSliceExpression())
+				if (!isSliceExpression(tokens, i))
 				{
 					symbols = symbols[0].type is null ? [] : [symbols[0].type];
 					if (symbols.length == 0)
@@ -784,12 +824,9 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 			}
 			else
 			{
-				auto h = i;
 				skip();
-				Parser p = new Parser();
-				p.setTokens(tokens[h .. i].array());
 				DSymbol*[] overloads;
-				if (p.isSliceExpression())
+				if (isSliceExpression(tokens, i))
 					overloads = symbols[0].getPartsByName(internString("opSlice"));
 				else
 					overloads = symbols[0].getPartsByName(internString("opIndex"));

@@ -60,12 +60,12 @@ SERVER_SRC := \
 	$(shell find src/common -name "*.d")\
 	$(shell find src/server -name "*.d")\
 	$(shell find dsymbol/src -name "*.d")\
-	libdparse/src/std/d/ast.d\
-	libdparse/src/std/d/entities.d\
-	libdparse/src/std/d/lexer.d\
-	libdparse/src/std/d/parser.d\
-	libdparse/src/std/d/formatter.d\
-	libdparse/src/std/lexer.d\
+	libdparse/src/dparse/ast.d\
+	libdparse/src/dparse/entities.d\
+	libdparse/src/dparse/lexer.d\
+	libdparse/src/dparse/parser.d\
+	libdparse/src/dparse/formatter.d\
+	libdparse/src/std/experimental/lexer.d\
 	$(shell find containers/experimental_allocator/src/std/experimental/allocator/ -name "*.d")\
 	containers/src/containers/dynamicarray.d\
 	containers/src/containers/ttree.d\
