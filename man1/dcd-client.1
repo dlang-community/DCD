@@ -1,4 +1,4 @@
-.TH dcd-client 1 "August 11 2014" "" https://github.com/Hackerpilot/DCD
+.TH dcd-client 1 "Oct 30 2015" "" https://github.com/Hackerpilot/DCD
 .SH NAME
 dcd-client \- autocompletion client for the D programming language
 .PD
@@ -11,7 +11,7 @@ dcd-client \- autocompletion client for the D programming language
 .OP "\-l, \-\-symbolLocation"
 .OP "\-s, \-\-search" symbolName
 .OP "\-d, \-\-doc"
-.OP "\-q, \-\-query"
+.OP "\-q, \-\-query, \-\-status"
 .OP "\-\-shutdown"
 .OP "\-\-clearCache"
 .OP "\-\-version"
@@ -66,7 +66,7 @@ can be found.
 .RS
 Gets documentation comments associated with the symbol at the cursor location.
 .RE
-.B \-q, \-\-query
+.B \-q, \-\-query, \-\-status
 .RS
 Query the server statis. Returns 0 if the server is running. Returns 1 if the
 server could not be contacted.
