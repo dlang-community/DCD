@@ -16,7 +16,7 @@ SetCompressor /SOLID lzma
 
 ; Options
 !define Version "0.7.0"
-!define DCDExecsPath "..\.."
+!define DCDExecsPath "..\..\bin"
 
 ;--------------------------------------------------------
 ; Includes
