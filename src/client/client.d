@@ -256,7 +256,7 @@ Options:
         1 if the server could not be contacted.
 
     -I PATH
-        Instructs the server to add PATH to its list of paths searced for
+        Instructs the server to add PATH to its list of paths searched for
         imported modules.
 
     --version
