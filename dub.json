@@ -3,67 +3,30 @@
 	"description": "The D Completion Daemon is an auto-complete program for the D programming language",
 	"copyright": "Copyright © 2015, Brian Schott",
 	"authors": ["Brian Schott"],
-
+	"license": "GPL-3.0",
+	"dependencies":{
+		"dsymbol": "~>0.0.2-3",
+		"msgpack-d": "~>1.0.0-beta.2"
+	},
 	"configurations": [
+		{
+                        "name": "library",
+                        "targetType": "library",
+                        "excludedSourceFiles": ["src/client/*","src/server/server.d"]
+                },
 		{
 			"name": "client",
 			"targetType": "executable",
 			"targetName": "dcd-client",
-			"buildRequirements":["noDefaultFlags"],
-			"buildOptions":["releaseMode","inline","optimize","warnings"],
-			"mainSourceFile": "./src/client.d",
-			"excludedSourceFiles": ["src/*"],
-			"sourceFiles": [
-				"./src/client.d",
-				"./src/messages.d",
-				"./src/stupidlog.d",
-				"./src/dcd_version.d",
-				"./msgpack-d/src/msgpack.d"
-				],
+			"mainSourceFile": "src/client/client.d",
+			"excludedSourceFiles": ["src/server/*"]
 		},
-
 		{
 			"name": "server",
 			"targetType": "executable",
 			"targetName": "dcd-server",
-			"buildRequirements":["noDefaultFlags"],
-			"buildOptions":["releaseMode","optimize","warnings"],
-			"mainSourceFile": "./src/server.d",
-			"excludedSourceFiles": ["src/*"],
-			"sourceFiles": [
-				"./src/actypes.d",
-				"./src/conversion/astconverter.d",
-				"./src/conversion/first.d",
-				"./src/conversion/second.d",
-				"./src/conversion/third.d",
-				"./src/autocomplete.d",
-				"./src/constants.d",
-				"./src/messages.d",
-				"./src/modulecache.d",
-				"./src/semantic.d",
-				"./src/server.d",
-				"./src/stupidlog.d",
-				"./src/string_interning.d",
-				"./src/dcd_version.d",
-				"./libdparse/src/std/d/ast.d",
-				"./libdparse/src/std/d/entities.d",
-				"./libdparse/src/std/d/lexer.d",
-				"./libdparse/src/std/d/parser.d",
-				"./libdparse/src/std/lexer.d",
-				"./libdparse/src/std/allocator.d",
-				"./libdparse/src/std/d/formatter.d",
-				"./containers/src/memory/allocators.d",
-				"./containers/src/memory/appender.d",
-				"./containers/src/containers/dynamicarray.d",
-				"./containers/src/containers/ttree.d",
-				"./containers/src/containers/unrolledlist.d",
-				"./containers/src/containers/hashset.d",
-				"./containers/src/containers/internal/hash.d",
-				"./containers/src/containers/internal/node.d",
-				"./containers/src/containers/internal/storage_type.d",
-				"./containers/src/containers/slist.d",
-				"./msgpack-d/src/msgpack.d",
-				],
+			"mainSourceFile": "src/server/server.d",
+			"excludedSourceFiles": ["src/client/*"]
 		}
 	]
 }
