@@ -65,8 +65,48 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request,
 		allocator, cache, moduleCache);
 	if (stuff.symbols.length == 0)
 		warning("Could not find symbol");
-	else foreach (symbol; stuff.symbols.filter!(a => !a.doc.empty))
-		response.docComments ~= formatComment(symbol.doc);
+	else
+	{
+		struct Escaper(O)
+		{
+			this(O* or)
+			{
+				this.outputRange = or;
+			}
+
+			void put(string s)
+			{
+				foreach (c; s)
+					put(c);
+			}
+
+			void put(char c)
+			{
+				switch (c)
+				{
+				case '\n':
+					outputRange.put('\\');
+					outputRange.put('n');
+					break;
+				default:
+					outputRange.put(c);
+					break;
+				}
+			}
+
+			O* outputRange;
+		}
+
+		auto app = appender!(char[])();
+		auto e = Escaper!(typeof(app))(&app);
+		foreach (symbol; stuff.symbols.filter!(a => !a.doc.empty))
+		{
+			app.clear();
+			foreach(c; symbol.doc)
+				e.put(c);
+			response.docComments ~= cast(string) app.data;
+		}
+	}
 	return response;
 }
 
@@ -1256,33 +1296,6 @@ bool shouldSwapWithType(CompletionType completionType, CompletionKind kind,
 		|| kind == CompletionKind.functionName;
 	return isInteresting && (completionType == CompletionType.identifiers
 		|| (completionType == completionType.calltips && kind == CompletionKind.variableName)) ;
-}
-
-/**
- * Params:
- *     comment = the comment to format
- * Returns
- *     the comment with the comment characters removed
- */
-string formatComment(string comment)
-{
-	import std.regex : replaceFirst, replaceAll, regex;
-	enum tripleSlashRegex = `(?:\t )*///`;
-	enum slashStarRegex = `(?:^/\*\*+)|(?:\n?\s*\*+/$)|(?:(?<=\n)\s*\* ?)`;
-	enum slashPlusRegex = `(?:^/\+\++)|(?:\n?\s*\++/$)|(?:(?<=\n)\s*\+ ?)`;
-	if (comment.length < 3)
-		return null;
-	string re;
-	if (comment[0 .. 3] == "///")
-		re = tripleSlashRegex;
-	else if (comment[1] == '+')
-		re = slashPlusRegex;
-	else
-		re = slashStarRegex;
-	return (comment.replaceAll(regex(re), ""))
-		.replaceFirst(regex("^\n"), "")
-		.replaceAll(regex(`\\`), `\\`)
-		.replaceAll(regex("\n"), `\n`).outdent();
 }
 
 istring stringToken()(auto ref const Token a)
