@@ -745,11 +745,42 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 		return [];
 	}
 
+	// If the `symbols` array contains functions, and one of them returns
+	// void and the others do not, this is a property function. For the
+	// purposes of chaining auto-complete we want to ignore the one that
+	// returns void.
+	void filterProperties() @nogc @safe
+	{
+		if (symbols[0].kind == CompletionKind.functionName
+			|| symbols[0].qualifier == SymbolQualifier.func)
+		{
+			int voidRets = 0;
+			int nonVoidRets = 0;
+			size_t firstNonVoidIndex = size_t.max;
+			foreach (i, sym; symbols)
+			{
+				if (sym.type is null)
+					return;
+				if (sym.type.name.ptr == getBuiltinTypeName(tok!"void").ptr)
+					voidRets++;
+				else
+				{
+					nonVoidRets++;
+					firstNonVoidIndex = min(firstNonVoidIndex, i);
+				}
+			}
+			if (voidRets > 0 && nonVoidRets > 0)
+				symbols = symbols[firstNonVoidIndex .. $];
+		}
+	}
+
+	filterProperties();
+
 	if (shouldSwapWithType(completionType, symbols[0].kind, 0, tokens.length - 1))
 	{
 		symbols = symbols[0].type is null ? [] : [symbols[0].type];
 		if (symbols.length == 0)
-			return symbols;
+			return [];
 	}
 
 	loop: for (size_t i = 1; i < tokens.length; i++)
@@ -802,7 +833,8 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 				break loop;
 			break;
 		case tok!"identifier":
-//			trace(symbols[0].qualifier, " ", symbols[0].kind);
+			//trace(symbols[0].qualifier, " ", symbols[0].kind);
+			filterProperties();
 
 			// Use type instead of the symbol itself for certain symbol kinds
 			while (symbols[0].qualifier == SymbolQualifier.func
@@ -812,20 +844,21 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 				|| symbols[0].kind == CompletionKind.importSymbol
 				|| symbols[0].kind == CompletionKind.aliasName)
 			{
-				symbols = symbols[0].type is null ? [] :[symbols[0].type];
+				symbols = symbols[0].type is null ? [] : [symbols[0].type];
 				if (symbols.length == 0)
 					break loop;
 			}
 
-//			trace("looking for ", tokens[i].text, " in ", symbols[0].name);
+			//trace("looking for ", tokens[i].text, " in ", symbols[0].name);
 			symbols = symbols[0].getPartsByName(internString(tokens[i].text));
+			//trace("symbols: ", symbols.map!(a => a.name));
+			filterProperties();
 			if (symbols.length == 0)
 			{
-//				trace("Couldn't find it.");
+				//trace("Couldn't find it.");
 				break loop;
 			}
-			if (shouldSwapWithType(completionType, symbols[0].kind, i,
-				tokens.length - 1))
+			if (shouldSwapWithType(completionType, symbols[0].kind, i, tokens.length - 1))
 			{
 				symbols = symbols[0].type is null ? [] : [symbols[0].type];
 				if (symbols.length == 0)
