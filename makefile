@@ -125,27 +125,22 @@ LDC_SERVER_FLAGS := -Icontainers/src\
 
 dmdclient: githash
 	mkdir -p bin
-	rm -f libdparse/src/std/allocator.d
 	${DMD} ${CLIENT_SRC} ${DMD_CLIENT_FLAGS}
 
 dmdserver: githash
 	mkdir -p bin
-	rm -f libdparse/src/std/allocator.d
 	${DMD} ${SERVER_SRC} ${DMD_SERVER_FLAGS}
 
 debugserver: githash
 	mkdir -p bin
-	rm -f libdparse/src/std/allocator.d
 	${DMD} ${SERVER_SRC} ${DEBUG_SERVER_FLAGS}
 
 gdcclient: githash
 	mkdir -p bin
-	rm -f libdparse/src/std/allocator.d
 	${GDC} ${CLIENT_SRC} ${GDC_CLIENT_FLAGS}
 
 gdcserver: githash
 	mkdir -p bin
-	rm -f libdparse/src/std/allocator.d
 	${GDC} ${SERVER_SRC} ${GDC_SERVER_FLAGS}
 
 ldcclient: githash
