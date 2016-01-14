@@ -82,6 +82,8 @@ int main(string[] args)
 	{
 		version (Windows)
 			writeln(DCD_VERSION);
+		else version (built_with_dub)
+			writeln(DCD_VERSION);
 		else
 			write(DCD_VERSION, " ", GIT_HASH);
 		return 0;

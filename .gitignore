@@ -1,14 +1,19 @@
 # Windows binaries
 *.exe
 *.obj
+*.lib
+*.dll
 
 # *nix binaries
 dcd-client
 dcd-server
 *.o
+*.a
+*.so
 
 # Perf reports
 perf.data
+perf.data.old
 
 # Valgrind reports
 callgrind.*
@@ -20,3 +25,7 @@ githash.txt
 tests/tc*/actual*.txt
 stderr.txt
 stdout.txt
+
+# Dub files
+.dub
+dub.selections.json
