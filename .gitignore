@@ -6,6 +6,7 @@
 dcd-client
 dcd-server
 *.o
+libdcd.a
 
 # Perf reports
 perf.data
@@ -20,3 +21,5 @@ githash.txt
 tests/tc*/actual*.txt
 stderr.txt
 stdout.txt
+
+/.dub/

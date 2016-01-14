@@ -1,0 +1,10 @@
+{
+	"fileVersion": 1,
+	"versions": {
+		"containers": "0.2.2",
+		"experimental_allocator": "0.0.1",
+		"msgpack-d": "1.0.0-beta.2",
+		"dsymbol": "0.0.2-2",
+		"libdparse_keywan": "0.3.2-2"
+	}
+}

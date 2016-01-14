@@ -29,5 +29,5 @@ else
 	/**
 	 * Current build's Git commit hash
 	 */
-	enum GIT_HASH = import("githash.txt");
+	enum GIT_HASH = "";
 }
