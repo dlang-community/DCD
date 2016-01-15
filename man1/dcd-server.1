@@ -1,4 +1,4 @@
-.TH dcd-server 1 "Oct 30 2015" "" https://github.com/Hackerpilot/DCD
+.TH dcd-server 1 "Jan 15 2016" "" https://github.com/Hackerpilot/DCD
 .SH NAME
 dcd-server \- autocompletion server for the D programming language
 .PD
@@ -6,6 +6,8 @@ dcd-server \- autocompletion server for the D programming language
 .SY dcd-server
 .OP \-I directory
 .OP \-p|\-\-port portNumber
+.OP \-\-tcp
+.OP \-\-socketFile filePath
 .OP \-\-logLevel level
 .OP \-h|\-\-help
 .OP \-\-version
@@ -20,7 +22,20 @@ dcd-server \- autocompletion server for the D programming language
 .RS
 Choose the port number on which
 .B dcd-server
-listens.
+listens. This has no effect unless
+.B dcd-server
+is being run on Windows or the \-\-tcp switch is used.
+.RE
+.B \-\-tcp
+.RS
+Listen on a TCP socket instead of a UNIX domain socket. This is the default on
+Windows.
+.RE
+.B \-\-socketFile
+.I filePath
+.RS
+Set the path to use for the UNIX domain socket. Has no effect if the \-\-tcp
+switch is used.
 .RE
 .B \-\-logLevel
 .I level
@@ -60,10 +75,10 @@ This file should be placed in one of the following locations:
 .I /etc/dcd.conf
 .RE
 .IP \(bu
-.I $XDG_CONFIG_HOME/dcd/dcd.conf
+.I ${XDG_CONFIG_HOME}/dcd/dcd.conf
 .RE
 .IP \(bu
-.I $HOME/.config/dcd/dcd.conf
+.I ${HOME}/.config/dcd/dcd.conf
 .RE
 
 Each line in the file should be a path to search for D source files. A line in
@@ -73,6 +88,18 @@ is equivalent to passing that same line to
 with the
 .I -I
 option. Lines that start with the '#' character are ignored.
+
+Unless the \-\-tcp switch is used,
+.B dcd-server
+will default to communicating with the client over a UNIX domain socket.
+.B dcd-server
+will attempt to create the socket in the following locations:
+.IP \(bu
+.I ${XDG_RUNTIME_DIR}/dcd.socket
+.RE
+.IP \(bu
+.I /tmp/dcd-${UID}.socket
+.RE
 .SH AUTHOR
 Written by Brian Schott (@Hackerpilot on Github)
 .PD
