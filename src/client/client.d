@@ -33,6 +33,7 @@ import std.experimental.logger;
 import msgpack;
 import common.messages;
 import common.dcd_version;
+import common.socket;
 
 int main(string[] args)
 {
@@ -48,6 +49,16 @@ int main(string[] args)
 	bool printVersion;
 	bool listImports;
 	string search;
+	version(Windows)
+	{
+		bool useTCP = true;
+		string socketFile;
+	}
+	else
+	{
+		bool useTCP = false;
+		string socketFile = generateSocketName();
+	}
 
 	try
 	{
@@ -55,7 +66,8 @@ int main(string[] args)
 			"port|p", &port, "help|h", &help, "shutdown", &shutdown,
 			"clearCache", &clearCache, "symbolLocation|l", &symbolLocation,
 			"doc|d", &doc, "query|status|q", &query, "search|s", &search,
-			"version", &printVersion, "listImports", &listImports);
+			"version", &printVersion, "listImports", &listImports,
+			"tcp", &useTCP, "socketFile", &socketFile);
 	}
 	catch (ConvException e)
 	{
@@ -65,6 +77,12 @@ int main(string[] args)
 	}
 
 	AutocompleteRequest request;
+
+	if (help)
+	{
+		printHelp(args[0]);
+		return 0;
+	}
 
 	if (printVersion)
 	{
@@ -76,16 +94,21 @@ int main(string[] args)
 			write(DCD_VERSION, " ", GIT_HASH);
 		return 0;
 	}
-	else if (help)
+
+	version (Windows) if (socketFile !is null)
 	{
-		printHelp(args[0]);
-		return 0;
+		fatal("UNIX domain sockets not supported on Windows");
+		return 1;
 	}
-	else if (query)
+
+	if (useTCP)
+		socketFile = null;
+
+	if (query)
 	{
 		try
 		{
-			TcpSocket socket = createSocket(port);
+			Socket socket = createSocket(socketFile, port);
 			scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
 			request.kind = RequestKind.query;
 			if (sendRequest(socket, request))
@@ -112,7 +135,7 @@ int main(string[] args)
 		request.kind = RequestKind.shutdown;
 		else if (clearCache)
 			request.kind = RequestKind.clearCache;
-		TcpSocket socket = createSocket(port);
+		Socket socket = createSocket(socketFile, port);
 		scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
 		return sendRequest(socket, request) ? 0 : 1;
 	}
@@ -122,7 +145,7 @@ int main(string[] args)
 		request.importPaths = importPaths.map!(a => absolutePath(a)).array;
 		if (cursorPos == size_t.max)
 		{
-			TcpSocket socket = createSocket(port);
+			Socket socket = createSocket(socketFile, port);
 			scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
 			if (!sendRequest(socket, request))
 				return 1;
@@ -132,7 +155,7 @@ int main(string[] args)
 	else if (listImports)
 	{
 		request.kind |= RequestKind.listImports;
-		TcpSocket socket = createSocket(port);
+		Socket socket = createSocket(socketFile, port);
 		scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
 		sendRequest(socket, request);
 		AutocompleteResponse response = getResponse(socket);
@@ -194,7 +217,7 @@ int main(string[] args)
 		request.kind |= RequestKind.autocomplete;
 
 	// Send message to server
-	TcpSocket socket = createSocket(port);
+	Socket socket = createSocket(socketFile, port);
 	scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
 	if (!sendRequest(socket, request))
 		return 1;
@@ -266,16 +289,33 @@ Options:
 
     --port PORTNUMBER | -p PORTNUMBER
         Uses PORTNUMBER to communicate with the server instead of the default
-        port 9166.`, programName);
+        port 9166. Only used on Windows or when the --tcp option is set.
+
+    --tcp
+        Send requests on a TCP socket instead of a UNIX domain socket. This
+        switch has no effect on Windows.
+
+    --socketFile FILENAME
+        Use the given FILENAME as the path to the UNIX domain socket. Using
+        this switch is an error on Windows.`, programName);
 }
 
-TcpSocket createSocket(ushort port)
+Socket createSocket(string socketFile, ushort port)
 {
 	import core.time : dur;
 
-	TcpSocket socket = new TcpSocket(AddressFamily.INET);
+	Socket socket;
+	if (socketFile is null)
+	{
+		socket = new TcpSocket(AddressFamily.INET);
+		socket.connect(new InternetAddress("localhost", port));
+	}
+	else
+	{
+		socket = new Socket(AddressFamily.UNIX, SocketType.STREAM);
+		socket.connect(new UnixAddress(socketFile));
+	}
 	socket.setOption(SocketOptionLevel.SOCKET, SocketOption.RCVTIMEO, dur!"seconds"(5));
-	socket.connect(new InternetAddress("localhost", port));
 	socket.blocking = true;
 	return socket;
 }
@@ -283,7 +323,7 @@ TcpSocket createSocket(ushort port)
 /**
  * Returns: true on success
  */
-bool sendRequest(TcpSocket socket, AutocompleteRequest request)
+bool sendRequest(Socket socket, AutocompleteRequest request)
 {
 	ubyte[] message = msgpack.pack(request);
 	ubyte[] messageBuffer = new ubyte[message.length + message.length.sizeof];
@@ -296,7 +336,7 @@ bool sendRequest(TcpSocket socket, AutocompleteRequest request)
 /**
  * Gets the response from the server
  */
-AutocompleteResponse getResponse(TcpSocket socket)
+AutocompleteResponse getResponse(Socket socket)
 {
 	ubyte[1024 * 16] buffer;
 	auto bytesReceived = socket.receive(buffer);

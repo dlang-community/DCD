@@ -18,30 +18,33 @@
 
 module server.server;
 
-import std.socket;
-import std.stdio;
-import std.getopt;
+import core.sys.posix.sys.stat;
 import std.algorithm;
-import std.path;
-import std.file;
 import std.array;
-import std.process;
-import std.datetime;
 import std.conv;
+import std.datetime;
+import std.exception : enforce;
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
-import std.exception : enforce;
 import std.experimental.logger;
+import std.file;
+import std.file;
+import std.getopt;
+import std.path;
+import std.process;
+import std.socket;
+import std.stdio;
 
 import msgpack;
 
 import dsymbol.string_interning;
 
+import common.dcd_version;
 import common.messages;
-import server.autocomplete;
+import common.socket;
 import dsymbol.modulecache;
 import dsymbol.symbol;
-import common.dcd_version;
+import server.autocomplete;
 
 /// Name of the server configuration file
 enum CONFIG_FILE_NAME = "dcd.conf";
@@ -59,12 +62,22 @@ int main(string[] args)
 	bool ignoreConfig;
 	string[] importPaths;
 	LogLevel level = globalLogLevel;
+	version(Windows)
+	{
+		bool useTCP = true;
+		string socketFile;
+	}
+	else
+	{
+		bool useTCP = false;
+		string socketFile = generateSocketName();
+	}
 
 	try
 	{
 		getopt(args, "port|p", &port, "I", &importPaths, "help|h", &help,
 			"version", &printVersion, "ignoreConfig", &ignoreConfig,
-			"logLevel", &level);
+			"logLevel", &level, "tcp", &useTCP, "socketFile", &socketFile);
 	}
 	catch (ConvException e)
 	{
@@ -72,11 +85,6 @@ int main(string[] args)
 		printHelp(args[0]);
 		return 1;
 	}
-
-	globalLogLevel = level;
-
-	info("Starting up...");
-	StopWatch sw = StopWatch(AutoStart.yes);
 
 	if (printVersion)
 	{
@@ -95,19 +103,52 @@ int main(string[] args)
 		return 0;
 	}
 
+	version (Windows) if (socketFile !is null)
+	{
+		fatal("UNIX domain sockets not supported on Windows");
+		return 1;
+	}
+
+	globalLogLevel = level;
+
+	info("Starting up...");
+	StopWatch sw = StopWatch(AutoStart.yes);
+
 	if (!ignoreConfig)
 		importPaths ~= loadConfiguredImportDirs();
 
-	auto socket = new TcpSocket(AddressFamily.INET);
-	socket.blocking = true;
-	socket.setOption(SocketOptionLevel.SOCKET, SocketOption.REUSEADDR, true);
-	socket.bind(new InternetAddress("localhost", port));
+	Socket socket;
+	if (useTCP)
+	{
+		socket = new TcpSocket(AddressFamily.INET);
+		socket.blocking = true;
+		socket.setOption(SocketOptionLevel.SOCKET, SocketOption.REUSEADDR, true);
+		socket.bind(new InternetAddress("localhost", port));
+		info("Listening on port ", port);
+	}
+	else
+	{
+		socket = new Socket(AddressFamily.UNIX, SocketType.STREAM);
+		if (exists(socketFile))
+		{
+			info("Cleaning up old socket file at ", socketFile);
+			remove(socketFile);
+		}
+		socket.blocking = true;
+		socket.setOption(SocketOptionLevel.SOCKET, SocketOption.REUSEADDR, true);
+		socket.bind(new UnixAddress(socketFile));
+		setAttributes(socketFile, S_IRUSR | S_IWUSR);
+		info("Listening at ", socketFile);
+	}
 	socket.listen(0);
+
 	scope (exit)
 	{
 		info("Shutting down sockets...");
 		socket.shutdown(SocketShutdown.BOTH);
 		socket.close();
+		if (!useTCP)
+			remove(socketFile);
 		info("Sockets shut down.");
 	}
 
@@ -126,22 +167,28 @@ int main(string[] args)
 	version (Posix) chdir("/");
 
 	version (LittleEndian)
-		immutable expectedClient = IPv4Union([127, 0, 0, 1]);
-	else
 		immutable expectedClient = IPv4Union([1, 0, 0, 127]);
+	else
+		immutable expectedClient = IPv4Union([127, 0, 0, 1]);
 
 	serverLoop: while (true)
 	{
 		auto s = socket.accept();
 		s.blocking = true;
 
-		// Only accept connections from localhost
-		IPv4Union actual;
-		InternetAddress clientAddr = cast(InternetAddress) s.remoteAddress();
-		actual.i = clientAddr.addr;
-		// Shut down if somebody tries connecting from outside
-		enforce(actual.i = expectedClient.i, "Connection attempted from "
-			~ clientAddr.toAddrString());
+		if (useTCP)
+		{
+			// Only accept connections from localhost
+			IPv4Union actual;
+			InternetAddress clientAddr = cast(InternetAddress) s.remoteAddress();
+			actual.i = clientAddr.addr;
+			// Shut down if somebody tries connecting from outside
+			if (actual.i != expectedClient.i)
+			{
+				fatal("Connection attempted from ", clientAddr.toAddrString());
+				return 1;
+			}
+		}
 
 		scope (exit)
 		{
@@ -340,9 +387,18 @@ options:
         Prints the version number and then exits.
 
     --port PORTNUMBER | -pPORTNUMBER
-        Listens on PORTNUMBER instead of the default port 9166.
+        Listens on PORTNUMBER instead of the default port 9166 when TCP sockets
+        are used.
 
     --logLevel LEVEL
         The logging level. Valid values are 'all', 'trace', 'info', 'warning',
-        'error', 'critical', 'fatal', and 'off'`, programName);
+        'error', 'critical', 'fatal', and 'off'.
+
+    --tcp
+        Listen on a TCP socket instead of a UNIX domain socket. This switch
+        has no effect on Windows.
+
+    --socketFile FILENAME
+        Use the given FILENAME as the path to the UNIX domain socket. Using
+        this switch is an error on Windows.`, programName);
 }
