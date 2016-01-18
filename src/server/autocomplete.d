@@ -751,6 +751,8 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 	// returns void.
 	void filterProperties() @nogc @safe
 	{
+		if (symbols.length == 0)
+			return;
 		if (symbols[0].kind == CompletionKind.functionName
 			|| symbols[0].qualifier == SymbolQualifier.func)
 		{
