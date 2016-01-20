@@ -1,6 +1,6 @@
 /**
  * This file is part of DCD, a development tool for the D programming language.
- * Copyright (C) 2014 Brian Schott
+ * Copyright (C) 2015 Brian Schott
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,19 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module common.dcd_version;
+module common.socket;
 
-/**
- * Human-readable version number
- */
-enum DCD_VERSION = "v0.8.0-alpha1";
+import core.sys.posix.unistd; // getuid
+import std.format;
+import std.process;
+import std.path;
 
-version (Windows) {}
-else version (built_with_dub) {}
-else
+version (OSX) version = haveUnixSockets;
+version (linux) version = haveUnixSockets;
+version (BSD) version = haveUnixSockets;
+version (FreeBSD) version = haveUnixSockets;
+
+string generateSocketName()
 {
-	/**
-	 * Current build's Git commit hash
-	 */
-	enum GIT_HASH = import("githash.txt");
+	version (haveUnixSockets)
+	{
+		immutable string socketFileName = "dcd-%d.socket".format(getuid());
+		version (OSX)
+			return buildPath("/", "var", "tmp", socketFileName);
+		else
+		{
+			immutable string xdg = environment.get("XDG_RUNTIME_DIR");
+			return xdg is null ? buildPath("/", "tmp", socketFileName) : buildPath(xdg,
+				"dcd.socket");
+		}
+	}
 }

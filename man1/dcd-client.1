@@ -1,4 +1,4 @@
-.TH dcd-client 1 "Oct 30 2015" "" https://github.com/Hackerpilot/DCD
+.TH dcd-client 1 "Jan 15 2016" "" https://github.com/Hackerpilot/DCD
 .SH NAME
 dcd-client \- autocompletion client for the D programming language
 .PD
@@ -6,6 +6,8 @@ dcd-client \- autocompletion client for the D programming language
 .SY dcd-client
 .OP "\-c, \-\-cursorPos" cursorPosition
 .OP "\-p, \-\-port" portNumber
+.OP \-\-tcp
+.OP \-\-socketFile filePath
 .OP "\-I" directory
 .OP "\-h, \-\-help"
 .OP "\-l, \-\-symbolLocation"
@@ -34,7 +36,20 @@ position is measured in bytes from the beginning of the source code.
 .RS
 Choose the port number on which
 .B dcd-client
-listens.
+listens. This has no effect unless
+.B dcd-client
+is being run on Windows or the \-\-tcp switch is used.
+.RE
+.B \-\-tcp
+.RS
+Listen on a TCP socket instead of a UNIX domain socket. This is the default on
+Windows.
+.RE
+.B \-\-socketFile
+.I filePath
+.RS
+Set the path to use for the UNIX domain socket. Has no effect if the \-\-tcp
+switch is used.
 .RE
 .B \-I
 .I directory

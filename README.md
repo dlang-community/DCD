@@ -60,6 +60,23 @@ the issue.)
 1. ```dub build --build=release --config=server```
 
 
+# Sockets
+## TCP
+On Windows DCD will use TCP sockets to communicate between the client and server.
+Other operating systems can use TCP sockets if the client and server use the `--tcp`
+command-line switch.
+
+## UNIX domain sockets
+Operating systems that support UNIX domain sockets will use them by default.
+
+#### OSX
+The socket will be created at `/var/tmp/dcd-${UID}.socket`
+
+#### Linux/BSD
+The client and server will attempt to create the socket in the following locations:
+* `${XDG_RUNTIME_DIR}/dcd.socket`
+* `/tmp/dcd-${UID}.socket`
+
 # Client
 Because DCD is designed to be used from a text editor, this section is written
 primarily for plugin authors.

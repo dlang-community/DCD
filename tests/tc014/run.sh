@@ -6,12 +6,12 @@ cp testfile2_old.d ../imports/testfile2.d
 # than one second
 sleep 1s;
 
-../../bin/dcd-client file.d -c39 > actual1.txt
+../../bin/dcd-client $1 file.d -c39 > actual1.txt
 diff actual1.txt expected1.txt
 
 cp testfile2_new.d ../imports/testfile2.d
 # Same here
 sleep 1s;
 
-../../bin/dcd-client file.d -c39 > actual2.txt
+../../bin/dcd-client $1 file.d -c39 > actual2.txt
 diff actual2.txt expected2.txt
