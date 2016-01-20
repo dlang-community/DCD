@@ -1,0 +1,28 @@
+# Completion for dcd-client
+_dcd_client()
+{
+	local cur prev opts
+	COMPREPLY=()
+	cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    opts="--help -h --cursorPos -c --shutdown --symbolLocation -l --doc -d\
+		--search -s --query -q --status -I --version --port -p --tcp --socketFile"
+	if [[ ${cur} == -* ]]; then
+		COMPREPLY=($(compgen -W "${opts}" -- ${cur}))
+		return 0;
+	fi
+	case "${prev}" in
+		"-I")
+			COMPREPLY=($(compgen -d ${cur}))
+			return 0
+			;;
+		"--socketFile")
+			COMPREPLY=($(compgen -f ${cur}))
+			return 0
+			;;
+		*)
+			;;
+	esac
+	COMPREPLY=($(compgen -W "${opts}" -- ${cur}))
+}
+complete -F _dcd_client "dcd-client"

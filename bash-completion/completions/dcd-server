@@ -1,0 +1,32 @@
+# Completion for dcd-server
+_dcd_server()
+{
+	local cur prev opts
+	COMPREPLY=()
+	cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    opts="-I --help -h --version --logLevel --tcp --socketFile"
+	logLevels="all trace info warning error critical fatal off"
+	if [[ ${cur} == -* ]]; then
+		COMPREPLY=($(compgen -W "${opts}" -- ${cur}))
+		return 0;
+	fi
+	case "${prev}" in
+		"-I")
+			COMPREPLY=($(compgen -d ${cur}))
+			return 0
+			;;
+		"--logLevel")
+			COMPREPLY=($(compgen -W "${logLevels}" -- ${cur}))
+			return 0
+			;;
+		"--socketFile")
+			COMPREPLY=($(compgen -f ${cur}))
+			return 0
+			;;
+		*)
+			;;
+	esac
+	COMPREPLY=($(compgen -W "${opts}" -- ${cur}))
+}
+complete -F _dcd_server "dcd-server"
