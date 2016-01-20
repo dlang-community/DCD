@@ -42,4 +42,8 @@ string generateSocketName()
 				"dcd.socket");
 		}
 	}
+	else
+	{
+		assert(0);
+	}
 }
