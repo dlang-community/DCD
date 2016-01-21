@@ -312,8 +312,15 @@ Socket createSocket(string socketFile, ushort port)
 	}
 	else
 	{
-		socket = new Socket(AddressFamily.UNIX, SocketType.STREAM);
-		socket.connect(new UnixAddress(socketFile));
+		version(Windows)
+		{
+			throw new Exception("Cannot use UNIX domain sockets on Windows.");
+		}
+		else
+		{
+			socket = new Socket(AddressFamily.UNIX, SocketType.STREAM);
+			socket.connect(new UnixAddress(socketFile));
+		}
 	}
 	socket.setOption(SocketOptionLevel.SOCKET, SocketOption.RCVTIMEO, dur!"seconds"(5));
 	socket.blocking = true;
