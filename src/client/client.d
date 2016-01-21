@@ -314,7 +314,8 @@ Socket createSocket(string socketFile, ushort port)
 	{
 		version(Windows)
 		{
-			throw new Exception("Cannot use UNIX domain sockets on Windows.");
+			// should never be called with non-null socketFile on Windows
+			assert(false);
 		}
 		else
 		{

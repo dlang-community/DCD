@@ -128,17 +128,25 @@ int main(string[] args)
 	}
 	else
 	{
-		socket = new Socket(AddressFamily.UNIX, SocketType.STREAM);
-		if (exists(socketFile))
+		version(Windows)
 		{
-			info("Cleaning up old socket file at ", socketFile);
-			remove(socketFile);
+			fatal("UNIX domain sockets not supported on Windows");
+			return 1;
 		}
-		socket.blocking = true;
-		socket.setOption(SocketOptionLevel.SOCKET, SocketOption.REUSEADDR, true);
-		socket.bind(new UnixAddress(socketFile));
-		setAttributes(socketFile, S_IRUSR | S_IWUSR);
-		info("Listening at ", socketFile);
+		else
+		{
+			socket = new Socket(AddressFamily.UNIX, SocketType.STREAM);
+			if (exists(socketFile))
+			{
+				info("Cleaning up old socket file at ", socketFile);
+				remove(socketFile);
+			}
+			socket.blocking = true;
+			socket.setOption(SocketOptionLevel.SOCKET, SocketOption.REUSEADDR, true);
+			socket.bind(new UnixAddress(socketFile));
+			setAttributes(socketFile, S_IRUSR | S_IWUSR);
+			info("Listening at ", socketFile);
+		}
 	}
 	socket.listen(0);
 
