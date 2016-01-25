@@ -23,6 +23,7 @@ dmd^
  src\client\client.d^
  src\common\messages.d^
  src\common\dcd_version.d^
+ src\common\socket.d^
  msgpack-d\src\msgpack.d^
  -Imsgpack-d\src^
  -release -inline -O -wi^
