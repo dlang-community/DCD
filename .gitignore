@@ -18,6 +18,9 @@ perf.data.old
 # Valgrind reports
 callgrind.*
 
+# GDB temp files
+.gdb_history
+
 # Git hash file
 githash.txt
 
