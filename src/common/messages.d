@@ -18,6 +18,9 @@
 
 module common.messages;
 
+import std.socket;
+import msgpack;
+
 /**
  * The type of completion list being returned
  */
@@ -156,4 +159,70 @@ struct AutocompleteResponse
 	 * Import paths that are registered by the server.
 	 */
 	string[] importPaths;
+}
+
+/**
+ * Returns: true on success
+ */
+bool sendRequest(Socket socket, AutocompleteRequest request)
+{
+	ubyte[] message = msgpack.pack(request);
+	ubyte[] messageBuffer = new ubyte[message.length + message.length.sizeof];
+	auto messageLength = message.length;
+	messageBuffer[0 .. size_t.sizeof] = (cast(ubyte*) &messageLength)[0 .. size_t.sizeof];
+	messageBuffer[size_t.sizeof .. $] = message[];
+	return socket.send(messageBuffer) == messageBuffer.length;
+}
+
+/**
+ * Gets the response from the server
+ */
+AutocompleteResponse getResponse(Socket socket)
+{
+	ubyte[1024 * 16] buffer;
+	auto bytesReceived = socket.receive(buffer);
+	if (bytesReceived == Socket.ERROR)
+		throw new Exception("Incorrect number of bytes received");
+	if (bytesReceived == 0)
+		throw new Exception("Server closed the connection, 0 bytes received");
+	AutocompleteResponse response;
+	msgpack.unpack(buffer[0..bytesReceived], response);
+	return response;
+}
+
+/**
+ * Returns: true if a server instance is running
+ * Params:
+ *     useTCP = `true` to check a TCP port, `false` for UNIX domain socket
+ *     socketFile = the file name for the UNIX domain socket
+ *     port = the TCP port
+ */
+bool serverIsRunning(bool useTCP, string socketFile, ushort port)
+{
+	scope (failure)
+		return false;
+	AutocompleteRequest request;
+	request.kind = RequestKind.query;
+	Socket socket;
+	scope (exit)
+	{
+		socket.shutdown(SocketShutdown.BOTH);
+		socket.close();
+	}
+	if (useTCP)
+	{
+		socket = new TcpSocket(AddressFamily.INET);
+		socket.connect(new InternetAddress("localhost", port));
+	}
+	else
+	{
+		socket = new Socket(AddressFamily.UNIX, SocketType.STREAM);
+		socket.connect(new UnixAddress(socketFile));
+	}
+	socket.setOption(SocketOptionLevel.SOCKET, SocketOption.RCVTIMEO, dur!"seconds"(5));
+	socket.blocking = true;
+	if (sendRequest(socket, request))
+		return getResponse(socket).completionType == "ack";
+	else
+		return false;
 }

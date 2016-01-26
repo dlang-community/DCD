@@ -73,6 +73,8 @@ int main(string[] args)
 		string socketFile = generateSocketName();
 	}
 
+	sharedLog.fatalHandler = () {};
+
 	try
 	{
 		getopt(args, "port|p", &port, "I", &importPaths, "help|h", &help,
@@ -85,6 +87,8 @@ int main(string[] args)
 		printHelp(args[0]);
 		return 1;
 	}
+
+	globalLogLevel = level;
 
 	if (printVersion)
 	{
@@ -109,7 +113,11 @@ int main(string[] args)
 		return 1;
 	}
 
-	globalLogLevel = level;
+	if (serverIsRunning(useTCP, socketFile,  port))
+	{
+		fatal("Another instance of DCD-server is already running");
+		return 1;
+	}
 
 	info("Starting up...");
 	StopWatch sw = StopWatch(AutoStart.yes);
