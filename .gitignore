@@ -29,3 +29,6 @@ stdout.txt
 # Dub files
 .dub
 dub.selections.json
+
+# GDB files
+.gdb_history
