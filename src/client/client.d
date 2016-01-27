@@ -30,13 +30,14 @@ import std.conv;
 import std.string;
 import std.experimental.logger;
 
-import msgpack;
 import common.messages;
 import common.dcd_version;
 import common.socket;
 
 int main(string[] args)
 {
+	sharedLog.fatalHandler = () {};
+
 	size_t cursorPos = size_t.max;
 	string[] importPaths;
 	ushort port = 9166;
@@ -106,24 +107,12 @@ int main(string[] args)
 
 	if (query)
 	{
-		try
+		if (serverIsRunning(useTCP, socketFile, port))
 		{
-			Socket socket = createSocket(socketFile, port);
-			scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
-			request.kind = RequestKind.query;
-			if (sendRequest(socket, request))
-			{
-				const AutocompleteResponse response = getResponse(socket);
-				if (response.completionType == "ack")
-				{
-					writeln("Server is running");
-					return 0;
-				}
-				else
-					throw new Exception("");
-			}
+			writeln("Server is running");
+			return 0;
 		}
-		catch (Exception ex)
+		else
 		{
 			writeln("Server is not running");
 			return 1;
@@ -312,47 +301,26 @@ Socket createSocket(string socketFile, ushort port)
 	}
 	else
 	{
-		socket = new Socket(AddressFamily.UNIX, SocketType.STREAM);
-		socket.connect(new UnixAddress(socketFile));
+		version(Windows)
+		{
+			// should never be called with non-null socketFile on Windows
+			assert(false);
+		}
+		else
+		{
+			socket = new Socket(AddressFamily.UNIX, SocketType.STREAM);
+			socket.connect(new UnixAddress(socketFile));
+		}
 	}
 	socket.setOption(SocketOptionLevel.SOCKET, SocketOption.RCVTIMEO, dur!"seconds"(5));
 	socket.blocking = true;
 	return socket;
 }
 
-/**
- * Returns: true on success
- */
-bool sendRequest(Socket socket, AutocompleteRequest request)
-{
-	ubyte[] message = msgpack.pack(request);
-	ubyte[] messageBuffer = new ubyte[message.length + message.length.sizeof];
-	auto messageLength = message.length;
-	messageBuffer[0 .. size_t.sizeof] = (cast(ubyte*) &messageLength)[0 .. size_t.sizeof];
-	messageBuffer[size_t.sizeof .. $] = message[];
-	return socket.send(messageBuffer) == messageBuffer.length;
-}
-
-/**
- * Gets the response from the server
- */
-AutocompleteResponse getResponse(Socket socket)
-{
-	ubyte[1024 * 16] buffer;
-	auto bytesReceived = socket.receive(buffer);
-	if (bytesReceived == Socket.ERROR)
-		throw new Exception("Incorrect number of bytes received");
-	if (bytesReceived == 0)
-		throw new Exception("Server closed the connection, 0 bytes received");
-	AutocompleteResponse response;
-	msgpack.unpack(buffer[0..bytesReceived], response);
-	return response;
-}
-
 void printDocResponse(AutocompleteResponse response)
 {
 	import std.array: join;
-    response.docComments.join(r"\n\n").writeln;
+	response.docComments.join(r"\n\n").writeln;
 }
 
 void printLocationResponse(AutocompleteResponse response)
