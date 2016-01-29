@@ -11,6 +11,8 @@ GDC := gdc
 LDC := ldc2
 
 OBJ_DIR := objs
+DPARSE_DIR := libdparse
+DSYMBOL_DIR := dsymbol
 
 githash:
 	git log -1 --format="%H" > githash.txt
@@ -59,13 +61,13 @@ LDC_CLIENT_FLAGS := -Imsgpack-d/src\
 SERVER_SRC := \
 	$(shell find src/common -name "*.d")\
 	$(shell find src/server -name "*.d")\
-	$(shell find dsymbol/src -name "*.d")\
-	libdparse/src/dparse/ast.d\
-	libdparse/src/dparse/entities.d\
-	libdparse/src/dparse/lexer.d\
-	libdparse/src/dparse/parser.d\
-	libdparse/src/dparse/formatter.d\
-	libdparse/src/std/experimental/lexer.d\
+	$(shell find ${DSYMBOL_DIR}/src -name "*.d")\
+	${DPARSE_DIR}/src/dparse/ast.d\
+	${DPARSE_DIR}/src/dparse/entities.d\
+	${DPARSE_DIR}/src/dparse/lexer.d\
+	${DPARSE_DIR}/src/dparse/parser.d\
+	${DPARSE_DIR}/src/dparse/formatter.d\
+	${DPARSE_DIR}/src/std/experimental/lexer.d\
 	$(shell find containers/experimental_allocator/src/std/experimental/allocator/ -name "*.d")\
 	containers/src/containers/dynamicarray.d\
 	containers/src/containers/ttree.d\
@@ -83,8 +85,8 @@ SERVER_OBJS = $(SERVER_SRC:%.d=$(OBJ_DIR)/%.o)
 
 DMD_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
-	-Ilibdparse/src\
-	-Idsymbol/src\
+	-I${DPARSE_DIR}/src\
+	-I${DSYMBOL_DIR}/src\
 	-Icontainers/experimental_allocator/src\
 	-J.\
 	-wi\
@@ -95,8 +97,8 @@ DMD_SERVER_FLAGS := -Icontainers/src\
 
 DEBUG_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
-	-Ilibdparse/src\
-	-Idsymbol/src\
+	-I${DPARSE_DIR}/src\
+	-I${DSYMBOL_DIR}/src\
 	-Icontainers/experimental_allocator/src\
 	-wi\
 	-g\
@@ -105,8 +107,8 @@ DEBUG_SERVER_FLAGS := -Icontainers/src\
 
 GDC_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
-	-Ilibdparse/src\
-	-Idsymbol/src\
+	-I${DPARSE_DIR}/src\
+	-I${DSYMBOL_DIR}/src\
 	-Icontainers/experimental_allocator/src\
 	-J.\
 	-O3\
@@ -115,8 +117,8 @@ GDC_SERVER_FLAGS := -Icontainers/src\
 
 LDC_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
-	-Ilibdparse/src\
-	-Idsymbol/src\
+	-I${DPARSE_DIR}/src\
+	-I${DSYMBOL_DIR}/src\
 	-Icontainers/experimental_allocator/src\
 	-Isrc\
 	-J=.\
