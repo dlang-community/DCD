@@ -217,7 +217,9 @@ In future versions the client may start the server if it is not running, but for
 now it must be started manually or by an editor plugin.
 
 ## Configuration Files
-The server will attempt to read the file ```~/.config/dcd``` on Posix systems, or ```dcd.conf``` on Windows in the current working directory on startup.
+The server will attempt to read the file ```${XDG_CONFIG_HOME}/dcd/dcd.conf```
+(`~/.config/dcd/dcd.conf` if XDG_CONFIG_HOME is not set) on Posix systems, or
+```dcd.conf``` on Windows in the current working directory on startup.
 If it exists, each line of the file is interpreted as a path that should be
 searched when looking for module imports. Lines that start with the "#" character
 are ignored.
