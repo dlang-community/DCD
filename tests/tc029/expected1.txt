@@ -1,0 +1,8 @@
+identifiers
+car	v
+cdouble	k
+cent	k
+cfloat	k
+char	k
+complicatedLess	l
+creal	k
