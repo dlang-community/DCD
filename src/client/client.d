@@ -49,6 +49,7 @@ int main(string[] args)
 	bool query;
 	bool printVersion;
 	bool listImports;
+    bool serverState;
 	string search;
 	version(Windows)
 	{
@@ -68,7 +69,7 @@ int main(string[] args)
 			"clearCache", &clearCache, "symbolLocation|l", &symbolLocation,
 			"doc|d", &doc, "query|status|q", &query, "search|s", &search,
 			"version", &printVersion, "listImports", &listImports,
-			"tcp", &useTCP, "socketFile", &socketFile);
+			"tcp", &useTCP, "socketFile", &socketFile, "serverState", &serverState);
 	}
 	catch (ConvException e)
 	{
@@ -151,6 +152,11 @@ int main(string[] args)
 		printImportList(response);
 		return 0;
 	}
+    else if (serverState)
+    {
+        writeln(getServerState);
+        return 0;
+    }
 	else if (search == null && cursorPos == size_t.max)
 	{
 		// cursor position is a required argument
@@ -284,6 +290,10 @@ Options:
         Send requests on a TCP socket instead of a UNIX domain socket. This
         switch has no effect on Windows.
 
+    --serverState
+        Tests if the server is listening and returns "true" or "false". This
+        switch allows to properly wait for the server start-up and termination.
+
     --socketFile FILENAME
         Use the given FILENAME as the path to the UNIX domain socket. Using
         this switch is an error on Windows.`, programName);
@@ -369,4 +379,53 @@ void printImportList(const AutocompleteResponse response)
 	import std.algorithm.iteration : each;
 
 	response.importPaths.each!(a => writeln(a));
+}
+
+bool getServerState(ushort port = 9166)
+{
+    version(windows)
+    {
+        import std.format: format;
+        string ipp = format("127.0.0.1:%d", port);
+        auto p = executeShell("netstat -a -n -o");
+        foreach(line; p.output.lineSplitter)
+        {
+            if ((indexOf(line, "TCP") != -1)
+            && (indexOf(line, "LISTENING") != -1)
+            && (indexOf(line, ipp) != -1))
+                return true;
+        }
+        return false;
+    }
+    else version(OSX)
+    {
+        return exists("/var/tmp/dcd-" ~ environment.get("UID") ~ ".socket");
+    }
+    else
+    {
+        version(FreeBSD) enum sysBsd = true; else enum sysBsd = false;
+        version(linux) enum sysNix = true; else enum sysNix = false;
+        static if (sysBsd || sysNix)
+        {
+            if (exists(environment.get("XDG_RUNTIME_DIR") ~ "/dcd.socket"))
+                return true;
+            else if (exists("/tmp/dcd-" ~ environment.get("UID") ~ ".socket"))
+                return true;
+            else
+            {
+                import std.format: format;
+                string ipp = format("127.0.0.1:%d", port);
+                auto p = executeShell("netstat -an");
+                foreach(line; p.output.lineSplitter)
+                {
+                    if ((indexOf(line, "tcp") != -1)
+                    && (indexOf(line, "LISTEN") != -1)
+                    && (indexOf(line, ipp) != -1))
+                        return true;
+                }
+            }
+            return false;
+        }
+        else static assert(0, "unsupported platform");
+    }
 }
