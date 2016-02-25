@@ -599,7 +599,8 @@ body
 	{
 		auto a = DSymbol(sy.name);
 		if (!builtinSymbols.contains(&a) && sy.name !is null && !h.contains(sy.name)
-				&& sy.name != CONSTRUCTOR_SYMBOL_NAME)
+				&& !sy.skipOver && sy.name != CONSTRUCTOR_SYMBOL_NAME
+				&& isPublicCompletionKind(sy.kind))
 		{
 			response.completionKinds ~= sy.kind;
 			response.completions ~= sy.name;
@@ -607,10 +608,10 @@ body
 		}
 	}
 
-	foreach (s; symbols.opSlice())
+	foreach (s; symbols.opSlice().filter!(a => !a.skipOver))
 	{
 		if (s.kind == CompletionKind.importSymbol && s.type !is null)
-			foreach (sy; s.type.opSlice())
+			foreach (sy; s.type.opSlice().filter!(a => !a.skipOver))
 				addSymbolToResponses(sy);
 		else
 			addSymbolToResponses(s);
@@ -938,7 +939,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			return;
 		foreach (sym; s.opSlice())
 		{
-			if (sym.name !is null && sym.name.length > 0 && sym.kind != CompletionKind.importSymbol
+			if (sym.name !is null && sym.name.length > 0 && isPublicCompletionKind(sym.kind)
 				&& (p is null ? true : sym.name.toUpper().startsWith(p.toUpper()))
 				&& !r.completions.canFind(sym.name)
 				&& sym.name[0] != '*')
