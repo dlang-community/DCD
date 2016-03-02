@@ -35,6 +35,7 @@ import std.uni;
 import dparse.ast;
 import dparse.lexer;
 import dparse.parser;
+import dparse.rollback_allocator;
 
 import dsymbol.conversion;
 import dsymbol.modulecache;
@@ -59,10 +60,11 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request,
 {
 //	trace("Getting doc comments");
 	AutocompleteResponse response;
+	RollbackAllocator rba;
 	auto allocator = scoped!(ASTAllocator)();
 	auto cache = StringCache(StringCache.defaultBucketCount);
 	SymbolStuff stuff = getSymbolsForCompletion(request, CompletionType.ddoc,
-		allocator, cache, moduleCache);
+		allocator, &rba, cache, moduleCache);
 	if (stuff.symbols.length == 0)
 		warning("Could not find symbol");
 	else
@@ -121,10 +123,11 @@ public AutocompleteResponse findDeclaration(const AutocompleteRequest request,
 	ref ModuleCache moduleCache)
 {
 	AutocompleteResponse response;
+	RollbackAllocator rba;
 	auto allocator = scoped!(ASTAllocator)();
 	auto cache = StringCache(StringCache.defaultBucketCount);
 	SymbolStuff stuff = getSymbolsForCompletion(request,
-		CompletionType.location, allocator, cache, moduleCache);
+		CompletionType.location, allocator, &rba, cache, moduleCache);
 	scope(exit) stuff.destroy();
 	if (stuff.symbols.length > 0)
 	{
@@ -191,8 +194,9 @@ public AutocompleteResponse symbolSearch(const AutocompleteRequest request,
 	const(Token)[] tokenArray = getTokensForParser(cast(ubyte[]) request.sourceCode,
 		config, &cache);
 	auto allocator = scoped!(ASTAllocator)();
+	RollbackAllocator rba;
 	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
-		request.cursorPosition, moduleCache);
+		&rba, request.cursorPosition, moduleCache);
 	scope(exit) pair.destroy();
 
 	static struct SearchResults
@@ -328,8 +332,9 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	case tok!"this":
 	case tok!"super":
 		auto allocator = scoped!(ASTAllocator)();
+		RollbackAllocator rba;
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
-			cursorPosition, moduleCache);
+			&rba, cursorPosition, moduleCache);
 		scope(exit) pair.destroy();
 		response.setCompletions(pair.scope_, getExpression(beforeTokens),
 			cursorPosition, CompletionType.identifiers, false, partial);
@@ -372,14 +377,14 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, size_t cursorPosition,
  *     the request's source code, cursor position, and completion type.
  */
 SymbolStuff getSymbolsForCompletion(const AutocompleteRequest request,
-	const CompletionType type, IAllocator allocator, ref StringCache cache,
-	ref ModuleCache moduleCache)
+	const CompletionType type, IAllocator allocator, RollbackAllocator* rba,
+	ref StringCache cache, ref ModuleCache moduleCache)
 {
 	const(Token)[] tokenArray;
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
 		request.cursorPosition, cache, tokenArray);
 	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
-		request.cursorPosition, moduleCache);
+		rba, request.cursorPosition, moduleCache);
 	auto expression = getExpression(beforeTokens);
 	return SymbolStuff(getSymbolsByTokenChain(pair.scope_, expression,
 		request.cursorPosition, type), pair.symbol, pair.scope_);
@@ -456,8 +461,9 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	case tok!")":
 	case tok!"]":
 		auto allocator = scoped!(ASTAllocator)();
+		RollbackAllocator rba;
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
-			cursorPosition, moduleCache);
+			&rba, cursorPosition, moduleCache);
 		scope(exit) pair.destroy();
 		auto expression = getExpression(beforeTokens[0 .. $ - 1]);
 		response.setCompletions(pair.scope_, expression,

@@ -67,6 +67,8 @@ SERVER_SRC := \
 	${DPARSE_DIR}/src/dparse/lexer.d\
 	${DPARSE_DIR}/src/dparse/parser.d\
 	${DPARSE_DIR}/src/dparse/formatter.d\
+	${DPARSE_DIR}/src/dparse/rollback_allocator.d\
+	${DPARSE_DIR}/src/dparse/stack_buffer.d\
 	${DPARSE_DIR}/src/std/experimental/lexer.d\
 	$(shell find containers/experimental_allocator/src/std/experimental/allocator/ -name "*.d")\
 	containers/src/containers/dynamicarray.d\
