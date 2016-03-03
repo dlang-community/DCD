@@ -28,6 +28,8 @@ version (linux) version = haveUnixSockets;
 version (BSD) version = haveUnixSockets;
 version (FreeBSD) version = haveUnixSockets;
 
+enum DEFAULT_PORT_NUMBER = 9166;
+
 string generateSocketName()
 {
 	version (haveUnixSockets)

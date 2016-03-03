@@ -40,7 +40,7 @@ int main(string[] args)
 
 	size_t cursorPos = size_t.max;
 	string[] importPaths;
-	ushort port = 9166;
+	ushort port;
 	bool help;
 	bool shutdown;
 	bool clearCache;
@@ -101,6 +101,14 @@ int main(string[] args)
 		fatal("UNIX domain sockets not supported on Windows");
 		return 1;
 	}
+
+	// If the user specified a port number, assume that they wanted a TCP
+	// connection. Otherwise set the port number to the default and let the
+	// useTCP flag deterimen what to do later.
+	if (port != 0)
+		useTCP = true;
+	else
+		port = DEFAULT_PORT_NUMBER;
 
 	if (useTCP)
 		socketFile = null;
