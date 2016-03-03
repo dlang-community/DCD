@@ -1,4 +1,4 @@
-.TH dcd-client 1 "Jan 15 2016" "" https://github.com/Hackerpilot/DCD
+.TH dcd-client 1 "Mar 3 2016" "" https://github.com/Hackerpilot/DCD
 .SH NAME
 dcd-client \- autocompletion client for the D programming language
 .PD
@@ -36,9 +36,7 @@ position is measured in bytes from the beginning of the source code.
 .RS
 Choose the port number on which
 .B dcd-client
-listens. This has no effect unless
-.B dcd-client
-is being run on Windows or the \-\-tcp switch is used.
+listens. This switch implies \-\-tcp.
 .RE
 .B \-\-tcp
 .RS
@@ -49,7 +47,7 @@ Windows.
 .I filePath
 .RS
 Set the path to use for the UNIX domain socket. Has no effect if the \-\-tcp
-switch is used.
+or \-\-port switches are used.
 .RE
 .B \-I
 .I directory

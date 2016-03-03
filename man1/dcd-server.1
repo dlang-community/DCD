@@ -1,4 +1,4 @@
-.TH dcd-server 1 "Jan 15 2016" "" https://github.com/Hackerpilot/DCD
+.TH dcd-server 1 "Mar 3 2016" "" https://github.com/Hackerpilot/DCD
 .SH NAME
 dcd-server \- autocompletion server for the D programming language
 .PD
@@ -22,9 +22,7 @@ dcd-server \- autocompletion server for the D programming language
 .RS
 Choose the port number on which
 .B dcd-server
-listens. This has no effect unless
-.B dcd-server
-is being run on Windows or the \-\-tcp switch is used.
+listens. This switch implies \-\-tcp.
 .RE
 .B \-\-tcp
 .RS
@@ -35,7 +33,7 @@ Windows.
 .I filePath
 .RS
 Set the path to use for the UNIX domain socket. Has no effect if the \-\-tcp
-switch is used.
+or \-\-port switches are used.
 .RE
 .B \-\-logLevel
 .I level
