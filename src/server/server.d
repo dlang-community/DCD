@@ -56,7 +56,7 @@ version(OSX) version = useXDG;
 
 int main(string[] args)
 {
-	ushort port = 9166;
+	ushort port;
 	bool help;
 	bool printVersion;
 	bool ignoreConfig;
@@ -106,6 +106,17 @@ int main(string[] args)
 		printHelp(args[0]);
 		return 0;
 	}
+
+	// If the user specified a port number, assume that they wanted a TCP
+	// connection. Otherwise set the port number to the default and let the
+	// useTCP flag deterimen what to do later.
+	if (port != 0)
+		useTCP = true;
+	else
+		port = DEFAULT_PORT_NUMBER;
+
+	if (useTCP)
+		socketFile = null;
 
 	version (Windows) if (socketFile !is null)
 	{

@@ -63,11 +63,13 @@ the issue.)
 # Sockets
 ## TCP
 On Windows DCD will use TCP sockets to communicate between the client and server.
-Other operating systems can use TCP sockets if the client and server use the `--tcp`
-command-line switch.
+DCD can use TCP sockets on other operating systems if the client and server use
+the `--tcp` or `--port` command-line switches.
 
 ## UNIX domain sockets
 Operating systems that support UNIX domain sockets will use them by default.
+The path to the socket file can be overriden with the `--socketFile` option.
+These are the default paths:
 
 #### OSX
 The socket will be created at `/var/tmp/dcd-${UID}.socket`
@@ -75,7 +77,7 @@ The socket will be created at `/var/tmp/dcd-${UID}.socket`
 #### Linux/BSD
 The client and server will attempt to create the socket in the following locations:
 * `${XDG_RUNTIME_DIR}/dcd.socket`
-* `/tmp/dcd-${UID}.socket`
+* `/tmp/dcd-${UID}.socket` if `XDG_RUNTIME_DIR` is not defined.
 
 # Client
 Because DCD is designed to be used from a text editor, this section is written
@@ -214,7 +216,7 @@ in place of a file being edited.)
 #Server
 The server must be running for the DCD client to provide autocomplete information.
 In future versions the client may start the server if it is not running, but for
-now it must be started manually or by an editor plugin.
+now it must be started manually or (usually) by an editor plugin.
 
 ## Configuration Files
 The server will attempt to read the file ```${XDG_CONFIG_HOME}/dcd/dcd.conf```
@@ -235,7 +237,7 @@ What you actually want is this:
 	/usr/include/dmd/phobos
 
 ##Shut down the server
-The server can be shut down by running the client with the correct option:
+The server can be shut down by running the client with the `--shutdown` option:
 
 	dcd-client --shutdown
 
@@ -245,4 +247,5 @@ Import directories can be specified on the command line at startup:
 	dcd-server -I/home/user/code/one -I/home/user/code/two
 
 ## Port number
-The ```--port``` or ```-p``` option lets you specify the port number that the server will listen on.
+The ```--port``` or ```-p``` option lets you specify the port number that the
+server will listen on. The default port is 9166.

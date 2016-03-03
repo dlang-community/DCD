@@ -1,7 +1,7 @@
 {
   "name": "dcd",
   "description": "The D Completion Daemon is an auto-complete program for the D programming language",
-  "copyright": "Copyright © 2015, Brian Schott",
+  "copyright": "Copyright © 2015-2016, Brian Schott",
   "authors": [
     "Brian Schott"
   ],
