@@ -8,7 +8,7 @@
   "license": "GPL-3.0",
   "dependencies": {
     "dsymbol": "~>0.2.0-alpha1",
-	"libdparse": "~>0.7.0-alpha1",
+	"libdparse": "~>0.7.0-alpha2",
     "msgpack-d": "~>1.0.0-beta.2"
   },
   "versions": ["built_with_dub"],
