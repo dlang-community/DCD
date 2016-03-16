@@ -376,11 +376,29 @@ void warnAboutOldConfigLocation()
 	}
 }
 
+import std.regex : ctRegex;
+alias envVarRegex = ctRegex!(`\$\{([_a-zA-Z][_a-zA-Z 0-9]*)\}`);
+
+private unittest
+{
+	import std.regex : replaceAll;
+
+	enum input = `${HOME}/aaa/${_bb_b}/ccc`;
+
+	assert(replaceAll!(m => m[1])(input, envVarRegex) == `HOME/aaa/_bb_b/ccc`);
+}
+
 /**
  * Loads import directories from the configuration file
  */
 string[] loadConfiguredImportDirs()
 {
+	string expandEnvVars(string l)
+	{
+		import std.regex : replaceAll;
+		return replaceAll!(m => environment.get(m[1], ""))(l, envVarRegex);
+	}
+
 	warnAboutOldConfigLocation();
 	immutable string configLocation = getConfigurationLocation();
 	if (!configLocation.exists())
@@ -388,8 +406,10 @@ string[] loadConfiguredImportDirs()
 	info("Loading configuration from ", configLocation);
 	File f = File(configLocation, "rt");
 	return f.byLine(KeepTerminator.no)
-		.filter!(a => a.length > 0 && a[0] != '#' && existanceCheck(a))
+		.filter!(a => a.length > 0 && a[0] != '#')
 		.map!(a => a.idup)
+		.map!(expandEnvVars)
+		.filter!(a => existanceCheck(a))
 		.array();
 }
 
