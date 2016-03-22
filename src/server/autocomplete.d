@@ -48,6 +48,8 @@ import dsymbol.builtin.symbols;
 import common.constants;
 import common.messages;
 
+import containers.hashset;
+
 /**
  * Gets documentation for the symbol at the cursor
  * Params:
@@ -226,10 +228,11 @@ public AutocompleteResponse symbolSearch(const AutocompleteRequest request,
 	}
 
 	SearchResults results;
+	HashSet!size_t visited;
 	foreach (symbol; pair.scope_.symbols)
-		symbol.getAllPartsNamed(request.searchName, results);
+		symbol.getParts!SearchResults(internString(request.searchName), results, visited);
 	foreach (s; moduleCache.getAllSymbols())
-		s.symbol.getAllPartsNamed(request.searchName, results);
+		s.symbol.getParts!SearchResults(internString(request.searchName), results, visited);
 
 	AutocompleteResponse response;
 	foreach (result; results.tree[])
@@ -1075,7 +1078,7 @@ body
 {
 	string generatedStructConstructorCalltip = "this(";
 	const(DSymbol)*[] fields = symbol.opSlice().filter!(
-		a => a.kind == CompletionKind.variableName).map!(a => cast(const(DSymbol)*) a.ptr).array();
+		a => a.kind == CompletionKind.variableName).map!(a => cast(const(DSymbol)*) a).array();
 	fields.sort!((a, b) => a.location < b.location);
 	foreach (i, field; fields)
 	{

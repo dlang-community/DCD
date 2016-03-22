@@ -1,3 +1,5 @@
 module a;
-public import b;
+public {
+	import b;
+}
 string FOO;
