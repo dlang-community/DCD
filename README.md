@@ -156,7 +156,7 @@ When run with the --doc or -d option, DCD will attempt to display documentation
 comments associated with the symbol at the cursor position. In the case of
 functions there can be more than one documentation comment associated with a
 symbol. One doc comment will be printed per line. Newlines within the doc
-comments will be replaced with "\n".
+comments will be replaced with "\n", and backslashes escaped as "\\".
 #### Example output
 	An example doc comment\nParams: a = first param\n    Returns: nothing
 	An example doc comment\nParams: a = first param\n     b = second param\n    Returns: nothing
