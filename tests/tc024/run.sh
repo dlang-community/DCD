@@ -21,3 +21,6 @@ diff actual6.txt expected6.txt
 
 ../../bin/dcd-client $1 file.d -c313 -d> actual7.txt
 diff actual7.txt expected7.txt
+
+../../bin/dcd-client $1 file.d -c432 -d> actual8.txt
+diff actual8.txt expected8.txt

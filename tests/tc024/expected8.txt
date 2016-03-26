@@ -1,0 +1,1 @@
+This is not a newline: \\n But this is:\nThis is not a newline either: $(D '\\n')

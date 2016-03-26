@@ -88,6 +88,10 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request,
 			{
 				switch (c)
 				{
+				case '\\':
+					outputRange.put('\\');
+					outputRange.put('\\');
+					break;
 				case '\n':
 					outputRange.put('\\');
 					outputRange.put('n');

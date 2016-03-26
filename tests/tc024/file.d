@@ -28,3 +28,12 @@ unittest
 	g;
 	cool;
 }
+
+/** This is not a newline: \n But this is: */
+/** This is not a newline either: $(D '\n') */
+int f;
+
+unittest
+{
+	f;
+}
