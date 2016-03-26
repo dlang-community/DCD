@@ -71,48 +71,37 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request,
 		warning("Could not find symbol");
 	else
 	{
-		struct Escaper(O)
+        Appender!(char[]) app;
+
+        void putDDocChar(dchar c)
+        {
+            switch (c)
+            {
+            case '\\':
+                app.put('\\');
+                app.put('\\');
+                break;
+            case '\n':
+                app.put('\\');
+                app.put('n');
+                break;
+            default:
+                app.put(c);
+                break;
+            }
+        }
+
+        void putDDocString(string s)
+        {
+            foreach (c; s)
+                putDDocChar(c);
+        }
+
+		foreach(symbol; stuff.symbols.filter!(a => !a.doc.empty))
 		{
-			this(O* or)
-			{
-				this.outputRange = or;
-			}
-
-			void put(string s)
-			{
-				foreach (c; s)
-					put(c);
-			}
-
-			void put(char c)
-			{
-				switch (c)
-				{
-				case '\\':
-					outputRange.put('\\');
-					outputRange.put('\\');
-					break;
-				case '\n':
-					outputRange.put('\\');
-					outputRange.put('n');
-					break;
-				default:
-					outputRange.put(c);
-					break;
-				}
-			}
-
-			O* outputRange;
-		}
-
-		auto app = appender!(char[])();
-		auto e = Escaper!(typeof(app))(&app);
-		foreach (symbol; stuff.symbols.filter!(a => !a.doc.empty))
-		{
-			app.clear();
-			foreach(c; symbol.doc)
-				e.put(c);
-			response.docComments ~= cast(string) app.data;
+            app.clear;
+            putDDocString(symbol.doc);
+            response.docComments ~= app.data.idup;
 		}
 	}
 	return response;
