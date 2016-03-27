@@ -20,6 +20,7 @@ module common.messages;
 
 import std.socket;
 import msgpack;
+import core.time : dur;
 
 /**
  * The type of completion list being returned
