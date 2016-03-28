@@ -31,7 +31,7 @@ clean:
 CLIENT_SRC := \
 	$(shell find src/common -name "*.d")\
 	$(shell find src/client -name "*.d")\
-	msgpack-d/src/msgpack.d
+	$(shell find msgpack-d/src/ -name "*.d")
 
 DMD_CLIENT_FLAGS := -Imsgpack-d/src\
 	-Imsgpack-d/src\
@@ -81,9 +81,7 @@ SERVER_SRC := \
 	containers/src/containers/internal/storage_type.d\
 	containers/src/containers/internal/element_type.d\
 	containers/src/containers/slist.d\
-	msgpack-d/src/msgpack.d
-
-SERVER_OBJS = $(SERVER_SRC:%.d=$(OBJ_DIR)/%.o)
+	$(shell find msgpack-d/src/ -name "*.d")
 
 DMD_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
@@ -125,7 +123,7 @@ LDC_SERVER_FLAGS := -Icontainers/src\
 	-Isrc\
 	-J=.\
 	-O5\
-	-release\
+	-release
 
 dmdclient: githash
 	mkdir -p bin
@@ -150,8 +148,5 @@ gdcserver: githash
 ldcclient: githash
 	${LDC} ${CLIENT_SRC} ${LDC_CLIENT_FLAGS}
 
-$(OBJ_DIR)/%.o: $(SERVER_SRC)
-	$(LDC) $*.d $(LDC_SERVER_FLAGS) -od=$(OBJ_DIR) -op -c
-
-ldcserver: githash $(SERVER_OBJS)
-	${LDC} ${SERVER_OBJS} ${LDC_SERVER_FLAGS} -of=bin/dcd-server
+ldcserver: githash
+	${LDC} $(LDC_SERVER_FLAGS) ${SERVER_SRC} -oq -of=bin/dcd-server
