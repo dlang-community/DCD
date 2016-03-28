@@ -328,7 +328,7 @@ Socket createSocket(string socketFile, ushort port)
 void printDocResponse(AutocompleteResponse response)
 {
 	import std.array: join;
-	response.docComments.join(r"\n\n").writeln;
+	response.docComments.join("\n").writeln;
 }
 
 void printLocationResponse(AutocompleteResponse response)

@@ -1,1 +1,2 @@
-foo\nF\n\nbar\nB
+foo\nF
+bar\nB
