@@ -80,6 +80,7 @@ SERVER_SRC := \
 	containers/src/containers/internal/node.d\
 	containers/src/containers/internal/storage_type.d\
 	containers/src/containers/internal/element_type.d\
+	containers/src/containers/internal/backwards.d\
 	containers/src/containers/slist.d\
 	$(shell find msgpack-d/src/ -name "*.d")
 
