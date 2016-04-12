@@ -1153,6 +1153,7 @@ T getExpression(T)(T beforeTokens)
 		switch (beforeTokens[i].type)
 		{
 		case tok!"import":
+			i++;
 			break expressionLoop;
 		mixin (TYPE_IDENT_AND_LITERAL_CASES);
 			mixin (EXPRESSION_LOOP_BREAK);
