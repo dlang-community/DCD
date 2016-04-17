@@ -1,9 +1,6 @@
 [submodule "msgpack-d"]
 	path = msgpack-d
 	url = https://github.com/msgpack/msgpack-d.git
-[submodule "datapicked"]
-	path = datapicked
-	url = https://github.com/blackwhale/datapicked.git
 [submodule "containers"]
 	path = containers
 	url = https://github.com/economicmodeling/containers.git
