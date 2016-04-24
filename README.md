@@ -213,6 +213,27 @@ in place of a file being edited.)
 /usr/include/dmd/phobos/std/conv.d  f   9494
 ```
 
+## Find usage of symbol at cursor
+```dcd-client --localUsage -c 123```
+
+The "--localUsage" or "-u" flags cause the client to instruct the server
+to return all the local usages of the symbol located at the given cursor position.
+
+#### Output format
+When usages exist, if the source symbol is an identifier (a type, a variable name, etc.) and if the symbol is not ambiguous then
+the first line contains the location of the symbol (a file name or literally _stdin_), a tab then the offset to the symbol declaration,
+each following line contains a byte offset, always relative to the supplied file, to a usage of the symbol.
+
+Otherwise the client outputs _00000_ so that the length of the answer is guaranteed to be at least 5 bytes.
+
+#### Example output
+```
+stdin 45
+26
+45
+133
+```
+
 #Server
 The server must be running for the DCD client to provide autocomplete information.
 In future versions the client may start the server if it is not running, but for

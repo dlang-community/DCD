@@ -1,0 +1,1 @@
+uint var; void foo(){var=0;var=0;var=0;}
