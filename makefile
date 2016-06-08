@@ -10,7 +10,6 @@ DMD := dmd
 GDC := gdc
 LDC := ldc2
 
-OBJ_DIR := objs
 DPARSE_DIR := libdparse
 DSYMBOL_DIR := dsymbol
 
@@ -26,7 +25,6 @@ clean:
 	rm -f dscanner-report.json
 	rm -f githash.txt
 	rm -f *.o
-	rm -rf $(OBJ_DIR)
 
 CLIENT_SRC := \
 	$(shell find src/common -name "*.d")\
