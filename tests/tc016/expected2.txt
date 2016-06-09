@@ -2,6 +2,7 @@ identifiers
 alignof	k
 byKey	k
 byValue	k
+clear	k
 dup	k
 get	k
 init	k
