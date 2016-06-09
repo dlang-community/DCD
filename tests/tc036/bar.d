@@ -1,3 +1,3 @@
-module tc033.bar;
+module tc036.bar;
 
-void fooBarFunc() {}
+void fooBarFunc() { }

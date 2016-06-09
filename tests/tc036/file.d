@@ -1,3 +1,3 @@
-import tc033.bar;
+import tc036.bar;
 
 void main() { fooBarF }
