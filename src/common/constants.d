@@ -167,6 +167,8 @@ immutable string[] predefinedVersions = [
 	"NVPTX64",
 	"OpenBSD",
 	"OSX",
+	"PlayStation",
+	"PlayStation4",
 	"Posix",
 	"PPC",
 	"PPC64",
