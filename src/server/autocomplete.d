@@ -71,37 +71,37 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request,
 		warning("Could not find symbol");
 	else
 	{
-        Appender!(char[]) app;
+		Appender!(char[]) app;
 
-        void putDDocChar(dchar c)
-        {
-            switch (c)
-            {
-            case '\\':
-                app.put('\\');
-                app.put('\\');
-                break;
-            case '\n':
-                app.put('\\');
-                app.put('n');
-                break;
-            default:
-                app.put(c);
-                break;
-            }
-        }
+		void putDDocChar(dchar c)
+		{
+			switch (c)
+			{
+			case '\\':
+				app.put('\\');
+				app.put('\\');
+				break;
+			case '\n':
+				app.put('\\');
+				app.put('n');
+				break;
+			default:
+				app.put(c);
+				break;
+			}
+		}
 
-        void putDDocString(string s)
-        {
-            foreach (c; s)
-                putDDocChar(c);
-        }
+		void putDDocString(string s)
+		{
+			foreach (c; s)
+				putDDocChar(c);
+		}
 
 		foreach(symbol; stuff.symbols.filter!(a => !a.doc.empty))
 		{
-            app.clear;
-            putDDocString(symbol.doc);
-            response.docComments ~= app.data.idup;
+			app.clear;
+			putDDocString(symbol.doc);
+			response.docComments ~= app.data.idup;
 		}
 	}
 	return response;
@@ -981,11 +981,12 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	if (completionType == CompletionType.identifiers)
 	{
 		while (symbols[0].qualifier == SymbolQualifier.func
-			|| symbols[0].kind == CompletionKind.functionName
-			|| symbols[0].kind == CompletionKind.importSymbol
-			|| symbols[0].kind == CompletionKind.aliasName)
+				|| symbols[0].kind == CompletionKind.functionName
+				|| symbols[0].kind == CompletionKind.importSymbol
+				|| symbols[0].kind == CompletionKind.aliasName)
 		{
-			symbols = symbols[0].type is null ? [] : [symbols[0].type];
+			symbols = symbols[0].type is null || symbols[0].type is symbols[0] ? []
+				: [symbols[0].type];
 			if (symbols.length == 0)
 				return;
 		}
@@ -1248,11 +1249,11 @@ body
 	case tok!"doubleLiteral":
 	case tok!"floatLiteral":
 	case tok!"idoubleLiteral":
-    case tok!"ifloatLiteral":
+	case tok!"ifloatLiteral":
 	case tok!"intLiteral":
 	case tok!"longLiteral":
 	case tok!"realLiteral":
-    case tok!"irealLiteral":
+	case tok!"irealLiteral":
 	case tok!"uintLiteral":
 	case tok!"ulongLiteral":
 	case tok!"characterLiteral":
