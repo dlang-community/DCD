@@ -783,7 +783,7 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 
 	if (shouldSwapWithType(completionType, symbols[0].kind, 0, tokens.length - 1))
 	{
-		symbols = symbols[0].type is null ? [] : [symbols[0].type];
+		symbols = symbols[0].type is null || symbols[0].type is symbols[0] ? [] : [symbols[0].type];
 		if (symbols.length == 0)
 			return [];
 	}
@@ -849,7 +849,7 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 				|| symbols[0].kind == CompletionKind.importSymbol
 				|| symbols[0].kind == CompletionKind.aliasName)
 			{
-				symbols = symbols[0].type is null ? [] : [symbols[0].type];
+				symbols = symbols[0].type is null || symbols[0].type is symbols[0] ? [] : [symbols[0].type];
 				if (symbols.length == 0)
 					break loop;
 			}
@@ -865,7 +865,7 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 			}
 			if (shouldSwapWithType(completionType, symbols[0].kind, i, tokens.length - 1))
 			{
-				symbols = symbols[0].type is null ? [] : [symbols[0].type];
+				symbols = symbols[0].type is null || symbols[0].type is symbols[0] ? [] : [symbols[0].type];
 				if (symbols.length == 0)
 					break loop;
 			}
@@ -874,7 +874,7 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 				&& (completionType == CompletionType.identifiers
 				|| i + 1 < tokens.length))
 			{
-				symbols = symbols[0].type is null ? [] : [symbols[0].type];
+				symbols = symbols[0].type is null || symbols[0].type is symbols[0] ? [] : [symbols[0].type];
 			}
 			if (symbols.length == 0)
 				break loop;
@@ -892,14 +892,14 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 				skip();
 				if (!isSliceExpression(tokens, i))
 				{
-					symbols = symbols[0].type is null ? [] : [symbols[0].type];
+					symbols = symbols[0].type is null || symbols[0].type is symbols[0] ? [] : [symbols[0].type];
 					if (symbols.length == 0)
 						break loop;
 				}
 			}
 			else if (symbols[0].qualifier == SymbolQualifier.assocArray)
 			{
-				symbols = symbols[0].type is null ? [] : [symbols[0].type];
+				symbols = symbols[0].type is null || symbols[0].type is symbols[0] ? [] : [symbols[0].type];
 				skip();
 			}
 			else
@@ -1001,7 +1001,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		{
 			if (symbols[0].kind == CompletionKind.aliasName)
 			{
-				if (symbols[0].type is null)
+				if (symbols[0].type is null || symbols[0].type is symbols[0])
 					return;
 				symbols = [symbols[0].type];
 			}

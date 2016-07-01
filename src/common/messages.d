@@ -55,7 +55,6 @@ enum CompletionType : string
 enum RequestKind : ushort
 {
 	// dfmt off
-
 	uninitialized =  0b00000000_00000000,
 	/// Autocompletion
 	autocomplete =   0b00000000_00000001,
@@ -75,7 +74,6 @@ enum RequestKind : ushort
 	search =         0b00000000_10000000,
 	/// List import directories
 	listImports =    0b00000001_00000000,
-
 	// dfmt on
 }
 
@@ -160,6 +158,11 @@ struct AutocompleteResponse
 	 * Import paths that are registered by the server.
 	 */
 	string[] importPaths;
+
+	/**
+	 * Symbol identifier
+	 */
+	ulong symbolIdentifier;
 }
 
 /**

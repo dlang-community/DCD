@@ -49,6 +49,7 @@ int main(string[] args)
 	bool query;
 	bool printVersion;
 	bool listImports;
+	bool getIdentifier;
 	string search;
 	version(Windows)
 	{
@@ -68,7 +69,8 @@ int main(string[] args)
 			"clearCache", &clearCache, "symbolLocation|l", &symbolLocation,
 			"doc|d", &doc, "query|status|q", &query, "search|s", &search,
 			"version", &printVersion, "listImports", &listImports,
-			"tcp", &useTCP, "socketFile", &socketFile);
+			"tcp", &useTCP, "socketFile", &socketFile,
+			"getIdentifier", &getIdentifier);
 	}
 	catch (ConvException e)
 	{
@@ -204,11 +206,11 @@ int main(string[] args)
 	request.cursorPosition = cursorPos;
 	request.searchName = search;
 
-	if (symbolLocation)
+	if (symbolLocation | getIdentifier)
 		request.kind |= RequestKind.symbolLocation;
 	else if (doc)
 		request.kind |= RequestKind.doc;
-	else if(search)
+	else if (search)
 		request.kind |= RequestKind.search;
 	else
 		request.kind |= RequestKind.autocomplete;
@@ -223,6 +225,8 @@ int main(string[] args)
 
 	if (symbolLocation)
 		printLocationResponse(response);
+	else if (getIdentifier)
+		printIdentifierResponse(response);
 	else if (doc)
 		printDocResponse(response);
 	else if (search !is null)
@@ -325,13 +329,22 @@ Socket createSocket(string socketFile, ushort port)
 	return socket;
 }
 
-void printDocResponse(AutocompleteResponse response)
+void printDocResponse(ref const AutocompleteResponse response)
 {
 	import std.array: join;
 	response.docComments.join("\n").writeln;
 }
 
-void printLocationResponse(AutocompleteResponse response)
+void printIdentifierResponse(ref const AutocompleteResponse response)
+{
+	if (response.completions.length == 0)
+		return;
+	write(response.completions[0]);
+	write("\t");
+	writeln(response.symbolIdentifier);
+}
+
+void printLocationResponse(ref const AutocompleteResponse response)
 {
 	if (response.symbolFilePath is null)
 		writeln("Not found");
@@ -339,7 +352,7 @@ void printLocationResponse(AutocompleteResponse response)
 		writefln("%s\t%d", response.symbolFilePath, response.symbolLocation);
 }
 
-void printCompletionResponse(AutocompleteResponse response)
+void printCompletionResponse(ref const AutocompleteResponse response)
 {
 	if (response.completions.length > 0)
 	{
