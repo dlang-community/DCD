@@ -643,35 +643,53 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
 
 	bool found = false;
 
-	foreach (importDirectory; cache.getImportPaths())
+	foreach (importPath; cache.getImportPaths())
 	{
-		string p = buildPath(importDirectory, path);
-		if (!exists(p))
-			continue;
-
-		found = true;
-
-		foreach (string name; dirEntries(p, SpanMode.shallow))
+		if (importPath.isFile)
 		{
-			import std.path: baseName;
-			if (name.baseName.startsWith(".#"))
+			if (!exists(importPath))
 				continue;
 
-			auto n = name.baseName(".d").baseName(".di");
-			if (isFile(name) && (name.endsWith(".d") || name.endsWith(".di"))
-				&& (partial is null || n.startsWith(partial)))
+			found = true;
+
+			auto n = importPath.baseName(".d").baseName(".di");
+			if (isFile(importPath) && (importPath.endsWith(".d") || importPath.endsWith(".di"))
+					&& (partial is null || n.startsWith(partial)))
 			{
 				response.completions ~= n;
 				response.completionKinds ~= CompletionKind.moduleName;
 			}
-			else if (isDir(name))
+		}
+		else
+		{
+			string p = buildPath(importPath, path);
+			if (!exists(p))
+				continue;
+
+			found = true;
+
+			foreach (string name; dirEntries(p, SpanMode.shallow))
 			{
-				if (n[0] != '.' && (partial is null || n.startsWith(partial)))
+				import std.path: baseName;
+				if (name.baseName.startsWith(".#"))
+					continue;
+
+				auto n = name.baseName(".d").baseName(".di");
+				if (isFile(name) && (name.endsWith(".d") || name.endsWith(".di"))
+					&& (partial is null || n.startsWith(partial)))
 				{
 					response.completions ~= n;
-					response.completionKinds ~=
-						exists(buildPath(name, "package.d")) || exists(buildPath(name, "package.di"))
-						? CompletionKind.moduleName : CompletionKind.packageName;
+					response.completionKinds ~= CompletionKind.moduleName;
+				}
+				else if (isDir(name))
+				{
+					if (n[0] != '.' && (partial is null || n.startsWith(partial)))
+					{
+						response.completions ~= n;
+						response.completionKinds ~=
+							exists(buildPath(name, "package.d")) || exists(buildPath(name, "package.di"))
+							? CompletionKind.moduleName : CompletionKind.packageName;
+					}
 				}
 			}
 		}
