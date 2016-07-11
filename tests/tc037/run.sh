@@ -1,1 +1,1 @@
-dcd-client -c 11 file.d
+../../bin/dcd-client $1 -c 11 file.d
