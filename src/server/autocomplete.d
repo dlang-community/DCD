@@ -801,20 +801,12 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 
 	if (shouldSwapWithType(completionType, symbols[0].kind, 0, tokens.length - 1))
 	{
-		if (symbols.length == 0)
+		if (symbols.length == 0 || symbols[0].type is null || symbols[0].type is symbols[0])
 			return [];
-        if (symbols[0].type is null || symbols[0].type is symbols[0])
-        {
-            symbols = [];
-        }
-        else if (symbols[0].type.kind == CompletionKind.functionName)
-        {
-            symbols = [symbols[0].type.type];
-        }
-        else
-        {
-            symbols = [symbols[0].type];
-        }
+		else if (symbols[0].type.kind == CompletionKind.functionName)
+			symbols = [symbols[0].type.type];
+		else
+			symbols = [symbols[0].type];
 	}
 
 	loop: for (size_t i = 1; i < tokens.length; i++)
