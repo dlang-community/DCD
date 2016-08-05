@@ -5,8 +5,7 @@
 *.dll
 
 # *nix binaries
-bin/dcd-client
-bin/dcd-server
+bin
 *.o
 *.a
 *.so

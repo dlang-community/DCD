@@ -51,6 +51,93 @@ import common.messages;
 import containers.hashset;
 
 /**
+ * Finds usage of the symbol at the cursor position in a single document.
+ * Params:
+ *     request = the autocompletion request
+ * Returns:
+ *     the autocompletion response
+ */
+public AutocompleteResponse findLocalUsage(AutocompleteRequest request,
+    ref ModuleCache moduleCache)
+{
+    AutocompleteResponse response;
+    RollbackAllocator rba;
+    auto allocator = scoped!(ASTAllocator)();
+    auto cache = StringCache(StringCache.defaultBucketCount);
+
+    // patchs the original request for the subsequent requests
+    request.kind = RequestKind.symbolLocation;
+
+    // getSymbolsForCompletion() copy to avoid repetitive parsing
+    LexerConfig config;
+    config.fileName = "";
+    const(Token)[] tokenArray = getTokensForParser(cast(ubyte[]) request.sourceCode,
+            config, &cache);
+    SymbolStuff getSymbolsAtCursor(size_t cursorPosition)
+    {
+        auto sortedTokens = assumeSorted(tokenArray);
+        auto beforeTokens = sortedTokens.lowerBound(cursorPosition);
+        ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
+            &rba, request.cursorPosition, moduleCache);
+        auto expression = getExpression(beforeTokens);
+        return SymbolStuff(getSymbolsByTokenChain(pair.scope_, expression,
+            cursorPosition, CompletionType.location), pair.symbol, pair.scope_);
+    }
+
+    // gets the symbol matching to cursor pos
+    SymbolStuff stuff = getSymbolsAtCursor(cast(size_t)request.cursorPosition);
+    scope(exit) stuff.destroy();
+
+    // starts searching only if no ambiguity with the symbol
+    if (stuff.symbols.length == 1)
+    {
+        const(DSymbol*) sourceSymbol = stuff.symbols[0];
+        response.symbolLocation = sourceSymbol.location;
+        response.symbolFilePath = sourceSymbol.symbolFile.idup;
+
+        // gets the source token to avoid too much getSymbolsAtCursor()
+        const(Token)* sourceToken;
+        foreach(i, t; tokenArray)
+        {
+            if (t.type != tok!"identifier")
+                continue;
+            if (request.cursorPosition >= t.index &&
+                request.cursorPosition < t.index + t.text.length)
+            {
+                sourceToken = tokenArray.ptr + i;
+                break;
+            }
+        }
+
+        // finds the tokens that match to the source symbol
+        if (sourceToken != null) foreach (t; tokenArray)
+        {
+            if (t.type == tok!"identifier" && t.text == sourceToken.text)
+            {
+                size_t pos = cast(size_t) t.index + 1; // place cursor inside the token
+                SymbolStuff candidate = getSymbolsAtCursor(pos);
+                scope(exit) candidate.destroy();
+                if (candidate.symbols.length == 1 &&
+                    candidate.symbols[0].location == sourceSymbol.location &&
+                    candidate.symbols[0].symbolFile == sourceSymbol.symbolFile)
+                {
+                    response.locations ~= t.index;
+                }
+            }
+        }
+        else
+        {
+            warning("The source token is not an identifier");
+        }
+    }
+    else
+    {
+        warning("No or ambiguous symbol for the identifier at cursor");
+    }
+    return response;
+}
+
+/**
  * Gets documentation for the symbol at the cursor
  * Params:
  *     request = the autocompletion request
