@@ -804,7 +804,12 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 		if (symbols.length == 0 || symbols[0].type is null || symbols[0].type is symbols[0])
 			return [];
 		else if (symbols[0].type.kind == CompletionKind.functionName)
-			symbols = [symbols[0].type.type];
+		{
+			if (symbols[0].type.type is null)
+				symbols = [];
+			else
+				symbols = [symbols[0].type.type];
+		}
 		else
 			symbols = [symbols[0].type];
 	}
