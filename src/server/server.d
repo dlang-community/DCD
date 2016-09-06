@@ -273,7 +273,7 @@ int main(string[] args)
 		if (request.kind & RequestKind.listImports)
 		{
 			AutocompleteResponse response;
-			response.importPaths = cache.getImportPaths().array();
+			response.importPaths = cache.getImportPaths().map!(a => cast() a).array();
 			ubyte[] responseBytes = msgpack.pack(response);
 			info("Returning import path list");
 			s.send(responseBytes);
