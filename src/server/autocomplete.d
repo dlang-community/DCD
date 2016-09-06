@@ -867,6 +867,9 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 			//trace(symbols[0].qualifier, " ", symbols[0].kind);
 			filterProperties();
 
+			if (symbols.length == 0)
+				break loop;
+
 			// Use type instead of the symbol itself for certain symbol kinds
 			while (symbols[0].qualifier == SymbolQualifier.func
 				|| symbols[0].kind == CompletionKind.functionName
