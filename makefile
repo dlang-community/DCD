@@ -33,7 +33,6 @@ CLIENT_SRC := \
 
 DMD_CLIENT_FLAGS := -Imsgpack-d/src\
 	-Imsgpack-d/src\
-	-Icontainers/experimental_allocator/src\
 	-J.\
 	-inline\
 	-O\
@@ -41,7 +40,6 @@ DMD_CLIENT_FLAGS := -Imsgpack-d/src\
 	-ofbin/dcd-client
 
 GDC_CLIENT_FLAGS := -Imsgpack-d/src\
-	-Icontainers/experimental_allocator/src\
 	-J.\
 	-O3\
 	-frelease\
@@ -49,7 +47,6 @@ GDC_CLIENT_FLAGS := -Imsgpack-d/src\
 
 LDC_CLIENT_FLAGS := -Imsgpack-d/src\
 	-Imsgpack-d/src\
-	-Icontainers/experimental_allocator/src\
 	-J=.\
 	-release\
 	-O5\
@@ -68,7 +65,6 @@ SERVER_SRC := \
 	${DPARSE_DIR}/src/dparse/rollback_allocator.d\
 	${DPARSE_DIR}/src/dparse/stack_buffer.d\
 	${DPARSE_DIR}/src/std/experimental/lexer.d\
-	$(shell find containers/experimental_allocator/src/std/experimental/allocator/ -name "*.d")\
 	containers/src/containers/dynamicarray.d\
 	containers/src/containers/ttree.d\
 	containers/src/containers/unrolledlist.d\
@@ -86,7 +82,6 @@ DMD_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
 	-I${DPARSE_DIR}/src\
 	-I${DSYMBOL_DIR}/src\
-	-Icontainers/experimental_allocator/src\
 	-J.\
 	-wi\
 	-O\
@@ -98,7 +93,6 @@ DEBUG_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
 	-I${DPARSE_DIR}/src\
 	-I${DSYMBOL_DIR}/src\
-	-Icontainers/experimental_allocator/src\
 	-wi\
 	-g\
 	-ofbin/dcd-server\
@@ -108,7 +102,6 @@ GDC_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
 	-I${DPARSE_DIR}/src\
 	-I${DSYMBOL_DIR}/src\
-	-Icontainers/experimental_allocator/src\
 	-J.\
 	-O3\
 	-frelease\
@@ -118,7 +111,6 @@ LDC_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
 	-I${DPARSE_DIR}/src\
 	-I${DSYMBOL_DIR}/src\
-	-Icontainers/experimental_allocator/src\
 	-Isrc\
 	-J=.\
 	-O5\
