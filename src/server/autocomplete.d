@@ -73,6 +73,15 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request,
 	{
 		Appender!(char[]) app;
 
+		bool isDitto(string s)
+		{
+			import std.uni : icmp;
+			if (s.length > 5)
+				return false;
+			else
+				return s.icmp("ditto") == 0;
+		}
+
 		void putDDocChar(dchar c)
 		{
 			switch (c)
@@ -97,7 +106,7 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request,
 				putDDocChar(c);
 		}
 
-		foreach(symbol; stuff.symbols.filter!(a => !a.doc.empty))
+		foreach(ref symbol; stuff.symbols.filter!(a => !a.doc.empty && !isDitto(a.doc)))
 		{
 			app.clear;
 			putDDocString(symbol.doc);

@@ -1,0 +1,1 @@
+/**d*/void fun(){} /**ditto*/void fun(uint){} /**  ditto   */void fun(float){}
