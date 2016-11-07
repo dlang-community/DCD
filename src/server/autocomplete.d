@@ -793,7 +793,7 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 			{
 				if (sym.type is null)
 					return;
-				if (sym.type.name.ptr == getBuiltinTypeName(tok!"void").ptr)
+				if (&sym.type.name[0] == &getBuiltinTypeName(tok!"void")[0])
 					voidRets++;
 				else
 				{
@@ -980,7 +980,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		foreach (sym; s.opSlice())
 		{
 			if (sym.name !is null && sym.name.length > 0 && isPublicCompletionKind(sym.kind)
-				&& (p is null ? true : sym.name.toUpper().startsWith(p.toUpper()))
+				&& (p is null ? true : toUpper(sym.name.data).startsWith(toUpper(p)))
 				&& !r.completions.canFind(sym.name)
 				&& sym.name[0] != '*')
 			{
@@ -998,7 +998,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	{
 		auto currentSymbols = completionScope.getSymbolsInCursorScope(cursorPosition);
 		foreach (s; currentSymbols.filter!(a => isPublicCompletionKind(a.kind)
-				&& a.name.toUpper().startsWith(partial.toUpper())))
+				&& toUpper(a.name.data).startsWith(toUpper(partial))))
 		{
 			response.completionKinds ~= s.kind;
 			response.completions ~= s.name.dup;
