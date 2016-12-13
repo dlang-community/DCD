@@ -1,0 +1,4 @@
+this()
+{
+    new class C {};
+}
