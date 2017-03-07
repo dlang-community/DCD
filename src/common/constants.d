@@ -174,6 +174,8 @@ immutable string[] predefinedVersions = [
 	"PPC64",
 	"PPC_HardFloat",
 	"PPC_SoftFloat",
+	"RISCV32",
+	"RISCV64",
 	"S390",
 	"S390X",
 	"SDC",
