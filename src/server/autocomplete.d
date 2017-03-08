@@ -778,10 +778,10 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 	// If the `symbols` array contains functions, and one of them returns
 	// void and the others do not, this is a property function. For the
 	// purposes of chaining auto-complete we want to ignore the one that
-	// returns void.
+	// returns void. This is a no-op if we are getting doc comments.
 	void filterProperties() @nogc @safe
 	{
-		if (symbols.length == 0)
+		if (symbols.length == 0 || completionType == CompletionType.ddoc)
 			return;
 		if (symbols[0].kind == CompletionKind.functionName
 			|| symbols[0].qualifier == SymbolQualifier.func)
