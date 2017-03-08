@@ -82,7 +82,7 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request,
 				return s.icmp("ditto") == 0;
 		}
 
-		void putDDocChar(dchar c)
+		void putDDocChar(char c)
 		{
 			switch (c)
 			{
@@ -102,7 +102,7 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request,
 
 		void putDDocString(string s)
 		{
-			foreach (c; s)
+			foreach (char c; s)
 				putDDocChar(c);
 		}
 

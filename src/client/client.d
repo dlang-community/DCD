@@ -331,8 +331,8 @@ Socket createSocket(string socketFile, ushort port)
 
 void printDocResponse(ref const AutocompleteResponse response)
 {
-	import std.array: join;
-	response.docComments.join("\n").writeln;
+	import std.algorithm : each;
+	response.docComments.each!(writeln);
 }
 
 void printIdentifierResponse(ref const AutocompleteResponse response)
