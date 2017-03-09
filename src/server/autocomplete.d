@@ -756,11 +756,43 @@ bool isSliceExpression(T)(T tokens, size_t index)
 DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 	T tokens, size_t cursorPosition, CompletionType completionType)
 {
+	//writeln(">>>");
+	//dumpTokens(tokens.release);
+	//writeln(">>>");
+
+	static size_t skipEnd(T tokenSlice, size_t i, IdType open, IdType close)
+	{
+		size_t j = i + 1;
+		for (int depth = 1; depth > 0 && j < tokenSlice.length; j++)
+		{
+			if (tokenSlice[j].type == open)
+				depth++;
+			else if (tokenSlice[j].type == close)
+			{
+				depth--;
+				if (depth == 0) break;
+			}
+		}
+		return j;
+	}
+
 	// Find the symbol corresponding to the beginning of the chain
 	DSymbol*[] symbols;
 	if (tokens.length == 0)
 		return [];
-	if (tokens[0] == tok!"." && tokens.length > 1)
+	// Recurse in case the symbol chain starts with an expression in parens
+	// e.g. (a.b!c).d
+	if (tokens[0] == tok!"(")
+	{
+		immutable j = skipEnd(tokens, 0, tok!"(", tok!")");
+		symbols = getSymbolsByTokenChain(completionScope, tokens[1 .. j],
+				cursorPosition, completionType);
+		tokens = tokens[j + 1 .. $];
+		//writeln("<<<");
+		//dumpTokens(tokens.release);
+		//writeln("<<<");
+	}
+	else if (tokens[0] == tok!"." && tokens.length > 1)
 	{
 		tokens = tokens[1 .. $];
 		symbols = completionScope.getSymbolsAtGlobalScope(stringToken(tokens[0]));
@@ -810,6 +842,7 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 
 	if (shouldSwapWithType(completionType, symbols[0].kind, 0, tokens.length - 1))
 	{
+		//trace("Swapping types");
 		if (symbols.length == 0 || symbols[0].type is null || symbols[0].type is symbols[0])
 			return [];
 		else if (symbols[0].type.kind == CompletionKind.functionName)
@@ -825,22 +858,11 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 
 	loop: for (size_t i = 1; i < tokens.length; i++)
 	{
-		IdType open;
-		IdType close;
-		void skip()
+		void skip(IdType open, IdType close)
 		{
-			i++;
-			for (int depth = 1; depth > 0 && i < tokens.length; i++)
-			{
-				if (tokens[i].type == open)
-					depth++;
-				else if (tokens[i].type == close)
-				{
-					depth--;
-					if (depth == 0) break;
-				}
-			}
+			i = skipEnd(tokens, i, open, close);
 		}
+
 		switch (tokens[i].type)
 		{
 		case tok!"int":
@@ -916,18 +938,22 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 			}
 			if (symbols.length == 0)
 				break loop;
+			if (tokens[i].type == tok!"!")
+			{
+				i++;
+				if (tokens[i].type == tok!"(")
+					goto case;
+				else
+					i++;
+			}
 			break;
 		case tok!"(":
-			open = tok!"(";
-			close = tok!")";
-			skip();
+			skip(tok!"(", tok!")");
 			break;
 		case tok!"[":
-			open = tok!"[";
-			close = tok!"]";
 			if (symbols[0].qualifier == SymbolQualifier.array)
 			{
-				skip();
+				skip(tok!"[", tok!"]");
 				if (!isSliceExpression(tokens, i))
 				{
 					symbols = symbols[0].type is null || symbols[0].type is symbols[0] ? [] : [symbols[0].type];
@@ -938,11 +964,11 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 			else if (symbols[0].qualifier == SymbolQualifier.assocArray)
 			{
 				symbols = symbols[0].type is null || symbols[0].type is symbols[0] ? [] : [symbols[0].type];
-				skip();
+				skip(tok!"[", tok!"]");
 			}
 			else
 			{
-				skip();
+				skip(tok!"[", tok!"]");
 				DSymbol*[] overloads;
 				if (isSliceExpression(tokens, i))
 					overloads = symbols[0].getPartsByName(internString("opSlice"));
@@ -1357,7 +1383,9 @@ bool shouldSwapWithType(CompletionType completionType, CompletionKind kind,
 		|| kind == CompletionKind.structName
 		|| kind == CompletionKind.interfaceName
 		|| kind == CompletionKind.enumName
-		|| kind == CompletionKind.unionName)
+		|| kind == CompletionKind.unionName
+		|| kind == CompletionKind.templateName
+		|| kind == CompletionKind.keyword)
 	{
 		return false;
 	}
@@ -1380,3 +1408,9 @@ istring stringToken()(auto ref const Token a)
 {
 	return internString(a.text is null ? str(a.type) : a.text);
 }
+
+//void dumpTokens(const Token[] tokens)
+//{
+	//foreach (t; tokens)
+		//writeln(t.line, ":", t.column, " ", stringToken(t));
+//}
