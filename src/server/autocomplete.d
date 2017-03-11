@@ -1196,12 +1196,6 @@ T getExpression(T)(T beforeTokens)
 			break expressionLoop;
 		mixin (TYPE_IDENT_AND_LITERAL_CASES);
 			mixin (EXPRESSION_LOOP_BREAK);
-			if (i > 1 && beforeTokens[i - 1] == tok!"!"
-				&& beforeTokens[i - 2] == tok!"identifier")
-			{
-				sliceEnd -= 2;
-				i--;
-			}
 			break;
 		case tok!".":
 			break;
