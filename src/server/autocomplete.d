@@ -1215,6 +1215,13 @@ T getExpression(T)(T beforeTokens)
 
 	expressionLoop: while (true)
 	{
+
+		if (i > 0 && beforeTokens[i].type == tok!"identifier" &&
+			beforeTokens[i-1].type == tok!"@" )
+		{
+			return beforeTokens[0 .. 0];
+		}
+
 		switch (beforeTokens[i].type)
 		{
 		case tok!"import":
