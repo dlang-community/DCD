@@ -791,10 +791,14 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 		//writeln("<<<");
 		//dumpTokens(tokens.release);
 		//writeln("<<<");
+		if (tokens.length == 0) // workaround (#371)
+			return [];
 	}
 	else if (tokens[0] == tok!"." && tokens.length > 1)
 	{
 		tokens = tokens[1 .. $];
+		if (tokens.length == 0)	// workaround (#371)
+			return [];
 		symbols = completionScope.getSymbolsAtGlobalScope(stringToken(tokens[0]));
 	}
 	else
@@ -802,8 +806,11 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 
 	if (symbols.length == 0)
 	{
-		warning("Could not find declaration of ", stringToken(tokens[0]),
-			" from position ", cursorPosition);
+		//TODO: better bugfix for issue #368, see test case 52 or pull #371
+		if (tokens.length)
+			warning("Could not find declaration of ", stringToken(tokens[0]),
+				" from position ", cursorPosition);
+		else assert(0, "internal error");
 		return [];
 	}
 
