@@ -175,8 +175,12 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 		{
 			ImportKind kind = determineImportKind(beforeTokens);
 			if (kind == ImportKind.neither)
+			{
+				if (beforeTokens.isUdaExpression)
+					beforeTokens = beforeTokens[$-1 .. $];
 				return dotCompletion(beforeTokens, tokenArray, request.cursorPosition,
 					moduleCache);
+            }
 			else
 				return importCompletion(beforeTokens, kind, moduleCache);
 		}
@@ -1195,6 +1199,29 @@ private enum TYPE_IDENT_AND_LITERAL_CASES = q{
 	case tok!"dstringLiteral":
 };
 
+bool isUdaExpression(T)(ref T tokens)
+{
+	bool result;
+	ptrdiff_t skip;
+	ptrdiff_t i = tokens.length - 2;
+
+	while (i >= 2)
+	{
+		if (skip == 0 && tokens[i].type == tok!"identifier" && tokens[i-1].type == tok!"@")
+		{
+			result = true;
+			break;
+		}
+		
+		skip += tokens[i].type == tok!")";
+		skip -= tokens[i].type == tok!"(";
+		
+		--i;
+	}
+    
+	return result;
+}
+
 
 /**
  *
@@ -1222,13 +1249,6 @@ T getExpression(T)(T beforeTokens)
 
 	expressionLoop: while (true)
 	{
-
-		if (i > 0 && beforeTokens[i].type == tok!"identifier" &&
-			beforeTokens[i-1].type == tok!"@" )
-		{
-			return beforeTokens[0 .. 0];
-		}
-
 		switch (beforeTokens[i].type)
 		{
 		case tok!"import":
