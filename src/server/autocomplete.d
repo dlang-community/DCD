@@ -1204,24 +1204,51 @@ bool isUdaExpression(T)(ref T tokens)
 	bool result;
 	ptrdiff_t skip;
 	ptrdiff_t i = tokens.length - 2;
-
-	while (i >= 2)
+	
+	if (i < 1)
+		return result;
+	
+	// skips the UDA ctor
+	if (tokens[i].type == tok!")")
 	{
-		if (skip == 0 && tokens[i].type == tok!"identifier" && tokens[i-1].type == tok!"@")
+		++skip;
+		--i;
+		while (i >= 2)
+		{
+			skip += tokens[i].type == tok!")";
+			skip -= tokens[i].type == tok!"(";
+			--i;
+			if (skip == 0)
+			{
+				// @UDA!(TemplateParameters)(FunctionParameters)
+				if (i > 3 && tokens[i].type == tok!"!" && tokens[i-1].type == tok!")")
+				{
+					skip = 1;
+					i -= 2;
+					continue;
+				}
+				else break;
+			}
+		}
+	}
+	
+	if (skip == 0)
+	{
+		// @UDA!SingleTemplateParameter
+		if (i > 2 && tokens[i].type == tok!"identifier" && tokens[i-1].type == tok!"!")
+		{
+			i -= 2;
+		}
+
+		// @UDA
+		if (i > 0 && tokens[i].type == tok!"identifier" && tokens[i-1].type == tok!"@")
 		{
 			result = true;
-			break;
 		}
-		
-		skip += tokens[i].type == tok!")";
-		skip -= tokens[i].type == tok!"(";
-		
-		--i;
 	}
     
 	return result;
 }
-
 
 /**
  *
