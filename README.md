@@ -240,7 +240,7 @@ What you actually want is this:
 	/usr/include/dmd/druntime/import
 	/usr/include/dmd/phobos
 
-##Shut down the server
+## Shut down the server
 The server can be shut down by running the client with the `--shutdown` option:
 
 	dcd-client --shutdown
