@@ -8,6 +8,17 @@ IMPORTS=$(pwd)/imports
 fail_count=0
 pass_count=0
 
+function startServer()
+{
+	if [[ $socket == "unix" ]]; then
+		../bin/dcd-server --ignoreConfig -I $IMPORTS 2>stderr.txt > stdout.txt &
+	else
+		../bin/dcd-server --tcp --ignoreConfig -I $IMPORTS 2>stderr.txt > stdout.txt &
+	fi
+	server_pid=$!
+	sleep 1s;
+}
+
 # Make sure that the server is shut down
 echo "Shutting down currently-running server..."
 ../bin/dcd-client --shutdown 2>/dev/null > /dev/null
@@ -19,12 +30,7 @@ for socket in unix tcp; do
 
 	# Start up the server
 	echo "Starting server..."
-	if [[ $socket == "unix" ]]; then
-		../bin/dcd-server --ignoreConfig -I $IMPORTS 2>stderr.txt > stdout.txt &
-	else
-		../bin/dcd-server --tcp --ignoreConfig -I $IMPORTS 2>stderr.txt > stdout.txt &
-	fi
-	sleep 1s;
+	startServer
 
 	# Run tests
 	for testCase in tc*; do
@@ -44,6 +50,17 @@ for socket in unix tcp; do
 		fi
 
 		cd - > /dev/null;
+
+		if ! kill -0 $server_pid > /dev/null 2>&1; then
+			echo "Server no longer running."
+			echo -e "${RED}STDERR:${NORMAL}"
+			cat stderr.txt
+			echo -e "${RED}STDOUT:${NORMAL}"
+			cat stdout.txt
+
+			echo "Restarting server..."
+			startServer
+		fi
 	done
 
 	# Shut down
@@ -53,16 +70,17 @@ for socket in unix tcp; do
 	else
 		../bin/dcd-client --shutdown --tcp 2>/dev/null > /dev/null
 	fi
+
+	# Report
+	if [[ $fail_count -eq 0 ]]; then
+		echo -e "${GREEN}${pass_count} tests passed and ${fail_count} failed.${NORMAL}"
+	else
+		echo -e "${RED}${pass_count} tests passed and ${fail_count} failed.${NORMAL}"
+		echo -e "${RED}STDERR:${NORMAL}"
+		cat stderr.txt
+		echo -e "${RED}STDOUT:${NORMAL}"
+		cat stdout.txt
+		exit 1
+	fi
 done
 
-# Report
-if [[ $fail_count -eq 0 ]]; then
-	echo -e "${GREEN}${pass_count} tests passed and ${fail_count} failed.${NORMAL}"
-else
-	echo -e "${RED}${pass_count} tests passed and ${fail_count} failed.${NORMAL}"
-	echo -e "${RED}STDERR:${NORMAL}"
-	cat stderr.txt
-	echo -e "${RED}STDOUT:${NORMAL}"
-	cat stdout.txt
-	exit 1
-fi
