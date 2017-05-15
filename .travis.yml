@@ -1,6 +1,17 @@
 sudo: false
 language: d
-script:
-    - git submodule update --init --recursive
-    - make debug -j2
-    - cd tests && ./run_tests.sh
+d:
+  - dmd-beta
+  - dmd
+  - ldc
+
+os:
+  - linux
+# TODO, some bug in OSX for the server that causes it to fail
+#  - osx
+
+env:
+  - BUILD=
+  - BUILD=dub
+
+script: ./.travis.sh
