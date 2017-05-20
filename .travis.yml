@@ -1,8 +1,10 @@
 sudo: false
 language: d
 d:
+  - dmd-nightly
   - dmd-beta
   - dmd
+  - ldc-beta
   - ldc
 
 os:
