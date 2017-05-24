@@ -54,6 +54,7 @@ immutable string[] traits = [
 	"getAliasThis",
 	"getAttributes",
 	"getFunctionAttributes",
+	"getFunctionVariadicStyle",
 	"getLinkage",
 	"getMember",
 	"getOverloads",
