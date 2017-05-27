@@ -58,6 +58,7 @@ immutable string[] traits = [
 	"getLinkage",
 	"getMember",
 	"getOverloads",
+	"getParameterStorageClasses",
 	"getPointerBitmap",
 	"getProtection",
 	"getUnitTests",
