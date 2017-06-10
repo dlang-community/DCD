@@ -681,7 +681,7 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
 
 			found = true;
 
-			foreach (string name; dirEntries(p, SpanMode.shallow))
+			try foreach (string name; dirEntries(p, SpanMode.shallow))
 			{
 				import std.path: baseName;
 				if (name.baseName.startsWith(".#"))
@@ -705,6 +705,7 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
 					}
 				}
 			}
+			catch(FileException){}
 		}
 	}
 	if (!found)
