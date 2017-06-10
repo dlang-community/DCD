@@ -1,3 +1,5 @@
+IF "%DC%"=="" SET DC="dmd"
+
 set containers_modules=
 for /r "containers/src" %%F in (*.d) do call set containers_modules=%%containers_modules%% "%%F"
 
@@ -19,7 +21,7 @@ for /r "msgpack-d/src" %%F in (*.d) do call set msgspack_modules=%%msgspack_modu
 set client_name=bin\dcd-client
 set server_name=bin\dcd-server
 
-dmd^
+%DC%^
  src\client\client.d^
  src\common\messages.d^
  src\common\dcd_version.d^
@@ -29,7 +31,7 @@ dmd^
  -release -inline -O -wi^
  -of%client_name%
 
-dmd^
+%DC%^
  %server_modules%^
  %dsymbol_modules%^
  %libdparse_modules%^
@@ -41,6 +43,6 @@ dmd^
  -Ilibdparse/src^
  -wi -O -release^
  -of%server_name%
- 
+
 if exist %server_name%.obj del %server_name%.obj
 if exist %client_name%.obj del %client_name%.obj
