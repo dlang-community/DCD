@@ -705,7 +705,10 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
 					}
 				}
 			}
-			catch(FileException){}
+			catch(FileException)
+			{
+				warning("Cannot access import path: ", importPath);
+			}
 		}
 	}
 	if (!found)
