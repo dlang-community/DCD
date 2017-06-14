@@ -75,7 +75,7 @@ enum RequestKind : ushort
 	/// List import directories
 	listImports =    0b00000001_00000000,
 	/// local symbol usage
-	localUsage =     0b00000010_00000000,
+	localUse =     	 0b00000010_00000000,
 	// dfmt on
 }
 

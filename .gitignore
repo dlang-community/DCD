@@ -5,7 +5,7 @@
 *.dll
 
 # *nix binaries
-bin
+bin/
 *.o
 *.a
 *.so

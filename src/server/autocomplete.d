@@ -51,13 +51,13 @@ import common.messages;
 import containers.hashset;
 
 /**
- * Finds usage of the symbol at the cursor position in a single document.
+ * Finds the uses of the symbol at the cursor position within a single document.
  * Params:
- *     request = the autocompletion request
+ *     request = the autocompletion request.
  * Returns:
- *     the autocompletion response
+ *     the autocompletion response.
  */
-public AutocompleteResponse findLocalUsage(AutocompleteRequest request,
+public AutocompleteResponse findLocalUse(AutocompleteRequest request,
     ref ModuleCache moduleCache)
 {
     AutocompleteResponse response;

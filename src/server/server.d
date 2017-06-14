@@ -318,11 +318,11 @@ int main(string[] args)
 			ubyte[] responseBytes = msgpack.pack(response);
 			s.send(responseBytes);
 		}
-        else if (request.kind & RequestKind.localUsage)
+        else if (request.kind & RequestKind.localUse)
         {
             try
             {
-                AutocompleteResponse response = findLocalUsage(request, cache);
+                AutocompleteResponse response = findLocalUse(request, cache);
                 ubyte[] responseBytes = msgpack.pack(response);
                 s.send(responseBytes);
             }

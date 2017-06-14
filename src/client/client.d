@@ -50,7 +50,7 @@ int main(string[] args)
 	bool printVersion;
 	bool listImports;
 	bool getIdentifier;
-	bool localUsage;
+	bool localUse;
 	string search;
 	version(Windows)
 	{
@@ -72,7 +72,8 @@ int main(string[] args)
 			"version", &printVersion, "listImports", &listImports,
 			"tcp", &useTCP, "socketFile", &socketFile,
 			"getIdentifier", &getIdentifier,
-			"localUsage|u", &localUsage);
+			"localUsage", &localUse, // TODO:remove this line in Nov. 2017
+			"localUse|u", &localUse);
 	}
 	catch (ConvException e)
 	{
@@ -214,8 +215,8 @@ int main(string[] args)
 		request.kind |= RequestKind.doc;
 	else if (search)
 		request.kind |= RequestKind.search;
-	else if(localUsage)
-		request.kind |= RequestKind.localUsage;
+	else if(localUse)
+		request.kind |= RequestKind.localUse;
 	else
 		request.kind |= RequestKind.autocomplete;
 
@@ -235,8 +236,8 @@ int main(string[] args)
 		printDocResponse(response);
 	else if (search !is null)
 		printSearchResponse(response);
-	else if (localUsage)
-		printLocalUsage(response);
+	else if (localUse)
+		printLocalUse(response);
 	else
 		printCompletionResponse(response);
 
@@ -283,8 +284,8 @@ Options:
         Searches for symbolName in both stdin / the given file name as well as
         others files cached by the server.
 
-    --localUsage | -u
-        Searches for all the usages of the symbol at the cursor location
+    --localUse | -u
+        Searches for all the uses of the symbol at the cursor location
         in the given filename (or stdin).
 
     --query | -q | --status
@@ -395,7 +396,7 @@ void printSearchResponse(const AutocompleteResponse response)
 	}
 }
 
-void printLocalUsage(const AutocompleteResponse response)
+void printLocalUse(const AutocompleteResponse response)
 {
 	if (response.symbolFilePath.length)
 	{
