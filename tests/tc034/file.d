@@ -1,0 +1,1 @@
+string str; string txt;

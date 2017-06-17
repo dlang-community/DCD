@@ -318,6 +318,19 @@ int main(string[] args)
 			ubyte[] responseBytes = msgpack.pack(response);
 			s.send(responseBytes);
 		}
+        else if (request.kind & RequestKind.localUse)
+        {
+            try
+            {
+                AutocompleteResponse response = findLocalUse(request, cache);
+                ubyte[] responseBytes = msgpack.pack(response);
+                s.send(responseBytes);
+            }
+            catch (Exception e)
+            {
+                warning("Could not find local usage", e.msg);
+            }
+        }
 		info("Request processed in ", requestWatch.peek().to!("msecs", float), " milliseconds");
 	}
 	return 0;
