@@ -18,7 +18,7 @@
       "targetType": "library",
       "excludedSourceFiles": [
         "src/client/*",
-        "src/server/server.d"
+        "src/server/main.d"
       ]
     },
     {
