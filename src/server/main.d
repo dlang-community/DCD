@@ -156,7 +156,7 @@ int main(string[] args)
 			info("Listening at ", socketFile);
 		}
 	}
-	socket.listen(0);
+	socket.listen(32);
 
 	scope (exit)
 	{
