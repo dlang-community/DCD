@@ -113,7 +113,7 @@ int main(string[] args)
 		return 1;
 	}
 
-	if (serverIsRunning(useTCP, socketFile,  port))
+	if (serverIsRunning(useTCP, socketFile, port))
 	{
 		fatal("Another instance of DCD-server is already running");
 		return 1;
@@ -131,7 +131,7 @@ int main(string[] args)
 		socket = new TcpSocket(AddressFamily.INET);
 		socket.blocking = true;
 		socket.setOption(SocketOptionLevel.SOCKET, SocketOption.REUSEADDR, true);
-		socket.bind(new InternetAddress("localhost", port));
+		socket.bind(new InternetAddress("127.0.0.1", port));
 		info("Listening on port ", port);
 	}
 	else
@@ -182,39 +182,21 @@ int main(string[] args)
 	// No relative paths
 	version (Posix) chdir("/");
 
-	version (LittleEndian)
-		immutable expectedClient = IPv4Union([1, 0, 0, 127]);
-	else
-		immutable expectedClient = IPv4Union([127, 0, 0, 1]);
-
 	serverLoop: while (true)
 	{
 		auto s = socket.accept();
 		s.blocking = true;
-
-		if (useTCP)
-		{
-			// Only accept connections from localhost
-			IPv4Union actual;
-			InternetAddress clientAddr = cast(InternetAddress) s.remoteAddress();
-			actual.i = clientAddr.addr;
-			// Shut down if somebody tries connecting from outside
-			if (actual.i != expectedClient.i)
-			{
-				fatal("Connection attempted from ", clientAddr.toAddrString());
-				return 1;
-			}
-		}
 
 		scope (exit)
 		{
 			s.shutdown(SocketShutdown.BOTH);
 			s.close();
 		}
-		ptrdiff_t bytesReceived = s.receive(buffer);
 
-		auto requestWatch = StopWatch(AutoStart.yes);
+		sw.reset();
+		sw.start();
 
+		auto bytesReceived = s.receive(buffer);
 		size_t messageLength;
 		// bit magic!
 		(cast(ubyte*) &messageLength)[0..size_t.sizeof] = buffer[0..size_t.sizeof];
@@ -223,20 +205,15 @@ int main(string[] args)
 			immutable b = s.receive(buffer[bytesReceived .. $]);
 			if (b == Socket.ERROR)
 			{
-				bytesReceived = Socket.ERROR;
-				break;
+				warning("Socket recieve failed");
+				continue serverLoop;
 			}
 			bytesReceived += b;
 		}
 
-		if (bytesReceived == Socket.ERROR)
-		{
-			warning("Socket recieve failed");
-			break;
-		}
-
 		AutocompleteRequest request;
 		msgpack.unpack(buffer[size_t.sizeof .. bytesReceived], request);
+
 		if (request.kind & RequestKind.clearCache)
 		{
 			info("Clearing cache.");
@@ -249,101 +226,63 @@ int main(string[] args)
 		}
 		else if (request.kind & RequestKind.query)
 		{
-			AutocompleteResponse response;
-			response.completionType = "ack";
-			ubyte[] responseBytes = msgpack.pack(response);
-			s.send(responseBytes);
+			s.sendResponse(AutocompleteResponse.ack);
 			continue;
 		}
+
 		if (request.kind & RequestKind.addImport)
 		{
 			cache.addImportPaths(request.importPaths);
 		}
+
 		if (request.kind & RequestKind.listImports)
 		{
 			AutocompleteResponse response;
 			response.importPaths = cache.getImportPaths().map!(a => cast() a).array();
-			ubyte[] responseBytes = msgpack.pack(response);
 			info("Returning import path list");
-			s.send(responseBytes);
+			s.sendResponse(response);
 		}
 		else if (request.kind & RequestKind.autocomplete)
 		{
 			info("Getting completions");
-			AutocompleteResponse response = complete(request, cache);
-			ubyte[] responseBytes = msgpack.pack(response);
-			s.send(responseBytes);
+			s.sendResponse(complete(request, cache));
 		}
 		else if (request.kind & RequestKind.doc)
 		{
 			info("Getting doc comment");
-			try
-			{
-				AutocompleteResponse response = getDoc(request, cache);
-				ubyte[] responseBytes = msgpack.pack(response);
-				s.send(responseBytes);
-			}
-			catch (Exception e)
-			{
-				warning("Could not get DDoc information", e.msg);
-			}
+			s.trySendResponse(getDoc(request, cache), "Could not get DDoc information");
 		}
 		else if (request.kind & RequestKind.symbolLocation)
-		{
-			try
-			{
-				AutocompleteResponse response = findDeclaration(request, cache);
-				ubyte[] responseBytes = msgpack.pack(response);
-				s.send(responseBytes);
-			}
-			catch (Exception e)
-			{
-				warning("Could not get symbol location", e.msg);
-			}
-		}
+			s.trySendResponse(findDeclaration(request, cache), "Could not get symbol location");
 		else if (request.kind & RequestKind.search)
-		{
-			AutocompleteResponse response = symbolSearch(request, cache);
-			ubyte[] responseBytes = msgpack.pack(response);
-			s.send(responseBytes);
-		}
-        else if (request.kind & RequestKind.localUse)
-        {
-            try
-            {
-                AutocompleteResponse response = findLocalUse(request, cache);
-                ubyte[] responseBytes = msgpack.pack(response);
-                s.send(responseBytes);
-            }
-            catch (Exception e)
-            {
-                warning("Could not find local usage", e.msg);
-            }
-        }
-		info("Request processed in ", requestWatch.peek().to!("msecs", float), " milliseconds");
+			s.sendResponse(symbolSearch(request, cache));
+		else if (request.kind & RequestKind.localUse)
+			s.trySendResponse(findLocalUse(request, cache), "Could not find local usage");
+
+		sw.stop();
+		info("Request processed in ", sw.peek().to!("msecs", float), " milliseconds");
 	}
 	return 0;
 }
 
-/// IP v4 address as bytes and a uint
-union IPv4Union
+/// Lazily evaluates a response with an exception handler and sends it to a socket or logs msg if evaluating response fails.
+void trySendResponse(Socket socket, lazy AutocompleteResponse response, string msg)
 {
-	/// the bytes
-	ubyte[4] b;
-	/// the uint
-	uint i;
+	try
+	{
+		sendResponse(socket, response);
+	}
+	catch (Exception e)
+	{
+		warningf("%s: %s", msg, e.msg);
+	}
 }
 
-import std.regex : ctRegex;
-alias envVarRegex = ctRegex!(`\$\{([_a-zA-Z][_a-zA-Z 0-9]*)\}`);
-
-private unittest
+/// Packs an AutocompleteResponse and sends it to a socket.
+void sendResponse(Socket socket, AutocompleteResponse response)
 {
-	import std.regex : replaceAll;
-
-	enum input = `${HOME}/aaa/${_bb_b}/ccc`;
-
-	assert(replaceAll!(m => m[1])(input, envVarRegex) == `HOME/aaa/_bb_b/ccc`);
+	ubyte[] responseBytes = msgpack.pack(response);
+	socket.send(responseBytes);
 }
 
 /**

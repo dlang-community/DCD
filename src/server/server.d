@@ -70,8 +70,8 @@ string getConfigurationLocation()
  */
 void warnAboutOldConfigLocation()
 {
-	version (linux) if ("~/.config/dcd".expandTilde().exists()
-		&& "~/.config/dcd".expandTilde().isFile())
+	const configPath = "~/.config/dcd".expandTilde;
+	version (linux) if (configPath.exists && configPath.isFile)
 	{
 		warning("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 		warning("!! Upgrade warning:");

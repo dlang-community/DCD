@@ -165,6 +165,16 @@ struct AutocompleteResponse
 	 * Symbol identifier
 	 */
 	ulong symbolIdentifier;
+
+	/**
+	 * Creates an empty acknoledgement response
+	 */
+	static AutocompleteResponse ack()
+	{
+		AutocompleteResponse response;
+		response.completionType = "ack";
+		return response;
+	}
 }
 
 /**
