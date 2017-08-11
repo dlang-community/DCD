@@ -167,7 +167,7 @@ struct AutocompleteResponse
 	ulong symbolIdentifier;
 
 	/**
-	 * Creates an empty acknoledgement response
+	 * Creates an empty acknowledgement response
 	 */
 	static AutocompleteResponse ack()
 	{

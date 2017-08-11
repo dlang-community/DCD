@@ -131,7 +131,7 @@ int main(string[] args)
 		socket = new TcpSocket(AddressFamily.INET);
 		socket.blocking = true;
 		socket.setOption(SocketOptionLevel.SOCKET, SocketOption.REUSEADDR, true);
-		socket.bind(new InternetAddress("127.0.0.1", port));
+		socket.bind(new InternetAddress("localhost", port));
 		info("Listening on port ", port);
 	}
 	else
@@ -182,10 +182,29 @@ int main(string[] args)
 	// No relative paths
 	version (Posix) chdir("/");
 
+	version (LittleEndian)
+		immutable expectedClient = IPv4Union([1, 0, 0, 127]);
+	else
+		immutable expectedClient = IPv4Union([127, 0, 0, 1]);
+
 	serverLoop: while (true)
 	{
 		auto s = socket.accept();
 		s.blocking = true;
+
+		if (useTCP)
+		{
+			// Only accept connections from localhost
+			IPv4Union actual;
+			InternetAddress clientAddr = cast(InternetAddress) s.remoteAddress();
+			actual.i = clientAddr.addr;
+			// Shut down if somebody tries connecting from outside
+			if (actual.i != expectedClient.i)
+			{
+				fatal("Connection attempted from ", clientAddr.toAddrString());
+				return 1;
+			}
+		}
 
 		scope (exit)
 		{
@@ -193,10 +212,10 @@ int main(string[] args)
 			s.close();
 		}
 
-		sw.reset();
-		sw.start();
-
 		auto bytesReceived = s.receive(buffer);
+
+		auto requestWatch = StopWatch(AutoStart.yes);
+
 		size_t messageLength;
 		// bit magic!
 		(cast(ubyte*) &messageLength)[0..size_t.sizeof] = buffer[0..size_t.sizeof];
@@ -205,10 +224,16 @@ int main(string[] args)
 			immutable b = s.receive(buffer[bytesReceived .. $]);
 			if (b == Socket.ERROR)
 			{
-				warning("Socket recieve failed");
-				continue serverLoop;
+				bytesReceived = Socket.ERROR;
+				break;
 			}
 			bytesReceived += b;
+		}
+
+		if (bytesReceived == Socket.ERROR)
+		{
+			warning("Socket recieve failed");
+			break;
 		}
 
 		AutocompleteRequest request;
@@ -259,10 +284,18 @@ int main(string[] args)
 		else if (request.kind & RequestKind.localUse)
 			s.trySendResponse(findLocalUse(request, cache), "Could not find local usage");
 
-		sw.stop();
-		info("Request processed in ", sw.peek().to!("msecs", float), " milliseconds");
+		info("Request processed in ", requestWatch.peek().to!("msecs", float), " milliseconds");
 	}
 	return 0;
+}
+
+/// IP v4 address as bytes and a uint
+union IPv4Union
+{
+	/// the bytes
+	ubyte[4] b;
+	/// the uint
+	uint i;
 }
 
 /// Lazily evaluates a response with an exception handler and sends it to a socket or logs msg if evaluating response fails.
