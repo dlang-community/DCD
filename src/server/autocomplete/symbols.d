@@ -43,16 +43,15 @@ import containers.hashset;
  *     the autocompletion response
  */
 public AutocompleteResponse findDeclaration(const AutocompleteRequest request,
-		ref ModuleCache moduleCache)
+	ref ModuleCache moduleCache)
 {
 	AutocompleteResponse response;
 	RollbackAllocator rba;
 	auto allocator = scoped!(ASTAllocator)();
 	auto cache = StringCache(StringCache.defaultBucketCount);
-	SymbolStuff stuff = getSymbolsForCompletion(request, CompletionType.location,
-			allocator, &rba, cache, moduleCache);
-	scope (exit)
-		stuff.destroy();
+	SymbolStuff stuff = getSymbolsForCompletion(request,
+		CompletionType.location, allocator, &rba, cache, moduleCache);
+	scope(exit) stuff.destroy();
 	if (stuff.symbols.length > 0)
 	{
 		response.symbolLocation = stuff.symbols[0].location;
@@ -67,20 +66,20 @@ public AutocompleteResponse findDeclaration(const AutocompleteRequest request,
  *
  */
 public AutocompleteResponse symbolSearch(const AutocompleteRequest request,
-		ref ModuleCache moduleCache)
+	ref ModuleCache moduleCache)
 {
 	import containers.ttree : TTree;
 
 	LexerConfig config;
 	config.fileName = "";
 	auto cache = StringCache(StringCache.defaultBucketCount);
-	const(Token)[] tokenArray = getTokensForParser(cast(ubyte[]) request.sourceCode, config, &cache);
+	const(Token)[] tokenArray = getTokensForParser(cast(ubyte[]) request.sourceCode,
+		config, &cache);
 	auto allocator = scoped!(ASTAllocator)();
 	RollbackAllocator rba;
 	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
-			&rba, request.cursorPosition, moduleCache);
-	scope (exit)
-		pair.destroy();
+		&rba, request.cursorPosition, moduleCache);
+	scope(exit) pair.destroy();
 
 	static struct SearchResults
 	{

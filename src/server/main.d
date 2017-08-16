@@ -113,7 +113,7 @@ int main(string[] args)
 		return 1;
 	}
 
-	if (serverIsRunning(useTCP, socketFile, port))
+	if (serverIsRunning(useTCP, socketFile,  port))
 	{
 		fatal("Another instance of DCD-server is already running");
 		return 1;
@@ -211,8 +211,7 @@ int main(string[] args)
 			s.shutdown(SocketShutdown.BOTH);
 			s.close();
 		}
-
-		auto bytesReceived = s.receive(buffer);
+		ptrdiff_t bytesReceived = s.receive(buffer);
 
 		auto requestWatch = StopWatch(AutoStart.yes);
 
@@ -238,7 +237,6 @@ int main(string[] args)
 
 		AutocompleteRequest request;
 		msgpack.unpack(buffer[size_t.sizeof .. bytesReceived], request);
-
 		if (request.kind & RequestKind.clearCache)
 		{
 			info("Clearing cache.");
@@ -251,39 +249,77 @@ int main(string[] args)
 		}
 		else if (request.kind & RequestKind.query)
 		{
-			s.sendResponse(AutocompleteResponse.ack);
+			AutocompleteResponse response;
+			response.completionType = "ack";
+			ubyte[] responseBytes = msgpack.pack(response);
+			s.send(responseBytes);
 			continue;
 		}
-
 		if (request.kind & RequestKind.addImport)
 		{
 			cache.addImportPaths(request.importPaths);
 		}
-
 		if (request.kind & RequestKind.listImports)
 		{
 			AutocompleteResponse response;
 			response.importPaths = cache.getImportPaths().map!(a => cast() a).array();
+			ubyte[] responseBytes = msgpack.pack(response);
 			info("Returning import path list");
-			s.sendResponse(response);
+			s.send(responseBytes);
 		}
 		else if (request.kind & RequestKind.autocomplete)
 		{
 			info("Getting completions");
-			s.sendResponse(complete(request, cache));
+			AutocompleteResponse response = complete(request, cache);
+			ubyte[] responseBytes = msgpack.pack(response);
+			s.send(responseBytes);
 		}
 		else if (request.kind & RequestKind.doc)
 		{
 			info("Getting doc comment");
-			s.trySendResponse(getDoc(request, cache), "Could not get DDoc information");
+			try
+			{
+				AutocompleteResponse response = getDoc(request, cache);
+				ubyte[] responseBytes = msgpack.pack(response);
+				s.send(responseBytes);
+			}
+			catch (Exception e)
+			{
+				warning("Could not get DDoc information", e.msg);
+			}
 		}
 		else if (request.kind & RequestKind.symbolLocation)
-			s.trySendResponse(findDeclaration(request, cache), "Could not get symbol location");
+		{
+			try
+			{
+				AutocompleteResponse response = findDeclaration(request, cache);
+				ubyte[] responseBytes = msgpack.pack(response);
+				s.send(responseBytes);
+			}
+			catch (Exception e)
+			{
+				warning("Could not get symbol location", e.msg);
+			}
+		}
 		else if (request.kind & RequestKind.search)
-			s.sendResponse(symbolSearch(request, cache));
-		else if (request.kind & RequestKind.localUse)
-			s.trySendResponse(findLocalUse(request, cache), "Could not find local usage");
-
+		{
+			AutocompleteResponse response = symbolSearch(request, cache);
+			ubyte[] responseBytes = msgpack.pack(response);
+			s.send(responseBytes);
+		}
+        else if (request.kind & RequestKind.localUse)
+        {
+            try
+            {
+                AutocompleteResponse response = findLocalUse(request, cache);
+                ubyte[] responseBytes = msgpack.pack(response);
+                s.send(responseBytes);
+            }
+            catch (Exception e)
+            {
+                warning("Could not find local usage", e.msg);
+            }
+        }
 		info("Request processed in ", requestWatch.peek().to!("msecs", float), " milliseconds");
 	}
 	return 0;
@@ -298,24 +334,16 @@ union IPv4Union
 	uint i;
 }
 
-/// Lazily evaluates a response with an exception handler and sends it to a socket or logs msg if evaluating response fails.
-void trySendResponse(Socket socket, lazy AutocompleteResponse response, string msg)
-{
-	try
-	{
-		sendResponse(socket, response);
-	}
-	catch (Exception e)
-	{
-		warningf("%s: %s", msg, e.msg);
-	}
-}
+import std.regex : ctRegex;
+alias envVarRegex = ctRegex!(`\$\{([_a-zA-Z][_a-zA-Z 0-9]*)\}`);
 
-/// Packs an AutocompleteResponse and sends it to a socket.
-void sendResponse(Socket socket, AutocompleteResponse response)
+private unittest
 {
-	ubyte[] responseBytes = msgpack.pack(response);
-	socket.send(responseBytes);
+	import std.regex : replaceAll;
+
+	enum input = `${HOME}/aaa/${_bb_b}/ccc`;
+
+	assert(replaceAll!(m => m[1])(input, envVarRegex) == `HOME/aaa/_bb_b/ccc`);
 }
 
 /**
