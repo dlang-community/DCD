@@ -5,13 +5,13 @@ alias bar = T!foo;   // doesn't work
 
 final class ABC
 {
-    static @property bool mybool()
-    {
-        return true;
-    }
+	static @property bool mybool()
+	{
+		return true;
+	}
 }
 
 void main()
 {
-    while(!ABC.mybool) {}
+	while(!ABC.mybool) {}
 }

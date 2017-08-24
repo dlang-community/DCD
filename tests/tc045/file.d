@@ -1,5 +1,5 @@
 this()
 {
-    new class C {};
-    XX
+	new class C {};
+	XX
 }
