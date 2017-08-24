@@ -59,12 +59,8 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 		request.cursorPosition, stringCache, tokenArray);
 	if (beforeTokens.length >= 2)
 	{
-		if (beforeTokens[$ - 1] == tok!"(" || beforeTokens[$ - 1] == tok!"[")
-		{
-			return parenCompletion(beforeTokens, tokenArray, request.cursorPosition,
-				moduleCache);
-		}
-		else if (beforeTokens[$ - 1] == tok!",")
+		if (beforeTokens[$ - 1] == tok!"(" || beforeTokens[$ - 1] == tok!"["
+			|| beforeTokens[$ - 1] == tok!",")
 		{
 			immutable size_t end = goBackToOpenParen(beforeTokens);
 			if (end != size_t.max)
@@ -80,7 +76,7 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 					beforeTokens = beforeTokens[$-1 .. $];
 				return dotCompletion(beforeTokens, tokenArray, request.cursorPosition,
 					moduleCache);
-            }
+			}
 			else
 				return importCompletion(beforeTokens, kind, moduleCache);
 		}
@@ -122,16 +118,14 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 		significantTokenType = tok!"identifier";
 		beforeTokens = beforeTokens[0 .. $ - 1];
 	}
-	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] ==  tok!".")
+	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == tok!".")
 		significantTokenType = beforeTokens[$ - 2].type;
 	else
 		return response;
 
 	switch (significantTokenType)
 	{
-	case tok!"stringLiteral":
-	case tok!"wstringLiteral":
-	case tok!"dstringLiteral":
+	mixin(STRING_LITERAL_CASES);
 		foreach (symbol; arraySymbols)
 		{
 			response.completionKinds ~= symbol.kind;
@@ -139,34 +133,9 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 		}
 		response.completionType = CompletionType.identifiers;
 		break;
-	case tok!"int":
-	case tok!"uint":
-	case tok!"long":
-	case tok!"ulong":
-	case tok!"char":
-	case tok!"wchar":
-	case tok!"dchar":
-	case tok!"bool":
-	case tok!"byte":
-	case tok!"ubyte":
-	case tok!"short":
-	case tok!"ushort":
-	case tok!"cent":
-	case tok!"ucent":
-	case tok!"float":
-	case tok!"ifloat":
-	case tok!"cfloat":
-	case tok!"idouble":
-	case tok!"cdouble":
-	case tok!"double":
-	case tok!"real":
-	case tok!"ireal":
-	case tok!"creal":
-	case tok!"identifier":
+	mixin(TYPE_IDENT_CASES);
 	case tok!")":
 	case tok!"]":
-	case tok!"this":
-	case tok!"super":
 		auto allocator = scoped!(ASTAllocator)();
 		RollbackAllocator rba;
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
@@ -227,7 +196,6 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 		break;
 	case tok!"characterLiteral":
 	case tok!"doubleLiteral":
-	case tok!"dstringLiteral":
 	case tok!"floatLiteral":
 	case tok!"identifier":
 	case tok!"idoubleLiteral":
@@ -236,14 +204,13 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	case tok!"irealLiteral":
 	case tok!"longLiteral":
 	case tok!"realLiteral":
-	case tok!"stringLiteral":
 	case tok!"uintLiteral":
 	case tok!"ulongLiteral":
-	case tok!"wstringLiteral":
 	case tok!"this":
 	case tok!"super":
 	case tok!")":
 	case tok!"]":
+	mixin(STRING_LITERAL_CASES);
 		auto allocator = scoped!(ASTAllocator)();
 		RollbackAllocator rba;
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
