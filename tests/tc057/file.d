@@ -1,0 +1,1 @@
+void foo(){const a = [[0]:0]; auto b = true; b.}
