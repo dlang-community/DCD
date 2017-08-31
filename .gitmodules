@@ -6,8 +6,8 @@
 	url = https://github.com/economicmodeling/containers.git
 [submodule "libdparse"]
 	path = libdparse
-	url = https://github.com/Hackerpilot/libdparse.git
+	url = https://github.com/dlang-community/libdparse.git
 	branch = master
 [submodule "dsymbol"]
 	path = dsymbol
-	url = https://github.com/Hackerpilot/dsymbol.git
+	url = https://github.com/dlang-community/dsymbol.git
