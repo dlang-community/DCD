@@ -1,14 +1,14 @@
 struct Bob
 {
-    version (all)
-    {
-    }
-    else
-    {
-        @disable this();
-    }
+	version (all)
+	{
+	}
+	else
+	{
+		@disable this();
+	}
 
-    int abcde;
+	int abcde;
 }
 
 unittest

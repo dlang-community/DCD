@@ -1,9 +1,9 @@
 struct Foo
 {
-    /// Sets or gets prop
-    void prop(int t);
-    /// ditto
-    int prop();
+	/// Sets or gets prop
+	void prop(int t);
+	/// ditto
+	int prop();
 }
 
 void main(string[] args)

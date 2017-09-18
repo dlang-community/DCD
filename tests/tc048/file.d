@@ -1,9 +1,9 @@
 template Foo(T)
 {
-    void bar();
+	void bar();
 }
 
 void main(string[] args)
 {
-    (Foo!int).
+	(Foo!int).
 }
