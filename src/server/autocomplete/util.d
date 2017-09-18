@@ -485,7 +485,7 @@ T getExpression(T)(T beforeTokens)
 		skip:
 			mixin (EXPRESSION_LOOP_BREAK);
 			immutable bookmark = i;
-			beforeTokens.skipParenReverse(i, open, close);
+			i = beforeTokens.skipParenReverse(i, open, close);
 
 			skipCount++;
 
@@ -666,13 +666,13 @@ body
 	case tok!"[":
 		return i + 1;
 	case tok!")":
-		beforeTokens.skipParenReverse!true(i, tok!")", tok!"(");
+		i = beforeTokens.skipParenReverseBefore(i, tok!")", tok!"(");
 		break;
 	case tok!"}":
-		beforeTokens.skipParenReverse!true(i, tok!"}", tok!"{");
+		i = beforeTokens.skipParenReverseBefore(i, tok!"}", tok!"{");
 		break;
 	case tok!"]":
-		beforeTokens.skipParenReverse!true(i, tok!"]", tok!"[");
+		i = beforeTokens.skipParenReverseBefore(i, tok!"]", tok!"[");
 		break;
 	default:
 		return size_t.max;
@@ -700,10 +700,10 @@ void skipParen(T)(T tokenSlice, ref size_t i, IdType open, IdType close)
 /**
  * Skips blocks of parentheses in reverse until the starting block has been opened
  */
-void skipParenReverse(bool before = false, T)(T beforeTokens, ref size_t i, IdType open, IdType close)
+size_t skipParenReverse(T)(T beforeTokens, size_t i, IdType open, IdType close)
 {
 	if (i == 0)
-		return;
+		return 0;
 	int depth = 1;
 	while (depth != 0 && i != 0)
 	{
@@ -713,9 +713,15 @@ void skipParenReverse(bool before = false, T)(T beforeTokens, ref size_t i, IdTy
 		else if (beforeTokens[i].type == close)
 			depth--;
 	}
-	static if (before)
-		if (i != 0)
-			i--;
+	return i;
+}
+
+size_t skipParenReverseBefore(T)(T beforeTokens, size_t i, IdType open, IdType close)
+{
+	i = skipParenReverse(beforeTokens, i, open, close);
+	if (i != 0)
+		i--;
+	return i;
 }
 
 ///
@@ -726,9 +732,9 @@ unittest
 		Token(tok!"identifier"), Token(tok!"("), Token(tok!")"), Token(tok!",")
 	];
 	size_t i = t.length - 1;
-	skipParenReverse!false(t, i, tok!")", tok!"(");
+	i = skipParenReverse(t, i, tok!")", tok!"(");
 	assert(i == 2);
 	i = t.length - 1;
-	skipParenReverse!true(t, i, tok!")", tok!"(");
+	i = skipParenReverseBefore(t, i, tok!")", tok!"(");
 	assert(i == 1);
 }
