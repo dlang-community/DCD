@@ -65,22 +65,6 @@ string getConfigurationLocation()
 	}
 }
 
-/**
- * Prints a warning message to the user when an old config file is detected.
- */
-void warnAboutOldConfigLocation()
-{
-	version (linux) if ("~/.config/dcd".expandTilde().exists()
-		&& "~/.config/dcd".expandTilde().isFile())
-	{
-		warning("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-		warning("!! Upgrade warning:");
-		warning("!! '~/.config/dcd' should be moved to '$XDG_CONFIG_HOME/dcd/dcd.conf'");
-		warning("!! or '$HOME/.config/dcd/dcd.conf'");
-		warning("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-	}
-}
-
 import std.regex : ctRegex;
 alias envVarRegex = ctRegex!(`\$\{([_a-zA-Z][_a-zA-Z 0-9]*)\}`);
 
@@ -104,7 +88,6 @@ string[] loadConfiguredImportDirs()
 		return replaceAll!(m => environment.get(m[1], ""))(l, envVarRegex);
 	}
 
-	warnAboutOldConfigLocation();
 	immutable string configLocation = getConfigurationLocation();
 	if (!configLocation.exists())
 		return [];
