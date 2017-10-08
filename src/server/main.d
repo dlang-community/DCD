@@ -113,7 +113,7 @@ int main(string[] args)
 		return 1;
 	}
 
-	if (serverIsRunning(useTCP, socketFile,  port))
+	if (serverIsRunning(useTCP, socketFile, port))
 	{
 		fatal("Another instance of DCD-server is already running");
 		return 1;
@@ -211,9 +211,11 @@ int main(string[] args)
 			s.shutdown(SocketShutdown.BOTH);
 			s.close();
 		}
+
 		ptrdiff_t bytesReceived = s.receive(buffer);
 
-		auto requestWatch = StopWatch(AutoStart.yes);
+		sw.reset();
+		sw.start();
 
 		size_t messageLength;
 		// bit magic!
@@ -237,6 +239,7 @@ int main(string[] args)
 
 		AutocompleteRequest request;
 		msgpack.unpack(buffer[size_t.sizeof .. bytesReceived], request);
+
 		if (request.kind & RequestKind.clearCache)
 		{
 			info("Clearing cache.");
@@ -249,80 +252,63 @@ int main(string[] args)
 		}
 		else if (request.kind & RequestKind.query)
 		{
-			AutocompleteResponse response;
-			response.completionType = "ack";
-			ubyte[] responseBytes = msgpack.pack(response);
-			s.send(responseBytes);
+			s.sendResponse(AutocompleteResponse.ack);
 			continue;
 		}
+
 		if (request.kind & RequestKind.addImport)
 		{
 			cache.addImportPaths(request.importPaths);
 		}
+
 		if (request.kind & RequestKind.listImports)
 		{
 			AutocompleteResponse response;
 			response.importPaths = cache.getImportPaths().map!(a => cast() a).array();
-			ubyte[] responseBytes = msgpack.pack(response);
 			info("Returning import path list");
-			s.send(responseBytes);
+			s.sendResponse(response);
 		}
 		else if (request.kind & RequestKind.autocomplete)
 		{
 			info("Getting completions");
-			AutocompleteResponse response = complete(request, cache);
-			ubyte[] responseBytes = msgpack.pack(response);
-			s.send(responseBytes);
+			s.sendResponse(complete(request, cache));
 		}
 		else if (request.kind & RequestKind.doc)
 		{
 			info("Getting doc comment");
-			try
-			{
-				AutocompleteResponse response = getDoc(request, cache);
-				ubyte[] responseBytes = msgpack.pack(response);
-				s.send(responseBytes);
-			}
-			catch (Exception e)
-			{
-				warning("Could not get DDoc information", e.msg);
-			}
+			s.trySendResponse(getDoc(request, cache), "Could not get DDoc information");
 		}
 		else if (request.kind & RequestKind.symbolLocation)
-		{
-			try
-			{
-				AutocompleteResponse response = findDeclaration(request, cache);
-				ubyte[] responseBytes = msgpack.pack(response);
-				s.send(responseBytes);
-			}
-			catch (Exception e)
-			{
-				warning("Could not get symbol location", e.msg);
-			}
-		}
+			s.trySendResponse(findDeclaration(request, cache), "Could not get symbol location");
 		else if (request.kind & RequestKind.search)
-		{
-			AutocompleteResponse response = symbolSearch(request, cache);
-			ubyte[] responseBytes = msgpack.pack(response);
-			s.send(responseBytes);
-		}
-        else if (request.kind & RequestKind.localUse)
-        {
-            try
-            {
-                AutocompleteResponse response = findLocalUse(request, cache);
-                ubyte[] responseBytes = msgpack.pack(response);
-                s.send(responseBytes);
-            }
-            catch (Exception e)
-            {
-                warning("Could not find local usage", e.msg);
-            }
-        }
-		info("Request processed in ", requestWatch.peek().to!("msecs", float), " milliseconds");
+			s.sendResponse(symbolSearch(request, cache));
+		else if (request.kind & RequestKind.localUse)
+			s.trySendResponse(findLocalUse(request, cache), "Couldnot find local usage");
+
+		sw.stop();
+		info("Request processed in ", sw.peek().to!("msecs", float), " milliseconds");
 	}
 	return 0;
+}
+
+/// Lazily evaluates a response with an exception handler and sends it to a socket or logs msg if evaluating response fails.
+void trySendResponse(Socket socket, lazy AutocompleteResponse response, lazy string msg)
+{
+	try
+	{
+		sendResponse(socket, response);
+	}
+	catch (Exception e)
+	{
+		warningf("%s: %s", msg, e.msg);
+	}
+}
+
+/// Packs an AutocompleteResponse and sends it to a socket.
+void sendResponse(Socket socket, AutocompleteResponse response)
+{
+	ubyte[] responseBytes = msgpack.pack(response);
+	socket.send(responseBytes);
 }
 
 /// IP v4 address as bytes and a uint
