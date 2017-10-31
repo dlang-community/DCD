@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module server.autocomplete.symbols;
+module dcd.server.autocomplete.symbols;
 
 import std.experimental.logger;
 import std.typecons;
 
-import server.autocomplete.util;
+import dcd.server.autocomplete.util;
 
 import dparse.lexer;
 import dparse.rollback_allocator;
@@ -31,7 +31,7 @@ import dsymbol.modulecache;
 import dsymbol.string_interning;
 import dsymbol.symbol;
 
-import common.messages;
+import dcd.common.messages;
 
 import containers.hashset;
 

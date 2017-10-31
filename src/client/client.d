@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module client.client;
+module dcd.client.client;
 
 import std.socket;
 import std.stdio;
@@ -30,9 +30,9 @@ import std.conv;
 import std.string;
 import std.experimental.logger;
 
-import common.messages;
-import common.dcd_version;
-import common.socket;
+import dcd.common.messages;
+import dcd.common.dcd_version;
+import dcd.common.socket;
 
 int main(string[] args)
 {

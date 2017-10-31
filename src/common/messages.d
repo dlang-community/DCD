@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module common.messages;
+module dcd.common.messages;
 
 import std.socket;
 import msgpack;
