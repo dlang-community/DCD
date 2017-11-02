@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module server.autocomplete.util;
+module dcd.server.autocomplete.util;
 
 import std.algorithm;
 import std.experimental.allocator;
@@ -25,7 +25,7 @@ import std.range;
 import std.string;
 import std.typecons;
 
-import common.messages;
+import dcd.common.messages;
 
 import dparse.lexer;
 import dparse.rollback_allocator;

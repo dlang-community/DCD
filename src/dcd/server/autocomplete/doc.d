@@ -16,21 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module server.autocomplete.doc;
+module dcd.server.autocomplete.doc;
 
 import std.algorithm;
 import std.array;
 import std.experimental.logger;
 import std.typecons;
 
-import server.autocomplete.util;
+import dcd.server.autocomplete.util;
 
 import dparse.lexer;
 import dparse.rollback_allocator;
 
 import dsymbol.modulecache;
 
-import common.messages;
+import dcd.common.messages;
 
 /**
  * Gets documentation for the symbol at the cursor

@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module server.autocomplete;
+module dcd.server.autocomplete;
 
 public:
 
-import server.autocomplete.complete;
-import server.autocomplete.doc;
-import server.autocomplete.localuse;
-import server.autocomplete.symbols;
+import dcd.server.autocomplete.complete;
+import dcd.server.autocomplete.doc;
+import dcd.server.autocomplete.localuse;
+import dcd.server.autocomplete.symbols;

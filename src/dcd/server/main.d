@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module server.main;
+module dcd.server.main;
 
 import core.sys.posix.sys.stat;
 import std.algorithm;
@@ -36,12 +36,12 @@ import std.stdio;
 
 import msgpack;
 
-import common.dcd_version;
-import common.messages;
-import common.socket;
+import dcd.common.dcd_version;
+import dcd.common.messages;
+import dcd.common.socket;
 import dsymbol.modulecache;
-import server.autocomplete;
-import server.server;
+import dcd.server.autocomplete;
+import dcd.server.server;
 
 int main(string[] args)
 {

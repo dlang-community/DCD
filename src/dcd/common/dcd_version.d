@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module common.dcd_version;
+module dcd.common.dcd_version;
 
 /**
  * Human-readable version number

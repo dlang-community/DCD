@@ -17,26 +17,26 @@
       "name": "library",
       "targetType": "library",
       "excludedSourceFiles": [
-        "src/client/*",
-        "src/server/main.d"
+        "src/dcd/client/*",
+        "src/dcd/server/main.d"
       ]
     },
     {
       "name": "client",
       "targetType": "executable",
       "targetName": "dcd-client",
-      "mainSourceFile": "src/client/client.d",
+      "mainSourceFile": "src/dcd/client/client.d",
       "excludedSourceFiles": [
-        "src/server/*"
+        "src/dcd/server/*"
       ]
     },
     {
       "name": "server",
       "targetType": "executable",
       "targetName": "dcd-server",
-      "mainSourceFile": "src/server/server.d",
+      "mainSourceFile": "src/dcd/server/server.d",
       "excludedSourceFiles": [
-        "src/client/*"
+        "src/dcd/client/*"
       ]
     }
   ]

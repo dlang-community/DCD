@@ -27,8 +27,8 @@ clean:
 	rm -f *.o
 
 CLIENT_SRC := \
-	$(shell find src/common -name "*.d")\
-	$(shell find src/client -name "*.d")\
+	$(shell find src/dcd/common -name "*.d")\
+	$(shell find src/dcd/client -name "*.d")\
 	$(shell find msgpack-d/src/ -name "*.d")
 
 DMD_CLIENT_FLAGS := -Imsgpack-d/src\
@@ -54,8 +54,8 @@ LDC_CLIENT_FLAGS := -Imsgpack-d/src\
 	-of=bin/dcd-client
 
 SERVER_SRC := \
-	$(shell find src/common -name "*.d")\
-	$(shell find src/server -name "*.d")\
+	$(shell find src/dcd/common -name "*.d")\
+	$(shell find src/dcd/server -name "*.d")\
 	$(shell find ${DSYMBOL_DIR}/src -name "*.d")\
 	${DPARSE_DIR}/src/dparse/ast.d\
 	${DPARSE_DIR}/src/dparse/entities.d\

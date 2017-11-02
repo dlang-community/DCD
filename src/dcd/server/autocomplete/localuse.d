@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module server.autocomplete.localuse;
+module dcd.server.autocomplete.localuse;
 
 import std.experimental.logger;
 import std.range;
 import std.typecons;
 
-import server.autocomplete.util;
+import dcd.server.autocomplete.util;
 
 import dparse.lexer;
 import dparse.rollback_allocator;
@@ -31,7 +31,7 @@ import dsymbol.conversion;
 import dsymbol.modulecache;
 import dsymbol.symbol;
 
-import common.messages;
+import dcd.common.messages;
 
 /**
  * Finds the uses of the symbol at the cursor position within a single document.

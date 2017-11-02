@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-module server.autocomplete.complete;
+module dcd.server.autocomplete.complete;
 
 import std.algorithm;
 import std.array;
@@ -27,7 +27,7 @@ import std.path;
 import std.string;
 import std.typecons;
 
-import server.autocomplete.util;
+import dcd.server.autocomplete.util;
 
 import dparse.lexer;
 import dparse.rollback_allocator;
@@ -40,8 +40,8 @@ import dsymbol.scope_;
 import dsymbol.string_interning;
 import dsymbol.symbol;
 
-import common.constants;
-import common.messages;
+import dcd.common.constants;
+import dcd.common.messages;
 
 /**
  * Handles autocompletion
