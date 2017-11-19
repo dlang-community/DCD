@@ -40,7 +40,8 @@ immutable string[] linkages = [
 	"D",
 	"Pascal",
 	"System",
-	"Windows"
+	"Windows",
+	"Objective-C"
 ];
 
 /**
