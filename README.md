@@ -135,6 +135,31 @@ tab character, followed by a completion kind
 	calltip	v
 	getPartByName	f
 
+#### Extended output mode
+You can pass `--full` to dcd-client to get more information. Output will now be
+escaped (newlines get escaped to `\n`, tabs get escaped to `\t`, backslash gets escaped to `\\`).
+
+Calltips are slightly different here because they first start with the function name instead of
+arguments and the second part will be blank. The actual calltip is now in the third column.
+
+Columns may be empty, in which case there will be multiple tabs next to each other.
+
+The following information will be available in every line for completion in this format then in
+a tab separated format:
+* identifier: raw name of a variable or function, etc
+* kind: empty for calltips, see above for rest
+* definition: function or variable definition string or close approximation for information display purpose
+* symbolFilePath: in which file this symbol is defined or `stdin`
+* symbolLocation: the byte offset at which the symbol is located in the file
+* documentation: escaped documentation string of this symbol
+
+#### Example `--full` output
+	identifiers
+	libraryFunction	f	Tuple!long libraryFunction(string s, string s2)	stdin 190	foobar
+	libraryFunction	f	int* libraryFunction(string s)	stdin 99	Hello\nWorld
+	libraryVariable	v	int libraryVariable	stdin 56	My variable
+	libreTypes	g		stdin 298	
+
 #### Note
 DCD's output will start with "identifiers" when completing at a left paren
 character if the keywords *pragma*, *scope*, *__traits*, *extern*, or *version*

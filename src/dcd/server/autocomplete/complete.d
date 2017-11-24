@@ -127,10 +127,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	{
 	mixin(STRING_LITERAL_CASES);
 		foreach (symbol; arraySymbols)
-		{
-			response.completionKinds ~= symbol.kind;
-			response.completions ~= symbol.name.dup;
-		}
+			response.completions ~= makeSymbolCompletionInfo(symbol, symbol.kind);
 		response.completionType = CompletionType.identifiers;
 		break;
 	mixin(TYPE_IDENT_CASES);
@@ -169,7 +166,7 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	const(Token)[] tokenArray, size_t cursorPosition, ref ModuleCache moduleCache)
 {
 	AutocompleteResponse response;
-	immutable(string)[] completions;
+	immutable(ConstantCompletion)[] completions;
 	switch (beforeTokens[$ - 2].type)
 	{
 	case tok!"__traits":
@@ -190,8 +187,12 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 		response.completionType = CompletionType.identifiers;
 		foreach (completion; completions)
 		{
-			response.completions ~= completion;
-			response.completionKinds ~= CompletionKind.keyword;
+			response.completions ~= AutocompleteResponse.Completion(
+				completion.identifier,
+				CompletionKind.keyword,
+				null, null, 0, // definition, symbol path+location
+				completion.ddoc
+			);
 		}
 		break;
 	case tok!"characterLiteral":
@@ -310,8 +311,7 @@ body
 				&& !sy.skipOver && sy.name != CONSTRUCTOR_SYMBOL_NAME
 				&& isPublicCompletionKind(sy.kind))
 		{
-			response.completionKinds ~= sy.kind;
-			response.completions ~= sy.name;
+			response.completions ~= makeSymbolCompletionInfo(sy, sy.kind);
 			h.insert(sy.name);
 		}
 	}
@@ -361,10 +361,7 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
 			auto n = importPath.baseName(".d").baseName(".di");
 			if (isFile(importPath) && (importPath.endsWith(".d") || importPath.endsWith(".di"))
 					&& (partial is null || n.startsWith(partial)))
-			{
-				response.completions ~= n;
-				response.completionKinds ~= CompletionKind.moduleName;
-			}
+				response.completions ~= AutocompleteResponse.Completion(n, CompletionKind.moduleName, null, importPath, 0);
 		}
 		else
 		{
@@ -383,18 +380,18 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
 				auto n = name.baseName(".d").baseName(".di");
 				if (isFile(name) && (name.endsWith(".d") || name.endsWith(".di"))
 					&& (partial is null || n.startsWith(partial)))
-				{
-					response.completions ~= n;
-					response.completionKinds ~= CompletionKind.moduleName;
-				}
+					response.completions ~= AutocompleteResponse.Completion(n, CompletionKind.moduleName, null, name, 0);
 				else if (isDir(name))
 				{
 					if (n[0] != '.' && (partial is null || n.startsWith(partial)))
 					{
-						response.completions ~= n;
-						response.completionKinds ~=
-							exists(buildPath(name, "package.d")) || exists(buildPath(name, "package.di"))
-							? CompletionKind.moduleName : CompletionKind.packageName;
+						string packageDPath = buildPath(name, "package.d");
+						string packageDIPath = buildPath(name, "package.di");
+						bool packageD = exists(packageDPath);
+						bool packageDI = exists(packageDIPath);
+						auto kind = packageD || packageDI ? CompletionKind.moduleName : CompletionKind.packageName;
+						string file = packageD ? packageDPath : packageDI ? packageDIPath : name;
+						response.completions ~= AutocompleteResponse.Completion(n, kind, null, file, 0);
 					}
 				}
 			}
@@ -424,11 +421,10 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		{
 			if (sym.name !is null && sym.name.length > 0 && isPublicCompletionKind(sym.kind)
 				&& (p is null ? true : toUpper(sym.name.data).startsWith(toUpper(p)))
-				&& !r.completions.canFind(sym.name)
+				&& !r.completions.canFind!(a => a.identifier == sym.name)
 				&& sym.name[0] != '*')
 			{
-				r.completionKinds ~= sym.kind;
-				r.completions ~= sym.name.dup;
+				r.completions ~= makeSymbolCompletionInfo(sym, sym.kind);
 			}
 			if (sym.kind == CompletionKind.importSymbol && !sym.skipOver && sym.type !is null)
 				addSymToResponse(sym.type, r, p, circularGuard ~ (cast(size_t) s));
@@ -443,8 +439,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		foreach (s; currentSymbols.filter!(a => isPublicCompletionKind(a.kind)
 				&& toUpper(a.name.data).startsWith(toUpper(partial))))
 		{
-			response.completionKinds ~= s.kind;
-			response.completions ~= s.name.dup;
+			response.completions ~= makeSymbolCompletionInfo(s, s.kind);
 		}
 		response.completionType = CompletionType.identifiers;
 		return;
@@ -539,12 +534,16 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		foreach (symbol; symbols)
 		{
 			if (symbol.kind != CompletionKind.aliasName && symbol.callTip !is null)
-				response.completions ~= symbol.callTip;
+			{
+				auto completion = makeSymbolCompletionInfo(symbol, char.init);
+				// TODO: put return type
+				response.completions ~= completion;
+			}
 		}
 	}
 }
 
-string generateStructConstructorCalltip(const DSymbol* symbol)
+AutocompleteResponse.Completion generateStructConstructorCalltip(const DSymbol* symbol)
 in
 {
 	assert(symbol.kind == CompletionKind.structName);
@@ -570,5 +569,8 @@ body
 			generatedStructConstructorCalltip ~= ", ";
 	}
 	generatedStructConstructorCalltip ~= ")";
-	return generatedStructConstructorCalltip;
+	auto completion = makeSymbolCompletionInfo(symbol, char.init);
+	completion.identifier = "this";
+	completion.definition = generatedStructConstructorCalltip;
+	return completion;
 }

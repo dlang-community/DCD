@@ -116,11 +116,7 @@ public AutocompleteResponse symbolSearch(const AutocompleteRequest request,
 
 	AutocompleteResponse response;
 	foreach (result; results.tree[])
-	{
-		response.locations ~= result.symbol.location;
-		response.completionKinds ~= result.symbol.kind;
-		response.completions ~= result.symbol.symbolFile;
-	}
+		response.completions ~= makeSymbolCompletionInfo(result.symbol, result.symbol.kind);
 
 	return response;
 }

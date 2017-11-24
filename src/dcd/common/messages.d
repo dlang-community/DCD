@@ -120,6 +120,44 @@ struct AutocompleteRequest
  */
 struct AutocompleteResponse
 {
+	static struct Completion
+	{
+		/**
+		 * The name of the symbol for a completion, for calltips just the function name.
+		 */
+		string identifier;
+		/**
+		 * The kind of the item. Will be char.init for calltips.
+		 */
+		char kind;
+		/**
+		 * Definition for a symbol for a completion including attributes or the arguments for calltips.
+		 */
+		string definition;
+		/**
+		 * The path to the file that contains the symbol.
+		 */
+		string symbolFilePath;
+		/**
+		 * The byte offset at which the symbol is located or symbol location for symbol searches.
+		 */
+		size_t symbolLocation;
+		/**
+		 * Documentation associated with this symbol.
+		 */
+		string documentation;
+
+		deprecated("Use identifier (or definition for calltips) instead") string compatibilityContent() const
+		{
+			if (kind == char.init)
+				return definition;
+			else
+				return identifier;
+		}
+
+		alias compatibilityContent this;
+	}
+
 	/**
 	 * The autocompletion type. (Parameters or identifier)
 	 */
@@ -136,25 +174,9 @@ struct AutocompleteResponse
 	size_t symbolLocation;
 
 	/**
-	 * The documentation comment
-	 */
-	string[] docComments;
-
-	/**
 	 * The completions
 	 */
-	string[] completions;
-
-	/**
-	 * The kinds of the items in the completions array. Will be empty if the
-	 * completion type is a function argument list.
-	 */
-	char[] completionKinds;
-
-	/**
-	 * Symbol locations for symbol searches.
-	 */
-	size_t[] locations;
+	Completion[] completions;
 
 	/**
 	 * Import paths that are registered by the server.
@@ -165,6 +187,30 @@ struct AutocompleteResponse
 	 * Symbol identifier
 	 */
 	ulong symbolIdentifier;
+
+	deprecated("use completions[].documentation + escapeTabValue instead") string[] docComments() @property
+	{
+		string[] ret;
+		foreach (ref completion; completions)
+			ret ~= completion.documentation.escapeTabValue(true);
+		return ret;
+	}
+
+	deprecated("use completions[].kind instead") char[] completionKinds() @property
+	{
+		char[] ret;
+		foreach (ref completion; completions)
+			ret ~= completion.kind;
+		return ret;
+	}
+
+	deprecated("use completions[].symbolLocation instead") size_t[] locations() @property
+	{
+		size_t[] ret;
+		foreach (ref completion; completions)
+			ret ~= completion.symbolLocation;
+		return ret;
+	}
 
 	/**
 	 * Creates an empty acknowledgement response
@@ -245,4 +291,52 @@ bool serverIsRunning(bool useTCP, string socketFile, ushort port)
 		return getResponse(socket).completionType == "ack";
 	else
 		return false;
+}
+
+/// Escapes \n, \t and \ in the string. If single is true \t won't be escaped.
+string escapeTabValue(string s, bool single = false)
+{
+	import std.array : Appender;
+
+	Appender!(char[]) app;
+	void putChar(char c)
+	{
+		switch (c)
+		{
+		case '\\':
+			app.put('\\');
+			app.put('\\');
+			break;
+		case '\n':
+			app.put('\\');
+			app.put('n');
+			break;
+		case '\t':
+			if (single)
+				goto default;
+			else
+			{
+				app.put('\\');
+				app.put('t');
+				break;
+			}
+		default:
+			app.put(c);
+			break;
+		}
+	}
+
+	foreach (char c; s)
+		putChar(c);
+
+	return app.data.idup;
+}
+
+/// Joins string arguments with tabs and escapes them
+string makeTabSeparated(string[] args...)
+{
+	import std.algorithm : map;
+	import std.array : join;
+
+	return args.map!(a => a.escapeTabValue).join("\t");
 }

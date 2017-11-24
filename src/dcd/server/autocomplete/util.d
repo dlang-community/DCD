@@ -738,3 +738,16 @@ unittest
 	i = skipParenReverseBefore(t, i, tok!")", tok!"(");
 	assert(i == 1);
 }
+
+AutocompleteResponse.Completion makeSymbolCompletionInfo(const DSymbol* symbol, char kind)
+{
+	string definition;
+	if ((kind == 'v' || kind == 'm') && symbol.type)
+		definition = symbol.type.name ~ ' ' ~ symbol.name;
+	else if (kind == 'e')
+		definition = symbol.name;
+	else
+		definition = symbol.callTip;
+	return AutocompleteResponse.Completion(symbol.name, kind, definition,
+		symbol.symbolFile, symbol.location, symbol.doc);
+}

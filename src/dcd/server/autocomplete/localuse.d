@@ -104,7 +104,9 @@ public AutocompleteResponse findLocalUse(AutocompleteRequest request,
 					candidate.symbols[0].location == sourceSymbol.location &&
 					candidate.symbols[0].symbolFile == sourceSymbol.symbolFile)
 				{
-					response.locations ~= t.index;
+					AutocompleteResponse.Completion c;
+					c.symbolLocation = t.index;
+					response.completions ~= c;
 				}
 			}
 		}

@@ -1,0 +1,3 @@
+calltips
+libraryFunction		Tuple!long libraryFunction(string s, string s2)	stdin 166	foobar
+libraryFunction		int* libraryFunction(string s)	stdin 75	Hello\nWorld

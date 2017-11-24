@@ -53,8 +53,6 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request,
 		warning("Could not find symbol");
 	else
 	{
-		Appender!(char[]) app;
-
 		bool isDitto(string s)
 		{
 			import std.uni : icmp;
@@ -64,35 +62,11 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request,
 				return s.icmp("ditto") == 0;
 		}
 
-		void putDDocChar(char c)
-		{
-			switch (c)
-			{
-			case '\\':
-				app.put('\\');
-				app.put('\\');
-				break;
-			case '\n':
-				app.put('\\');
-				app.put('n');
-				break;
-			default:
-				app.put(c);
-				break;
-			}
-		}
-
-		void putDDocString(string s)
-		{
-			foreach (char c; s)
-				putDDocChar(c);
-		}
-
 		foreach(ref symbol; stuff.symbols.filter!(a => !a.doc.empty && !isDitto(a.doc)))
 		{
-			app.clear;
-			putDDocString(symbol.doc);
-			response.docComments ~= app.data.idup;
+			AutocompleteResponse.Completion c;
+			c.documentation = symbol.doc;
+			response.completions ~= c;
 		}
 	}
 	return response;
