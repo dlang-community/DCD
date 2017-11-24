@@ -149,8 +149,7 @@ a tab separated format:
 * identifier: raw name of a variable or function, etc
 * kind: empty for calltips, see above for rest
 * definition: function or variable definition string or close approximation for information display purpose
-* symbolFilePath: in which file this symbol is defined or `stdin`
-* symbolLocation: the byte offset at which the symbol is located in the file
+* symbol location: in which file (or `stdin`) & byte offset this symbol is defined. Separated with a space.
 * documentation: escaped documentation string of this symbol
 
 #### Example `--full` output
