@@ -385,12 +385,12 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
 				{
 					if (n[0] != '.' && (partial is null || n.startsWith(partial)))
 					{
-						string packageDPath = buildPath(name, "package.d");
-						string packageDIPath = buildPath(name, "package.di");
-						bool packageD = exists(packageDPath);
-						bool packageDI = exists(packageDIPath);
-						auto kind = packageD || packageDI ? CompletionKind.moduleName : CompletionKind.packageName;
-						string file = packageD ? packageDPath : packageDI ? packageDIPath : name;
+						immutable packageDPath = buildPath(name, "package.d");
+						immutable packageDIPath = buildPath(name, "package.di");
+						immutable packageD = exists(packageDPath);
+						immutable packageDI = exists(packageDIPath);
+						immutable kind = packageD || packageDI ? CompletionKind.moduleName : CompletionKind.packageName;
+						immutable file = packageD ? packageDPath : packageDI ? packageDIPath : name;
 						response.completions ~= AutocompleteResponse.Completion(n, kind, null, file, 0);
 					}
 				}
