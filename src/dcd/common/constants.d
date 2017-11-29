@@ -107,14 +107,14 @@ by the runtime library.`)
  */
 immutable ConstantCompletion[] linkages = [
 	// https://dlang.org/spec/attribute.html#linkage
-	ConstantCompletion("C", "Enforces C calling conventions for the function, no mangling"),
-	ConstantCompletion("C++", "offers limited compatibility with C++"),
-	ConstantCompletion("D", "Default D mangling and calling conventions"),
-	ConstantCompletion("Objective-C",
-		"Objective-C offers limited compatibility with Objective-C, see the Interfacing to Objective-C documentation for more information"),
+	ConstantCompletion("C", "Enforces C calling conventions for the function, no mangling."),
+	ConstantCompletion("C++", "Offers limited compatibility with C++."),
+	ConstantCompletion("D", "Default D mangling and calling conventions."),
+	ConstantCompletion("Objective-C", "Objective-C offers limited compatibility with Objective-C, see the "
+		~ "$(LINK2 objc_interface.html, Interfacing to Objective-C) documentation for more information."),
 	ConstantCompletion("Pascal"),
 	ConstantCompletion("System", "`Windows` on Windows platforms, `C` on other platforms."),
-	ConstantCompletion("Windows", "Enforces Win32/`__stdcall` conventions for the function")
+	ConstantCompletion("Windows", "Enforces Win32/`__stdcall` conventions for the function.")
 ];
 
 private immutable string isLazyDoc = `$(P Takes one argument. If that argument is a declaration,
@@ -896,9 +896,9 @@ The result is the symbol that is the parent of it.`)
  * Scope conditions
  */
 immutable ConstantCompletion[] scopes = [
-	ConstantCompletion("exit", "executes statements when the scope exits normally or due to exception unwinding"),
-	ConstantCompletion("failure", "executes statements when the scope exits due to exception unwinding"),
-	ConstantCompletion("success", "executes statements when the scope exits normally")
+	ConstantCompletion("exit", "Executes statements when the scope exits normally or due to exception unwinding."),
+	ConstantCompletion("failure", "Executes statements when the scope exits due to exception unwinding."),
+	ConstantCompletion("success", "Executes statements when the scope exits normally.")
 ];
 
 /**
