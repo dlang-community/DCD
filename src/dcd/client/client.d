@@ -348,7 +348,7 @@ Socket createSocket(string socketFile, ushort port)
 void printDocResponse(ref const AutocompleteResponse response)
 {
 	import std.algorithm : each;
-	response.completions.each!(a => a.documentation.escapeTabValue(true).writeln);
+	response.completions.each!(a => a.documentation.escapeConsoleOutputString(true).writeln);
 }
 
 void printIdentifierResponse(ref const AutocompleteResponse response)

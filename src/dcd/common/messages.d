@@ -188,11 +188,11 @@ struct AutocompleteResponse
 	 */
 	ulong symbolIdentifier;
 
-	deprecated("use completions[].documentation + escapeTabValue instead") string[] docComments() @property
+	deprecated("use completions[].documentation + escapeConsoleOutputString instead") string[] docComments() @property
 	{
 		string[] ret;
 		foreach (ref completion; completions)
-			ret ~= completion.documentation.escapeTabValue(true);
+			ret ~= completion.documentation.escapeConsoleOutputString(true);
 		return ret;
 	}
 
@@ -293,8 +293,13 @@ bool serverIsRunning(bool useTCP, string socketFile, ushort port)
 		return false;
 }
 
-/// Escapes \n, \t and \ in the string. If single is true \t won't be escaped.
-string escapeTabValue(string s, bool single = false)
+/// Escapes \n, \t and \ in the string. If `single` is true \t won't be escaped.
+/// Params:
+///   s = the string to escape
+///   single = if true, `s` is already tab separated and only needs to be escape new lines.
+///            Otherwise `s` is treated as one value that is meant to be printed tab separated with other values.
+/// Returns: An escaped string that is safe to print to the console so it can be read line by line
+string escapeConsoleOutputString(string s, bool single = false)
 {
 	import std.array : Appender;
 
@@ -338,5 +343,5 @@ string makeTabSeparated(string[] args...)
 	import std.algorithm : map;
 	import std.array : join;
 
-	return args.map!(a => a.escapeTabValue).join("\t");
+	return args.map!(a => a.escapeConsoleOutputString).join("\t");
 }
