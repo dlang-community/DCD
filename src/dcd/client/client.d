@@ -74,7 +74,7 @@ int main(string[] args)
 			"tcp", &useTCP, "socketFile", &socketFile,
 			"getIdentifier", &getIdentifier,
 			"localUsage", &localUse, // TODO:remove this line in Nov. 2017
-			"localUse|u", &localUse, "full|2", &fullOutput);
+			"localUse|u", &localUse, "full|x", &fullOutput);
 	}
 	catch (ConvException e)
 	{
@@ -289,7 +289,7 @@ Options:
         Searches for all the uses of the symbol at the cursor location
         in the given filename (or stdin).
 
-    --full | -2
+    --full | -x
         Includes more information with a slightly different format for
         calltips when autocompleting.
 
