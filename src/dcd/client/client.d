@@ -51,6 +51,7 @@ int main(string[] args)
 	bool listImports;
 	bool getIdentifier;
 	bool localUse;
+	bool fullOutput;
 	string search;
 	version(Windows)
 	{
@@ -73,7 +74,7 @@ int main(string[] args)
 			"tcp", &useTCP, "socketFile", &socketFile,
 			"getIdentifier", &getIdentifier,
 			"localUsage", &localUse, // TODO:remove this line in Nov. 2017
-			"localUse|u", &localUse);
+			"localUse|u", &localUse, "extended|x", &fullOutput);
 	}
 	catch (ConvException e)
 	{
@@ -239,7 +240,7 @@ int main(string[] args)
 	else if (localUse)
 		printLocalUse(response);
 	else
-		printCompletionResponse(response);
+		printCompletionResponse(response, fullOutput);
 
 	return 0;
 }
@@ -287,6 +288,10 @@ Options:
     --localUse | -u
         Searches for all the uses of the symbol at the cursor location
         in the given filename (or stdin).
+
+    --extended | -x
+        Includes more information with a slightly different format for
+        calltips when autocompleting.
 
     --query | -q | --status
         Query the server statis. Returns 0 if the server is running. Returns
@@ -343,16 +348,14 @@ Socket createSocket(string socketFile, ushort port)
 void printDocResponse(ref const AutocompleteResponse response)
 {
 	import std.algorithm : each;
-	response.docComments.each!(writeln);
+	response.completions.each!(a => a.documentation.escapeConsoleOutputString(true).writeln);
 }
 
 void printIdentifierResponse(ref const AutocompleteResponse response)
 {
 	if (response.completions.length == 0)
 		return;
-	write(response.completions[0]);
-	write("\t");
-	writeln(response.symbolIdentifier);
+	writeln(makeTabSeparated(response.completions[0].identifier, response.symbolIdentifier.to!string));
 }
 
 void printLocationResponse(ref const AutocompleteResponse response)
@@ -360,26 +363,35 @@ void printLocationResponse(ref const AutocompleteResponse response)
 	if (response.symbolFilePath is null)
 		writeln("Not found");
 	else
-		writefln("%s\t%d", response.symbolFilePath, response.symbolLocation);
+		writeln(makeTabSeparated(response.symbolFilePath, response.symbolLocation.to!string));
 }
 
-void printCompletionResponse(ref const AutocompleteResponse response)
+void printCompletionResponse(ref const AutocompleteResponse response, bool extended)
 {
 	if (response.completions.length > 0)
 	{
 		writeln(response.completionType);
 		auto app = appender!(string[])();
-		if (response.completionType == CompletionType.identifiers)
+		if (response.completionType == CompletionType.identifiers || extended)
 		{
-			for (size_t i = 0; i < response.completions.length; i++)
-				app.put(format("%s\t%s", response.completions[i], response.completionKinds[i]));
+			foreach (ref completion; response.completions)
+			{
+				if (extended)
+					app.put(makeTabSeparated(
+						completion.identifier,
+						completion.kind == char.init ? "" : "" ~ completion.kind,
+						completion.definition,
+						completion.symbolFilePath.length ? completion.symbolFilePath ~ " " ~ completion.symbolLocation.to!string : "",
+						completion.documentation
+					));
+				else
+					app.put(makeTabSeparated(completion.identifier, "" ~ completion.kind));
+			}
 		}
 		else
 		{
 			foreach (completion; response.completions)
-			{
-				app.put(completion);
-			}
+				app.put(completion.definition);
 		}
 		// Deduplicate overloaded methods
 		foreach (line; app.data.sort().uniq)
@@ -389,20 +401,17 @@ void printCompletionResponse(ref const AutocompleteResponse response)
 
 void printSearchResponse(const AutocompleteResponse response)
 {
-	foreach(i; 0 .. response.completions.length)
-	{
-		writefln("%s\t%s\t%s", response.completions[i], response.completionKinds[i],
-			response.locations[i]);
-	}
+	foreach(ref completion; response.completions)
+		writeln(makeTabSeparated(completion.identifier, "" ~ completion.kind, completion.symbolLocation.to!string));
 }
 
 void printLocalUse(const AutocompleteResponse response)
 {
 	if (response.symbolFilePath.length)
 	{
-		writeln(response.symbolFilePath, '\t', response.symbolLocation);
-		foreach(loc; response.locations)
-			writeln(loc);
+		writeln(makeTabSeparated(response.symbolFilePath, response.symbolLocation.to!string));
+		foreach(loc; response.completions)
+			writeln(loc.symbolLocation);
 	}
 	else write("00000");
 }

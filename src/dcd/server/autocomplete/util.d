@@ -738,3 +738,17 @@ unittest
 	i = skipParenReverseBefore(t, i, tok!")", tok!"(");
 	assert(i == 1);
 }
+
+AutocompleteResponse.Completion makeSymbolCompletionInfo(const DSymbol* symbol, char kind)
+{
+	string definition;
+	if ((kind == CompletionKind.variableName || kind == CompletionKind.memberVariableName) && symbol.type)
+		definition = symbol.type.name ~ ' ' ~ symbol.name;
+	else if (kind == CompletionKind.enumMember)
+		definition = symbol.name; // TODO: add enum value to definition string
+	else
+		definition = symbol.callTip;
+	// TODO: definition strings could include more information, like on classes inheritance
+	return AutocompleteResponse.Completion(symbol.name, kind, definition,
+		symbol.symbolFile, symbol.location, symbol.doc);
+}

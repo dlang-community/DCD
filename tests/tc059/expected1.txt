@@ -1,0 +1,4 @@
+identifiers
+libraryFunction	f	Tuple!long libraryFunction(string s, string s2)	stdin 190	foobar
+libraryFunction	f	int* libraryFunction(string s)	stdin 99	Hello\nWorld
+libraryVariable	v	int libraryVariable	stdin 56	My variable
