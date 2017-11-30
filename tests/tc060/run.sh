@@ -1,7 +1,7 @@
 set -e
 set -u
 
-../../bin/dcd-client $1 --full file.d -c7 > actual1.txt
+../../bin/dcd-client $1 --extended file.d -c7 > actual1.txt
 
 minimumsize=100 # identifiers + the symbols without documentation + some margin
 actualsize=$(wc -c < "actual1.txt")

@@ -74,7 +74,7 @@ int main(string[] args)
 			"tcp", &useTCP, "socketFile", &socketFile,
 			"getIdentifier", &getIdentifier,
 			"localUsage", &localUse, // TODO:remove this line in Nov. 2017
-			"localUse|u", &localUse, "full|x", &fullOutput);
+			"localUse|u", &localUse, "extended|x", &fullOutput);
 	}
 	catch (ConvException e)
 	{
@@ -289,7 +289,7 @@ Options:
         Searches for all the uses of the symbol at the cursor location
         in the given filename (or stdin).
 
-    --full | -x
+    --extended | -x
         Includes more information with a slightly different format for
         calltips when autocompleting.
 
@@ -366,17 +366,17 @@ void printLocationResponse(ref const AutocompleteResponse response)
 		writeln(makeTabSeparated(response.symbolFilePath, response.symbolLocation.to!string));
 }
 
-void printCompletionResponse(ref const AutocompleteResponse response, bool full)
+void printCompletionResponse(ref const AutocompleteResponse response, bool extended)
 {
 	if (response.completions.length > 0)
 	{
 		writeln(response.completionType);
 		auto app = appender!(string[])();
-		if (response.completionType == CompletionType.identifiers || full)
+		if (response.completionType == CompletionType.identifiers || extended)
 		{
 			foreach (ref completion; response.completions)
 			{
-				if (full)
+				if (extended)
 					app.put(makeTabSeparated(
 						completion.identifier,
 						completion.kind == char.init ? "" : "" ~ completion.kind,

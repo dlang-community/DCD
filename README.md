@@ -136,7 +136,7 @@ tab character, followed by a completion kind
 	getPartByName	f
 
 #### Extended output mode
-You can pass `--full` to dcd-client to get more information. Output will now be
+You can pass `--extended` to dcd-client to get more information. Output will now be
 escaped (newlines get escaped to `\n`, tabs get escaped to `\t`, backslash gets escaped to `\\`).
 
 Calltips are slightly different here because they first start with the function name instead of
@@ -152,7 +152,7 @@ a tab separated format:
 * symbol location: in which file (or `stdin`) & byte offset this symbol is defined. Separated with a space.
 * documentation: escaped documentation string of this symbol
 
-#### Example `--full` output
+#### Example `--extended` output
 	identifiers
 	libraryFunction	f	Tuple!long libraryFunction(string s, string s2)	stdin 190	foobar
 	libraryFunction	f	int* libraryFunction(string s)	stdin 99	Hello\nWorld
