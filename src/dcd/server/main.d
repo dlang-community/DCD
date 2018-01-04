@@ -22,7 +22,7 @@ import core.sys.posix.sys.stat;
 import std.algorithm;
 import std.array;
 import std.conv;
-import std.datetime;
+import std.datetime.stopwatch : AutoStart, StopWatch;
 import std.exception : enforce;
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
@@ -177,7 +177,7 @@ int main(string[] args)
 
 	sw.stop();
 	info(cache.symbolsAllocated, " symbols cached.");
-	info("Startup completed in ", sw.peek().to!("msecs", float), " milliseconds.");
+	info("Startup completed in ", sw.peek().total!"msecs"(), " milliseconds.");
 
 	// No relative paths
 	version (Posix) chdir("/");
@@ -286,7 +286,7 @@ int main(string[] args)
 			s.trySendResponse(findLocalUse(request, cache), "Couldnot find local usage");
 
 		sw.stop();
-		info("Request processed in ", sw.peek().to!("msecs", float), " milliseconds");
+		info("Request processed in ", sw.peek().total!"msecs"(), " milliseconds");
 	}
 	return 0;
 }
