@@ -261,7 +261,7 @@ stdin 45
 133
 ```
 
-#Server
+# Server
 The server must be running for the DCD client to provide autocomplete information.
 In future versions the client may start the server if it is not running, but for
 now it must be started manually or (usually) by an editor plugin.
