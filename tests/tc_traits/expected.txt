@@ -23,6 +23,7 @@ isAbstractClass	k
 isAbstractFunction	k
 isArithmetic	k
 isAssociativeArray	k
+isDisabled	k
 isFinalClass	k
 isFinalFunction	k
 isFloating	k
