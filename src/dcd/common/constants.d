@@ -166,6 +166,7 @@ immutable ConstantCompletion[] traits = [
 	ConstantCompletion("isAbstractFunction", fetchDocByGNAME!"isAbstractFunction"),
 	ConstantCompletion("isArithmetic", fetchDocByGNAME!"isArithmetic"),
 	ConstantCompletion("isAssociativeArray", fetchDocByGNAME!"isAssociativeArray"),
+	ConstantCompletion("isDeprecated", fetchDocByGNAME!"isDeprecated"),
 	ConstantCompletion("isDisabled", fetchDocByGNAME!"isDisabled"),
 	ConstantCompletion("isFinalClass", fetchDocByGNAME!"isFinalClass"),
 	ConstantCompletion("isFinalFunction", fetchDocByGNAME!"isFinalFunction"),
