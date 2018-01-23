@@ -241,7 +241,7 @@ bool sendRequest(Socket socket, AutocompleteRequest request)
  */
 AutocompleteResponse getResponse(Socket socket)
 {
-	ubyte[1024 * 16] buffer;
+	ubyte[1024 * 24] buffer;
 	auto bytesReceived = socket.receive(buffer);
 	if (bytesReceived == Socket.ERROR)
 		throw new Exception("Incorrect number of bytes received");

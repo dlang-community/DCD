@@ -768,6 +768,29 @@ false
 false
 )`),
 	ConstantCompletion("isAssociativeArray", `Works like $(D isArithmetic), except it's for associative array types.`),
+
+	ConstantCompletion("isDisabled", r"$(P Takes one argument and returns `true` if it's a function declaration
+     marked with `@disable`.)
+
+---
+struct Foo
+{
+ @disable void foo();
+ void bar(){}
+}
+
+static assert(__traits(isDisabled, Foo.foo));
+static assert(!__traits(isDisabled, Foo.bar));
+---
+
+ $(P For any other declaration even if `@disable` is a syntactically valid
+ attribute `false` is returned because the annotation has no effect.)
+
+---
+@disable struct Bar{}
+
+static assert(!__traits(isDisabled, Bar));
+---"),
 	ConstantCompletion("isFinalClass", `Works like $(D isAbstractClass), except it's for final classes.`),
 	ConstantCompletion("isFinalFunction", `$(P Takes one argument. If that argument is a final function,
 	$(D true) is returned, otherwise $(D false).
