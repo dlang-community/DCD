@@ -29,7 +29,7 @@ struct ConstantCompletion
 private static immutable pragmaDDoc = import("pragma.dd");
 private static immutable traitsDDoc = import("traits.dd");
 
-template fetchDocDDforDT(string dtStart)
+template fetchDocDDforDT(string ddoc, string dtStart)
 {
 	enum fetchDocDDforDT = {
 		import std.string : lineSplitter, KeepTerminator, stripLeft, stripRight,
@@ -39,7 +39,7 @@ template fetchDocDDforDT(string dtStart)
 		string ret;
 		string indent;
 		bool inCode;
-		foreach (line; pragmaDDoc.lineSplitter!(KeepTerminator.yes))
+		foreach (line; ddoc.lineSplitter!(KeepTerminator.yes))
 		{
 			if (line.stripLeft.startsWith("$(DT $(LNAME2 ", "$(SPEC_SUBNAV_PREV_NEXT"))
 			{
@@ -80,7 +80,7 @@ template fetchDocDDforDT(string dtStart)
 	}();
 }
 
-template fetchDocByGNAME(string gname)
+template fetchDocByGNAME(string ddoc, string gname)
 {
 	enum fetchDocByGNAME = {
 		import std.algorithm : canFind;
@@ -91,7 +91,7 @@ template fetchDocByGNAME(string gname)
 		bool inCode;
 		string ret;
 		string indent;
-		foreach (line; traitsDDoc.lineSplitter!(KeepTerminator.yes))
+		foreach (line; ddoc.lineSplitter!(KeepTerminator.yes))
 		{
 			if (line.canFind("$(GNAME ", "$(LNAME2") || line.stripLeft.startsWith("$(SPEC_SUBNAV_PREV_NEXT"))
 			{
@@ -123,16 +123,26 @@ template fetchDocByGNAME(string gname)
 	}();
 }
 
+template pragmaConstantCompletion(string field)
+{
+	enum ConstantCompletion pragmaConstantCompletion = ConstantCompletion(field, fetchDocDDforDT!(pragmaDDoc, field));
+}
+
+template traitsConstantCompletion(string field)
+{
+	enum ConstantCompletion traitsConstantCompletion = ConstantCompletion(field, fetchDocByGNAME!(traitsDDoc, field));
+}
+
 /**
  * Pragma arguments
  */
 immutable ConstantCompletion[] pragmas = [
 	// docs from https://github.com/dlang/dlang.org/blob/master/spec/pragma.dd
-	ConstantCompletion("inline", fetchDocDDforDT!"inline"),
-	ConstantCompletion("lib", fetchDocDDforDT!"lib"),
-	ConstantCompletion("mangle", fetchDocDDforDT!"mangle"),
-	ConstantCompletion("msg", fetchDocDDforDT!"msg"),
-	ConstantCompletion("startaddress", fetchDocDDforDT!"startaddress")
+	pragmaConstantCompletion!"inline",
+	pragmaConstantCompletion!"lib",
+	pragmaConstantCompletion!"mangle",
+	pragmaConstantCompletion!"msg",
+	pragmaConstantCompletion!"startaddress"
 ];
 
 /**
@@ -156,53 +166,55 @@ immutable ConstantCompletion[] linkages = [
  */
 immutable ConstantCompletion[] traits = [
 	// https://github.com/dlang/dlang.org/blob/master/spec/traits.dd
-	ConstantCompletion("allMembers", fetchDocByGNAME!"allMembers"),
-	ConstantCompletion("classInstanceSize", fetchDocByGNAME!"classInstanceSize"),
-	ConstantCompletion("compiles", fetchDocByGNAME!"compiles"),
-	ConstantCompletion("derivedMembers", fetchDocByGNAME!"derivedMembers"),
-	ConstantCompletion("getAliasThis", fetchDocByGNAME!"getAliasThis"),
-	ConstantCompletion("getAttributes", fetchDocByGNAME!"getAttributes"),
-	ConstantCompletion("getFunctionAttributes", fetchDocByGNAME!"getFunctionAttributes"),
-	ConstantCompletion("getFunctionVariadicStyle", fetchDocByGNAME!"getFunctionVariadicStyle"),
-	ConstantCompletion("getLinkage", fetchDocByGNAME!"getLinkage"),
-	ConstantCompletion("getMember", fetchDocByGNAME!"getMember"),
-	ConstantCompletion("getOverloads", fetchDocByGNAME!"getOverloads"),
-	ConstantCompletion("getParameterStorageClasses", fetchDocByGNAME!"getParameterStorageClasses"),
-	ConstantCompletion("getPointerBitmap", fetchDocByGNAME!"getPointerBitmap"),
-	ConstantCompletion("getProtection", fetchDocByGNAME!"getProtection"),
-	ConstantCompletion("getUnitTests", fetchDocByGNAME!"getUnitTests"),
-	ConstantCompletion("getVirtualFunctions", fetchDocByGNAME!"getVirtualFunctions"),
-	ConstantCompletion("getVirtualIndex", fetchDocByGNAME!"getVirtualIndex"),
-	ConstantCompletion("getVirtualMethods", fetchDocByGNAME!"getVirtualMethods"),
-	ConstantCompletion("hasMember", fetchDocByGNAME!"hasMember"),
-	ConstantCompletion("identifier", fetchDocByGNAME!"identifier"),
-	ConstantCompletion("isAbstractClass", fetchDocByGNAME!"isAbstractClass"),
-	ConstantCompletion("isAbstractFunction", fetchDocByGNAME!"isAbstractFunction"),
-	ConstantCompletion("isArithmetic", fetchDocByGNAME!"isArithmetic"),
-	ConstantCompletion("isAssociativeArray", fetchDocByGNAME!"isAssociativeArray"),
-	ConstantCompletion("isDeprecated", fetchDocByGNAME!"isDeprecated"),
-	ConstantCompletion("isDisabled", fetchDocByGNAME!"isDisabled"),
-	ConstantCompletion("isFinalClass", fetchDocByGNAME!"isFinalClass"),
-	ConstantCompletion("isFinalFunction", fetchDocByGNAME!"isFinalFunction"),
-	ConstantCompletion("isFloating", fetchDocByGNAME!"isFloating"),
-	ConstantCompletion("isFuture", fetchDocByGNAME!"isFuture"),
-	ConstantCompletion("isIntegral", fetchDocByGNAME!"isIntegral"),
-	ConstantCompletion("isLazy", fetchDocByGNAME!"isLazy"),
-	ConstantCompletion("isNested", fetchDocByGNAME!"isNested"),
-	ConstantCompletion("isOut", fetchDocByGNAME!"isOut"),
-	ConstantCompletion("isOverrideFunction", fetchDocByGNAME!"isOverrideFunction"),
-	ConstantCompletion("isPOD", fetchDocByGNAME!"isPOD"),
-	ConstantCompletion("isRef", fetchDocByGNAME!"isRef"),
-	ConstantCompletion("isSame", fetchDocByGNAME!"isSame"),
-	ConstantCompletion("isScalar", fetchDocByGNAME!"isScalar"),
-	ConstantCompletion("isStaticArray", fetchDocByGNAME!"isStaticArray"),
-	ConstantCompletion("isStaticFunction", fetchDocByGNAME!"isStaticFunction"),
-	ConstantCompletion("isTemplate", fetchDocByGNAME!"isTemplate"),
-	ConstantCompletion("isUnsigned", fetchDocByGNAME!"isUnsigned"),
-	ConstantCompletion("isVirtualFunction", fetchDocByGNAME!"isVirtualFunction"),
-	ConstantCompletion("isVirtualMethod", fetchDocByGNAME!"isVirtualMethod"),
-	ConstantCompletion("parent", fetchDocByGNAME!"parent")
+	traitsConstantCompletion!"allMembers",
+	traitsConstantCompletion!"classInstanceSize",
+	traitsConstantCompletion!"compiles",
+	traitsConstantCompletion!"derivedMembers",
+	traitsConstantCompletion!"getAliasThis",
+	traitsConstantCompletion!"getAttributes",
+	traitsConstantCompletion!"getFunctionAttributes",
+	traitsConstantCompletion!"getFunctionVariadicStyle",
+	traitsConstantCompletion!"getLinkage",
+	traitsConstantCompletion!"getMember",
+	traitsConstantCompletion!"getOverloads",
+	traitsConstantCompletion!"getParameterStorageClasses",
+	traitsConstantCompletion!"getPointerBitmap",
+	traitsConstantCompletion!"getProtection",
+	traitsConstantCompletion!"getUnitTests",
+	traitsConstantCompletion!"getVirtualFunctions",
+	traitsConstantCompletion!"getVirtualIndex",
+	traitsConstantCompletion!"getVirtualMethods",
+	traitsConstantCompletion!"hasMember",
+	traitsConstantCompletion!"identifier",
+	traitsConstantCompletion!"isAbstractClass",
+	traitsConstantCompletion!"isAbstractFunction",
+	traitsConstantCompletion!"isArithmetic",
+	traitsConstantCompletion!"isAssociativeArray",
+	traitsConstantCompletion!"isDeprecated",
+	traitsConstantCompletion!"isDisabled",
+	traitsConstantCompletion!"isFinalClass",
+	traitsConstantCompletion!"isFinalFunction",
+	traitsConstantCompletion!"isFloating",
+	traitsConstantCompletion!"isFuture",
+	traitsConstantCompletion!"isIntegral",
+	traitsConstantCompletion!"isLazy",
+	traitsConstantCompletion!"isNested",
+	traitsConstantCompletion!"isOut",
+	traitsConstantCompletion!"isOverrideFunction",
+	traitsConstantCompletion!"isPOD",
+	traitsConstantCompletion!"isRef",
+	traitsConstantCompletion!"isSame",
+	traitsConstantCompletion!"isScalar",
+	traitsConstantCompletion!"isStaticArray",
+	traitsConstantCompletion!"isStaticFunction",
+	traitsConstantCompletion!"isTemplate",
+	traitsConstantCompletion!"isUnsigned",
+	traitsConstantCompletion!"isVirtualFunction",
+	traitsConstantCompletion!"isVirtualMethod",
+	traitsConstantCompletion!"parent"
 ];
+
+pragma(msg, traits);
 
 /**
  * Scope conditions
