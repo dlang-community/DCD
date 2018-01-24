@@ -89,7 +89,9 @@ template fetchDocByGNAME(string gname)
 			startsWith;
 
 		bool found;
+		bool inCode;
 		string ret;
+		string indent;
 		foreach (line; traitsDDoc.lineSplitter!(KeepTerminator.yes))
 		{
 			if (line.canFind("$(GNAME ") || line.stripLeft.startsWith("$(SPEC_SUBNAV_PREV_NEXT") || line.canFind("$(LNAME2"))
@@ -99,9 +101,22 @@ template fetchDocByGNAME(string gname)
 				else if (line.canFind("$(GNAME " ~ gname ~ ")"))
 					found = true;
 			}
-			// no else if, so the header gets put in aswell
-			if (found)
-				ret ~= line;
+			else if (found)
+			{
+				if (line.startsWith("---"))
+					inCode = !inCode;
+				if (inCode)
+					ret ~= line;
+				else
+				{
+					if (!ret.length)
+						indent = line[0 .. $ - line.stripLeft.length];
+					if (line.startsWith(indent))
+						ret ~= line[indent.length .. $];
+					else
+						ret ~= line;
+				}
+			}
 		}
 		if (!found)
 			throw new Exception("GNAME '" ~ gname ~ "' was not found");
