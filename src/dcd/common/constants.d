@@ -41,8 +41,7 @@ template fetchDocDDforDT(string dtStart)
 		bool inCode;
 		foreach (line; pragmaDDoc.lineSplitter!(KeepTerminator.yes))
 		{
-			if (line.stripLeft.startsWith("$(DT $(LNAME2 ")
-					|| line.stripLeft.startsWith("$(SPEC_SUBNAV_PREV_NEXT"))
+			if (line.stripLeft.startsWith("$(DT $(LNAME2 ", "$(SPEC_SUBNAV_PREV_NEXT"))
 			{
 				if (found) // abort on new section if in section
 					break;
@@ -94,7 +93,7 @@ template fetchDocByGNAME(string gname)
 		string indent;
 		foreach (line; traitsDDoc.lineSplitter!(KeepTerminator.yes))
 		{
-			if (line.canFind("$(GNAME ") || line.stripLeft.startsWith("$(SPEC_SUBNAV_PREV_NEXT") || line.canFind("$(LNAME2"))
+			if (line.canFind("$(GNAME ", "$(LNAME2") || line.stripLeft.startsWith("$(SPEC_SUBNAV_PREV_NEXT"))
 			{
 				if (found)
 					break;
