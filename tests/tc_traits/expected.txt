@@ -23,6 +23,7 @@ isAbstractClass	k
 isAbstractFunction	k
 isArithmetic	k
 isAssociativeArray	k
+isDeprecated	k
 isDisabled	k
 isFinalClass	k
 isFinalFunction	k
