@@ -244,7 +244,7 @@ AutocompleteResponse getResponse(Socket socket)
 	ubyte[1024 * 24] buffer;
 	auto bytesReceived = socket.receive(buffer);
 	if (bytesReceived == Socket.ERROR)
-		throw new Exception("Incorrect number of bytes received");
+		throw new Exception(lastSocketError);
 	if (bytesReceived == 0)
 		throw new Exception("Server closed the connection, 0 bytes received");
 	AutocompleteResponse response;
