@@ -7,8 +7,8 @@
   ],
   "license": "GPL-3.0",
   "dependencies": {
-    "dsymbol": "~>0.3.0-alpha.2",
-    "libdparse": "~>0.8.0-alpha.3",
+    "dsymbol": "~>0.3.0-alpha.3",
+    "libdparse": "~>0.8.0-alpha.4",
     "msgpack-d": "~>1.0.0-beta.3",
     "stdx-allocator": "~>2.077.0"
   },
