@@ -20,7 +20,6 @@ for /r "msgpack-d/src" %%F in (*.d) do call set msgspack_modules=%%msgspack_modu
 
 set stdx_allocator=
 for /r "stdx-allocator/source/stdx/allocator" %%F in (*.d) do call set stdx_allocator=%%stdx_allocator%% "%%F"
-for /r "stdx-allocator/source/stdx/allocator/building_blocks" %%F in (*.d) do call set stdx_allocator=%%stdx_allocator%% "%%F"
 
 set client_name=bin\dcd-client
 set server_name=bin\dcd-server
