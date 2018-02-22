@@ -214,8 +214,6 @@ immutable ConstantCompletion[] traits = [
 	traitsConstantCompletion!"parent"
 ];
 
-pragma(msg, traits);
-
 /**
  * Scope conditions
  */
