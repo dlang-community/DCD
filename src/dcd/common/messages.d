@@ -236,19 +236,29 @@ bool sendRequest(Socket socket, AutocompleteRequest request)
 	return socket.send(messageBuffer) == messageBuffer.length;
 }
 
+/// Thread-Local buffer for receiving responses.
+private ubyte[] responseBuffer;
+
 /**
  * Gets the response from the server
  */
 AutocompleteResponse getResponse(Socket socket)
 {
-	ubyte[1024 * 24] buffer;
-	auto bytesReceived = socket.receive(buffer);
+	if (!responseBuffer.length)
+	{
+		// allocate the responseBuffer only on the first getResponse call.
+		// We don't want to move this in a static this so that only threads using getResponse allocate this buffer.
+		// 1 MB should fit most messages while not using too much memory.
+		// Assuming at most around 8 threads receiving run across all DCD instances (server and clients), this will only increase memory usage by 8MB.
+		responseBuffer = new ubyte[1024 * 1024];
+	}
+	auto bytesReceived = socket.receive(responseBuffer);
 	if (bytesReceived == Socket.ERROR)
 		throw new Exception(lastSocketError);
 	if (bytesReceived == 0)
 		throw new Exception("Server closed the connection, 0 bytes received");
 	AutocompleteResponse response;
-	msgpack.unpack(buffer[0..bytesReceived], response);
+	msgpack.unpack(responseBuffer[0..bytesReceived], response);
 	return response;
 }
 
