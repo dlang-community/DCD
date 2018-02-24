@@ -120,7 +120,12 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 			// since later there's a non-nothrow call to `toUpper`
 			import std.utf : validate, UTFException;
 			try validate(partial);
-			catch (UTFException) partial = "";
+			catch (UTFException)
+			{
+				import std.experimental.logger : warning;
+				warning("cursor positioned within a UTF sequence");
+				partial = "";
+			}
 		}
 		significantTokenType = partial.length ? tok!"identifier" : tok!"";
 		beforeTokens = beforeTokens[0 .. $ - 1];
