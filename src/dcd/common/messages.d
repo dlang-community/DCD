@@ -242,14 +242,24 @@ bool sendRequest(Socket socket, AutocompleteRequest request)
 AutocompleteResponse getResponse(Socket socket)
 {
 	ubyte[1024 * 24] buffer;
-	auto bytesReceived = socket.receive(buffer);
-	if (bytesReceived == Socket.ERROR)
-		throw new Exception(lastSocketError);
-	if (bytesReceived == 0)
+	long bytesReceived = 0;
+	auto unpacker = StreamingUnpacker([]);
+
+	do {
+		bytesReceived = socket.receive(buffer);
+		if (bytesReceived == Socket.ERROR)
+			throw new Exception(lastSocketError);
+		if (bytesReceived == 0)
+			break;
+		unpacker.feed(buffer[0..bytesReceived]);
+	} while (bytesReceived == buffer.length);
+
+	if (unpacker.size == 0)
 		throw new Exception("Server closed the connection, 0 bytes received");
-	AutocompleteResponse response;
-	msgpack.unpack(buffer[0..bytesReceived], response);
-	return response;
+
+	assert(unpacker.execute());
+
+	return unpacker.purge().value.as!AutocompleteResponse;
 }
 
 /**
