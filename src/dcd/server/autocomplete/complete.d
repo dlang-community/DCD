@@ -114,8 +114,20 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 		// of at the end
 		auto t = beforeTokens[$ - 1];
 		if (cursorPosition - t.index >= 0 && cursorPosition - t.index <= t.text.length)
+		{
 			partial = t.text[0 .. cursorPosition - t.index];
-		significantTokenType = tok!"identifier";
+			// issue 442 - prevent `partial` to start in the middle of a MBC
+			// since later there's a non-nothrow call to `toUpper`
+			import std.utf : validate, UTFException;
+			try validate(partial);
+			catch (UTFException)
+			{
+				import std.experimental.logger : warning;
+				warning("cursor positioned within a UTF sequence");
+				partial = "";
+			}
+		}
+		significantTokenType = partial.length ? tok!"identifier" : tok!"";
 		beforeTokens = beforeTokens[0 .. $ - 1];
 	}
 	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == tok!".")

@@ -129,7 +129,7 @@ struct AutocompleteResponse
 		/**
 		 * The kind of the item. Will be char.init for calltips.
 		 */
-		char kind;
+		ubyte kind;
 		/**
 		 * Definition for a symbol for a completion including attributes or the arguments for calltips.
 		 */
@@ -149,7 +149,7 @@ struct AutocompleteResponse
 
 		deprecated("Use identifier (or definition for calltips) instead") string compatibilityContent() const
 		{
-			if (kind == char.init)
+			if (kind == ubyte.init)
 				return definition;
 			else
 				return identifier;
@@ -236,30 +236,31 @@ bool sendRequest(Socket socket, AutocompleteRequest request)
 	return socket.send(messageBuffer) == messageBuffer.length;
 }
 
-/// Thread-Local buffer for receiving responses.
-private ubyte[] responseBuffer;
-
 /**
  * Gets the response from the server
  */
 AutocompleteResponse getResponse(Socket socket)
 {
-	if (!responseBuffer.length)
-	{
-		// allocate the responseBuffer only on the first getResponse call.
-		// We don't want to move this in a static this so that only threads using getResponse allocate this buffer.
-		// 1 MB should fit most messages while not using too much memory.
-		// Assuming at most around 8 threads receiving run across all DCD instances (server and clients), this will only increase memory usage by 8MB.
-		responseBuffer = new ubyte[1024 * 1024];
-	}
-	auto bytesReceived = socket.receive(responseBuffer);
-	if (bytesReceived == Socket.ERROR)
-		throw new Exception(lastSocketError);
-	if (bytesReceived == 0)
+	ubyte[1024 * 16] buffer;
+	ptrdiff_t bytesReceived = 0;
+	auto unpacker = StreamingUnpacker([]);
+
+	do {
+		bytesReceived = socket.receive(buffer);
+		if (bytesReceived == Socket.ERROR)
+			throw new Exception(lastSocketError);
+		if (bytesReceived == 0)
+			break;
+		unpacker.feed(buffer[0..bytesReceived]);
+	} while (bytesReceived == buffer.length);
+
+	if (unpacker.size == 0)
 		throw new Exception("Server closed the connection, 0 bytes received");
-	AutocompleteResponse response;
-	msgpack.unpack(responseBuffer[0..bytesReceived], response);
-	return response;
+
+	if (!unpacker.execute())
+		throw new Exception("Could not unpack the response");
+
+	return unpacker.purge().value.as!AutocompleteResponse;
 }
 
 /**
