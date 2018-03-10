@@ -129,7 +129,7 @@ struct AutocompleteResponse
 		/**
 		 * The kind of the item. Will be char.init for calltips.
 		 */
-		char kind;
+		ubyte kind;
 		/**
 		 * Definition for a symbol for a completion including attributes or the arguments for calltips.
 		 */
@@ -149,7 +149,7 @@ struct AutocompleteResponse
 
 		deprecated("Use identifier (or definition for calltips) instead") string compatibilityContent() const
 		{
-			if (kind == char.init)
+			if (kind == ubyte.init)
 				return definition;
 			else
 				return identifier;
@@ -241,15 +241,26 @@ bool sendRequest(Socket socket, AutocompleteRequest request)
  */
 AutocompleteResponse getResponse(Socket socket)
 {
-	ubyte[1024 * 24] buffer;
-	auto bytesReceived = socket.receive(buffer);
-	if (bytesReceived == Socket.ERROR)
-		throw new Exception(lastSocketError);
-	if (bytesReceived == 0)
+	ubyte[1024 * 16] buffer;
+	ptrdiff_t bytesReceived = 0;
+	auto unpacker = StreamingUnpacker([]);
+
+	do {
+		bytesReceived = socket.receive(buffer);
+		if (bytesReceived == Socket.ERROR)
+			throw new Exception(lastSocketError);
+		if (bytesReceived == 0)
+			break;
+		unpacker.feed(buffer[0..bytesReceived]);
+	} while (bytesReceived == buffer.length);
+
+	if (unpacker.size == 0)
 		throw new Exception("Server closed the connection, 0 bytes received");
-	AutocompleteResponse response;
-	msgpack.unpack(buffer[0..bytesReceived], response);
-	return response;
+
+	if (!unpacker.execute())
+		throw new Exception("Could not unpack the response");
+
+	return unpacker.purge().value.as!AutocompleteResponse;
 }
 
 /**
