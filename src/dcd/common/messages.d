@@ -241,7 +241,7 @@ bool sendRequest(Socket socket, AutocompleteRequest request)
  */
 AutocompleteResponse getResponse(Socket socket)
 {
-	ubyte[1024 * 24] buffer;
+	ubyte[1024 * 16] buffer;
 	ptrdiff_t bytesReceived = 0;
 	auto unpacker = StreamingUnpacker([]);
 
