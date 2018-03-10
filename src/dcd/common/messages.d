@@ -129,7 +129,7 @@ struct AutocompleteResponse
 		/**
 		 * The kind of the item. Will be char.init for calltips.
 		 */
-		char kind;
+		ubyte kind;
 		/**
 		 * Definition for a symbol for a completion including attributes or the arguments for calltips.
 		 */
@@ -149,7 +149,7 @@ struct AutocompleteResponse
 
 		deprecated("Use identifier (or definition for calltips) instead") string compatibilityContent() const
 		{
-			if (kind == char.init)
+			if (kind == ubyte.init)
 				return definition;
 			else
 				return identifier;
