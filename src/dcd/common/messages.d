@@ -257,7 +257,8 @@ AutocompleteResponse getResponse(Socket socket)
 	if (unpacker.size == 0)
 		throw new Exception("Server closed the connection, 0 bytes received");
 
-	assert(unpacker.execute());
+	if (!unpacker.execute())
+		throw new Exception("Could not unpack the response");
 
 	return unpacker.purge().value.as!AutocompleteResponse;
 }
