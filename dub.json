@@ -26,7 +26,6 @@
       "name": "client",
       "targetType": "executable",
       "targetName": "dcd-client",
-      "mainSourceFile": "src/dcd/client/client.d",
       "excludedSourceFiles": [
         "src/dcd/server/*"
       ]
@@ -35,7 +34,6 @@
       "name": "server",
       "targetType": "executable",
       "targetName": "dcd-server",
-      "mainSourceFile": "src/dcd/server/server.d",
       "excludedSourceFiles": [
         "src/dcd/client/*"
       ]
