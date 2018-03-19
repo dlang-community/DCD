@@ -92,7 +92,7 @@ public AutocompleteResponse symbolSearch(const AutocompleteRequest request,
 		{
 			const(DSymbol)* symbol;
 
-			int opCmp(ref const SearchResult other) const pure nothrow
+			int opCmp(ref const SearchResult other) const pure nothrow @nogc @safe
 			{
 				if (other.symbol.symbolFile < symbol.symbolFile)
 					return -1;
