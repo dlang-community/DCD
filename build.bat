@@ -30,7 +30,6 @@ set server_name=bin\dcd-server
  src\dcd\common\dcd_version.d^
  src\dcd\common\socket.d^
  %msgspack_modules%^
- -J.^
  -Imsgpack-d\src^
  -release -inline -O -wi^
  -of%client_name%
@@ -43,7 +42,6 @@ set server_name=bin\dcd-server
  %containers_modules%^
  %msgspack_modules%^
  %stdx_allocator%^
- -J.^
  -Icontainers/src^
  -Imsgpack-d/src^
  -Ilibdparse/src^

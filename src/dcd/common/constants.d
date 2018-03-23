@@ -18,6 +18,8 @@
 
 module dcd.common.constants;
 
+public import dcd.common.constants2;
+
 // The lists in this module should be kept sorted.
 
 struct ConstantCompletion
@@ -25,125 +27,6 @@ struct ConstantCompletion
 	string identifier;
 	string ddoc;
 }
-
-private static immutable pragmaDDoc = import("pragma.dd");
-private static immutable traitsDDoc = import("traits.dd");
-
-template fetchDocDDforDT(string ddoc, string dtStart)
-{
-	enum fetchDocDDforDT = {
-		import std.string : lineSplitter, KeepTerminator, stripLeft, stripRight,
-			strip, startsWith, endsWith;
-
-		bool found;
-		string ret;
-		string indent;
-		bool inCode;
-		foreach (line; ddoc.lineSplitter!(KeepTerminator.yes))
-		{
-			if (line.stripLeft.startsWith("$(DT $(LNAME2 ", "$(SPEC_SUBNAV_PREV_NEXT"))
-			{
-				if (found) // abort on new section if in section
-					break;
-				else if (line.stripLeft.startsWith("$(DT $(LNAME2 " ~ dtStart)) // set section if correct
-				{
-					indent = line[0 .. $ - line.stripLeft.length];
-					found = true;
-				}
-			}
-			else if (found)
-			{
-				if (line.startsWith("---")) // code blocks aren't indented
-					inCode = !inCode;
-
-				if (inCode)
-					ret ~= line;
-				else
-				{
-					if (line.startsWith(indent)) // strip indentation of DT
-						ret ~= line[indent.length .. $];
-					else
-						ret ~= line;
-				}
-			}
-		}
-		if (!found)
-			throw new Exception("DT '" ~ dtStart ~ "' was not found");
-		// ret still has `$(DD content)` around it, strip that
-		if (ret.startsWith("$(DD"))
-		{
-			ret = ret[4 .. $].strip;
-			if (ret.endsWith(")"))
-				ret = ret[0 .. $ - 1].stripRight;
-		}
-		return ret;
-	}();
-}
-
-template fetchDocByGNAME(string ddoc, string gname)
-{
-	enum fetchDocByGNAME = {
-		import std.algorithm : canFind;
-		import std.string : lineSplitter, KeepTerminator, strip, stripLeft,
-			startsWith;
-
-		bool found;
-		bool inCode;
-		string ret;
-		string indent;
-		foreach (line; ddoc.lineSplitter!(KeepTerminator.yes))
-		{
-			if (line.canFind("$(GNAME ", "$(LNAME2") || line.stripLeft.startsWith("$(SPEC_SUBNAV_PREV_NEXT"))
-			{
-				if (found)
-					break;
-				else if (line.canFind("$(GNAME " ~ gname ~ ")"))
-					found = true;
-			}
-			else if (found)
-			{
-				if (line.startsWith("---"))
-					inCode = !inCode;
-				if (inCode)
-					ret ~= line;
-				else
-				{
-					if (!ret.length)
-						indent = line[0 .. $ - line.stripLeft.length];
-					if (line.startsWith(indent))
-						ret ~= line[indent.length .. $];
-					else
-						ret ~= line;
-				}
-			}
-		}
-		if (!found)
-			throw new Exception("GNAME '" ~ gname ~ "' was not found");
-		return ret.strip;
-	}();
-}
-
-template pragmaConstantCompletion(string field)
-{
-	enum ConstantCompletion pragmaConstantCompletion = ConstantCompletion(field, fetchDocDDforDT!(pragmaDDoc, field));
-}
-
-template traitsConstantCompletion(string field)
-{
-	enum ConstantCompletion traitsConstantCompletion = ConstantCompletion(field, fetchDocByGNAME!(traitsDDoc, field));
-}
-
-/**
- * Pragma arguments
- */
-immutable ConstantCompletion[] pragmas = [
-	// docs from https://github.com/dlang/dlang.org/blob/master/spec/pragma.dd
-	pragmaConstantCompletion!"inline",
-	pragmaConstantCompletion!"lib",
-	pragmaConstantCompletion!"mangle",
-	pragmaConstantCompletion!"msg",
-	pragmaConstantCompletion!"startaddress"
-];
 
 /**
  * Linkage types
@@ -159,59 +42,6 @@ immutable ConstantCompletion[] linkages = [
 	ConstantCompletion("Pascal"),
 	ConstantCompletion("System", "`Windows` on Windows platforms, `C` on other platforms."),
 	ConstantCompletion("Windows", "Enforces Win32/`__stdcall` conventions for the function.")
-];
-
-/**
- * Traits arguments
- */
-immutable ConstantCompletion[] traits = [
-	// https://github.com/dlang/dlang.org/blob/master/spec/traits.dd
-	traitsConstantCompletion!"allMembers",
-	traitsConstantCompletion!"classInstanceSize",
-	traitsConstantCompletion!"compiles",
-	traitsConstantCompletion!"derivedMembers",
-	traitsConstantCompletion!"getAliasThis",
-	traitsConstantCompletion!"getAttributes",
-	traitsConstantCompletion!"getFunctionAttributes",
-	traitsConstantCompletion!"getFunctionVariadicStyle",
-	traitsConstantCompletion!"getLinkage",
-	traitsConstantCompletion!"getMember",
-	traitsConstantCompletion!"getOverloads",
-	traitsConstantCompletion!"getParameterStorageClasses",
-	traitsConstantCompletion!"getPointerBitmap",
-	traitsConstantCompletion!"getProtection",
-	traitsConstantCompletion!"getUnitTests",
-	traitsConstantCompletion!"getVirtualFunctions",
-	traitsConstantCompletion!"getVirtualIndex",
-	traitsConstantCompletion!"getVirtualMethods",
-	traitsConstantCompletion!"hasMember",
-	traitsConstantCompletion!"identifier",
-	traitsConstantCompletion!"isAbstractClass",
-	traitsConstantCompletion!"isAbstractFunction",
-	traitsConstantCompletion!"isArithmetic",
-	traitsConstantCompletion!"isAssociativeArray",
-	traitsConstantCompletion!"isDeprecated",
-	traitsConstantCompletion!"isDisabled",
-	traitsConstantCompletion!"isFinalClass",
-	traitsConstantCompletion!"isFinalFunction",
-	traitsConstantCompletion!"isFloating",
-	traitsConstantCompletion!"isFuture",
-	traitsConstantCompletion!"isIntegral",
-	traitsConstantCompletion!"isLazy",
-	traitsConstantCompletion!"isNested",
-	traitsConstantCompletion!"isOut",
-	traitsConstantCompletion!"isOverrideFunction",
-	traitsConstantCompletion!"isPOD",
-	traitsConstantCompletion!"isRef",
-	traitsConstantCompletion!"isSame",
-	traitsConstantCompletion!"isScalar",
-	traitsConstantCompletion!"isStaticArray",
-	traitsConstantCompletion!"isStaticFunction",
-	traitsConstantCompletion!"isTemplate",
-	traitsConstantCompletion!"isUnsigned",
-	traitsConstantCompletion!"isVirtualFunction",
-	traitsConstantCompletion!"isVirtualMethod",
-	traitsConstantCompletion!"parent"
 ];
 
 /**

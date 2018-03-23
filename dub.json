@@ -12,9 +12,6 @@
     "msgpack-d": "~>1.0.0-beta.3",
     "stdx-allocator": "~>2.77.0"
   },
-  "stringImportPaths": [
-    "."
-  ],
   "versions": ["built_with_dub"],
   "configurations": [
     {
