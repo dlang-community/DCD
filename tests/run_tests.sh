@@ -23,9 +23,11 @@ function startServer()
 echo "Shutting down currently-running server..."
 ../bin/dcd-client --shutdown 2>/dev/null > /dev/null
 ../bin/dcd-client --shutdown --tcp 2>/dev/null > /dev/null
-sleep 1s;
 
 for socket in unix tcp; do
+	# allow some time for server to shutdown
+	sleep 1s;
+
 	echo "Running tests for $socket sockets"
 
 	# Start up the server
