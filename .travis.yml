@@ -17,3 +17,34 @@ env:
   - BUILD=dub
 
 script: ./.travis.sh
+
+jobs:
+  include:
+    - stage: GitHub Release
+      if: tag IS present
+      d: ldc
+      os: linux
+      script: echo "Deploying to GitHub releases ..." && make release
+      deploy:
+        provider: releases
+        api_key: $GH_REPO_TOKEN
+        file_glob: true
+        file: bin/dcd-*.tar.gz
+        skip_cleanup: true
+        on:
+          repo: dlang-community/dcd
+          tags: true
+    - stage: GitHub Release
+      if: tag IS present
+      d: ldc
+      os: osx
+      script: echo "Deploying to GitHub releases ..." && make release
+      deploy:
+        provider: releases
+        api_key: $GH_REPO_TOKEN
+        file_glob: true
+        file: bin/dcd-*.tar.gz
+        skip_cleanup: true
+        on:
+          repo: dlang-community/dcd
+          tags: true
