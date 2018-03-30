@@ -25,6 +25,7 @@
     {
       "name": "client",
       "targetType": "executable",
+	  "targetPath": "bin/",
       "targetName": "dcd-client",
       "excludedSourceFiles": [
         "src/dcd/server/*"
@@ -33,6 +34,7 @@
     {
       "name": "server",
       "targetType": "executable",
+	  "targetPath": "bin/",
       "targetName": "dcd-server",
       "excludedSourceFiles": [
         "src/dcd/client/*"
