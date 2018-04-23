@@ -150,27 +150,5 @@ ldcserver: githash
 test: debugserver dmdclient
 	cd tests && ./run_tests.sh
 
-.ONESHELL:
 release:
-	@set -eux -o pipefail
-	VERSION=$$(git describe --abbrev=0 --tags)
-	ARCH="$${ARCH:-64}"
-	unameOut="$$(uname -s)"
-	case "$$unameOut" in
-	    Linux*) OS=linux; ;;
-	    Darwin*) OS=osx; ;;
-	    *) echo "Unknown OS: $$unameOut"; exit 1
-	esac
-
-	case "$$ARCH" in
-	    64) ARCH_SUFFIX="x86_64";;
-	    32) ARCH_SUFFIX="x86";;
-	    *) echo "Unknown ARCH: $$ARCH"; exit 1
-	esac
-
-	archiveName="dcd-$$VERSION-$$OS-$$ARCH_SUFFIX.tar.gz"
-
-	echo "Building $$archiveName"
-	${MAKE} ldcclient
-	${MAKE} ldcserver
-	tar cvfz "bin/$$archiveName" -C bin dcd-client dcd-server
+	./release.sh
