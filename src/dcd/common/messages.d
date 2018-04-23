@@ -147,7 +147,7 @@ struct AutocompleteResponse
 		 */
 		string documentation;
 
-		deprecated("Use identifier (or definition for calltips) instead") string compatibilityContent() const
+		deprecated("Use identifier (or definition for calltips) instead") string compatibilityContent() const nothrow
 		{
 			if (kind == ubyte.init)
 				return definition;
