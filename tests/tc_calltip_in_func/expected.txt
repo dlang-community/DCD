@@ -1,0 +1,2 @@
+calltips
+void fun(A param)
