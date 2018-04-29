@@ -3,7 +3,14 @@
 set -eux -o pipefail
 VERSION=$(git describe --abbrev=0 --tags)
 OS=windows
-ARCH_SUFFIX="x86"
+if [ "${ARCH:-32}" == "64" ] ; then
+	ARCH_SUFFIX="x86_64"
+	export MFLAGS="-m64"
+else
+	ARCH_SUFFIX="x86"
+	export MFLAGS="-m32"
+fi
+
 
 # Allow the script to be run from anywhere
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
