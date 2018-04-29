@@ -26,13 +26,16 @@ echo "Shutting down currently-running server..."
 
 for socket in unix tcp; do
 	# allow some time for server to shutdown
-	sleep 1s;
+	sleep 0.5s;
 
 	echo "Running tests for $socket sockets"
 
 	# Start up the server
 	echo "Starting server..."
 	startServer
+
+	# make sure the server is up and running
+	sleep 0.5s
 
 	# Run tests
 	for testCase in tc*; do
