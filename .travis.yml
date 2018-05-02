@@ -31,7 +31,7 @@ jobs:
         file: bin/dcd-*.tar.gz
         skip_cleanup: true
         on:
-          repo: dlang-community/dcd
+          repo: dlang-community/DCD
           tags: true
     - stage: GitHub Release
       #if: tag IS present
@@ -45,7 +45,7 @@ jobs:
         file: bin/dcd-*.tar.gz
         skip_cleanup: true
         on:
-          repo: dlang-community/dcd
+          repo: dlang-community/DCD
           tags: true
     - stage: GitHub Release
       #if: tag IS present
@@ -66,7 +66,7 @@ jobs:
           file: bin/dcd-.*.zip
           skip_cleanup: true
           on:
-            repo: dlang-community/dcd
+            repo: dlang-community/DCD
             tags: true
 stages:
   - name: test
