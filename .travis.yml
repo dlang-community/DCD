@@ -53,7 +53,7 @@ jobs:
       os: linux
       language: generic
       sudo: yes
-      script: echo "Deploying to GitHub releases ..." && ./release-windows.sh
+      script: echo "Deploying to GitHub releases ..." && ./release-windows.sh && ARCH=64 ./release-windows.sh
       addons:
         apt:
           packages:

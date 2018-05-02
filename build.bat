@@ -1,4 +1,5 @@
 IF "%DC%"=="" SET DC="dmd"
+IF "%MFLAGS%"=="" SET MFLAGS="-m32"
 
 set containers_modules=
 for /r "containers/src" %%F in (*.d) do call set containers_modules=%%containers_modules%% "%%F"
@@ -32,6 +33,7 @@ set server_name=bin\dcd-server
  %msgspack_modules%^
  -Imsgpack-d\src^
  -release -inline -O -wi^
+ %MFLAGS%^
  -of%client_name%
 
 %DC%^
@@ -47,6 +49,7 @@ set server_name=bin\dcd-server
  -Ilibdparse/src^
  -Istdx-allocator/source^
  -wi -O -release^
+ %MFLAGS%^
  -of%server_name%
 
 if exist %server_name%.obj del %server_name%.obj
