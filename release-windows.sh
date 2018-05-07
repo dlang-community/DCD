@@ -18,8 +18,8 @@ cd $DIR
 
 # Step 1: download the DMD binaries
 if [ ! -d dmd2 ] ; then
-	wget http://downloads.dlang.org/releases/2.x/2.076.0/dmd.2.076.0.windows.7z
-	7z x dmd.2.076.0.windows.7z > /dev/null
+	wget http://downloads.dlang.org/releases/2.x/2.080.0/dmd.2.080.0.windows.7z
+	7z x dmd.2.080.0.windows.7z > /dev/null
 fi
 
 # Step 2: Run DMD via wineconsole
