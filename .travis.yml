@@ -61,7 +61,7 @@ jobs:
           provider: releases
           api_key: $GH_REPO_TOKEN
           file_glob: true
-          file: bin/dcd-.*.zip
+          file: bin/dcd-*.zip
           skip_cleanup: true
           on:
             repo: dlang-community/DCD
