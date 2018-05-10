@@ -1,0 +1,1 @@
+enum a = char. 
