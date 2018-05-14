@@ -21,7 +21,7 @@ module dcd.common.dcd_version;
 /**
  * Human-readable version number
  */
-enum DCD_VERSION = "v0.9.4";
+enum DCD_VERSION = "v0.9.7";
 
 version (Windows) {}
 else version (built_with_dub) {}
