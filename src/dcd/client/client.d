@@ -73,7 +73,6 @@ int main(string[] args)
 			"version", &printVersion, "listImports", &listImports,
 			"tcp", &useTCP, "socketFile", &socketFile,
 			"getIdentifier", &getIdentifier,
-			"localUsage", &localUse, // TODO:remove this line in Nov. 2017
 			"localUse|u", &localUse, "extended|x", &fullOutput);
 	}
 	catch (ConvException e)
