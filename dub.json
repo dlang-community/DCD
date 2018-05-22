@@ -8,9 +8,9 @@
   "license": "GPL-3.0",
   "dependencies": {
     "dsymbol": "~>0.3.7",
-    "libdparse": "~>0.8.5",
+    "libdparse": "~>0.8.6",
     "msgpack-d": "~>1.0.0-beta.3",
-    "stdx-allocator": "~>2.77.0"
+    "stdx-allocator": "~>2.77.2"
   },
   "versions": ["built_with_dub"],
   "configurations": [
