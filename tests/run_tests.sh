@@ -7,26 +7,31 @@ IMPORTS=$(pwd)/imports
 
 fail_count=0
 pass_count=0
+client="../bin/dcd-client"
+server="../bin/dcd-server"
+tcp=""
 
 function startServer()
 {
-	if [[ $socket == "unix" ]]; then
-		../bin/dcd-server --ignoreConfig -I $IMPORTS 2>stderr.txt > stdout.txt &
-	else
-		../bin/dcd-server --tcp --ignoreConfig -I $IMPORTS 2>stderr.txt > stdout.txt &
-	fi
+	"$server" "$tcp" --ignoreConfig -I $IMPORTS 2>stderr.txt > stdout.txt &
 	server_pid=$!
 	sleep 1s;
 }
 
 # Make sure that the server is shut down
 echo "Shutting down currently-running server..."
-../bin/dcd-client --shutdown 2>/dev/null > /dev/null
-../bin/dcd-client --shutdown --tcp 2>/dev/null > /dev/null
+"$client" --shutdown 2>/dev/null > /dev/null
+"$client" --shutdown --tcp 2>/dev/null > /dev/null
 
 for socket in unix tcp; do
 	# allow some time for server to shutdown
 	sleep 0.5s;
+
+	if [[ $socket == "tcp" ]]; then
+		tcp="--tcp"
+	else
+		tcp=""
+	fi
 
 	echo "Running tests for $socket sockets"
 
@@ -35,17 +40,20 @@ for socket in unix tcp; do
 	startServer
 
 	# make sure the server is up and running
-	sleep 0.5s
+	for i in {0..4} ; do
+		if "$client" "$tcp" --status | grep "Server is running" ; then
+			break;
+		fi
+		sleepTime=$((1 << $i))
+		echo "Server isn't up yet. Sleeping for ${sleepTime}s"
+		sleep "${sleepTime}s"
+	done
 
 	# Run tests
 	for testCase in tc*; do
 		cd $testCase
 
-		if [[ $socket == "unix" ]]; then
-			./run.sh ""
-		else
-			./run.sh "--tcp"
-		fi
+		./run.sh "$tcp"
 		if [[ $? -eq 0 ]]; then
 			echo -e "${YELLOW}$socket:$testCase:${NORMAL} ... ${GREEN}Pass${NORMAL}";
 			let pass_count=pass_count+1
@@ -70,11 +78,7 @@ for socket in unix tcp; do
 
 	# Shut down
 	echo "Shutting down server..."
-	if [[ $socket == "unix" ]]; then
-		../bin/dcd-client --shutdown 2>/dev/null > /dev/null
-	else
-		../bin/dcd-client --shutdown --tcp 2>/dev/null > /dev/null
-	fi
+	"$client" --shutdown "$tcp" 2>/dev/null > /dev/null
 
 	# Report
 	if [[ $fail_count -eq 0 ]]; then
@@ -88,4 +92,3 @@ for socket in unix tcp; do
 		exit 1
 	fi
 done
-
