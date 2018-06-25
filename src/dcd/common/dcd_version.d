@@ -18,17 +18,20 @@
 
 module dcd.common.dcd_version;
 
+import std.string : strip;
+
 /**
  * Human-readable version number
  */
-enum DCD_VERSION = "v0.9.8";
 
-version (Windows) {}
-else version (built_with_dub) {}
+version (built_with_dub)
+{
+	enum DCD_VERSION = import("dubhash.txt").strip;
+}
 else
 {
 	/**
 	 * Current build's Git commit hash
 	 */
-	enum GIT_HASH = import("githash.txt");
+	enum DCD_VERSION = import("githash.txt").strip;
 }

@@ -20,9 +20,6 @@ callgrind.*
 # GDB temp files
 .gdb_history
 
-# Git hash file
-githash.txt
-
 # Test results
 tests/tc*/actual*.txt
 stderr.txt

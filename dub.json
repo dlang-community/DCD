@@ -12,6 +12,9 @@
     "msgpack-d": "~>1.0.0-beta.3",
     "stdx-allocator": "~>2.77.2"
   },
+  "stringImportPaths" : [
+    "bin"
+  ],
   "versions": ["built_with_dub"],
   "configurations": [
     {
@@ -40,5 +43,8 @@
         "src/dcd/client/*"
       ]
     }
+  ],
+  "preGenerateCommands" : [
+    "rdmd --eval=\"auto dir=environment.get(\\\"DUB_PACKAGE_DIR\\\"); dir.buildPath(\\\"bin\\\").mkdirRecurse; auto gitVer = (\\\"git -C \\\"~dir~\\\" describe --tags\\\").executeShell; (gitVer.status == 0 ? gitVer.output.strip : \\\"v\\\" ~ dir.dirName.baseName.findSplitAfter(environment.get(\\\"DUB_ROOT_PACKAGE\\\")~\\\"-\\\")[1]).ifThrown(\\\"0.0.0\\\").chain(newline).toFile(dir.buildPath(\\\"bin\\\", \\\"dubhash.txt\\\"));\""
   ]
 }

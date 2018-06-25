@@ -17,7 +17,8 @@ STDXALLOC_DIR := stdx-allocator
 SHELL:=/bin/bash
 
 githash:
-	git log -1 --format="%H" > githash.txt
+	@mkdir -p bin
+	git describe --tags > bin/githash.txt
 
 report:
 	dscanner --report src > dscanner-report.json
@@ -36,21 +37,21 @@ CLIENT_SRC := \
 
 DMD_CLIENT_FLAGS := -Imsgpack-d/src\
 	-Imsgpack-d/src\
-	-J.\
+	-Jbin\
 	-inline\
 	-O\
 	-wi\
 	-ofbin/dcd-client
 
 GDC_CLIENT_FLAGS := -Imsgpack-d/src\
-	-J.\
+	-Jbin\
 	-O3\
 	-frelease\
 	-obin/dcd-client
 
 LDC_CLIENT_FLAGS := -Imsgpack-d/src\
 	-Imsgpack-d/src\
-	-J=.\
+	-J=bin\
 	-release\
 	-O5\
 	-oq\
@@ -87,7 +88,7 @@ DMD_SERVER_FLAGS := -Icontainers/src\
 	-I${DPARSE_DIR}/src\
 	-I${DSYMBOL_DIR}/src\
 	-I${STDXALLOC_DIR}/source\
-	-J.\
+	-Jbin\
 	-wi\
 	-O\
 	-release\
@@ -101,13 +102,13 @@ DEBUG_SERVER_FLAGS := -Icontainers/src\
 	-wi\
 	-g\
 	-ofbin/dcd-server\
-	-J.
+	-Jbin
 
 GDC_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
 	-I${DPARSE_DIR}/src\
 	-I${DSYMBOL_DIR}/src\
-	-J.\
+	-Jbin\
 	-O3\
 	-frelease\
 	-obin/dcd-server
@@ -117,7 +118,7 @@ LDC_SERVER_FLAGS := -Icontainers/src\
 	-I${DPARSE_DIR}/src\
 	-I${DSYMBOL_DIR}/src\
 	-Isrc\
-	-J=.\
+	-J=bin\
 	-O5\
 	-release
 
