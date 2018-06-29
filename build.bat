@@ -1,6 +1,20 @@
 IF "%DC%"=="" SET DC="dmd"
 IF "%MFLAGS%"=="" SET MFLAGS="-m32"
 
+
+:: git might not be installed, so we provide 0.0.0 as a fallback or use
+:: the existing githash file if existent
+if not exist "bin" mkdir bin
+git describe --tags > bin\githash_.txt
+for /f %%i in ("bin\githash_.txt") do set githashsize=%%~zi
+if %githashsize% == 0 (
+	if not exist "bin\githash.txt" (
+		echo v0.0.0 > bin\githash.txt
+	)
+) else (
+	move /y bin\githash_.txt bin\githash.txt
+)
+
 set containers_modules=
 for /r "containers/src" %%F in (*.d) do call set containers_modules=%%containers_modules%% "%%F"
 
@@ -49,6 +63,7 @@ set server_name=bin\dcd-server
  -Ilibdparse/src^
  -Istdx-allocator/source^
  -wi -O -release^
+ -Jbin^
  %MFLAGS%^
  -of%server_name%
 
