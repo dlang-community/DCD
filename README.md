@@ -103,7 +103,7 @@ cursor position (in bytes).
 This will cause the client to print a listing of completions to *stdout*.
 The client will print either a listing of function call tips, or a listing of of
 completions depending on if the cursor was directly after a dot character or after
-a left parethesis.
+a left parenthesis.
 
 The file name is optional. If it is not specified, input will be read from *stdin*.
 
