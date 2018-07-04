@@ -48,7 +48,8 @@ set server_name=bin\dcd-server
  -Imsgpack-d\src^
  -release -inline -O -wi^
  %MFLAGS%^
- -of%client_name%
+ -of%client_name%^
+ -Jbin
 
 %DC%^
  %server_modules%^
