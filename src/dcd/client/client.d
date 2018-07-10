@@ -396,7 +396,7 @@ void printCompletionResponse(ref const AutocompleteResponse response, bool exten
 void printSearchResponse(const AutocompleteResponse response)
 {
 	foreach(ref completion; response.completions)
-		writeln(makeTabSeparated(completion.identifier, "" ~ completion.kind, completion.symbolLocation.to!string));
+		writeln(makeTabSeparated(completion.symbolFilePath, "" ~ completion.kind, completion.symbolLocation.to!string));
 }
 
 void printLocalUse(const AutocompleteResponse response)
