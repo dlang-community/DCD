@@ -59,7 +59,8 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 		request.cursorPosition, stringCache, tokenArray);
 
 	// allows to get completion on keyword, typically "is"
-	if (beforeTokens.length && isKeyword(beforeTokens[$-1].type))
+	if (beforeTokens.length &&
+		(isKeyword(beforeTokens[$-1].type) || isBasicType(beforeTokens[$-1].type)))
 	{
 		Token* fakeIdent = cast(Token*) (&beforeTokens[$-1]);
 		fakeIdent.text = str(fakeIdent.type);
