@@ -1,0 +1,9 @@
+identifiers
+alignof	k
+init	k
+mainCharacter	l
+mangleof	k
+sideCharacter	l
+sizeof	k
+stringof	k
+tupleof	k
