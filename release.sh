@@ -21,3 +21,6 @@ archiveName="dcd-$VERSION-$OS-$ARCH_SUFFIX.tar.gz"
 echo "Building $archiveName"
 ${MAKE:-make} ldcclient ldcserver LDC_FLAGS="${LDC_FLAGS[*]}"
 tar cvfz "bin/$archiveName" -C bin dcd-server dcd-client
+
+# temp
+./bin/dcd-client --version
