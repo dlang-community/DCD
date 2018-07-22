@@ -31,3 +31,6 @@ DC="$DIR/dmd2/windows/bin/dmd.exe" wine cmd /C build.bat
 
 cd bin
 zip "$archiveName" dcd-server.exe dcd-client.exe
+
+# temp
+bin/dcd-client.exe --version
