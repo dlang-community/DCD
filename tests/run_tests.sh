@@ -4,6 +4,7 @@ GREEN="\033[32m"
 YELLOW="\033[33m"
 NORMAL="\033[0m"
 IMPORTS=$(pwd)/imports
+export IMPORTS
 
 fail_count=0
 pass_count=0

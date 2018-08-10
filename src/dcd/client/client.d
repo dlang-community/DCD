@@ -39,7 +39,8 @@ int main(string[] args)
 	sharedLog.fatalHandler = () {};
 
 	size_t cursorPos = size_t.max;
-	string[] importPaths;
+	string[] addedImportPaths;
+	string[] removedImportPaths;
 	ushort port;
 	bool help;
 	bool shutdown;
@@ -66,10 +67,11 @@ int main(string[] args)
 
 	try
 	{
-		getopt(args, "cursorPos|c", &cursorPos, "I", &importPaths,
-			"port|p", &port, "help|h", &help, "shutdown", &shutdown,
-			"clearCache", &clearCache, "symbolLocation|l", &symbolLocation,
-			"doc|d", &doc, "query|status|q", &query, "search|s", &search,
+		getopt(args, "cursorPos|c", &cursorPos, "I", &addedImportPaths,
+			"R", &removedImportPaths, "port|p", &port, "help|h", &help,
+			"shutdown", &shutdown, "clearCache", &clearCache,
+			"symbolLocation|l", &symbolLocation, "doc|d", &doc,
+			"query|status|q", &query, "search|s", &search,
 			"version", &printVersion, "listImports", &listImports,
 			"tcp", &useTCP, "socketFile", &socketFile,
 			"getIdentifier", &getIdentifier,
@@ -136,10 +138,12 @@ int main(string[] args)
 		scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
 		return sendRequest(socket, request) ? 0 : 1;
 	}
-	else if (importPaths.length > 0)
+	else if (addedImportPaths.length > 0 || removedImportPaths.length > 0)
 	{
-		request.kind |= RequestKind.addImport;
-		request.importPaths = importPaths.map!(a => absolutePath(a)).array;
+		immutable bool adding = addedImportPaths.length > 0;
+		request.kind |= adding ? RequestKind.addImport : RequestKind.removeImport;
+		request.importPaths = (adding ? addedImportPaths : removedImportPaths)
+			.map!(a => absolutePath(a)).array;
 		if (cursorPos == size_t.max)
 		{
 			Socket socket = createSocket(socketFile, port);
@@ -199,7 +203,7 @@ int main(string[] args)
 	}
 
 	request.fileName = fileName;
-	request.importPaths = importPaths;
+	request.importPaths = addedImportPaths;
 	request.sourceCode = sourceCode;
 	request.cursorPosition = cursorPos;
 	request.searchName = search;

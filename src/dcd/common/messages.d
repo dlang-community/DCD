@@ -74,8 +74,10 @@ enum RequestKind : ushort
 	search =         0b00000000_10000000,
 	/// List import directories
 	listImports =    0b00000001_00000000,
-	/// local symbol usage
+	/// Local symbol usage
 	localUse =     	 0b00000010_00000000,
+	/// Remove import directory from server
+	removeImport =   0b00000100_00000000,
 	// dfmt on
 }
 

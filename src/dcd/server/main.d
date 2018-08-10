@@ -256,6 +256,11 @@ int main(string[] args)
 			cache.addImportPaths(request.importPaths);
 		}
 
+		if (request.kind & RequestKind.removeImport)
+		{
+			cache.removeImportPaths(request.importPaths);
+		}
+
 		if (request.kind & RequestKind.listImports)
 		{
 			AutocompleteResponse response;
