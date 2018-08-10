@@ -224,6 +224,12 @@ this, run the client with the -I option:
 
 	dcd-client -Ipath/to/imports
 
+## Remove import search path
+
+Import paths can be removed from the server without restarting it. To accomplish
+this, run the client with the -R option:
+
+	dcd-client -Rpath/to/imports
 
 ## Find declaration of symbol at cursor
 
