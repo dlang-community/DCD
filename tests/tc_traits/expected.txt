@@ -36,6 +36,7 @@ isOut	k
 isOverrideFunction	k
 isPOD	k
 isRef	k
+isReturnOnStack	k
 isSame	k
 isScalar	k
 isStaticArray	k
@@ -44,4 +45,5 @@ isTemplate	k
 isUnsigned	k
 isVirtualFunction	k
 isVirtualMethod	k
+isZeroInit	k
 parent	k

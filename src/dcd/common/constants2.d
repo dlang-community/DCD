@@ -13,101 +13,6 @@ import dcd.common.constants : ConstantCompletion;
  */
 immutable ConstantCompletion[] pragmas = [
 	// generated from pragma.dd
-	ConstantCompletion("inline", `$(P Affects whether functions are inlined or not. If at the declaration level, it
- affects the functions declared in the block it controls. If inside a function, it
- affects the function it is enclosed by. If there are multiple pragma inlines in a function,
- the lexically last one takes effect.)
-
- $(P It takes three forms:)
- $(OL
-    $(LI
----
-pragma(inline)
----
-    Sets the behavior to match the default behavior set by the compiler switch
-    $(DDSUBLINK dmd, switch-inline, $(TT -inline)).
-    )
-    $(LI
----
-pragma(inline, false)
----
-    Functions are never inlined.
-    )
-    $(LI
----
-pragma(inline, true)
----
-    If a function cannot be inlined with the $(DDSUBLINK dmd, switch-inline, $(TT -inline))
-    switch, an error message is issued. This is expected to be improved in the future to causing
-    functions to always be inlined regardless of compiler switch settings. Whether a compiler can
-    inline a particular function or not is implementation defined.
-    )
-  )
----
-pragma(inline):
-int foo(int x) // foo() is never inlined
-{
-    pragma(inline, true);
-    ++x;
-    pragma(inline, false); // supercedes the others
-    return x + 3;
-}
----`),
-	ConstantCompletion("lib", `Inserts a directive in the object file to link in the library
-    specified by the $(ASSIGNEXPRESSION).
-    The $(ASSIGNEXPRESSION)s must be a string literal:
------------------
-pragma(lib, "foo.lib");
------------------`),
-	ConstantCompletion("mangle", `Overrides the default mangling for a symbol. It's only effective
-    when the symbol is a function declaration or a variable declaration.
-    For example this allows linking to a symbol which is a D keyword, which would normally
-    be disallowed as a symbol name:
------------------
-pragma(mangle, "body")
-extern(C) void body_func();
------------------`),
-	ConstantCompletion("msg", `Constructs a message from the arguments and prints to the standard error stream while compiling:
------------------
-pragma(msg, "compiling...", 1, 1.0);
------------------`),
-	ConstantCompletion("startaddress", `Puts a directive into the object file saying that the
-    function specified in the first argument will be the
-    start address for the program:
------------------
-void foo() { ... }
-pragma(startaddress, foo);
------------------
-    This is not normally used for application level programming,
-    but is for specialized systems work.
-    For applications code, the start address is taken care of
-    by the runtime library.
-)
-)
-
-$(H2 $(LNAME2 vendor_specific_pragmas, Vendor Specific Pragmas))
-
-    $(P Vendor specific pragma $(I Identifier)s can be defined if they
-    are prefixed by the vendor's trademarked name, in a similar manner
-    to version identifiers:
-    )
-
------------------
-pragma(DigitalMars_funky_extension) { ... }
------------------
-
-    $(P Compilers must diagnose an error for unrecognized $(I Pragma)s,
-    even if they are vendor specific ones. This implies that vendor
-    specific pragmas should be wrapped in version statements:
-    )
-
------------------
-version (DigitalMars)
-{
-    pragma(DigitalMars_funky_extension)
-    { ... }
-}
------------------`),
 ];
 
 /**
@@ -197,57 +102,6 @@ $(LI Giving better error messages inside generic code than
 the sometimes hard to follow compiler ones.)
 $(LI Doing a finer grained specialization than template
 partial specialization allows for.)
-)
-
-
-$(H2 $(LNAME2 specialkeywords, Special Keywords))
-
-    $(P $(CODE __FILE__) and $(CODE __LINE__) expand to the source
-    file name and line number at the point of instantiation. The path of
-    the source file is left up to the compiler. )
-
-    $(P $(CODE __FILE_FULL_PATH__) expands to the absolute source
-    file name at the point of instantiation.)
-
-    $(P $(CODE __MODULE__) expands to the module name at the point of
-    instantiation.)
-
-    $(P $(CODE __FUNCTION__) expands to the fully qualified name of the
-    function at the point of instantiation.)
-
-    $(P $(CODE __PRETTY_FUNCTION__) is similar to $(CODE __FUNCTION__),
-    but also expands the function return type, its parameter types,
-    and its attributes.)
-
-    $(P Example usage:)
-
------
-module test;
-import std.stdio;
-
-void test(string file = __FILE__, size_t line = __LINE__,
-        string mod = __MODULE__, string func = __FUNCTION__,
-        string pretty = __PRETTY_FUNCTION__,
-        string fileFullPath = __FILE_FULL_PATH__)
-{
-    writefln("file: '%s', line: '%s', module: '%s',\nfunction: '%s', " ~
-        "pretty function: '%s',\nfile full path: '%s'",
-        file, line, mod, func, pretty, fileFullPath);
-}
-
-int main(string[] args)
-{
-    test();
-    return 0;
-}
------
-
-$(P Assuming the file was at /example/test.d, this will output:)
-
-$(CONSOLE
-file: 'test.d', line: '13', module: 'test',
-function: 'test.main', pretty function: 'int test.main(string[] args)',
-file full path: '/example/test.d'
 )`),
 	ConstantCompletion("derivedMembers", `$(P Takes a single argument, which must evaluate to either
 a type or an expression of type.
@@ -391,8 +245,8 @@ static assert(__traits(getFunctionVariadicStyle, (int[] a...) {}) == "typesafe")
 static assert(__traits(getFunctionVariadicStyle, typeof(cstyle)) == "stdarg");
 ---
 )`),
-	ConstantCompletion("getLinkage", `$(P Takes one argument, which is a declaration symbol, or the type of a function,
-delegate, or pointer to function.
+	ConstantCompletion("getLinkage", `$(P Takes one argument, which is a declaration symbol, or the type of a function, delegate,
+pointer to function, struct, class, or interface.
 Returns a string representing the $(LINK2 attribute.html#LinkageAttribute, LinkageAttribute)
 of the declaration.
 The string is one of:
@@ -414,6 +268,14 @@ alias aliasc = fooc;
 
 static assert(__traits(getLinkage, fooc) == "C");
 static assert(__traits(getLinkage, aliasc) == "C");
+
+extern (C++) struct FooCPPStruct {}
+extern (C++) class FooCPPClass {}
+extern (C++) interface FooCPPInterface {}
+
+static assert(__traits(getLinkage, FooCPPStruct) == "C++");
+static assert(__traits(getLinkage, FooCPPClass) == "C++");
+static assert(__traits(getLinkage, FooCPPInterface) == "C++");
 ---`),
 	ConstantCompletion("getMember", `$(P Takes two arguments, the second must be a string.
 The result is an expression formed from the first
@@ -442,9 +304,11 @@ void main()
 }
 ---`),
 	ConstantCompletion("getOverloads", `$(P The first argument is an aggregate (e.g. struct/class/module).
-The second argument is a string that matches the name of
-one of the functions in that aggregate.
-The result is a tuple of all the overloads of that function.
+The second argument is a ` ~ "`" ~ `string` ~ "`" ~ ` that matches the name of
+the member(s) to return.
+The third argument is a ` ~ "`" ~ `bool` ~ "`" ~ `, and is optional.  If ` ~ "`" ~ `true` ~ "`" ~ `, the
+result will also include template overloads.
+The result is a tuple of all the overloads of the supplied name.
 )
 
 ---
@@ -456,6 +320,8 @@ class D
     ~this() { }
     void foo() { }
     int foo(int) { return 2; }
+    void bar(T)() { return T.init; }
+    class bar(int n) {}
 }
 
 void main()
@@ -471,6 +337,9 @@ void main()
 
     auto i = __traits(getOverloads, d, "foo")[1](1);
     writeln(i);
+
+    foreach (t; __traits(getOverloads, D, "bar", true))
+        writeln(t.stringof);
 }
 ---
 
@@ -482,6 +351,8 @@ int()
 void()
 int()
 2
+bar(T)()
+bar(int n)
 )`),
 	ConstantCompletion("getParameterStorageClasses", `$(P
     Takes two arguments.
@@ -506,7 +377,7 @@ static assert(__traits(getParameterStorageClasses, typeof(&foo), 3)[0] == "lazy"
 The result is an array of $(D size_t) describing the memory used by an instance of the given type.
 )
 $(P The first element of the array is the size of the type (for classes it is
-the $(GBLINK classInstanceSize)).)
+the $(GLINK classInstanceSize)).)
 $(P The following elements describe the locations of GC managed pointers within the
 memory occupied by an instance of the type.
 For type T, there are $(D T.sizeof / size_t.sizeof) possible pointers represented
@@ -706,6 +577,8 @@ import std.stdio;
 struct S
 {
     int m;
+
+    import std.stdio; // imports write
 }
 
 void main()
@@ -715,6 +588,7 @@ void main()
     writeln(__traits(hasMember, S, "m")); // true
     writeln(__traits(hasMember, s, "m")); // true
     writeln(__traits(hasMember, S, "y")); // false
+    writeln(__traits(hasMember, S, "write")); // true
     writeln(__traits(hasMember, int, "sizeof")); // true
 }
 ---`),
@@ -995,6 +869,36 @@ void foolazy(lazy int x)
     static assert(__traits(isLazy, x));
 }
 ---`),
+	ConstantCompletion("isReturnOnStack", `$(P
+    Takes one argument which must either be a function symbol, function literal,
+    a delegate, or a function pointer.
+    It returns a ` ~ "`" ~ `bool` ~ "`" ~ ` which is ` ~ "`" ~ `true` ~ "`" ~ ` if the return value of the function is
+    returned on the stack via a pointer to it passed as a hidden extra
+    parameter to the function.
+)
+
+---
+struct S { int[20] a; }
+int test1();
+S test2();
+
+static assert(__traits(isReturnOnStack, test1) == false);
+static assert(__traits(isReturnOnStack, test2) == true);
+---
+
+$(IMPLEMENTATION_DEFINED
+    This is determined by the function ABI calling convention in use,
+    which is often complex.
+)
+
+$(BEST_PRACTICE This has applications in:
+$(OL
+$(LI Returning values in registers is often faster, so this can be used as
+a check on a hot function to ensure it is using the fastest method.)
+$(LI When using inline assembly to correctly call a function.)
+$(LI Testing that the compiler does this correctly is normally hackish and awkward,
+this enables efficient, direct, and simple testing.)
+))`),
 	ConstantCompletion("isSame", `$(P Takes two arguments and returns bool $(D true) if they
 are the same symbol, $(D false) if not.)
 
@@ -1018,7 +922,77 @@ void main()
 ---
 
 $(P If the two arguments are expressions made up of literals
-or enums that evaluate to the same value, true is returned.)`),
+or enums that evaluate to the same value, true is returned.)
+
+$(P If the two arguments are both lambda functions (or aliases
+to lambda functions), then they are compared for equality. For
+the comparison to be computed correctly, the following conditions
+must be met for both lambda functions:)
+
+$(OL
+$(LI The lambda function arguments must not have a template
+instantiation as an explicit argument type. Any other argument
+types (basic, user-defined, template) are supported.)
+$(LI The lambda function body must contain a single expression
+(no return statement) which contains only numeric values,
+manifest constants, enum values, function arguments and function
+calls. If the expression contains local variables or return
+statements, the function is considered incomparable.)
+)
+
+$(P If these constraints aren't fulfilled, the function is considered
+incomparable and ` ~ "`" ~ `isSame` ~ "`" ~ ` returns $(D false).)
+
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
+---
+int f() { return 2; }
+void test(alias pred)()
+{
+    // f() from main is a different function from top-level f()
+    static assert(!__traits(isSame, (int a) => a + f(), pred));
+}
+
+void main()
+{
+    static assert(__traits(isSame, (a, b) => a + b, (c, d) => c + d));
+    static assert(__traits(isSame, a => ++a, b => ++b));
+    static assert(!__traits(isSame, (int a, int b) => a + b, (a, b) => a + b));
+    static assert(__traits(isSame, (a, b) => a + b + 10, (c, d) => c + d + 10));
+
+    // lambdas accessing local variables are considered incomparable
+    int b;
+    static assert(!__traits(isSame, a => a + b, a => a + b));
+
+    // lambdas calling other functions are comparable
+    int f() { return 3;}
+    static assert(__traits(isSame, a => a + f(), a => a + f()));
+    test!((int a) => a + f())();
+
+    class A
+    {
+        int a;
+        this(int a)
+        {
+            this.a = a;
+        }
+    }
+
+    class B
+    {
+        int a;
+        this(int a)
+        {
+            this.a = a;
+        }
+    }
+
+    static assert(__traits(isSame, (A a) => ++a.a, (A b) => ++b.a));
+    // lambdas with different data types are considered incomparable,
+    // even if the memory layout is the same
+    static assert(!__traits(isSame, (A a) => ++a.a, (B a) => ++a.a));
+}
+---
+)`),
 	ConstantCompletion("isScalar", `$(P Works like $(D isArithmetic), except it's for scalar
 types.)`),
 	ConstantCompletion("isStaticArray", `$(P Works like $(D isArithmetic), except it's for static array
@@ -1066,6 +1040,32 @@ void main()
     writeln(__traits(isVirtualMethod, S.bar));  // false
 }
 ---`),
+	ConstantCompletion("isZeroInit", `$(P Takes one argument which must be a type. If the type's
+$(DDSUBLINK spec/property, init, default initializer) is all zero
+bits then ` ~ "`" ~ `true` ~ "`" ~ ` is returned, otherwise ` ~ "`" ~ `false` ~ "`" ~ `.)
+
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
+---
+struct S1 { int x; }
+struct S2 { int x = -1; }
+
+static assert(__traits(isZeroInit, S1));
+static assert(!__traits(isZeroInit, S2));
+
+void test()
+{
+    int x = 3;
+    static assert(__traits(isZeroInit, typeof(x)));
+}
+
+// ` ~ "`" ~ `isZeroInit` ~ "`" ~ ` will always return true for a class C
+// because ` ~ "`" ~ `C.init` ~ "`" ~ ` is null reference.
+
+class C { int x = -1; }
+
+static assert(__traits(isZeroInit, C));
+---
+)`),
 	ConstantCompletion("parent", `$(P Takes a single argument which must evaluate to a symbol.
 The result is the symbol that is the parent of it.
 )`),
