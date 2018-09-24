@@ -1,6 +1,7 @@
 IF "%DC%"=="" SET DC="dmd"
+IF "%DC%"=="ldc2" SET DC="ldmd2"
+IF "%DC%"=="gdc" SET DC="gdmd"
 IF "%MFLAGS%"=="" SET MFLAGS="-m32"
-
 
 :: git might not be installed, so we provide 0.0.0 as a fallback or use
 :: the existing githash file if existent
