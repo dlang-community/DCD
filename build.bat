@@ -49,7 +49,7 @@ set server_name=bin\dcd-server
  -Imsgpack-d\src^
  -release -inline -O -wi^
  %MFLAGS%^
- -of%client_name%^
+ -of%client_name%.exe^
  -Jbin
 
 %DC%^
@@ -67,7 +67,7 @@ set server_name=bin\dcd-server
  -wi -O -release^
  -Jbin^
  %MFLAGS%^
- -of%server_name%
+ -of%server_name%.exe
 
 if exist %server_name%.obj del %server_name%.obj
 if exist %client_name%.obj del %client_name%.obj
