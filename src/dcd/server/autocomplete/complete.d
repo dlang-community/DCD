@@ -54,7 +54,7 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 	ref ModuleCache moduleCache)
 {
 	const(Token)[] tokenArray;
-	auto stringCache = StringCache(StringCache.defaultBucketCount);
+	auto stringCache = StringCache(request.sourceCode.length.optimalBucketCount);
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
 		request.cursorPosition, stringCache, tokenArray);
 
