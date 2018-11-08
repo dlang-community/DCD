@@ -46,7 +46,7 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request,
 	AutocompleteResponse response;
 	RollbackAllocator rba;
 	auto allocator = scoped!(ASTAllocator)();
-	auto cache = StringCache(StringCache.defaultBucketCount);
+	auto cache = StringCache(request.sourceCode.length.optimalBucketCount);
 	SymbolStuff stuff = getSymbolsForCompletion(request, CompletionType.ddoc,
 		allocator, &rba, cache, moduleCache);
 	if (stuff.symbols.length == 0)
