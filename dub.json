@@ -45,6 +45,6 @@
     }
   ],
   "preGenerateCommands" : [
-    "rdmd dubhash.d"
+    "rdmd $PACKAGE_DIR/dubhash.d"
   ]
 }
