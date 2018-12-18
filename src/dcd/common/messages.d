@@ -148,16 +148,6 @@ struct AutocompleteResponse
 		 * Documentation associated with this symbol.
 		 */
 		string documentation;
-
-		deprecated("Use identifier (or definition for calltips) instead") string compatibilityContent() const nothrow
-		{
-			if (kind == ubyte.init)
-				return definition;
-			else
-				return identifier;
-		}
-
-		alias compatibilityContent this;
 	}
 
 	/**
@@ -189,30 +179,6 @@ struct AutocompleteResponse
 	 * Symbol identifier
 	 */
 	ulong symbolIdentifier;
-
-	deprecated("use completions[].documentation + escapeConsoleOutputString instead") string[] docComments() @property
-	{
-		string[] ret;
-		foreach (ref completion; completions)
-			ret ~= completion.documentation.escapeConsoleOutputString(true);
-		return ret;
-	}
-
-	deprecated("use completions[].kind instead") char[] completionKinds() @property
-	{
-		char[] ret;
-		foreach (ref completion; completions)
-			ret ~= completion.kind;
-		return ret;
-	}
-
-	deprecated("use completions[].symbolLocation instead") size_t[] locations() @property
-	{
-		size_t[] ret;
-		foreach (ref completion; completions)
-			ret ~= completion.symbolLocation;
-		return ret;
-	}
 
 	/**
 	 * Creates an empty acknowledgement response
