@@ -198,12 +198,19 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 		if (tokens.length == 0) // workaround (#371)
 			return [];
 	}
-	else if (tokens[0] == tok!"." && tokens.length > 1)
+	else if (tokens[0] == tok!"." && tokens.length >= 1)
 	{
-		tokens = tokens[1 .. $];
-		if (tokens.length == 0)	// workaround (#371)
-			return [];
-		symbols = completionScope.getSymbolsAtGlobalScope(stringToken(tokens[0]));
+		if (tokens.length == 1)
+		{
+			// Module Scope Operator
+			auto s = completionScope.getScopeByCursor(1);
+			return s.symbols.map!(a => a.ptr).filter!(a => a !is null).array;
+		}
+		else
+		{
+			tokens = tokens[1 .. $];
+			symbols = completionScope.getSymbolsAtGlobalScope(stringToken(tokens[0]));
+		}
 	}
 	else
 		symbols = completionScope.getSymbolsByNameAndCursor(stringToken(tokens[0]), cursorPosition);
