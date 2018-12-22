@@ -528,6 +528,8 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	{
 		auto currentSymbols = completionScope.getSymbolsInCursorScope(cursorPosition);
 		foreach (s; currentSymbols.filter!(a => isPublicCompletionKind(a.kind)
+				// TODO: for now since "module.partial" is transformed into ".partial"
+				// we cant put the imported symbols that should be in the list.
 				&& a.kind != CompletionKind.importSymbol
 				&& a.kind != CompletionKind.dummy
 				&& a.symbolFile == "stdin"
