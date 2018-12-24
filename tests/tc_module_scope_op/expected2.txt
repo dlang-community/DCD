@@ -1,0 +1,3 @@
+identifiers
+var1	v
+var2	v

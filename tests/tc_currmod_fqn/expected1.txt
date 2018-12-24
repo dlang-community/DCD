@@ -1,0 +1,5 @@
+identifiers
+g	v
+main	f
+noLocals	f
+other	f

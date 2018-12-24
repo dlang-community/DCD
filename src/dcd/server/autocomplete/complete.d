@@ -24,6 +24,7 @@ import std.conv;
 import std.experimental.logger;
 import std.file;
 import std.path;
+import std.range : assumeSorted;
 import std.string;
 import std.typecons;
 
@@ -65,6 +66,52 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 		Token* fakeIdent = cast(Token*) (&beforeTokens[$-1]);
 		fakeIdent.text = str(fakeIdent.type);
 		fakeIdent.type = tok!"identifier";
+	}
+
+	const bool dotId = beforeTokens.length >= 2 &&
+		beforeTokens[$-1] == tok!"identifier" && beforeTokens[$-2] == tok!".";
+
+	// detects if the completion request uses the current module `ModuleDeclaration`
+	// as access chain. In this case removes this access chain, and just keep the dot
+	// because within a module semantic is the same (`myModule.stuff` -> `.stuff`).
+	if (tokenArray.length >= 3 && tokenArray[0] == tok!"module" && beforeTokens.length &&
+		(beforeTokens[$-1] == tok!"." || dotId))
+	{
+		const upper = tokenArray.countUntil!(a => a.type == tok!";");
+		bool isSame = true;
+		// enough room for the module decl and the fqn...
+		if (upper != -1 && beforeTokens.length >= upper * 2)
+			foreach (immutable i; 0 .. upper)
+		{
+			const j = beforeTokens.length - upper + i - 1 - ubyte(dotId);
+			// verify that the chain is well located after an expr or a decl
+			if (i == 0)
+			{
+				if (beforeTokens[j].type.among(tok!"{", tok!"}", tok!";", tok!"[",
+					tok!"(", tok!",",  tok!":"))
+					continue;
+			}
+			// compare the end of the "before tokens" (access chain)
+			// with the firsts (ModuleDeclaration)
+			else if ((tokenArray[i].type == tok!"." && beforeTokens[j].type == tok!".") ||
+				(tokenArray[i].type == tok!"identifier" && tokenArray[i].text == beforeTokens[j].text))
+			{
+				continue;
+			}
+			isSame = false;
+			break;
+		}
+
+		// replace the "before tokens" with a pattern making the remaining
+		// parts of the completion process think that it's a "Module Scope Operator".
+		if (isSame)
+		{
+			if (dotId)
+				beforeTokens = assumeSorted([const Token(tok!"{"), const Token(tok!"."),
+					cast(const) beforeTokens[$-1]]);
+			else
+				beforeTokens = assumeSorted([const Token(tok!"{"), const Token(tok!".")]);
+		}
 	}
 
 	if (beforeTokens.length >= 2)
@@ -163,11 +210,21 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 		response.setCompletions(pair.scope_, getExpression(beforeTokens),
 			cursorPosition, CompletionType.identifiers, false, partial);
 		break;
-	case tok!"(":
-	case tok!"{":
-	case tok!"[":
-	case tok!";":
+	//  these tokens before a "." mean "Module Scope Operator"
 	case tok!":":
+	case tok!"(":
+	case tok!"[":
+	case tok!"{":
+	case tok!";":
+	case tok!"}":
+	case tok!",":
+		auto allocator = scoped!(ASTAllocator)();
+		RollbackAllocator rba;
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
+			&rba, 1, moduleCache);
+		scope(exit) pair.destroy();
+		response.setCompletions(pair.scope_, getExpression(beforeTokens),
+			1, CompletionType.identifiers, false, partial);
 		break;
 	default:
 		break;
@@ -460,6 +517,24 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		auto currentSymbols = completionScope.getSymbolsInCursorScope(cursorPosition);
 		foreach (s; currentSymbols.filter!(a => isPublicCompletionKind(a.kind)
 				&& toUpper(a.name.data).startsWith(toUpper(partial))))
+		{
+			response.completions ~= makeSymbolCompletionInfo(s, s.kind);
+		}
+		response.completionType = CompletionType.identifiers;
+		return;
+	}
+	// "Module Scope Operator" : filter module decls
+	else if (tokens.length == 1 && tokens[0] == tok!".")
+	{
+		auto currentSymbols = completionScope.getSymbolsInCursorScope(cursorPosition);
+		foreach (s; currentSymbols.filter!(a => isPublicCompletionKind(a.kind)
+				// TODO: for now since "module.partial" is transformed into ".partial"
+				// we cant put the imported symbols that should be in the list.
+				&& a.kind != CompletionKind.importSymbol
+				&& a.kind != CompletionKind.dummy
+				&& a.symbolFile == "stdin"
+				&& (partial !is null && toUpper(a.name.data).startsWith(toUpper(partial))
+					|| partial is null)))
 		{
 			response.completions ~= makeSymbolCompletionInfo(s, s.kind);
 		}
