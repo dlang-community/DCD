@@ -24,6 +24,7 @@ skip_tags: false
 branches:
   only:
     - master
+    - /^v\d+\.\d+\.\d+([+-]\S*)*$/
 
 install:
   - ps: function ResolveLatestDMD
