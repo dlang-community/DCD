@@ -53,16 +53,7 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request,
 		warning("Could not find symbol");
 	else
 	{
-		bool isDitto(string s)
-		{
-			import std.uni : icmp;
-			if (s.length > 5)
-				return false;
-			else
-				return s.icmp("ditto") == 0;
-		}
-
-		foreach(ref symbol; stuff.symbols.filter!(a => !a.doc.empty && !isDitto(a.doc)))
+		foreach(ref symbol; stuff.symbols.filter!(a => !a.doc.empty && !a.doc.ditto))
 		{
 			AutocompleteResponse.Completion c;
 			c.documentation = symbol.doc;
