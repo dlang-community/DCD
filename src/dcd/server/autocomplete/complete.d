@@ -77,35 +77,45 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 	if (tokenArray.length >= 3 && tokenArray[0] == tok!"module" && beforeTokens.length &&
 		(beforeTokens[$-1] == tok!"." || dotId))
 	{
-		const upper = tokenArray.countUntil!(a => a.type == tok!";" &&
-												  a.index < beforeTokens[$-1].index);
-		bool isSame = upper != -1;
+		const moduleDeclEndIndex = tokenArray.countUntil!(a => a.type == tok!";");
+		bool beginsWithModuleName;
 		// enough room for the module decl and the fqn...
-		if (isSame && beforeTokens.length >= upper * 2)
-			foreach (immutable i; 0 .. upper)
+		if (moduleDeclEndIndex != -1 && beforeTokens.length >= moduleDeclEndIndex * 2)
+			foreach (immutable i; 0 .. moduleDeclEndIndex)
 		{
-			const j = beforeTokens.length - upper + i - 1 - ubyte(dotId);
+			const expectIdt = bool(i & 1);
+			const expectDot = !expectIdt;
+			const j = beforeTokens.length - moduleDeclEndIndex + i - 1 - ubyte(dotId);
+
 			// verify that the chain is well located after an expr or a decl
 			if (i == 0)
 			{
-				if (beforeTokens[j].type.among(tok!"{", tok!"}", tok!";", tok!"[",
-					tok!"(", tok!",",  tok!":"))
-					continue;
+				if (!beforeTokens[j].type.among(tok!"{", tok!"}", tok!";",
+					tok!"[", tok!"(", tok!",",  tok!":"))
+						break;
 			}
-			// compare the end of the "before tokens" (access chain)
+			// then compare the end of the "before tokens" (access chain)
 			// with the firsts (ModuleDeclaration)
-			else if ((tokenArray[i].type == tok!"." && beforeTokens[j].type == tok!".") ||
-				(tokenArray[i].type == tok!"identifier" && tokenArray[i].text == beforeTokens[j].text))
+			else
 			{
-				continue;
+				// even index : must be a dot
+				if (expectDot &&
+					(tokenArray[i].type != tok!"." || beforeTokens[j].type != tok!"."))
+						break;
+				// odd index : identifiers must match
+				else if (expectIdt &&
+					(tokenArray[i].type != tok!"identifier" || beforeTokens[j].type != tok!"identifier" ||
+					tokenArray[i].text != beforeTokens[j].text))
+						break;
 			}
-			isSame = false;
-			break;
+			if (i == moduleDeclEndIndex - 1)
+				beginsWithModuleName = true;
 		}
+
 
 		// replace the "before tokens" with a pattern making the remaining
 		// parts of the completion process think that it's a "Module Scope Operator".
-		if (isSame)
+		if (beginsWithModuleName)
 		{
 			if (dotId)
 				beforeTokens = assumeSorted([const Token(tok!"{"), const Token(tok!"."),
