@@ -77,10 +77,11 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 	if (tokenArray.length >= 3 && tokenArray[0] == tok!"module" && beforeTokens.length &&
 		(beforeTokens[$-1] == tok!"." || dotId))
 	{
-		const upper = tokenArray.countUntil!(a => a.type == tok!";");
-		bool isSame = true;
+		const upper = tokenArray.countUntil!(a => a.type == tok!";" &&
+												  a.index < beforeTokens[$-1].index);
+		bool isSame = upper != -1;
 		// enough room for the module decl and the fqn...
-		if (upper != -1 && beforeTokens.length >= upper * 2)
+		if (isSame && beforeTokens.length >= upper * 2)
 			foreach (immutable i; 0 .. upper)
 		{
 			const j = beforeTokens.length - upper + i - 1 - ubyte(dotId);
