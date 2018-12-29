@@ -5,3 +5,5 @@ set -u
 diff actual1.txt expected1.txt
 ../../bin/dcd-client $1 file2.d -c46 > actual2.txt
 diff actual2.txt expected2.txt
+../../bin/dcd-client $1 file3.d -c11 > actual3.txt
+diff actual3.txt expected3.txt
