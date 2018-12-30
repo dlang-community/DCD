@@ -369,6 +369,8 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 			skip(tok!"(", tok!")");
 			break;
 		case tok!"[":
+			if (symbols.length == 0)
+				break loop;
 			if (symbols[0].qualifier == SymbolQualifier.array)
 			{
 				skip(tok!"[", tok!"]");
