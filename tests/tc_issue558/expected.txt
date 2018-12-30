@@ -1,3 +1,2 @@
 identifiers
-bar	M
 module1	M
