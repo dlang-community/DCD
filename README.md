@@ -38,7 +38,8 @@ the issue.)
 * Not working:
 	* UFCS suggestions
 	* Autocompletion of declarations with template arguments (This will work to some extent, but it won't do things like replace T with int)
-	* Determining the type of an enum member when no base type is specified, but the first member has an initialaizer
+	* Determining the type of an enum member when no base type is specified, but the first member has an initializer
+	* auto functions (which can then propagate the failure to auto declarations)
 	* That one feature that you *REALLY* needed
 
 # Setup
@@ -51,9 +52,10 @@ the issue.)
 
 ### Git + Make
 
-1. Install a recent D compiler. DCD is tested with DMD 2.068.2, DMD 2.069.0-rc2, and LDC 0.16 (Do not use DMD 2.068.1)
+1. Install a recent D compiler.
 1. Run `git submodule update --init --recursive` after cloning this repository to grab the various dependencies.
-1. Run `make` to build the client and server. (Or run build.bat on Windows). `make ldc` and `make gdc` will use the LDC or GDC compilers. The resulting executable will be much faster.
+1. Optionally set the environment variable `DC` if you wish to use another compiler than the DMD known by the system.
+1. Run `make` to build the client and server. (Or run build.bat on Windows).
 
 ### OS X w/ Homebrew
 
@@ -175,7 +177,7 @@ a tab separated format:
 	libraryFunction	f	Tuple!long libraryFunction(string s, string s2)	stdin 190	foobar
 	libraryFunction	f	int* libraryFunction(string s)	stdin 99	Hello\nWorld
 	libraryVariable	v	int libraryVariable	stdin 56	My variable
-	libreTypes	g		stdin 298	
+	libreTypes	g		stdin 298
 
 #### Note
 
@@ -201,7 +203,7 @@ containing a call tip for an overload of the given function.
 ## Doc comment display
 
     dcd-client --doc -c 4298
-	
+
 When run with the --doc or -d option, DCD will attempt to display documentation
 comments associated with the symbol at the cursor position. In the case of
 functions there can be more than one documentation comment associated with a
@@ -294,7 +296,7 @@ Otherwise the client outputs _00000_ so that the length of the answer is guarant
 #### Example output
 
     stdin 45
-    26  
+    26
     45
     133
 
