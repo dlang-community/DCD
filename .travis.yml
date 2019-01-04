@@ -13,7 +13,7 @@ os:
 env:
   - BUILD=
   - BUILD=dub
-  
+
 branches:
   only:
   - master
@@ -24,7 +24,7 @@ jobs:
   include:
     - stage: GitHub Release
       #if: tag IS present
-      d: ldc-1.8.0
+      d: ldc-1.13.0
       os: linux
       script: echo "Deploying to GitHub releases ..." && ./release.sh
       deploy:
@@ -38,7 +38,7 @@ jobs:
           tags: true
     - stage: GitHub Release
       #if: tag IS present
-      d: ldc-1.8.0
+      d: ldc-1.13.0
       os: osx
       script: echo "Deploying to GitHub releases ..." && ./release.sh
       deploy:
@@ -56,12 +56,31 @@ jobs:
       os: linux
       language: generic
       sudo: yes
-      script: echo "Deploying to GitHub releases ..." && ./release-windows.sh && ARCH=64 ./release-windows.sh
+      script: echo "Deploying to GitHub releases ..." && ./release-windows.sh
       addons:
         apt:
           packages:
             - p7zip-full
-            - wine
+        deploy:
+          provider: releases
+          api_key: $GH_REPO_TOKEN
+          file_glob: true
+          file: bin/dcd-*.zip
+          skip_cleanup: true
+          on:
+            repo: dlang-community/DCD
+            tags: true
+    - stage: GitHub Release
+      #if: tag IS present
+      d: dmd
+      os: linux
+      language: generic
+      sudo: yes
+      script: echo "Deploying to GitHub releases ..." && ARCH=64 ./release-windows.sh
+      addons:
+        apt:
+          packages:
+            - p7zip-full
         deploy:
           provider: releases
           api_key: $GH_REPO_TOKEN
