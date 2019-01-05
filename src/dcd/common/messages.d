@@ -220,7 +220,7 @@ AutocompleteResponse getResponse(Socket socket)
 		if (bytesReceived == 0)
 			break;
 		unpacker.feed(buffer[0..bytesReceived]);
-	} while (bytesReceived == buffer.length);
+	} while (true);
 
 	if (unpacker.size == 0)
 		throw new Exception("Server closed the connection, 0 bytes received");
