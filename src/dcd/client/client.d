@@ -36,6 +36,21 @@ import dcd.common.socket;
 
 int main(string[] args)
 {
+	try
+	{
+		return runClient(args);
+	}
+	catch (Exception e)
+	{
+		stderr.writeln(e);
+		return 1;
+	}
+}
+
+private:
+
+int runClient(string[] args)
+{
 	sharedLog.fatalHandler = () {};
 
 	size_t cursorPos = size_t.max;
@@ -242,8 +257,6 @@ int main(string[] args)
 
 	return 0;
 }
-
-private:
 
 void printHelp(string programName)
 {
