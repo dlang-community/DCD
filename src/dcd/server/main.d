@@ -45,6 +45,19 @@ import dcd.server.server;
 
 int main(string[] args)
 {
+	try
+	{
+		return runServer(args);
+	}
+	catch (Exception e)
+	{
+		stderr.writeln(e);
+		return 1;
+	}
+}
+
+int runServer(string[] args)
+{
 	ushort port;
 	bool help;
 	bool printVersion;
