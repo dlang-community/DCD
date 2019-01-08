@@ -1,0 +1,3 @@
+module newmodule;
+
+struct SomeStruct {}
