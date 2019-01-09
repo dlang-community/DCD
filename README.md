@@ -139,6 +139,8 @@ tab character, followed by a completion kind
 * l - alias name
 * t - template name
 * T - mixin template name
+* h - template type parameter (when no colon constraint)
+* p - template variadic parameter
 
 #### Example output
 

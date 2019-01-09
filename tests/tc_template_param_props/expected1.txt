@@ -1,0 +1,4 @@
+identifiers
+init	k
+length	k
+stringof	k

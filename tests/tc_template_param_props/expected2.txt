@@ -1,9 +1,6 @@
 identifiers
-C	h
 alignof	k
-i	v
 init	k
 mangleof	k
 sizeof	k
 stringof	k
-tupleof	k
