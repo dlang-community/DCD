@@ -1,5 +1,5 @@
 identifiers
-T	l
+T	h
 alignof	k
 bar	f
 init	k
