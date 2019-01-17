@@ -57,6 +57,10 @@ LDC_CLIENT_FLAGS := -Imsgpack-d/src\
 	-oq\
 	-of=bin/dcd-client
 
+override DMD_CLIENT_FLAGS += $(DFLAGS)
+override LDC_CLIENT_FLAGS += $(DFLAGS)
+override GDC_CLIENT_FLAGS += $(DFLAGS)
+
 SERVER_SRC := \
 	$(shell find src/dcd/common -name "*.d")\
 	$(shell find src/dcd/server -name "*.d")\
@@ -122,6 +126,10 @@ LDC_SERVER_FLAGS := -Icontainers/src\
 	-O5\
 	-release
 
+override DMD_SERVER_FLAGS += $(DFLAGS)
+override LDC_SERVER_FLAGS += $(DFLAGS)
+override GDC_SERVER_FLAGS += $(DFLAGS)
+
 dmdclient: githash
 	mkdir -p bin
 	${DMD} ${CLIENT_SRC} ${DMD_CLIENT_FLAGS}
@@ -143,7 +151,7 @@ gdcserver: githash
 	${GDC} ${SERVER_SRC} ${GDC_SERVER_FLAGS}
 
 ldcclient: githash
-	${LDC} ${CLIENT_SRC} ${LDC_CLIENT_FLAGS}
+	${LDC} ${CLIENT_SRC} ${LDC_CLIENT_FLAGS} -oq -of=bin/dcd-client
 
 ldcserver: githash
 	${LDC} $(LDC_SERVER_FLAGS) ${SERVER_SRC} -oq -of=bin/dcd-server
