@@ -8,9 +8,10 @@
   "license": "GPL-3.0",
   "dependencies": {
     "dsymbol": "~>0.6.0",
-    "libdparse": "~>0.11.0",
+    "libdparse": "~>0.11.2",
     "msgpack-d": "~>1.0.0-beta.7",
-    "stdx-allocator": "~>2.77.5"
+    "stdx-allocator": "~>2.77.5",
+    "emsi_containers": "0.8.0-alpha.11"
   },
   "stringImportPaths" : [
     "bin"
