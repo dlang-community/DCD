@@ -189,9 +189,12 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 	{
 		size_t j;
 		tokens.skipParen(j, tok!"(", tok!")");
-		symbols = getSymbolsByTokenChain(completionScope, tokens[1 .. j],
+		if (j > 1)
+		{
+			symbols = getSymbolsByTokenChain(completionScope, tokens[1 .. j],
 				cursorPosition, completionType);
-		tokens = tokens[j + 1 .. $];
+			tokens = tokens[j + 1 .. $];
+		}
 		//writeln("<<<");
 		//dumpTokens(tokens.release);
 		//writeln("<<<");
@@ -514,12 +517,14 @@ T getExpression(T)(T beforeTokens)
 					i = bookmark + 1;
 					break expressionLoop;
 				case tok!"!":
-					if (skipCount == 1)
+					// only break if the bang is for a template instance
+					if (i - 2 >= 0  && beforeTokens[i - 2].type == tok!"identifier" && skipCount == 1)
 					{
 						sliceEnd = i - 1;
 						i -= 2;
+						break expressionLoop;
 					}
-					break expressionLoop;
+					break;
 				default:
 					break;
 			}
