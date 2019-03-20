@@ -97,7 +97,9 @@ DMD_SERVER_FLAGS := -Icontainers/src\
 	-O\
 	-release\
 	-inline\
-	-ofbin/dcd-server
+	-ofbin/dcd-server\
+	-dip25\
+	-dip1000
 
 DEBUG_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
