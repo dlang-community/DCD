@@ -1,4 +1,5 @@
 identifiers
+Bar	l
 __monitor	v
 __vptr	v
 alignof	k
