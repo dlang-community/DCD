@@ -32,10 +32,10 @@ import dsymbol.modulecache;
 /// Name of the server configuration file
 enum CONFIG_FILE_NAME = "dcd.conf";
 
-version(linux) version = useXDG;
-version(BSD) version = useXDG;
+version(linux) version   = useXDG;
+version(BSD) version     = useXDG;
 version(FreeBSD) version = useXDG;
-version(OSX) version = useXDG;
+version(OSX) version 	 = useXDG;
 
 /**
  * Locates the configuration file
