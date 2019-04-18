@@ -13,6 +13,7 @@ getOverloads	k
 getParameterStorageClasses	k
 getPointerBitmap	k
 getProtection	k
+getTargetInfo	k
 getUnitTests	k
 getVirtualFunctions	k
 getVirtualIndex	k
