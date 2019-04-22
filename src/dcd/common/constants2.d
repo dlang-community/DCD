@@ -29,6 +29,7 @@ No name is repeated.
 Builtin properties are not included.
 )
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 import std.stdio;
 
@@ -48,6 +49,7 @@ void main()
     // "Monitor", "factory"]
 }
 ---
+)
 
 $(P The order in which the strings appear in the result
 is not defined.)`),
@@ -68,6 +70,7 @@ The arguments cannot be statements or declarations.
 
 $(P If there are no arguments, the result is $(D false).)
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 import std.stdio;
 
@@ -94,6 +97,7 @@ void main()
     writeln(__traits(compiles, 1,2,3,int,long,3[1])); // false
 }
 ---
+)
 
 $(P This is useful for:)
 
@@ -112,6 +116,7 @@ Base class member names are not included.
 Builtin properties are not included.
 )
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 import std.stdio;
 
@@ -129,23 +134,48 @@ void main()
     writeln(a);    // ["__ctor", "__dtor", "foo"]
 }
 ---
+)
 
 $(P The order in which the strings appear in the result
 is not defined.)`),
-	ConstantCompletion("getAliasThis", `$(P Takes one argument, a symbol of aggregate type.
-    If the given aggregate type has $(D alias this), returns a list of
-    $(D alias this) names, by a tuple of $(D string)s.
-    Otherwise returns an empty tuple.
+	ConstantCompletion("getAliasThis", `$(P Takes one argument, a type. If the type has ` ~ "`" ~ `alias this` ~ "`" ~ ` declarations,
+    returns a sequence of the names (as ` ~ "`" ~ `string` ~ "`" ~ `s) of the members used in
+    those declarations. Otherwise returns an empty sequence.
+)
+
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
+---
+alias AliasSeq(T...) = T;
+
+struct S1
+{
+    string var;
+    alias var this;
+}
+static assert(__traits(getAliasThis, S1) == AliasSeq!("var"));
+static assert(__traits(getAliasThis, int).length == 0);
+
+pragma(msg, __traits(getAliasThis, S1));
+pragma(msg, __traits(getAliasThis, int));
+---
+)
+
+    Prints:
+
+$(CONSOLE
+tuple("var")
+tuple()
 )`),
 	ConstantCompletion("getAttributes", `$(P
     Takes one argument, a symbol. Returns a tuple of all attached user-defined attributes.
-    If no UDA's exist it will return an empty tuple.
+    If no UDAs exist it will return an empty tuple.
 )
 
 $(P
     For more information, see: $(DDSUBLINK spec/attribute, uda, User-Defined Attributes)
 )
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 @(3) int a;
 @("string", 7) int b;
@@ -157,6 +187,7 @@ pragma(msg, __traits(getAttributes, a));
 pragma(msg, __traits(getAttributes, b));
 pragma(msg, __traits(getAttributes, c));
 ---
+)
 
     Prints:
 
@@ -189,10 +220,10 @@ tuple((Foo))
 
 For example:
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 int sum(int x, int y) pure nothrow { return x + y; }
 
-// prints ("pure", "nothrow", "@system")
 pragma(msg, __traits(getFunctionAttributes, sum));
 
 struct S
@@ -200,16 +231,35 @@ struct S
     void test() const @system { }
 }
 
-// prints ("const", "@system")
 pragma(msg, __traits(getFunctionAttributes, S.test));
+
+void main(){}
 ---
+)
+
+    Prints:
+
+$(CONSOLE
+tuple("pure", "nothrow", "@system")
+tuple("const", "@system")
+)
 
 $(P Note that some attributes can be inferred. For example:)
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
-// prints ("pure", "nothrow", "@nogc", "@trusted")
 pragma(msg, __traits(getFunctionAttributes, (int x) @trusted { return x * 2; }));
+
+void main(){}
 ---
+)
+
+    Prints:
+
+$(CONSOLE
+tuple("pure", "nothrow", "@nogc", "@trusted")
+)
+)
 )`),
 	ConstantCompletion("getFunctionVariadicStyle", `$(P
     Takes one argument which must either be a function symbol, or a type
@@ -226,6 +276,7 @@ $(TABLE2 getFunctionVariadicStyle,
     $(TROW $(D "typesafe"), typesafe variadic function, array on stack, $(D void def(int[] ...)))
 )
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 import core.stdc.stdarg;
 
@@ -244,6 +295,7 @@ static assert(__traits(getFunctionVariadicStyle, typesafe) == "typesafe");
 static assert(__traits(getFunctionVariadicStyle, (int[] a...) {}) == "typesafe");
 static assert(__traits(getFunctionVariadicStyle, typeof(cstyle)) == "stdarg");
 ---
+)
 )`),
 	ConstantCompletion("getLinkage", `$(P Takes one argument, which is a declaration symbol, or the type of a function, delegate,
 pointer to function, struct, class, or interface.
@@ -257,11 +309,11 @@ $(LI $(D "D"))
 $(LI $(D "C"))
 $(LI $(D "C++"))
 $(LI $(D "Windows"))
-$(LI $(D "Pascal"))
 $(LI $(D "Objective-C"))
 $(LI $(D "System"))
 )
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 extern (C) int fooc();
 alias aliasc = fooc;
@@ -276,13 +328,15 @@ extern (C++) interface FooCPPInterface {}
 static assert(__traits(getLinkage, FooCPPStruct) == "C++");
 static assert(__traits(getLinkage, FooCPPClass) == "C++");
 static assert(__traits(getLinkage, FooCPPInterface) == "C++");
----`),
+---
+)`),
 	ConstantCompletion("getMember", `$(P Takes two arguments, the second must be a string.
 The result is an expression formed from the first
 argument, followed by a $(SINGLEQUOTE .), followed by the second
 argument as an identifier.
 )
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 import std.stdio;
 
@@ -299,10 +353,11 @@ void main()
     __traits(getMember, s, "mx") = 1;  // same as s.mx=1;
     writeln(__traits(getMember, s, "m" ~ "x")); // 1
 
-    __traits(getMember, S, "mx") = 1;  // error, no this for S.mx
+    // __traits(getMember, S, "mx") = 1;  // error, no this for S.mx
     __traits(getMember, S, "my") = 2;  // ok
 }
----`),
+---
+)`),
 	ConstantCompletion("getOverloads", `$(P The first argument is an aggregate (e.g. struct/class/module).
 The second argument is a ` ~ "`" ~ `string` ~ "`" ~ ` that matches the name of
 the member(s) to return.
@@ -311,6 +366,7 @@ result will also include template overloads.
 The result is a tuple of all the overloads of the supplied name.
 )
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 import std.stdio;
 
@@ -342,6 +398,7 @@ void main()
         writeln(t.stringof);
 }
 ---
+)
 
 Prints:
 
@@ -363,6 +420,7 @@ bar(int n)
     It returns a tuple of strings representing the storage classes of that parameter.
 )
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 ref int foo(return ref const int* p, scope int* a, out int b, lazy int c);
 
@@ -372,7 +430,8 @@ static assert(__traits(getParameterStorageClasses, foo, 0)[1] == "ref");
 static assert(__traits(getParameterStorageClasses, foo, 1)[0] == "scope");
 static assert(__traits(getParameterStorageClasses, foo, 2)[0] == "out");
 static assert(__traits(getParameterStorageClasses, typeof(&foo), 3)[0] == "lazy");
----`),
+---
+)`),
 	ConstantCompletion("getPointerBitmap", `$(P The argument is a type.
 The result is an array of $(D size_t) describing the memory used by an instance of the given type.
 )
@@ -383,33 +442,39 @@ memory occupied by an instance of the type.
 For type T, there are $(D T.sizeof / size_t.sizeof) possible pointers represented
 by the bits of the array values.)
 $(P This array can be used by a precise GC to avoid false pointers.)
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
-class C
+void main()
 {
-    // implicit virtual function table pointer not marked
-    // implicit monitor field not marked, usually managed manually
-    C next;
-    size_t sz;
-    void* p;
-    void function () fn; // not a GC managed pointer
-}
+    static class C
+    {
+        // implicit virtual function table pointer not marked
+        // implicit monitor field not marked, usually managed manually
+        C next;
+        size_t sz;
+        void* p;
+        void function () fn; // not a GC managed pointer
+    }
 
-struct S
-{
-    size_t val1;
-    void* p;
-    C c;
-    byte[] arr;          // { length, ptr }
-    void delegate () dg; // { context, func }
-}
+    static struct S
+    {
+        size_t val1;
+        void* p;
+        C c;
+        byte[] arr;          // { length, ptr }
+        void delegate () dg; // { context, func }
+    }
 
-static assert (__traits(getPointerBitmap, C) == [6*size_t.sizeof, 0b010100]);
-static assert (__traits(getPointerBitmap, S) == [7*size_t.sizeof, 0b0110110]);
----`),
+    static assert (__traits(getPointerBitmap, C) == [6*size_t.sizeof, 0b010100]);
+    static assert (__traits(getPointerBitmap, S) == [7*size_t.sizeof, 0b0110110]);
+}
+---
+)`),
 	ConstantCompletion("getProtection", `$(P The argument is a symbol.
 The result is a string giving its protection level: "public", "private", "protected", "export", or "package".
 )
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 import std.stdio;
 
@@ -430,6 +495,7 @@ void main()
     writeln(j);
 }
 ---
+)
 
 Prints:
 
@@ -437,12 +503,32 @@ $(CONSOLE
 export
 public
 )`),
+	ConstantCompletion("getTargetInfo", `$(P Receives a string key as argument.
+The result is an expression describing the requested target information.
+)
+
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
+---
+version (CppRuntime_Microsoft)
+    static assert(__traits(getTargetInfo, "cppRuntimeLibrary") == "libcmt");
+---
+)
+
+$(P Keys are implementation defined, allowing relevant data for exotic targets.
+A reliable subset exists which are always available:
+)
+
+$(UL
+$(LI $(D "cppRuntimeLibrary") - The C++ runtime library affinity for this toolchain)
+$(LI $(D "floatAbi") - Floating point ABI; may be $(D "hard"), $(D "soft"), or $(D "softfp"))
+$(LI $(D "objectFormat") - Target object format)
+)`),
 	ConstantCompletion("getUnitTests", `$(P
         Takes one argument, a symbol of an aggregate (e.g. struct/class/module).
         The result is a tuple of all the unit test functions of that aggregate.
         The functions returned are like normal nested static functions,
         $(DDSUBLINK glossary, ctfe, CTFE) will work and
-        $(DDSUBLINK spec/attribute, uda, UDA's) will be accessible.
+        $(DDSUBLINK spec/attribute, uda, UDAs) will be accessible.
 )
 
 $(H3 Note:)
@@ -453,6 +539,7 @@ $(P
         empty tuple.
 )
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 module foo;
 
@@ -503,6 +590,7 @@ void main()
         test();
 }
 ---
+)
 
 $(P By default, the above will print:)
 
@@ -528,6 +616,7 @@ The result is a tuple of the virtual overloads of that function.
 It does not include final functions that do not override anything.
 )
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 import std.stdio;
 
@@ -554,6 +643,7 @@ void main()
     writeln(i);
 }
 ---
+)
 
 Prints:
 
@@ -571,6 +661,7 @@ If the string is a valid property of the type,
 $(D true) is returned, otherwise $(D false).
 )
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 import std.stdio;
 
@@ -591,10 +682,12 @@ void main()
     writeln(__traits(hasMember, S, "write")); // true
     writeln(__traits(hasMember, int, "sizeof")); // true
 }
----`),
+---
+)`),
 	ConstantCompletion("identifier", `$(P Takes one argument, a symbol. Returns the identifier
 for that symbol as a string literal.
 )
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 import std.stdio;
 
@@ -603,13 +696,15 @@ pragma(msg, typeof(var));                       // int
 pragma(msg, typeof(__traits(identifier, var))); // string
 writeln(var);                                   // 123
 writeln(__traits(identifier, var));             // "var"
----`),
+---
+)`),
 	ConstantCompletion("isAbstractClass", `$(P If the arguments are all either types that are abstract classes,
 or expressions that are typed as abstract classes, then $(D true)
 is returned.
 Otherwise, $(D false) is returned.
 If there are no arguments, $(D false) is returned.)
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 import std.stdio;
 
@@ -624,6 +719,7 @@ void main()
     writeln(__traits(isAbstractClass, int*));
 }
 ---
+)
 
 Prints:
 
@@ -637,6 +733,7 @@ false
 $(D true) is returned, otherwise $(D false).
 )
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 import std.stdio;
 
@@ -661,13 +758,15 @@ void main()
     writeln(__traits(isAbstractFunction, S.bar));   // false
     writeln(__traits(isAbstractFunction, AC.foo));  // true
 }
----`),
+---
+)`),
 	ConstantCompletion("isArithmetic", `$(P If the arguments are all either types that are arithmetic types,
 or expressions that are typed as arithmetic types, then $(D true)
 is returned.
 Otherwise, $(D false) is returned.
 If there are no arguments, $(D false) is returned.)
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 import std.stdio;
 
@@ -680,6 +779,7 @@ void main()
     writeln(__traits(isArithmetic, int*));
 }
 ---
+)
 
 Prints:
 
@@ -696,6 +796,7 @@ marked with the ` ~ "`" ~ `deprecated` ~ "`" ~ ` keyword, otherwise ` ~ "`" ~ `f
 	ConstantCompletion("isDisabled", `$(P Takes one argument and returns ` ~ "`" ~ `true` ~ "`" ~ ` if it's a function declaration
 marked with ` ~ "`" ~ `@disable` ~ "`" ~ `.)
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 struct Foo
 {
@@ -706,21 +807,25 @@ struct Foo
 static assert(__traits(isDisabled, Foo.foo));
 static assert(!__traits(isDisabled, Foo.bar));
 ---
+)
 
 $(P For any other declaration even if ` ~ "`" ~ `@disable` ~ "`" ~ ` is a syntactically valid
 attribute ` ~ "`" ~ `false` ~ "`" ~ ` is returned because the annotation has no effect.)
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 @disable struct Bar{}
 
 static assert(!__traits(isDisabled, Bar));
----`),
+---
+)`),
 	ConstantCompletion("isFinalClass", `$(P Works like $(D isAbstractClass), except it's for final
 classes.)`),
 	ConstantCompletion("isFinalFunction", `$(P Takes one argument. If that argument is a final function,
 $(D true) is returned, otherwise $(D false).
 )
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 import std.stdio;
 
@@ -747,19 +852,55 @@ void main()
     writeln(__traits(isFinalFunction, C.foo));  // true
     writeln(__traits(isFinalFunction, FC.foo)); // true
 }
----`),
+---
+)`),
 	ConstantCompletion("isFloating", `$(P Works like $(D isArithmetic), except it's for floating
-point types (including imaginary and complex types).)`),
+point types (including imaginary and complex types).)
+
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
+---
+import core.simd : float4;
+
+enum E : float { a, b }
+
+static assert(__traits(isFloating, float));
+static assert(__traits(isFloating, idouble));
+static assert(__traits(isFloating, creal));
+static assert(__traits(isFloating, E));
+static assert(__traits(isFloating, float4));
+
+static assert(!__traits(isFloating, float[4]));
+---
+)`),
 	ConstantCompletion("isFuture", `$(P Takes one argument. It returns ` ~ "`" ~ `true` ~ "`" ~ ` if the argument is a symbol
 marked with the ` ~ "`" ~ `@future` ~ "`" ~ ` keyword, otherwise ` ~ "`" ~ `false` ~ "`" ~ `. Currently, only
 functions and variable declarations have support for the ` ~ "`" ~ `@future` ~ "`" ~ ` keyword.)`),
 	ConstantCompletion("isIntegral", `$(P Works like $(D isArithmetic), except it's for integral
-types (including character types).)`),
+types (including character types).)
+
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
+---
+import core.simd : int4;
+
+enum E { a, b }
+
+static assert(__traits(isIntegral, bool));
+static assert(__traits(isIntegral, char));
+static assert(__traits(isIntegral, int));
+static assert(__traits(isIntegral, E));
+static assert(__traits(isIntegral, int4));
+
+static assert(!__traits(isIntegral, float));
+static assert(!__traits(isIntegral, int[4]));
+static assert(!__traits(isIntegral, void*));
+---
+)`),
 	ConstantCompletion("isLazy", `$(P Takes one argument. If that argument is a declaration,
 $(D true) is returned if it is $(D_KEYWORD ref), $(D_KEYWORD out),
 or $(D_KEYWORD lazy), otherwise $(D false).
 )
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 void fooref(ref int x)
 {
@@ -781,7 +922,8 @@ void foolazy(lazy int x)
     static assert(!__traits(isOut, x));
     static assert(__traits(isLazy, x));
 }
----`),
+---
+)`),
 	ConstantCompletion("isNested", `$(P Takes one argument.
 It returns $(D true) if the argument is a nested type which internally
 stores a context pointer, otherwise it returns $(D false).
@@ -793,6 +935,7 @@ $(D true) is returned if it is $(D_KEYWORD ref), $(D_KEYWORD out),
 or $(D_KEYWORD lazy), otherwise $(D false).
 )
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 void fooref(ref int x)
 {
@@ -814,11 +957,13 @@ void foolazy(lazy int x)
     static assert(!__traits(isOut, x));
     static assert(__traits(isLazy, x));
 }
----`),
+---
+)`),
 	ConstantCompletion("isOverrideFunction", `$(P Takes one argument. If that argument is a function marked with
 $(D_KEYWORD override), $(D true) is returned, otherwise $(D false).
 )
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 import std.stdio;
 
@@ -839,7 +984,8 @@ void main()
     writeln(__traits(isOverrideFunction, Foo.foo));  // true
     writeln(__traits(isOverrideFunction, Foo.bar));  // false
 }
----`),
+---
+)`),
 	ConstantCompletion("isPOD", `$(P Takes one argument, which must be a type. It returns
 $(D true) if the type is a $(DDSUBLINK glossary, pod, POD) type, otherwise $(D false).)`),
 	ConstantCompletion("isRef", `$(P Takes one argument. If that argument is a declaration,
@@ -847,6 +993,7 @@ $(D true) is returned if it is $(D_KEYWORD ref), $(D_KEYWORD out),
 or $(D_KEYWORD lazy), otherwise $(D false).
 )
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 void fooref(ref int x)
 {
@@ -868,7 +1015,8 @@ void foolazy(lazy int x)
     static assert(!__traits(isOut, x));
     static assert(__traits(isLazy, x));
 }
----`),
+---
+)`),
 	ConstantCompletion("isReturnOnStack", `$(P
     Takes one argument which must either be a function symbol, function literal,
     a delegate, or a function pointer.
@@ -877,6 +1025,7 @@ void foolazy(lazy int x)
     parameter to the function.
 )
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 struct S { int[20] a; }
 int test1();
@@ -885,6 +1034,7 @@ S test2();
 static assert(__traits(isReturnOnStack, test1) == false);
 static assert(__traits(isReturnOnStack, test2) == true);
 ---
+)
 
 $(IMPLEMENTATION_DEFINED
     This is determined by the function ABI calling convention in use,
@@ -902,6 +1052,7 @@ this enables efficient, direct, and simple testing.)
 	ConstantCompletion("isSame", `$(P Takes two arguments and returns bool $(D true) if they
 are the same symbol, $(D false) if not.)
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 import std.stdio;
 
@@ -920,6 +1071,7 @@ void main()
     writeln(__traits(isSame, std, std)); // true
 }
 ---
+)
 
 $(P If the two arguments are expressions made up of literals
 or enums that evaluate to the same value, true is returned.)
@@ -994,25 +1146,102 @@ void main()
 ---
 )`),
 	ConstantCompletion("isScalar", `$(P Works like $(D isArithmetic), except it's for scalar
-types.)`),
+types.)
+
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
+---
+import core.simd : int4, void16;
+
+enum E { a, b }
+
+static assert(__traits(isScalar, bool));
+static assert(__traits(isScalar, char));
+static assert(__traits(isScalar, int));
+static assert(__traits(isScalar, float));
+static assert(__traits(isScalar, E));
+static assert(__traits(isScalar, int4));
+static assert(__traits(isScalar, void*)); // Includes pointers!
+
+static assert(!__traits(isScalar, int[4]));
+static assert(!__traits(isScalar, void16));
+static assert(!__traits(isScalar, void));
+static assert(!__traits(isScalar, typeof(null)));
+static assert(!__traits(isScalar, Object));
+---
+)`),
 	ConstantCompletion("isStaticArray", `$(P Works like $(D isArithmetic), except it's for static array
-types.)`),
+types.)
+
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
+---
+import core.simd : int4;
+
+enum E : int[4] { a = [1, 2, 3, 4] }
+
+static array = [1, 2, 3]; // Not a static array: the type is inferred as int[] not int[3].
+
+static assert(__traits(isStaticArray, void[0]));
+static assert(__traits(isStaticArray, E));
+static assert(!__traits(isStaticArray, int4));
+static assert(!__traits(isStaticArray, array));
+---
+)`),
 	ConstantCompletion("isStaticFunction", `$(P Takes one argument. If that argument is a static function,
 meaning it has no context pointer,
 $(D true) is returned, otherwise $(D false).
+)
+
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
+---
+struct A
+{
+    int foo() { return 3; }
+    static int boo(int a) { return a; }
+}
+
+void main()
+{
+    assert(__traits(isStaticFunction, A.boo));
+    assert(!__traits(isStaticFunction, A.foo));
+    assert(__traits(isStaticFunction, main));
+}
+---
 )`),
 	ConstantCompletion("isTemplate", `$(P Takes one argument. If that argument is a template then $(D true) is returned,
 otherwise $(D false).
 )
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 void foo(T)(){}
 static assert(__traits(isTemplate,foo));
 static assert(!__traits(isTemplate,foo!int()));
 static assert(!__traits(isTemplate,"string"));
----`),
+---
+)`),
 	ConstantCompletion("isUnsigned", `$(P Works like $(D isArithmetic), except it's for unsigned
-types.)`),
+types.)
+
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
+---
+import core.simd : uint4;
+
+enum SignedEnum { a, b }
+enum UnsignedEnum : uint { a, b }
+
+static assert(__traits(isUnsigned, bool));
+static assert(__traits(isUnsigned, char));
+static assert(__traits(isUnsigned, uint));
+static assert(__traits(isUnsigned, UnsignedEnum));
+static assert(__traits(isUnsigned, uint4));
+
+static assert(!__traits(isUnsigned, int));
+static assert(!__traits(isUnsigned, float));
+static assert(!__traits(isUnsigned, SignedEnum));
+static assert(!__traits(isUnsigned, uint[4]));
+static assert(!__traits(isUnsigned, void*));
+---
+)`),
 	ConstantCompletion("isVirtualFunction", `$(P The same as $(GLINK isVirtualMethod), except
 that final functions that don't override anything return true.
 )`),
@@ -1021,6 +1250,7 @@ $(D true) is returned, otherwise $(D false).
 Final functions that don't override anything return false.
 )
 
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 import std.stdio;
 
@@ -1039,7 +1269,8 @@ void main()
     writeln(__traits(isVirtualMethod, C.bar));  // true
     writeln(__traits(isVirtualMethod, S.bar));  // false
 }
----`),
+---
+)`),
 	ConstantCompletion("isZeroInit", `$(P Takes one argument which must be a type. If the type's
 $(DDSUBLINK spec/property, init, default initializer) is all zero
 bits then ` ~ "`" ~ `true` ~ "`" ~ ` is returned, otherwise ` ~ "`" ~ `false` ~ "`" ~ `.)
