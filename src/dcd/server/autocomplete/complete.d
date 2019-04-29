@@ -503,7 +503,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	CompletionType completionType, bool isBracket = false, string partial = null)
 {
 	static void addSymToResponse(const(DSymbol)* s, ref AutocompleteResponse r, string p,
-		size_t[] circularGuard = [])
+		Scope* completionScope, size_t[] circularGuard = [])
 	{
 		if (circularGuard.canFind(cast(size_t) s))
 			return;
@@ -512,12 +512,13 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			if (sym.name !is null && sym.name.length > 0 && isPublicCompletionKind(sym.kind)
 				&& (p is null ? true : toUpper(sym.name.data).startsWith(toUpper(p)))
 				&& !r.completions.canFind!(a => a.identifier == sym.name)
-				&& sym.name[0] != '*')
+				&& sym.name[0] != '*'
+				&& mightBeRelevantInCompletionScope(sym, completionScope))
 			{
 				r.completions ~= makeSymbolCompletionInfo(sym, sym.kind);
 			}
 			if (sym.kind == CompletionKind.importSymbol && !sym.skipOver && sym.type !is null)
-				addSymToResponse(sym.type, r, p, circularGuard ~ (cast(size_t) s));
+				addSymToResponse(sym.type, r, p, completionScope, circularGuard ~ (cast(size_t) s));
 		}
 	}
 
@@ -527,7 +528,8 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	{
 		auto currentSymbols = completionScope.getSymbolsInCursorScope(cursorPosition);
 		foreach (s; currentSymbols.filter!(a => isPublicCompletionKind(a.kind)
-				&& toUpper(a.name.data).startsWith(toUpper(partial))))
+				&& toUpper(a.name.data).startsWith(toUpper(partial))
+				&& mightBeRelevantInCompletionScope(a, completionScope)))
 		{
 			response.completions ~= makeSymbolCompletionInfo(s, s.kind);
 		}
@@ -545,7 +547,8 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				&& a.kind != CompletionKind.dummy
 				&& a.symbolFile == "stdin"
 				&& (partial !is null && toUpper(a.name.data).startsWith(toUpper(partial))
-					|| partial is null)))
+					|| partial is null)
+				&& mightBeRelevantInCompletionScope(a, completionScope)))
 		{
 			response.completions ~= makeSymbolCompletionInfo(s, s.kind);
 		}
@@ -574,7 +577,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			if (symbols.length == 0)
 				return;
 		}
-		addSymToResponse(symbols[0], response, partial);
+		addSymToResponse(symbols[0], response, partial, completionScope);
 		response.completionType = CompletionType.identifiers;
 	}
 	else if (completionType == CompletionType.calltips)
@@ -650,6 +653,21 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		}
 	}
 }
+
+bool mightBeRelevantInCompletionScope(const DSymbol* symbol, Scope* scope_)
+{
+	import dparse.lexer : tok;
+
+	if (symbol.protection == tok!"private" &&
+		!scope_.hasSymbolRecursive(symbol))
+	{
+		// scope is the scope of the current file so if the symbol is not in there, it's not accessible
+		return false;
+	}
+
+	return true;
+}
+
 
 AutocompleteResponse.Completion generateStructConstructorCalltip(const DSymbol* symbol)
 in

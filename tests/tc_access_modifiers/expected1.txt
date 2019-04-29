@@ -1,0 +1,4 @@
+identifiers
+mfieldPackage	v
+mfieldProtected	v
+mfieldPublic	v
