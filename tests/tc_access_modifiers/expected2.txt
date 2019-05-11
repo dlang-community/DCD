@@ -1,0 +1,3 @@
+identifiers
+myprivate	v
+mypublic	v

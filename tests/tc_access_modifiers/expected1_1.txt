@@ -1,0 +1,3 @@
+identifiers
+mfuncPublic	f
+mfuncPublicStatic	f
