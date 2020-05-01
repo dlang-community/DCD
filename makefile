@@ -31,7 +31,7 @@ clean:
 	rm -f *.o
 
 CLIENT_SRC := \
-	$(shell find src/dcd/common -name "*.d")\
+	$(shell find common/src/dcd/common -name "*.d")\
 	$(shell find src/dcd/client -name "*.d")\
 	$(shell find msgpack-d/src/ -name "*.d")
 
@@ -62,7 +62,7 @@ override LDC_CLIENT_FLAGS += $(DFLAGS)
 override GDC_CLIENT_FLAGS += $(DFLAGS)
 
 SERVER_SRC := \
-	$(shell find src/dcd/common -name "*.d")\
+	$(shell find common/src/dcd/common -name "*.d")\
 	$(shell find src/dcd/server -name "*.d")\
 	$(shell find ${DSYMBOL_DIR}/src -name "*.d")\
 	$(shell find ${STDXALLOC_DIR}/source -name "*.d")\

@@ -206,7 +206,7 @@ immutable ConstantCompletion[] traits = [
 
 	string part3 = "];";
 
-	auto file = File("../src/dcd/common/constants2.d", "w");
+	auto file = File("../common/src/dcd/common/constants2.d", "w");
 	file.writeln(part1);
 	foreach (pragma_; pragmas.sorted)
 		file.writeln('\t', pragma_, ",");

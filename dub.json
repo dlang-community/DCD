@@ -9,13 +9,11 @@
   "dependencies": {
     "dsymbol": "~>0.9.0",
     "libdparse": "~>0.13.0",
-    "msgpack-d": "~>1.0.0-beta.7",
+    ":common": "*",
     "stdx-allocator": "~>2.77.5",
     "emsi_containers": "~>0.8.0-alpha.15"
   },
-  "stringImportPaths" : [
-    "bin"
-  ],
+  "subPackages": ["common"],
   "versions": ["built_with_dub"],
   "configurations": [
     {
@@ -29,7 +27,7 @@
     {
       "name": "client",
       "targetType": "executable",
-	  "targetPath": "bin/",
+      "targetPath": "bin/",
       "targetName": "dcd-client",
       "excludedSourceFiles": [
         "src/dcd/server/*"
@@ -38,14 +36,11 @@
     {
       "name": "server",
       "targetType": "executable",
-	  "targetPath": "bin/",
+      "targetPath": "bin/",
       "targetName": "dcd-server",
       "excludedSourceFiles": [
         "src/dcd/client/*"
       ]
     }
-  ],
-  "preGenerateCommands" : [
-    "rdmd \"$PACKAGE_DIR/dubhash.d\""
   ]
 }

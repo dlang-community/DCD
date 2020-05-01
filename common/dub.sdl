@@ -1,0 +1,7 @@
+name "common"
+stringImportPaths "../bin"
+preGenerateCommands "rdmd \"$PACKAGE_DIR/dubhash.d\""
+sourcePaths "src"
+importPaths "src"
+
+dependency "msgpack-d" version="~>1.0.0-beta.7"
