@@ -333,17 +333,6 @@ union IPv4Union
 	uint i;
 }
 
-import std.regex : ctRegex;
-alias envVarRegex = ctRegex!(`\$\{([_a-zA-Z][_a-zA-Z 0-9]*)\}`);
-
-private unittest
-{
-	import std.regex : replaceAll;
-
-	enum input = `${HOME}/aaa/${_bb_b}/ccc`;
-
-	assert(replaceAll!(m => m[1])(input, envVarRegex) == `HOME/aaa/_bb_b/ccc`);
-}
 
 /**
  * Implements the --help switch.
