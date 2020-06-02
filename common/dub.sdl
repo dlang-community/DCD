@@ -5,3 +5,4 @@ sourcePaths "src"
 importPaths "src"
 
 dependency "msgpack-d" version="~>1.0.0-beta.7"
+versions "built_with_dub"
