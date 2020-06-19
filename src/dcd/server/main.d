@@ -281,22 +281,33 @@ int runServer(string[] args)
 			info("Returning import path list");
 			s.sendResponse(response);
 		}
-		else if (request.kind & RequestKind.autocomplete)
+		else
 		{
-			info("Getting completions");
-			s.sendResponse(complete(request, cache));
+			// these requests operate on and require source code
+
+			if ((request.kind & RequestKind.requiresSourceCode)
+				&& !request.sourceCode.length)
+			{
+				warning("Received a ", request.kind, " request without source code");
+				s.sendResponse(AutocompleteResponse.init);
+			}
+			else if (request.kind & RequestKind.autocomplete)
+			{
+				info("Getting completions");
+				s.sendResponse(complete(request, cache));
+			}
+			else if (request.kind & RequestKind.doc)
+			{
+				info("Getting doc comment");
+				s.trySendResponse(getDoc(request, cache), "Could not get DDoc information");
+			}
+			else if (request.kind & RequestKind.symbolLocation)
+				s.trySendResponse(findDeclaration(request, cache), "Could not get symbol location");
+			else if (request.kind & RequestKind.search)
+				s.sendResponse(symbolSearch(request, cache));
+			else if (request.kind & RequestKind.localUse)
+				s.trySendResponse(findLocalUse(request, cache), "Couldnot find local usage");
 		}
-		else if (request.kind & RequestKind.doc)
-		{
-			info("Getting doc comment");
-			s.trySendResponse(getDoc(request, cache), "Could not get DDoc information");
-		}
-		else if (request.kind & RequestKind.symbolLocation)
-			s.trySendResponse(findDeclaration(request, cache), "Could not get symbol location");
-		else if (request.kind & RequestKind.search)
-			s.sendResponse(symbolSearch(request, cache));
-		else if (request.kind & RequestKind.localUse)
-			s.trySendResponse(findLocalUse(request, cache), "Couldnot find local usage");
 
 		sw.stop();
 		info("Request processed in ", sw.peek().total!"msecs"(), " milliseconds");
