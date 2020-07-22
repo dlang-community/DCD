@@ -13,7 +13,10 @@ os:
 
 env:
   - BUILD=
-  - BUILD=dub
+  - BUILD=dub LIBDPARSE_VERSION=min
+  - BUILD=dub LIBDPARSE_VERSION=max
+  - BUILD=dub DSYMBOL_VERSION=min
+  - BUILD=dub DSYMBOL_VERSION=max
 
 branches:
   only:
