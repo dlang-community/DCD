@@ -66,25 +66,8 @@ SERVER_SRC := \
 	$(shell find src/dcd/server -name "*.d")\
 	$(shell find ${DSYMBOL_DIR}/src -name "*.d")\
 	$(shell find ${STDXALLOC_DIR}/source -name "*.d")\
-	${DPARSE_DIR}/src/dparse/ast.d\
-	${DPARSE_DIR}/src/dparse/entities.d\
-	${DPARSE_DIR}/src/dparse/lexer.d\
-	${DPARSE_DIR}/src/dparse/parser.d\
-	${DPARSE_DIR}/src/dparse/formatter.d\
-	${DPARSE_DIR}/src/dparse/rollback_allocator.d\
-	${DPARSE_DIR}/src/dparse/stack_buffer.d\
-	${DPARSE_DIR}/src/std/experimental/lexer.d\
-	containers/src/containers/dynamicarray.d\
-	containers/src/containers/ttree.d\
-	containers/src/containers/unrolledlist.d\
-	containers/src/containers/openhashset.d\
-	containers/src/containers/hashset.d\
-	containers/src/containers/internal/hash.d\
-	containers/src/containers/internal/node.d\
-	containers/src/containers/internal/storage_type.d\
-	containers/src/containers/internal/element_type.d\
-	containers/src/containers/internal/backwards.d\
-	containers/src/containers/slist.d\
+	$(shell find ${DPARSE_DIR}/src -name "*.d")\
+	$(shell find containers/src -name "*.d")\
 	$(shell find msgpack-d/src/ -name "*.d")
 
 DMD_SERVER_FLAGS := -Icontainers/src\
