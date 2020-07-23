@@ -379,5 +379,9 @@ options:
 
     --socketFile FILENAME
         Use the given FILENAME as the path to the UNIX domain socket. Using
-        this switch is an error on Windows.`, programName);
+        this switch is an error on Windows.
+
+    --ignoreConfig
+        Do not read the configuration file. Import paths must be specified
+        with the -I option or registered through dcd-client.`, programName);
 }
