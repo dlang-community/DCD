@@ -1,6 +1,6 @@
 dist: xenial
-sudo: false
 language: d
+
 d:
   - dmd
   - ldc-beta
@@ -28,7 +28,7 @@ jobs:
   include:
     - stage: GitHub Release
       #if: tag IS present
-      d: ldc-1.13.0
+      d: ldc-1.23.0
       os: linux
       script: echo "Deploying to GitHub releases ..." && ./release.sh
       deploy:
@@ -42,7 +42,7 @@ jobs:
           tags: true
     - stage: GitHub Release
       #if: tag IS present
-      d: ldc-1.13.0
+      d: ldc-1.23.0
       os: osx
       script: echo "Deploying to GitHub releases ..." && ./release.sh
       deploy:
@@ -56,10 +56,8 @@ jobs:
           tags: true
     - stage: GitHub Release
       #if: tag IS present
-      d: dmd
+      d: ldc-1.23.0
       os: linux
-      language: generic
-      sudo: yes
       script: echo "Deploying to GitHub releases ..." && ./release-windows.sh
       addons:
         apt:
@@ -76,10 +74,8 @@ jobs:
             tags: true
     - stage: GitHub Release
       #if: tag IS present
-      d: dmd
+      d: ldc-1.23.0
       os: linux
-      language: generic
-      sudo: yes
       script: echo "Deploying to GitHub releases ..." && ARCH=64 ./release-windows.sh
       addons:
         apt:
