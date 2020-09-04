@@ -11,7 +11,7 @@
     "libdparse": ">=0.15.4 <0.16.0",
     ":common": "*",
     "stdx-allocator": "~>2.77.5",
-    "emsi_containers": "~>0.8.0-alpha.19"
+    "emsi_containers": "~>0.8.0"
   },
   "subPackages": ["common"],
   "versions": ["built_with_dub"],
