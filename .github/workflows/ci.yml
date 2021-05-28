@@ -80,7 +80,7 @@ jobs:
 
       - name: Release Linux
         if: github.event_name == 'release' && contains(matrix.os, 'ubuntu') && contains(matrix.dc, 'ldc')
-        uses: WebFreak001/upload-asset@master
+        uses: WebFreak001/upload-asset@v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OS: linux
@@ -91,7 +91,7 @@ jobs:
 
       - name: Release Macos
         if: github.event_name == 'release' && contains(matrix.os, 'macos') && contains(matrix.dc, 'ldc')
-        uses: WebFreak001/upload-asset@master
+        uses: WebFreak001/upload-asset@v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OS: osx
@@ -102,7 +102,7 @@ jobs:
 
       - name: Release Windows
         if: github.event_name == 'release' && contains(matrix.os, 'windows') && contains(matrix.dc, 'ldc')
-        uses: WebFreak001/upload-asset@master
+        uses: WebFreak001/upload-asset@v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OS: windows
