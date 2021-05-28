@@ -62,19 +62,15 @@ jobs:
 
       # Package Release
 
-      - name: TarGZ MacOS and Linux
-        if: github.event_name == 'release' && !contains(matrix.os, 'windows') && contains(matrix.dc, 'ldc')
-        uses: thedoctor0/zip-release@0.4.2
-        with:
-          filename: dcd.tar.gz
-          path: "dcd-client dcd-server"
-
-      - name: Zip Windows
-        if: github.event_name == 'release' && contains(matrix.os, 'windows') && contains(matrix.dc, 'ldc')
-        uses: thedoctor0/zip-release@0.4.2
-        with:
-          filename: dcd.zip
-          path: "dcd-client.exe dcd-server.exe"
+      - name: Package the artificats
+        if: github.event_name == 'release' && contains(matrix.dc, 'ldc')
+        shell: pwsh
+        run: |
+          if ("${{ matrix.os }}" -like 'windows*') {
+            7z a -tzip dcd.zip dcd-client.exe dcd-server.exe
+          } else {
+            tar -cvzf dcd.tar.gz dcd-client dcd-server
+          }
 
       # Release
 
