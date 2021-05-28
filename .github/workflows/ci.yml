@@ -1,5 +1,11 @@
 name: CI
-on: [push, pull_request]
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  release:
+    types: [published]
 
 jobs:
   Build:
@@ -29,10 +35,14 @@ jobs:
         with:
           compiler: ${{ matrix.dc }}
 
+      # Build
+
       - name: Build
         run: |
           dub build --build=release --config=client --arch=${{ matrix.arch }}
           dub build --build=release --config=server --arch=${{ matrix.arch }}
+
+      # Tests
 
       - name: Linux Tests
         if: contains(matrix.os, 'ubuntu')
@@ -48,3 +58,55 @@ jobs:
         working-directory: tests
         shell: bash
         continue-on-error: true
+
+
+      # Package Release
+
+      - name: TarGZ MacOS and Linux
+        if: github.event_name == 'release' && !contains(matrix.os, 'windows') && contains(matrix.dc, 'ldc')
+        uses: thedoctor0/zip-release@0.4.2
+        with:
+          filename: dcd.tar.gz
+          path: "dcd-client dcd-server"
+
+      - name: Zip Windows
+        if: github.event_name == 'release' && contains(matrix.os, 'windows') && contains(matrix.dc, 'ldc')
+        uses: thedoctor0/zip-release@0.4.2
+        with:
+          filename: dcd.zip
+          path: "dcd-client.exe dcd-server.exe"
+
+      # Release
+
+      - name: Release Linux
+        if: github.event_name == 'release' && contains(matrix.os, 'ubuntu') && contains(matrix.dc, 'ldc')
+        uses: WebFreak001/upload-asset@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OS: linux
+        with:
+          file: dcd.tar.gz
+          filename: dcd-${TAG}-${OS}-${{ matrix.arch }}.tar.gz
+          mime: application/tar+gzip
+
+      - name: Release Macos
+        if: github.event_name == 'release' && contains(matrix.os, 'macos') && contains(matrix.dc, 'ldc')
+        uses: WebFreak001/upload-asset@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OS: osx
+        with:
+          file: dcd.tar.gz
+          filename: dcd-${TAG}-${OS}-${{ matrix.arch }}.tar.gz
+          mime: application/tar+gzip
+
+      - name: Release Windows
+        if: github.event_name == 'release' && contains(matrix.os, 'windows') && contains(matrix.dc, 'ldc')
+        uses: WebFreak001/upload-asset@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OS: windows
+        with:
+          file: dcd.zip
+          filename: dcd-${TAG}-${OS}-${{ matrix.arch }}.zip
+          mime: application/zip
