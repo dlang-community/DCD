@@ -35,8 +35,9 @@ string generateSocketName()
 	version (haveUnixSockets)
 	{
 		immutable string socketFileName = "dcd-%d.socket".format(getuid());
-		version (OSX)
+		version (OSX) {
 			return buildPath("/", "var", "tmp", socketFileName);
+	    }
 		else
 		{
 			immutable string xdg = environment.get("XDG_RUNTIME_DIR");
