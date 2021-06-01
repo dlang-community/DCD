@@ -83,7 +83,7 @@ jobs:
           OS: linux
         with:
           file: dcd.tar.gz
-          filename: dcd-${TAG_RAW}-${OS}-${{ matrix.arch }}.tar.gz
+          name: dcd-${TAG_RAW}-${OS}-${{ matrix.arch }}.tar.gz
           mime: application/tar+gzip
 
       - name: Release Macos
@@ -94,7 +94,7 @@ jobs:
           OS: osx
         with:
           file: dcd.tar.gz
-          filename: dcd-${TAG_RAW}-${OS}-${{ matrix.arch }}.tar.gz
+          name: dcd-${TAG_RAW}-${OS}-${{ matrix.arch }}.tar.gz
           mime: application/tar+gzip
 
       - name: Release Windows
@@ -105,5 +105,5 @@ jobs:
           OS: windows
         with:
           file: dcd.zip
-          filename: dcd-${TAG_RAW}-${OS}-${{ matrix.arch }}.zip
+          name: dcd-${TAG_RAW}-${OS}-${{ matrix.arch }}.zip
           mime: application/zip
