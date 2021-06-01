@@ -65,11 +65,12 @@ jobs:
       - name: Package the artificats
         if: github.event_name == 'release' && contains(matrix.dc, 'ldc')
         shell: pwsh
+        working-directory: bin
         run: |
           if ("${{ matrix.os }}" -like 'windows*') {
-            7z a -tzip dcd.zip dcd-client.exe dcd-server.exe
+            7z a -tzip ..\dcd.zip dcd-client.exe dcd-server.exe
           } else {
-            tar -cvzf dcd.tar.gz dcd-client dcd-server
+            tar -cvzf ../dcd.tar.gz dcd-client dcd-server
           }
 
       # Release
