@@ -1,0 +1,108 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  release:
+    types: [published]
+
+jobs:
+  Build:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        dc:
+          - ldc-latest
+          - dmd-latest
+        arch:
+          - x86_64
+        include:
+          # windows x86
+          - os: windows-latest
+            arch: x86
+            dc: ldc-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - name: Setup D
+        uses: dlang-community/setup-dlang@v1
+        with:
+          compiler: ${{ matrix.dc }}
+
+      # Build
+
+      - name: Build
+        run: |
+          dub build --build=release --config=client --arch=${{ matrix.arch }}
+          dub build --build=release --config=server --arch=${{ matrix.arch }}
+
+      # Tests
+
+      - name: Linux Tests
+        if: contains(matrix.os, 'ubuntu')
+        run: |
+          ./run_tests.sh
+        working-directory: tests
+        shell: bash
+
+      - name: Windows and MacOS Tests
+        if: contains(matrix.os, 'windows') || contains(matrix.os, 'macos')
+        run: |
+          ./run_tests.sh
+        working-directory: tests
+        shell: bash
+        continue-on-error: true
+
+
+      # Package Release
+
+      - name: Package the artificats
+        if: github.event_name == 'release' && contains(matrix.dc, 'ldc')
+        shell: pwsh
+        run: |
+          if ("${{ matrix.os }}" -like 'windows*') {
+            7z a -tzip dcd.zip dcd-client.exe dcd-server.exe
+          } else {
+            tar -cvzf dcd.tar.gz dcd-client dcd-server
+          }
+
+      # Release
+
+      - name: Release Linux
+        if: github.event_name == 'release' && contains(matrix.os, 'ubuntu') && contains(matrix.dc, 'ldc')
+        uses: WebFreak001/upload-asset@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OS: linux
+        with:
+          file: dcd.tar.gz
+          filename: dcd-${TAG_RAW}-${OS}-${{ matrix.arch }}.tar.gz
+          mime: application/tar+gzip
+
+      - name: Release Macos
+        if: github.event_name == 'release' && contains(matrix.os, 'macos') && contains(matrix.dc, 'ldc')
+        uses: WebFreak001/upload-asset@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OS: osx
+        with:
+          file: dcd.tar.gz
+          filename: dcd-${TAG_RAW}-${OS}-${{ matrix.arch }}.tar.gz
+          mime: application/tar+gzip
+
+      - name: Release Windows
+        if: github.event_name == 'release' && contains(matrix.os, 'windows') && contains(matrix.dc, 'ldc')
+        uses: WebFreak001/upload-asset@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OS: windows
+        with:
+          file: dcd.zip
+          filename: dcd-${TAG_RAW}-${OS}-${{ matrix.arch }}.zip
+          mime: application/zip
