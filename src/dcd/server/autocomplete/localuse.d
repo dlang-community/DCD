@@ -84,8 +84,8 @@ public AutocompleteResponse findLocalUse(AutocompleteRequest request,
 		{
 			if (t.type != tok!"identifier")
 				continue;
-			if (request.cursorPosition >= t.index &&
-				request.cursorPosition < t.index + t.text.length)
+			if (request.cursorPosition > t.index &&
+				request.cursorPosition <= t.index + t.text.length)
 			{
 				sourceToken = tokenArray.ptr + i;
 				break;
