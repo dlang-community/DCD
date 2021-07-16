@@ -69,6 +69,8 @@ jobs:
         run: |
           if ("${{ matrix.os }}" -like 'windows*') {
             7z a -tzip ..\dcd.zip dcd-client.exe dcd-server.exe
+          } elseif ("${{ matrix.os }}" -like 'macos*') {
+            gtar -cvzf ../dcd.tar.gz dcd-client dcd-server
           } else {
             tar -cvzf ../dcd.tar.gz dcd-client dcd-server
           }
