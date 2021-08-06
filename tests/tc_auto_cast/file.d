@@ -1,0 +1,1 @@
+struct A  { float data; } A a; auto ptr = cast(A*) &a; ptr.
