@@ -296,7 +296,7 @@ int runServer(string[] args)
 			{
 				info("Getting completions");
 				if(forceScan)
-					cache.ensureImportCacheValidity();
+					cache.ensureCacheValidity();
 				s.sendResponse(complete(request, cache));
 			}
 			else if (request.kind & RequestKind.doc)
