@@ -62,6 +62,7 @@ int runServer(string[] args)
 	bool help;
 	bool printVersion;
 	bool ignoreConfig;
+	bool forceScan;
 	string[] importPaths;
 	LogLevel level = globalLogLevel;
 	version(Windows)
@@ -81,7 +82,7 @@ int runServer(string[] args)
 	{
 		getopt(args, "port|p", &port, "I", &importPaths, "help|h", &help,
 			"version", &printVersion, "ignoreConfig", &ignoreConfig,
-			"logLevel", &level, "tcp", &useTCP, "socketFile", &socketFile);
+			"logLevel", &level, "tcp", &useTCP, "socketFile", &socketFile, "forceScan", &forceScan);
 	}
 	catch (ConvException e)
 	{
@@ -294,6 +295,8 @@ int runServer(string[] args)
 			else if (request.kind & RequestKind.autocomplete)
 			{
 				info("Getting completions");
+				if(forceScan)
+					cache.forceScan();
 				s.sendResponse(complete(request, cache));
 			}
 			else if (request.kind & RequestKind.doc)
