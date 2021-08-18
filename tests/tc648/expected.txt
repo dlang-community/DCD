@@ -1,0 +1,5 @@
+identifiers
+DataA	s
+DataB	s
+dchar	k
+double	k
