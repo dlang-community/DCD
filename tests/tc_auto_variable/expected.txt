@@ -1,4 +1,4 @@
 identifiers
-data	v	MyData want	stdin 56	
+data	v	MyData data	stdin 56	
 dchar	k			
 double	k			
