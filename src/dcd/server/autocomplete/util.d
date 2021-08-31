@@ -758,7 +758,7 @@ AutocompleteResponse.Completion makeSymbolCompletionInfo(const DSymbol* symbol, 
 	string definition;
 	if ((kind == CompletionKind.variableName || kind == CompletionKind.memberVariableName) && symbol.type)
 	{
-		DSymbol* s = cast(DSymbol*)symbol;
+		const(DSymbol)* s = symbol;
 
 		// if using auto as variable declaration, then the type will be the function name
 		// so let's get what the function symbol points to to get the actual type
@@ -770,7 +770,7 @@ AutocompleteResponse.Completion makeSymbolCompletionInfo(const DSymbol* symbol, 
 		//
 		// TODO: should probably move it at the call site
 		// TODO: should probably make it fully recursive,
-		if(s.type) s = s.type;
+		if(s.type && s.type.kind == CompletionKind.functionName) s = s.type;
 
 		definition = s.type.name ~ ' ' ~ s.name;
 	}
