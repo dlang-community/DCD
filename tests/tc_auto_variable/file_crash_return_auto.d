@@ -1,0 +1,1 @@
+struct MyData{} auto weird(){ return MyData(); }; auto data = weird(); d
