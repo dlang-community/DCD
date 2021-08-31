@@ -757,7 +757,23 @@ AutocompleteResponse.Completion makeSymbolCompletionInfo(const DSymbol* symbol, 
 {
 	string definition;
 	if ((kind == CompletionKind.variableName || kind == CompletionKind.memberVariableName) && symbol.type)
-		definition = symbol.type.name ~ ' ' ~ symbol.name;
+	{
+		DSymbol* s = cast(DSymbol*)symbol;
+
+		// if using auto as variable declaration, then the type will be the function name
+		// so let's get what the function symbol points to to get the actual type
+		//
+		// MyData myfunction() {}  
+		// auto data = myfunction();  <-- this gives 'myfunction' as type
+		//
+		// with this recurtion we now get the proper type: 'MyData'
+		//
+		// TODO: should probably move it at the call site
+		// TODO: should probably make it fully recursive,
+		if(s.type) s = s.type;
+
+		definition = s.type.name ~ ' ' ~ s.name;
+	}
 	else if (kind == CompletionKind.enumMember)
 		definition = symbol.name; // TODO: add enum value to definition string
 	else
