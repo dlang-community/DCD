@@ -1,0 +1,1 @@
+struct MyData{} alias MyData Stuff; auto data = Stuff(); d

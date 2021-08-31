@@ -1,0 +1,4 @@
+identifiers
+data	v	MyData data	stdin 41	
+dchar	k			
+double	k			
