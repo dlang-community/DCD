@@ -758,8 +758,6 @@ AutocompleteResponse.Completion makeSymbolCompletionInfo(const DSymbol* symbol, 
 	string definition;
 	if ((kind == CompletionKind.variableName || kind == CompletionKind.memberVariableName) && symbol.type)
 	{
-		const(DSymbol)* s = symbol;
-
 		// if using auto as variable declaration, then the type will be the function name
 		// so let's get what the function symbol points to to get the actual type
 		//
