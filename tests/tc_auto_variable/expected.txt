@@ -1,0 +1,4 @@
+identifiers
+data	v	MyData want	stdin 56	
+dchar	k			
+double	k			
