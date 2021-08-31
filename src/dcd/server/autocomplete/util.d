@@ -770,9 +770,19 @@ AutocompleteResponse.Completion makeSymbolCompletionInfo(const DSymbol* symbol, 
 		//
 		// TODO: should probably move it at the call site
 		// TODO: should probably make it fully recursive,
-		if(s.type && s.type.kind == CompletionKind.functionName) s = s.type;
-
-		definition = s.name ~ ' ' ~ symbol.name;
+		if (symbol.type.kind == CompletionKind.functionName && symbol.type.type)
+		{
+			// if can resolve the function's type, that means it is a known type and not return auto
+			const(DSymbol)* resolved = symbol.type.type;
+			if (resolved.type)
+				definition = resolved.type.name ~ ' ' ~ symbol.name;
+			else
+				definition = resolved.name ~ ' ' ~ symbol.name;
+		}
+		else
+		{
+			definition = symbol.type.name ~ ' ' ~ symbol.name;
+		}
 	}
 	else if (kind == CompletionKind.enumMember)
 		definition = symbol.name; // TODO: add enum value to definition string
