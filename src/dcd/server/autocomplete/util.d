@@ -772,7 +772,7 @@ AutocompleteResponse.Completion makeSymbolCompletionInfo(const DSymbol* symbol, 
 		// TODO: should probably make it fully recursive,
 		if(s.type && s.type.kind == CompletionKind.functionName) s = s.type;
 
-		definition = s.type.name ~ ' ' ~ s.name;
+		definition = s.type.name ~ ' ' ~ symbol.name;
 	}
 	else if (kind == CompletionKind.enumMember)
 		definition = symbol.name; // TODO: add enum value to definition string
