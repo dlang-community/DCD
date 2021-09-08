@@ -1,0 +1,1 @@
+struct MyData{} MyData want() { return MyData(); } auto data = want(); d
