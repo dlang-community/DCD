@@ -757,11 +757,43 @@ AutocompleteResponse.Completion makeSymbolCompletionInfo(const DSymbol* symbol, 
 {
 	string definition;
 	if ((kind == CompletionKind.variableName || kind == CompletionKind.memberVariableName) && symbol.type)
-		definition = symbol.type.name ~ ' ' ~ symbol.name;
+	{
+		// if using auto as variable declaration, then the type will be the function name
+		// so let's get what the function symbol points to to get the actual type
+		//
+		// MyData myfunction() {}  
+		// auto data = myfunction();  <-- this gives 'myfunction' as type
+		//
+		// with this recurtion we now get the proper type: 'MyData'
+		//
+		// TODO: should probably move it at the call site
+		// TODO: should probably make it fully recursive,
+		if (symbol.type.kind == CompletionKind.functionName && symbol.type.type)
+		{
+			// if can resolve the function's type, that means it is a known type and not return auto
+			const(DSymbol)* resolved = symbol.type.type;
+			if (resolved.type)
+				definition = resolved.type.name ~ ' ' ~ symbol.name;
+			else
+				definition = resolved.name ~ ' ' ~ symbol.name;
+		}
+		else
+		{
+			// if the symbol already has a callTipe, use that
+			// this handle case where auto was used to store a variable returned by a function
+			// otherwise behavior doesn't change
+			if (symbol.type.callTip)
+				definition = symbol.type.callTip;
+			else
+				definition = symbol.type.name ~ ' ' ~ symbol.name;
+		}
+	}
 	else if (kind == CompletionKind.enumMember)
 		definition = symbol.name; // TODO: add enum value to definition string
 	else
+	
 		definition = symbol.callTip;
+
 	// TODO: definition strings could include more information, like on classes inheritance
 	return AutocompleteResponse.Completion(symbol.name, kind, definition,
 		symbol.symbolFile, symbol.location, symbol.doc);
