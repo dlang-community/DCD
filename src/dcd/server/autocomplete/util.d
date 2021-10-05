@@ -765,46 +765,46 @@ AutocompleteResponse.Completion makeSymbolCompletionInfo(const DSymbol* symbol, 
 	}
 	else
 	{
-		final switch (kind)
+		switch (kind) with(CompletionKind)
 		{
-		case CompletionKind.enumMember:
+		case enumMember:
 			definition = symbol.name; // TODO: add enum value to definition string
 			break;
-		case CompletionKind.className:
+		case className:
 			definition = "Class";
 			break;
-		case CompletionKind.interfaceName:
+		case interfaceName:
 			definition = "Interface";
 			break;
-		case CompletionKind.structName:
+		case structName:
 			definition = "Struct";
 			break;
-		case CompletionKind.unionName:
+		case unionName:
 			definition = "Union";
 			break;
-		case CompletionKind.keyword:
+		case keyword:
 			definition = "Keyword";
 			break;
-		case CompletionKind.enumName:
+		case enumName:
 			definition = "Enum";
 			break;
-		case CompletionKind.packageName:
+		case packageName:
 			definition = "Package";
 			break;
-		case CompletionKind.moduleName:
+		case moduleName:
 			definition = "Module";
 			break;
-		case CompletionKind.templateName:
-		case CompletionKind.mixinTemplateName:
+		case templateName:
+		case mixinTemplateName:
 			definition = "Template";
 			break;
-		case CompletionKind.typeTmpParam:
+		case typeTmpParam:
 			definition = "<T>";
 			break;
-		case CompletionKind.variadicTmpParam:
+		case variadicTmpParam:
 			definition = "<T...>";
 			break;
-		case CompletionKind.aliasName: // Alias (eventually should show what it aliases to)
+		case aliasName: // Alias (eventually should show what it aliases to)
 		default:
 			definition = symbol.callTip;
 			break;
