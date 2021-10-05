@@ -757,7 +757,12 @@ AutocompleteResponse.Completion makeSymbolCompletionInfo(const DSymbol* symbol, 
 {
 	string definition;
 	if ((kind == CompletionKind.variableName || kind == CompletionKind.memberVariableName) && symbol.type)
-		definition = symbol.type.name ~ ' ' ~ symbol.name;
+	{
+		if (symbol.type.callTip)
+			definition = symbol.type.callTip;
+		else
+			definition = symbol.type.name ~ ' ' ~ symbol.name;
+	}
 	else
 	{
 		switch (kind)
