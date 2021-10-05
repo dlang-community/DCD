@@ -758,10 +758,59 @@ AutocompleteResponse.Completion makeSymbolCompletionInfo(const DSymbol* symbol, 
 	string definition;
 	if ((kind == CompletionKind.variableName || kind == CompletionKind.memberVariableName) && symbol.type)
 		definition = symbol.type.name ~ ' ' ~ symbol.name;
-	else if (kind == CompletionKind.enumMember)
-		definition = symbol.name; // TODO: add enum value to definition string
 	else
-		definition = symbol.callTip;
+	{
+		switch (kind)
+		{
+		case 'e':
+			definition = symbol.name; // TODO: add enum value to definition string
+			break;
+		case 'c':
+			definition = "Class";
+			break;
+		case 'i':
+			definition = "Interface";
+			break;
+		case 's':
+			definition = "Struct";
+			break;
+		case 'u':
+			definition = "Union";
+			break;
+		case 'a':
+			definition = "Array";
+			break;
+		case 'A':
+			definition = "AA";
+			break;
+		case 'k':
+			definition = "Keyword";
+			break;
+		case 'g':
+			definition = "Enum";
+			break;
+		case 'P':
+			definition = "Package";
+			break;
+		case 'M':
+			definition = "Module";
+			break;
+		case 't':
+		case 'T':
+			definition = "Template";
+			break;
+		case 'h':
+			definition = "<T>";
+			break;
+		case 'p':
+			definition = "<T...>";
+			break;
+		case 'l': // Alias (eventually should show what it aliases to)
+		default:
+			definition = symbol.callTip;
+			break;
+		}
+	}
 	// TODO: definition strings could include more information, like on classes inheritance
 	return AutocompleteResponse.Completion(symbol.name, kind, definition,
 		symbol.symbolFile, symbol.location, symbol.doc);
