@@ -18,6 +18,7 @@
 
 module dcd.server.autocomplete.util;
 
+import std.functional : unaryFun;
 import std.algorithm;
 import stdx.allocator;
 import std.experimental.logger;
@@ -336,9 +337,15 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 			}
 
 			//trace("looking for ", tokens[i].text, " in ", symbols[0].name);
-			symbols = symbols[0].getPartsByName(internString(tokens[i].text));
+			auto parts = symbols[0].getPartsByName(internString(tokens[i].text));
+			if (parts.length > 0)
+				symbols = parts;
+			else				// try UFCS
+				symbols = getSymbolsForUFCS(completionScope, symbols[0], cursorPosition).filter!(a => a.name == tokens[i].text).array;
 			//trace("symbols: ", symbols.map!(a => a.name));
-			filterProperties();
+
+			filterProperties();	// TODO: is this needed for UFCS?
+
 			if (symbols.length == 0)
 			{
 				//trace("Couldn't find it.");
@@ -765,4 +772,192 @@ AutocompleteResponse.Completion makeSymbolCompletionInfo(const DSymbol* symbol, 
 	// TODO: definition strings could include more information, like on classes inheritance
 	return AutocompleteResponse.Completion(symbol.name, kind, definition,
 		symbol.symbolFile, symbol.location, symbol.doc);
+}
+
+/**
+ * Get symbols suitable for UFCS.
+ *
+ * a symbol is suitable for UFCS if it satisfies the following:
+ * $(UL
+ *  $(LI is global or imported)
+ *  $(LI is callable with $(D implicitArg) as it's first argument)
+ * )
+ *
+ * Params:
+ *     completionScope = current scope
+ *     implicitArg = the symbol before the dot (implicit first argument to UFCS function)
+ *     cursorPosition = current position
+ * Returns:
+ *     callable an array of symbols suitable for UFCS at $(D cursorPosition)
+ */
+DSymbol*[] getSymbolsForUFCS(Scope* completionScope, const(DSymbol)* implicitArg, size_t cursorPosition)
+{
+	import containers.hashset : HashSet;
+	assert(implicitArg);
+	if (implicitArg.name is getBuiltinTypeName(tok!"void")
+		|| (implicitArg.type !is null
+			&& implicitArg.type.name is getBuiltinTypeName(tok!"void")))
+		return null;	// no UFCS for void
+
+	Scope* scop = completionScope.getScopeByCursor(cursorPosition);
+	assert(scop);
+	HashSet!size_t visited;
+	// local imports only
+	FilteredAppender!(a => isCallableWithArg(a, implicitArg), DSymbol*[]) app;
+	while (scop !is null && scop.parent !is null)
+	{
+		auto localImports = scop.symbols.filter!(a => a.kind == CompletionKind.importSymbol);
+		foreach (sym; localImports)
+		{
+			if (sym.type is null)
+				continue;
+			if (sym.qualifier == SymbolQualifier.selectiveImport)
+				app.put(sym.type);
+			else
+				{
+					sym.type.getParts(internString(null), app, visited);
+				}
+		}
+
+		scop = scop.parent;
+	}
+	// global symbols and global imports
+	Scope* globalScope = scop;
+	assert(globalScope !is null);
+	assert(globalScope.parent is null);
+	foreach (sym; globalScope.symbols)
+	{
+		if (sym.kind != CompletionKind.importSymbol)
+			app.put(sym);
+		else if (sym.type !is null)
+		{
+			if (sym.qualifier == SymbolQualifier.selectiveImport)
+				app.put(sym.type);
+			else
+				sym.type.getParts(internString(null), app, visited);
+		}
+	}
+	return app.data;
+}
+
+/**
+   Params:
+   symbol = the symbol to check
+   arg0 = the argument
+   Returns:
+   true if if $(D symbol) is callable with $(D arg0) as it's first argument
+   false otherwise
+*/
+bool isCallableWithArg(const(DSymbol)* symbol, const(DSymbol)* arg0)
+{
+	// FIXME: do signature type checking?
+	// 	a lot is to be done in dsymbol for type checking to work.
+	//  for instance, define an isSbtype function for where it is applicable
+	// 	ex: interfaces, subclasses, builtintypes ...
+
+	// FIXME: instruct dsymbol to always save paramater symbols
+	// 	 and check these instead of checking callTip
+
+	static bool checkCallTip(string callTip)
+	{
+		assert(callTip.length);
+		if (callTip.endsWith("()"))
+			return false;	// takes no arguments
+		else if (callTip.endsWith("(...)"))
+			return true;
+		else
+			return true;	// FIXME: assume yes?
+	}
+
+	assert(symbol);
+	assert(arg0);
+
+	switch (symbol.kind)
+	{
+	case CompletionKind.dummy:
+		if (symbol.qualifier == SymbolQualifier.func)
+			return checkCallTip(symbol.callTip);
+		break;
+	case CompletionKind.importSymbol:
+		if (symbol.type is null)
+			break;
+		if (symbol.qualifier == SymbolQualifier.selectiveImport)
+			return isCallableWithArg(symbol.type, arg0);
+		break;
+	case CompletionKind.structName:
+		foreach(constructor; symbol.getPartsByName(CONSTRUCTOR_SYMBOL_NAME))
+			{
+				// check user defined contructors or auto-generated constructor
+				if (checkCallTip(constructor.callTip))
+					return true;
+			}
+		break;
+	case CompletionKind.variableName:
+	case CompletionKind.enumMember:	// assuming anonymous enum member
+		if (symbol.type !is null)
+			{
+				if (symbol.type.qualifier == SymbolQualifier.func)
+					return checkCallTip(symbol.type.callTip);
+				foreach (functor; symbol.type.getPartsByName(internString("opCall")))
+					if (checkCallTip(functor.callTip))
+						return true;
+			}
+		break;
+	case CompletionKind.functionName:
+		return checkCallTip(symbol.callTip);
+	case CompletionKind.enumName:
+	case CompletionKind.aliasName:
+		if (symbol.type !is null && symbol.type !is symbol)
+			return isCallableWithArg(symbol.type, arg0);
+		break;
+	case CompletionKind.unionName:
+	case CompletionKind.templateName:
+		return true; // can we do more checks?
+	case CompletionKind.withSymbol:
+	case CompletionKind.className:
+	case CompletionKind.interfaceName:
+	case CompletionKind.memberVariableName:
+	case CompletionKind.keyword:
+	case CompletionKind.packageName:
+	case CompletionKind.moduleName:
+	case CompletionKind.mixinTemplateName:
+		break;
+	default:
+		break;
+	}
+	return false;
+}
+
+/// $(D appender) with filter on $(D put)
+struct FilteredAppender(alias predicate, T : T[] = DSymbol*[])
+if (__traits(compiles, unaryFun!predicate(T.init) ? 0 : 0))
+{
+	alias pred = unaryFun!predicate;
+	private Appender!(T[]) app;
+
+	void put(T item)
+	{
+		if (pred(item))
+			app.put(item);
+	}
+
+	void put(R)(R items)
+	if (isInputRange!R && __traits(compiles, put(R.init.front)))
+	{
+		foreach (item; items) put(item);
+	}
+
+	void opOpAssign(string op : "~")(T rhs)
+	{
+		put(rhs);
+	}
+
+	alias app this;
+}
+
+@safe pure nothrow unittest
+{
+	FilteredAppender!("a%2", int[]) app;
+	app.put(iota(10));
+	assert(app.data == [1, 3, 5, 7, 9]);
 }

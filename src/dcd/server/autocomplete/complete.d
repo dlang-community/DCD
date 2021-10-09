@@ -502,7 +502,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	Scope* completionScope, T tokens, size_t cursorPosition,
 	CompletionType completionType, bool isBracket = false, string partial = null)
 {
-	static void addSymToResponse(const(DSymbol)* s, ref AutocompleteResponse r, string p,
+	static void addSymbolsToResponse(const(DSymbol)* s, ref AutocompleteResponse r, string p,
 		Scope* completionScope, size_t[] circularGuard = [])
 	{
 		if (circularGuard.canFind(cast(size_t) s))
@@ -518,7 +518,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				r.completions ~= makeSymbolCompletionInfo(sym, sym.kind);
 			}
 			if (sym.kind == CompletionKind.importSymbol && !sym.skipOver && sym.type !is null)
-				addSymToResponse(sym.type, r, p, completionScope, circularGuard ~ (cast(size_t) s));
+				addSymbolsToResponse(sym.type, r, p, completionScope, circularGuard ~ (cast(size_t) s));
 		}
 	}
 
@@ -577,8 +577,12 @@ void setCompletions(T)(ref AutocompleteResponse response,
 			if (symbols.length == 0)
 				return;
 		}
-		addSymToResponse(symbols[0], response, partial, completionScope);
+		addSymbolsToResponse(symbols[0], response, partial, completionScope);
 		response.completionType = CompletionType.identifiers;
+
+		// UFCS completion
+		foreach (const symbol; getSymbolsForUFCS(completionScope, symbols[0], cursorPosition))
+			addSymbolsToResponse(symbol, response, partial, completionScope);
 	}
 	else if (completionType == CompletionType.calltips)
 	{
