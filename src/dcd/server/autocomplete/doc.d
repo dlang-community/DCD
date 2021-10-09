@@ -45,7 +45,7 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request,
 //	trace("Getting doc comments");
 	AutocompleteResponse response;
 	RollbackAllocator rba;
-	auto allocator = scoped!(ASTAllocator)();
+	scope allocator = new ASTAllocator();
 	auto cache = StringCache(request.sourceCode.length.optimalBucketCount);
 	SymbolStuff stuff = getSymbolsForCompletion(request, CompletionType.ddoc,
 		allocator, &rba, cache, moduleCache);
