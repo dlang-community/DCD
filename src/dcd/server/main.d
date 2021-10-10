@@ -185,7 +185,7 @@ int runServer(string[] args)
 
 	sw.stop();
 	info(cache.symbolsAllocated, " symbols cached.");
-	info("Startup completed in ", sw.peek().total!"msecs"(), " milliseconds.");
+	info("Startup completed in ", sw.peek);
 
 	// No relative paths
 	version (Posix) chdir("/");
@@ -310,7 +310,7 @@ int runServer(string[] args)
 		}
 
 		sw.stop();
-		info("Request processed in ", sw.peek().total!"msecs"(), " milliseconds");
+		info("Request processed in ", sw.peek);
 	}
 	return 0;
 }
