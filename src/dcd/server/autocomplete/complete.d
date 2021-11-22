@@ -664,7 +664,18 @@ bool mightBeRelevantInCompletionScope(const DSymbol* symbol, Scope* scope_)
 		// scope is the scope of the current file so if the symbol is not in there, it's not accessible
 		return false;
 	}
-
+	if (symbol.kind == CompletionKind.functionName && !symbol.type)
+	{
+		// if it's a function and is isn't represented by a type
+		// that mean it is a symbol that calls the function
+		// so we can just ignore it
+		// eg:
+		//     void test(){}
+		//     
+		//     te <--- cursor here, the symbol will be the line bellow, it's useless, just show the actual function
+		//     test();
+		return false;
+	}
 	return true;
 }
 
