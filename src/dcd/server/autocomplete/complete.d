@@ -614,27 +614,31 @@ void setCompletions(T)(ref AutocompleteResponse response,
 					}
 				}
 			}
-			if (symbols[0].kind == CompletionKind.structName
-				|| symbols[0].kind == CompletionKind.className)
+		}
+
+		if (symbols[0].kind == CompletionKind.structName
+			|| symbols[0].kind == CompletionKind.className)
+		{
+
+			auto constructor = symbols[0].getPartsByName(CONSTRUCTOR_SYMBOL_NAME);
+
+			if (constructor.length == 0)
 			{
-				auto constructor = symbols[0].getPartsByName(CONSTRUCTOR_SYMBOL_NAME);
-				if (constructor.length == 0)
+				// Build a call tip out of the struct fields
+				if (symbols[0].kind == CompletionKind.structName)
 				{
-					// Build a call tip out of the struct fields
-					if (symbols[0].kind == CompletionKind.structName)
-					{
-						response.completionType = CompletionType.calltips;
-						response.completions = [generateStructConstructorCalltip(symbols[0])];
-						return;
-					}
-				}
-				else
-				{
-					symbols = constructor;
-					goto setCallTips;
+					response.completionType = CompletionType.calltips;
+					response.completions = [generateStructConstructorCalltip(symbols[0])];
+					return;
 				}
 			}
+			else
+			{
+				symbols = constructor;
+				goto setCallTips;
+			}
 		}
+
 	setCallTips:
 		response.completionType = CompletionType.calltips;
 		foreach (symbol; symbols)
