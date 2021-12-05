@@ -619,10 +619,16 @@ void setCompletions(T)(ref AutocompleteResponse response,
 					}
 				}
 			}
+		}
+		if (symbols[0].kind != CompletionKind.functionName
+			&& (symbols[0].callTip is null))
+		{
 			if (symbols[0].kind == CompletionKind.structName
 				|| symbols[0].kind == CompletionKind.className)
 			{
+
 				auto constructor = symbols[0].getPartsByName(CONSTRUCTOR_SYMBOL_NAME);
+
 				if (constructor.length == 0)
 				{
 					// Build a call tip out of the struct fields
@@ -640,6 +646,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				}
 			}
 		}
+
 	setCallTips:
 		response.completionType = CompletionType.calltips;
 		foreach (symbol; symbols)
