@@ -34,9 +34,6 @@ for /r "libdparse/src" %%F in (*.d) do call set libdparse_modules=%%libdparse_mo
 set msgspack_modules=
 for /r "msgpack-d/src" %%F in (*.d) do call set msgspack_modules=%%msgspack_modules%% "%%F"
 
-set stdx_allocator=
-for /r "stdx-allocator/source/stdx/allocator" %%F in (*.d) do call set stdx_allocator=%%stdx_allocator%% "%%F"
-
 set client_name=bin\dcd-client
 set server_name=bin\dcd-server
 
@@ -59,11 +56,9 @@ set server_name=bin\dcd-server
  %common_modules%^
  %containers_modules%^
  %msgspack_modules%^
- %stdx_allocator%^
  -Icontainers/src^
  -Imsgpack-d/src^
  -Ilibdparse/src^
- -Istdx-allocator/source^
  -wi -O -release^
  -Jbin^
  %MFLAGS%^

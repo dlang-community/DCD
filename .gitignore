@@ -28,3 +28,5 @@ stdout.txt
 # Dub files
 .dub
 dub.selections.json
+
+dcd-test-library

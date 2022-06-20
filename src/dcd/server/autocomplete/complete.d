@@ -213,7 +213,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	mixin(TYPE_IDENT_CASES);
 	case tok!")":
 	case tok!"]":
-		scope allocator = new ASTAllocator();
+		scope allocator = new SymbolsAllocator();
 		RollbackAllocator rba;
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
 			&rba, cursorPosition, moduleCache);
@@ -229,7 +229,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	case tok!";":
 	case tok!"}":
 	case tok!",":
-		scope allocator = new ASTAllocator();
+		scope allocator = new SymbolsAllocator();
 		RollbackAllocator rba;
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
 			&rba, 1, moduleCache);
@@ -302,7 +302,7 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	case tok!")":
 	case tok!"]":
 	mixin(STRING_LITERAL_CASES);
-		scope allocator = new ASTAllocator();
+		scope allocator = new SymbolsAllocator();
 		RollbackAllocator rba;
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
 			&rba, cursorPosition, moduleCache);

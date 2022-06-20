@@ -45,7 +45,7 @@ public AutocompleteResponse findLocalUse(AutocompleteRequest request,
 {
 	AutocompleteResponse response;
 	RollbackAllocator rba;
-	scope allocator = new ASTAllocator();
+	scope allocator = new SymbolsAllocator();
 	auto cache = StringCache(request.sourceCode.length.optimalBucketCount);
 
 	// patchs the original request for the subsequent requests

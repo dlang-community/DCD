@@ -19,7 +19,7 @@
 module dcd.server.autocomplete.util;
 
 import std.algorithm;
-import stdx.allocator;
+import std.experimental.allocator;
 import std.experimental.logger;
 import std.range;
 import std.string;

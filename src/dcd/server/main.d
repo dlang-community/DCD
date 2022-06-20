@@ -24,8 +24,8 @@ import std.array;
 import std.conv;
 import std.datetime.stopwatch : AutoStart, StopWatch;
 import std.exception : enforce;
-import stdx.allocator;
-import stdx.allocator.mallocator;
+import std.experimental.allocator;
+import std.experimental.allocator.mallocator;
 import std.experimental.logger;
 import std.file;
 import std.getopt;
@@ -176,7 +176,7 @@ int runServer(string[] args)
 		info("Sockets shut down.");
 	}
 
-	ModuleCache cache = ModuleCache(new ASTAllocator);
+	ModuleCache cache = ModuleCache(new SymbolsAllocator);
 	cache.addImportPaths(importPaths);
 	infof("Import directories:\n    %-(%s\n    %)", cache.getImportPaths());
 
