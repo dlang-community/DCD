@@ -18,6 +18,7 @@
 
 module dcd.server.autocomplete.localuse;
 
+import std.experimental.allocator;
 import std.experimental.logger;
 import std.range;
 import std.typecons;
@@ -60,8 +61,8 @@ public AutocompleteResponse findLocalUse(AutocompleteRequest request,
 	{
 		auto sortedTokens = assumeSorted(tokenArray);
 		auto beforeTokens = sortedTokens.lowerBound(cursorPosition);
-		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
-			&rba, request.cursorPosition, moduleCache);
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray,
+			allocator.allocatorObject, &rba, request.cursorPosition, moduleCache);
 		auto expression = getExpression(beforeTokens);
 		return SymbolStuff(getSymbolsByTokenChain(pair.scope_, expression,
 			cursorPosition, CompletionType.location), pair.symbol, pair.scope_);
