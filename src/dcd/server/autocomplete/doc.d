@@ -20,6 +20,7 @@ module dcd.server.autocomplete.doc;
 
 import std.algorithm;
 import std.array;
+import std.experimental.allocator;
 import std.experimental.logger;
 import std.typecons;
 
@@ -48,7 +49,7 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request,
 	scope allocator = new ASTAllocator();
 	auto cache = StringCache(request.sourceCode.length.optimalBucketCount);
 	SymbolStuff stuff = getSymbolsForCompletion(request, CompletionType.ddoc,
-		allocator, &rba, cache, moduleCache);
+		allocator.allocatorObject, &rba, cache, moduleCache);
 	if (stuff.symbols.length == 0)
 		warning("Could not find symbol");
 	else
