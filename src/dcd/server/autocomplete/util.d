@@ -19,7 +19,7 @@
 module dcd.server.autocomplete.util;
 
 import std.algorithm;
-import stdx.allocator;
+import std.experimental.allocator;
 import std.experimental.logger;
 import std.range;
 import std.string;
@@ -134,7 +134,7 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, size_t cursorPosition,
  *     the request's source code, cursor position, and completion type.
  */
 SymbolStuff getSymbolsForCompletion(const AutocompleteRequest request,
-	const CompletionType type, IAllocator allocator, RollbackAllocator* rba,
+	const CompletionType type, RCIAllocator allocator, RollbackAllocator* rba,
 	ref StringCache cache, ref ModuleCache moduleCache)
 {
 	const(Token)[] tokenArray;

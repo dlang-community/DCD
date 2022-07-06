@@ -18,6 +18,7 @@
 
 module dcd.server.autocomplete.symbols;
 
+import std.experimental.allocator;
 import std.experimental.logger;
 import std.typecons;
 
@@ -49,8 +50,8 @@ public AutocompleteResponse findDeclaration(const AutocompleteRequest request,
 	RollbackAllocator rba;
 	scope allocator = new ASTAllocator();
 	auto cache = StringCache(request.sourceCode.length.optimalBucketCount);
-	SymbolStuff stuff = getSymbolsForCompletion(request,
-		CompletionType.location, allocator, &rba, cache, moduleCache);
+	SymbolStuff stuff = getSymbolsForCompletion(request, CompletionType.location,
+		allocator.allocatorObject, &rba, cache, moduleCache);
 	scope(exit) stuff.destroy();
 	if (stuff.symbols.length > 0)
 	{
@@ -77,8 +78,8 @@ public AutocompleteResponse symbolSearch(const AutocompleteRequest request,
 		config, &cache);
 	scope allocator = new ASTAllocator();
 	RollbackAllocator rba;
-	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
-		&rba, request.cursorPosition, moduleCache);
+	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray,
+		allocator.allocatorObject, &rba, request.cursorPosition, moduleCache);
 	scope(exit) pair.destroy();
 
 	static struct SearchResults

@@ -21,6 +21,7 @@ module dcd.server.autocomplete.complete;
 import std.algorithm;
 import std.array;
 import std.conv;
+import std.experimental.allocator;
 import std.experimental.logger;
 import std.file;
 import std.path;
@@ -215,8 +216,8 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	case tok!"]":
 		scope allocator = new ASTAllocator();
 		RollbackAllocator rba;
-		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
-			&rba, cursorPosition, moduleCache);
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray,
+			allocator.allocatorObject, &rba, cursorPosition, moduleCache);
 		scope(exit) pair.destroy();
 		response.setCompletions(pair.scope_, getExpression(beforeTokens),
 			cursorPosition, CompletionType.identifiers, false, partial);
@@ -231,8 +232,8 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	case tok!",":
 		scope allocator = new ASTAllocator();
 		RollbackAllocator rba;
-		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
-			&rba, 1, moduleCache);
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray,
+			allocator.allocatorObject, &rba, 1, moduleCache);
 		scope(exit) pair.destroy();
 		response.setCompletions(pair.scope_, getExpression(beforeTokens),
 			1, CompletionType.identifiers, false, partial);
@@ -304,8 +305,8 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	mixin(STRING_LITERAL_CASES);
 		scope allocator = new ASTAllocator();
 		RollbackAllocator rba;
-		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
-			&rba, cursorPosition, moduleCache);
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray,
+			allocator.allocatorObject, &rba, cursorPosition, moduleCache);
 		scope(exit) pair.destroy();
 		auto expression = getExpression(beforeTokens[0 .. $ - 1]);
 		response.setCompletions(pair.scope_, expression,

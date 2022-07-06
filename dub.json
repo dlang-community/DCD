@@ -7,10 +7,9 @@
   ],
   "license": "GPL-3.0",
   "dependencies": {
-    "dsymbol": ">=0.11.2 <0.12.0",
-    "libdparse": ">=0.15.4 <0.16.0",
+    "dsymbol": ">=0.14.0 <0.15.0",
+    "libdparse": ">=0.20.0 <0.21.0",
     ":common": "*",
-    "stdx-allocator": "~>2.77.5",
     "emsi_containers": "~>0.8.0"
   },
   "subPackages": ["common"],
