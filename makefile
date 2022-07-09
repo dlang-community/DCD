@@ -12,7 +12,6 @@ LDC := ldc2
 
 DPARSE_DIR := libdparse
 DSYMBOL_DIR := dsymbol
-STDXALLOC_DIR := stdx-allocator
 
 SHELL:=/bin/bash
 
@@ -65,7 +64,6 @@ SERVER_SRC := \
 	$(shell find common/src/dcd/common -name "*.d")\
 	$(shell find src/dcd/server -name "*.d")\
 	$(shell find ${DSYMBOL_DIR}/src -name "*.d")\
-	$(shell find ${STDXALLOC_DIR}/source -name "*.d")\
 	$(shell find ${DPARSE_DIR}/src -name "*.d")\
 	$(shell find containers/src -name "*.d")\
 	$(shell find msgpack-d/src/ -name "*.d")
@@ -74,7 +72,6 @@ DMD_SERVER_FLAGS := -Icontainers/src\
 	-Imsgpack-d/src\
 	-I${DPARSE_DIR}/src\
 	-I${DSYMBOL_DIR}/src\
-	-I${STDXALLOC_DIR}/source\
 	-Jbin\
 	-wi\
 	-O\
