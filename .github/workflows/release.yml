@@ -1,0 +1,81 @@
+name: Publish Releases
+on:
+  release:
+    types: [published]
+
+jobs:
+  Build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        dc:
+          - ldc-latest
+        arch:
+          - x86_64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - name: Setup D
+        uses: dlang-community/setup-dlang@v1
+        with:
+          compiler: ${{ matrix.dc }}
+
+      # Build
+
+      - name: Build
+        run: |
+          dub build --build=release --config=client --arch=${{ matrix.arch }}
+          dub build --build=release --config=server --arch=${{ matrix.arch }}
+
+      # Package Release
+
+      - name: Package the artificats
+        shell: pwsh
+        working-directory: bin
+        run: |
+          if ("${{ matrix.os }}" -like 'windows*') {
+            7z a -tzip ..\dcd.zip dcd-client.exe dcd-server.exe
+          } elseif ("${{ matrix.os }}" -like 'macos*') {
+            gtar -cvzf ../dcd.tar.gz dcd-client dcd-server
+          } else {
+            tar -cvzf ../dcd.tar.gz dcd-client dcd-server
+          }
+
+      # Release
+
+      - name: Release Linux
+        if: contains(matrix.os, 'ubuntu')
+        uses: WebFreak001/upload-asset@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OS: linux
+        with:
+          file: dcd.tar.gz
+          name: dcd-${TAG_RAW}-${OS}-${{ matrix.arch }}.tar.gz
+          mime: application/tar+gzip
+
+      - name: Release Macos
+        if: contains(matrix.os, 'macos')
+        uses: WebFreak001/upload-asset@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OS: osx
+        with:
+          file: dcd.tar.gz
+          name: dcd-${TAG_RAW}-${OS}-${{ matrix.arch }}.tar.gz
+          mime: application/tar+gzip
+
+      - name: Release Windows
+        if: contains(matrix.os, 'windows')
+        uses: WebFreak001/upload-asset@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OS: windows
+        with:
+          file: dcd.zip
+          name: dcd-${TAG_RAW}-${OS}-${{ matrix.arch }}.zip
+          mime: application/zip

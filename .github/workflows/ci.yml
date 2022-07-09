@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - master
-  release:
-    types: [published]
 
 jobs:
   Build:
@@ -17,13 +15,20 @@ jobs:
         dc:
           - ldc-latest
           - dmd-latest
+        build: [debug, release]
         arch:
           - x86_64
+        libdparse-version: [min, max]
         include:
           # windows x86
           - os: windows-latest
             arch: x86
             dc: ldc-latest
+            build: debug
+            libdparse-version: min
+          # old compiler tests
+          - { os: ubuntu-latest, dc: dmd-2.095.1, libdparse-version: min, build: debug, arch: x86_64 }
+          - { os: ubuntu-latest, dc: ldc-1.25.0, libdparse-version: min, build: debug, arch: x86_64 }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
@@ -39,10 +44,26 @@ jobs:
 
       - name: Build
         run: |
-          dub build --build=release --config=client --arch=${{ matrix.arch }}
-          dub build --build=release --config=server --arch=${{ matrix.arch }}
+          rdmd ./d-test-utils/test_with_package.d $LIBDPARSE_VERSION libdparse -- dub build --build=${{ matrix.build }} --config=client --arch=${{ matrix.arch }}
+          rdmd ./d-test-utils/test_with_package.d $LIBDPARSE_VERSION libdparse -- dub build --build=${{ matrix.build }} --config=server --arch=${{ matrix.arch }}
 
       # Tests
+
+      - name: Build DSymbol
+        env:
+          DC: ${{matrix.dc}}
+          LIBDPARSE_VERSION: ${{ matrix.libdparse-version }}
+        run: |
+          cd dsymbol
+          rdmd ../d-test-utils/test_with_package.d $LIBDPARSE_VERSION libdparse -- dub build --build=${{ matrix.build }}
+
+      - name: Test DSymbol
+        env:
+          DC: ${{matrix.dc}}
+          LIBDPARSE_VERSION: ${{ matrix.libdparse-version }}
+        run: |
+          cd dsymbol
+          rdmd ../d-test-utils/test_with_package.d $LIBDPARSE_VERSION libdparse -- dub test
 
       - name: Linux Tests
         if: contains(matrix.os, 'ubuntu')
@@ -58,54 +79,3 @@ jobs:
         working-directory: tests
         shell: bash
         continue-on-error: true
-
-
-      # Package Release
-
-      - name: Package the artificats
-        if: github.event_name == 'release' && contains(matrix.dc, 'ldc')
-        shell: pwsh
-        working-directory: bin
-        run: |
-          if ("${{ matrix.os }}" -like 'windows*') {
-            7z a -tzip ..\dcd.zip dcd-client.exe dcd-server.exe
-          } elseif ("${{ matrix.os }}" -like 'macos*') {
-            gtar -cvzf ../dcd.tar.gz dcd-client dcd-server
-          } else {
-            tar -cvzf ../dcd.tar.gz dcd-client dcd-server
-          }
-
-      # Release
-
-      - name: Release Linux
-        if: github.event_name == 'release' && contains(matrix.os, 'ubuntu') && contains(matrix.dc, 'ldc')
-        uses: WebFreak001/upload-asset@v1.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OS: linux
-        with:
-          file: dcd.tar.gz
-          name: dcd-${TAG_RAW}-${OS}-${{ matrix.arch }}.tar.gz
-          mime: application/tar+gzip
-
-      - name: Release Macos
-        if: github.event_name == 'release' && contains(matrix.os, 'macos') && contains(matrix.dc, 'ldc')
-        uses: WebFreak001/upload-asset@v1.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OS: osx
-        with:
-          file: dcd.tar.gz
-          name: dcd-${TAG_RAW}-${OS}-${{ matrix.arch }}.tar.gz
-          mime: application/tar+gzip
-
-      - name: Release Windows
-        if: github.event_name == 'release' && contains(matrix.os, 'windows') && contains(matrix.dc, 'ldc')
-        uses: WebFreak001/upload-asset@v1.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OS: windows
-        with:
-          file: dcd.zip
-          name: dcd-${TAG_RAW}-${OS}-${{ matrix.arch }}.zip
-          mime: application/zip
