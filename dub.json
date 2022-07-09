@@ -7,12 +7,12 @@
   ],
   "license": "GPL-3.0",
   "dependencies": {
-    "dsymbol": ">=0.14.0 <0.15.0",
+    ":dsymbol": "*",
     "libdparse": ">=0.20.0 <0.21.0",
     ":common": "*",
-    "emsi_containers": "~>0.8.0"
+    "emsi_containers": "~>0.9.0"
   },
-  "subPackages": ["common"],
+  "subPackages": ["dsymbol", "common"],
   "versions": ["built_with_dub"],
   "configurations": [
     {

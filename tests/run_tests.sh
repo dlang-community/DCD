@@ -6,6 +6,13 @@ NORMAL="\033[0m"
 IMPORTS=$(pwd)/imports
 export IMPORTS
 
+if [ -z "${1:-}" ];
+then
+	TESTCASES="tc*"
+else
+	TESTCASES="$1"
+fi
+
 fail_count=0
 pass_count=0
 client="../bin/dcd-client"
@@ -51,7 +58,7 @@ for socket in unix tcp; do
 	done
 
 	# Run tests
-	for testCase in tc*; do
+	for testCase in $TESTCASES; do
 		cd $testCase
 
 		./run.sh "$tcp"

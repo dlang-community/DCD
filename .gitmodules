@@ -8,9 +8,6 @@
 	path = libdparse
 	url = https://github.com/dlang-community/libdparse.git
 	branch = master
-[submodule "dsymbol"]
-	path = dsymbol
-	url = https://github.com/dlang-community/dsymbol.git
 [submodule "stdx-allocator"]
 	path = stdx-allocator
 	url = https://github.com/dlang-community/stdx-allocator

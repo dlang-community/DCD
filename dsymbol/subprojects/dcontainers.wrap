@@ -1,0 +1,4 @@
+[wrap-git]
+directory = dcontainers
+url       = https://github.com/dlang-community/containers.git
+revision  = head
