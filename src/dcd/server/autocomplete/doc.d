@@ -32,6 +32,8 @@ import dsymbol.modulecache;
 
 import dcd.common.messages;
 
+import std.experimental.allocator : allocatorObject;
+
 /**
  * Gets documentation for the symbol at the cursor
  * Params:
@@ -48,7 +50,7 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request,
 	scope allocator = new ASTAllocator();
 	auto cache = StringCache(request.sourceCode.length.optimalBucketCount);
 	SymbolStuff stuff = getSymbolsForCompletion(request, CompletionType.ddoc,
-		allocator, &rba, cache, moduleCache);
+		allocator.allocatorObject, &rba, cache, moduleCache); // TODO: using allocatorObject gives errors about qualifiers
 	if (stuff.symbols.length == 0)
 		warning("Could not find symbol");
 	else
