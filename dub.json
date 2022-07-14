@@ -7,8 +7,8 @@
   ],
   "license": "GPL-3.0",
   "dependencies": {
-    "dsymbol": "~>0.13.1",
-    "libdparse": "~>0.19.3",
+    "dsymbol": "~>0.13.3",
+    "libdparse": "~>0.19.4",
     ":common": "*",
     "emsi_containers": "~>0.8.0"
   },
