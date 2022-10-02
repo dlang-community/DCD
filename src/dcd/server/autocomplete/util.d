@@ -37,6 +37,7 @@ import dsymbol.modulecache;
 import dsymbol.scope_;
 import dsymbol.string_interning;
 import dsymbol.symbol;
+import dcd.server.autocomplete.ufcs;
 
 enum ImportKind : ubyte
 {
@@ -143,8 +144,14 @@ SymbolStuff getSymbolsForCompletion(const AutocompleteRequest request,
 	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray,
 		rba, request.cursorPosition, moduleCache);
 	auto expression = getExpression(beforeTokens);
-	return SymbolStuff(getSymbolsByTokenChain(pair.scope_, expression,
-		request.cursorPosition, type), pair.symbol, pair.scope_);
+	auto symbols = getSymbolsByTokenChain(pair.scope_, expression,
+		request.cursorPosition, type);
+		if (symbols.length == 0 && doUFCSSearch(stringToken(beforeTokens.front), stringToken(beforeTokens.back))) {
+			// Let search for UFCS, since we got no hit
+			symbols ~= getSymbolsByTokenChain(pair.scope_, getExpression([beforeTokens.back]),
+				request.cursorPosition, type);
+		}
+	return SymbolStuff(symbols, pair.symbol, pair.scope_);
 }
 
 bool isSliceExpression(T)(T tokens, size_t index)

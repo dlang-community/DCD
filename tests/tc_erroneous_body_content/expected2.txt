@@ -1,6 +1,7 @@
 identifiers
 a	v
 alignof	k
+foo	f
 init	k
 mangleof	k
 sizeof	k

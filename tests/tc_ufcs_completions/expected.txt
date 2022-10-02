@@ -1,0 +1,18 @@
+identifiers
+alignof	k
+fooHey	f
+hasArgname	f
+init	k
+mangleof	k
+sizeof	k
+stringof	k
+tupleof	k
+u	f
+ufcsBar	f
+ufcsBarRef	f
+ufcsBarRefConst	f
+ufcsBarRefConstWrapped	f
+ufcsBarRefImmuttableWrapped	f
+ufcsBarReturnScope	f
+ufcsBarScope	f
+ufcsHello	f
