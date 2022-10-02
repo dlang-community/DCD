@@ -30,6 +30,7 @@ import std.string;
 import std.typecons;
 
 import dcd.server.autocomplete.util;
+import dcd.server.autocomplete.ufcs;
 
 import dparse.lexer;
 import dparse.rollback_allocator;
@@ -201,7 +202,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	}
 	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == tok!".")
 		significantTokenType = beforeTokens[$ - 2].type;
-	else
+	else 
 		return response;
 
 	switch (significantTokenType)
@@ -324,7 +325,7 @@ in
 {
 	assert (beforeTokens.length >= 2);
 }
-body
+do
 {
 	AutocompleteResponse response;
 	if (beforeTokens.length <= 2)
@@ -574,6 +575,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		}
 		addSymToResponse(symbols[0], response, partial, completionScope);
 		response.completionType = CompletionType.identifiers;
+		lookupUFCS(completionScope, symbols[0], cursorPosition, response);
 	}
 	else if (completionType == CompletionType.calltips)
 	{
@@ -669,7 +671,7 @@ in
 {
 	assert(symbol.kind == CompletionKind.structName);
 }
-body
+do
 {
 	string generatedStructConstructorCalltip = "this(";
 	const(DSymbol)*[] fields = symbol.opSlice().filter!(
