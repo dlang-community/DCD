@@ -23,20 +23,14 @@ void lookupUFCS(Scope* completionScope, DSymbol* beforeDotSymbol, size_t cursorP
 
     foreach (const symbol; ufcsSymbols)
     {
-        // Filtering only those that match with type of the beforeDotSymbol
-        // We use the calltip since we need more data from dsymbol
-        // hopefully this is solved in the future
-        if (getFirstArgumentOfFunction(symbol.callTip) == beforeDotSymbol.name)
-        {
-            response.completions ~= createCompletionForUFCS(symbol);
-        }
+        response.completions ~= createCompletionForUFCS(symbol);
     }
 }
 
 AutocompleteResponse.Completion createCompletionForUFCS(const DSymbol* symbol)
 {
     return AutocompleteResponse.Completion(symbol.name, symbol.kind, removeFirstArgumentOfFunction(
-                symbol.callTip), symbol
+            symbol.callTip), symbol
             .symbolFile, symbol
             .location, symbol
             .doc);
@@ -48,7 +42,7 @@ AutocompleteResponse.Completion createCompletionForUFCS(const DSymbol* symbol)
  * a symbol is suitable for UFCS if it satisfies the following:
  * $(UL
  *  $(LI is global or imported)
- *  $(LI is callable with $(D implicitArg) as it's first argument)
+ *  $(LI is callable with $(D beforeDotSymbol) as it's first argument)
  * )
  *
  * Params:
@@ -111,87 +105,18 @@ DSymbol*[] getSymbolsForUFCS(Scope* completionScope, const(DSymbol)* beforeDotSy
 /**
    Params:
    symbol = the symbol to check
-   arg0 = the argument
+   firstArgumentSymbol = the first argument
    Returns:
-   true if if $(D symbol) is callable with $(D arg0) as it's first argument
+   true if if $(D symbol) is callable with $(D firstArgumentSymbol) as it's first argument
    false otherwise
 */
-bool isCallableWithArg(const(DSymbol)* symbol, const(DSymbol)* arg0)
+bool isCallableWithArg(const(DSymbol)* beforeDotSymbol, const(DSymbol)* firstArgumentSymbol)
 {
-    // FIXME: do signature type checking?
-    // 	a lot is to be done in dsymbol for type checking to work.
-    //  for instance, define an isSbtype function for where it is applicable
-    // 	ex: interfaces, subclasses, builtintypes ...
-
-    // FIXME: instruct dsymbol to always save paramater symbols
-    // 	 and check these instead of checking callTip
-
-    static bool checkCallTip(string callTip)
+    if (beforeDotSymbol.kind == CompletionKind.functionName)
     {
-        assert(callTip.length);
-        if (callTip.endsWith("()"))
-            return false; // takes no arguments
-        else if (callTip.endsWith("(...)"))
-            return true;
-        else
-            return true; // FIXME: assume yes?
-    }
-
-    assert(symbol);
-    assert(arg0);
-
-    switch (symbol.kind)
-    {
-    case CompletionKind.dummy:
-        if (symbol.qualifier == SymbolQualifier.func)
-            return checkCallTip(symbol.callTip);
-        break;
-    case CompletionKind.importSymbol:
-        if (symbol.type is null)
-            break;
-        if (symbol.qualifier == SymbolQualifier.selectiveImport)
-            return symbol.type.isCallableWithArg(arg0);
-        break;
-    case CompletionKind.structName:
-        foreach (constructor; symbol.getPartsByName(CONSTRUCTOR_SYMBOL_NAME))
-        {
-            // check user defined contructors or auto-generated constructor
-            if (checkCallTip(constructor.callTip))
-                return true;
-        }
-        break;
-    case CompletionKind.variableName:
-    case CompletionKind.enumMember: // assuming anonymous enum member
-        if (symbol.type !is null)
-        {
-            if (symbol.type.qualifier == SymbolQualifier.func)
-                return checkCallTip(symbol.type.callTip);
-            foreach (functor; symbol.type.getPartsByName(internString("opCall")))
-                if (checkCallTip(functor.callTip))
-                    return true;
-        }
-        break;
-    case CompletionKind.functionName:
-        return checkCallTip(symbol.callTip);
-    case CompletionKind.enumName:
-    case CompletionKind.aliasName:
-        if (symbol.type !is null && symbol.type !is symbol)
-            return symbol.type.isCallableWithArg(arg0);
-        break;
-    case CompletionKind.unionName:
-    case CompletionKind.templateName:
-        return true; // can we do more checks?
-    case CompletionKind.withSymbol:
-    case CompletionKind.className:
-    case CompletionKind.interfaceName:
-    case CompletionKind.memberVariableName:
-    case CompletionKind.keyword:
-    case CompletionKind.packageName:
-    case CompletionKind.moduleName:
-    case CompletionKind.mixinTemplateName:
-        break;
-    default:
-        break;
+        // Keeping it simple only support for functions for now
+        // Where beforeDotSymbol matches first argument
+        return getFirstArgumentOfFunction(beforeDotSymbol.callTip) == firstArgumentSymbol.name;
     }
     return false;
 }
