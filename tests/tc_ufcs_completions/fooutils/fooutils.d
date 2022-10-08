@@ -26,3 +26,5 @@ void ufcsBarRefConstWrapped(ref const(Foo) foo, string mama) {}
 void ufcsBarRefImmuttableWrapped(ref immutable(Foo) foo, string mama) {}
 void ufcsBarScope(ref scope Foo foo, string mama) {}
 void ufcsBarReturnScope(return scope Foo foo, string mama) {}
+private void privateUfcsBar(Foo foo, string message) {}
+void notUfcsBar(string message) {}

@@ -69,6 +69,8 @@ DSymbol*[] getSymbolsForUFCS(Scope* completionScope, const(DSymbol)* beforeDotSy
     HashSet!size_t visited;
     // local imports only
     FilteredAppender!(a => a.isCallableWithArg(beforeDotSymbol), DSymbol*[]) app;
+    FilteredAppender!(a => a.protection != tok!"private", DSymbol*[]) globalsFunctions;
+
     while (currentScope !is null && currentScope.parent !is null)
     {
         auto localImports = currentScope.symbols.filter!(a => a.kind == CompletionKind.importSymbol);
@@ -95,8 +97,12 @@ DSymbol*[] getSymbolsForUFCS(Scope* completionScope, const(DSymbol)* beforeDotSy
         {
             if (sym.qualifier == SymbolQualifier.selectiveImport)
                 app.put(sym.type);
-            else
-                sym.type.getParts(internString(null), app, visited);
+            else{
+                sym.type.getParts(istring(null), globalsFunctions, visited);
+                foreach(gSym; globalsFunctions) {
+                    app.put(gSym);
+                }
+            }
         }
     }
     return app.data;
