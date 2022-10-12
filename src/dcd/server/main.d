@@ -176,7 +176,7 @@ int runServer(string[] args)
 		info("Sockets shut down.");
 	}
 
-	ModuleCache cache = ModuleCache(new ASTAllocator().allocatorObject);
+	ModuleCache cache;
 	cache.addImportPaths(importPaths);
 	infof("Import directories:\n    %-(%s\n    %)", cache.getImportPaths());
 

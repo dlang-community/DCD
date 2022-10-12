@@ -53,32 +53,22 @@ import std.typecons : Rebindable;
  */
 final class FirstPass : ASTVisitor
 {
-	alias SymbolAllocator = GCAllocator; // NOTE using First`Pass.symbolAllocator` instead fails when analyzing Phobos master
-	alias ScopeAllocator = GCAllocator; // NOTE using `Mallocator` instead fails when analyzing Phobos master
-
 	/**
 	 * Params:
 	 *     mod = the module to visit
 	 *     symbolFile = path to the file being converted
-	 *     symbolAllocator = allocator used for the auto-complete symbols
-	 *     semanticAllocator = allocator used for semantic symbols
 	 */
-	this(const Module mod, istring symbolFile, RCIAllocator symbolAllocator,
-		RCIAllocator semanticAllocator,
+	this(const Module mod, istring symbolFile,
 		ModuleCache* cache, CacheEntry* entry = null)
 	in
 	{
 		assert(mod);
-		assert(!symbolAllocator.isNull);
-		assert(!semanticAllocator.isNull);
 		assert(cache);
 	}
 	do
 	{
 		this.mod = mod;
 		this.symbolFile = symbolFile;
-		this.symbolAllocator = symbolAllocator;
-		this.semanticAllocator = semanticAllocator;
 		this.entry = entry;
 		this.cache = cache;
 	}
@@ -146,7 +136,7 @@ final class FirstPass : ASTVisitor
 
 		if (dec.functionBody !is null)
 		{
-			pushFunctionScope(dec.functionBody, semanticAllocator,
+			pushFunctionScope(dec.functionBody,
 					dec.name.index + dec.name.text.length);
 			scope (exit) popScope();
 			processParameters(currentSymbol, dec.returnType,
@@ -374,7 +364,7 @@ final class FirstPass : ASTVisitor
 		rootSymbol = allocateSemanticSymbol(null, CompletionKind.moduleName,
 			symbolFile);
 		currentSymbol = rootSymbol;
-		moduleScope = GCAllocator.instance.make!Scope(0, uint.max); // NOTE using `semanticAllocator` here fails as `Segmentation fault (core dumped)`
+		moduleScope = GCAllocator.instance.make!Scope(0, uint.max);
 		currentScope = moduleScope;
 		auto objectLocation = cache.resolveImportLocation("object");
 		if (objectLocation is null)
@@ -444,7 +434,7 @@ final class FirstPass : ASTVisitor
 		scope(exit) structFieldNames = move(savedStructFieldNames);
 		scope(exit) structFieldTypes = move(savedStructFieldTypes);
 
-		DSymbol* thisSymbol = SymbolAllocator.instance.make!DSymbol(THIS_SYMBOL_NAME,
+		DSymbol* thisSymbol = GCAllocator.instance.make!DSymbol(THIS_SYMBOL_NAME,
 			CompletionKind.variableName, currentSymbol.acSymbol);
 		thisSymbol.location = currentScope.startLocation;
 		thisSymbol.symbolFile = symbolFile;
@@ -497,7 +487,7 @@ final class FirstPass : ASTVisitor
 						auto s = currentScope.getSymbolsByName(ip);
 						if (s.length == 0)
 						{
-							currentImportSymbol = SymbolAllocator.instance.make!DSymbol(ip, kind);
+							currentImportSymbol = GCAllocator.instance.make!DSymbol(ip, kind);
 							currentScope.addSymbol(currentImportSymbol, true);
 							if (last)
 							{
@@ -514,7 +504,7 @@ final class FirstPass : ASTVisitor
 						auto s = currentImportSymbol.getPartsByName(ip);
 						if (s.length == 0)
 						{
-							auto sym = SymbolAllocator.instance.make!DSymbol(ip, kind);
+							auto sym = GCAllocator.instance.make!DSymbol(ip, kind);
 							currentImportSymbol.addChild(sym, true);
 							currentImportSymbol = sym;
 							if (last)
@@ -781,9 +771,6 @@ final class FirstPass : ASTVisitor
 	/// The module
 	SemanticSymbol* rootSymbol;
 
-	/// Allocator used for symbol allocation
-	RCIAllocator symbolAllocator;
-
 	/// Number of symbols allocated
 	uint symbolsAllocated;
 
@@ -823,7 +810,7 @@ private:
 	{
 		assert (startLocation < uint.max);
 		assert (endLocation < uint.max || endLocation == size_t.max);
-		Scope* s = ScopeAllocator.instance.make!Scope(cast(uint) startLocation, cast(uint) endLocation);
+		Scope* s = GCAllocator.instance.make!Scope(cast(uint) startLocation, cast(uint) endLocation);
 		s.parent = currentScope;
 		currentScope.children.insert(s);
 		currentScope = s;
@@ -834,10 +821,9 @@ private:
 		currentScope = currentScope.parent;
 	}
 
-	void pushFunctionScope(const FunctionBody functionBody,
-		RCIAllocator semanticAllocator, size_t scopeBegin)
+	void pushFunctionScope(const FunctionBody functionBody, size_t scopeBegin)
 	{
-		Scope* s = ScopeAllocator.instance.make!Scope(cast(uint) scopeBegin,
+		Scope* s = GCAllocator.instance.make!Scope(cast(uint) scopeBegin,
 			cast(uint) functionBody.endLocation);
 		s.parent = currentScope;
 		currentScope.children.insert(s);
@@ -926,8 +912,7 @@ private:
 
 		if (functionBody !is null)
 		{
-			pushFunctionScope(functionBody, semanticAllocator,
-				location + 4); // 4 == "this".length
+			pushFunctionScope(functionBody, location + 4); // 4 == "this".length
 			scope(exit) popScope();
 			currentSymbol = symbol;
 			functionBody.accept(this);
@@ -951,7 +936,7 @@ private:
 
 		if (functionBody !is null)
 		{
-			pushFunctionScope(functionBody, semanticAllocator, location + 4); // 4 == "this".length
+			pushFunctionScope(functionBody, location + 4); // 4 == "this".length
 			scope(exit) popScope();
 			currentSymbol = symbol;
 			functionBody.accept(this);
@@ -1108,17 +1093,12 @@ private:
 
 	SemanticSymbol* allocateSemanticSymbol(string name, CompletionKind kind,
 		istring symbolFile, size_t location = 0)
-	in
 	{
-		assert (!symbolAllocator.isNull);
-	}
-	do
-	{
-		DSymbol* acSymbol = SymbolAllocator.instance.make!DSymbol(istring(name), kind);
+		DSymbol* acSymbol = GCAllocator.instance.make!DSymbol(istring(name), kind);
 		acSymbol.location = location;
 		acSymbol.symbolFile = symbolFile;
 		symbolsAllocated++;
-		return SymbolAllocator.instance.make!SemanticSymbol(acSymbol); // NOTE using semanticAllocator here breaks when analysing phobos as: `Segmentation fault (core dumped)‘’
+		return GCAllocator.instance.make!SemanticSymbol(acSymbol);
 	}
 
 	void addTypeToLookups(ref TypeLookups lookups,
@@ -1206,8 +1186,6 @@ private:
 	istring lastComment;
 
 	const Module mod;
-
-	RCIAllocator semanticAllocator;
 
 	Rebindable!(const ExpressionNode) feExpression;
 
