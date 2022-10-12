@@ -25,10 +25,10 @@ import dsymbol.import_;
 import dsymbol.symbol;
 import dsymbol.type_lookup;
 import std.experimental.allocator : dispose;
-import std.experimental.allocator.mallocator : Mallocator;
+import std.experimental.allocator.gc_allocator : GCAllocator;
 import dsymbol.semantic : TypeLookups, TypeLookupsAllocator;
 
-alias ImportsAllocator = Mallocator;
+alias ImportsAllocator = GCAllocator;
 alias Imports = UnrolledList!(DSymbol*, ImportsAllocator);
 
 /**

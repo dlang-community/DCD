@@ -24,7 +24,7 @@ void expectSymbolsAndTypes(const string source, const string[][] results,
 	import core.exception : AssertError;
 	import std.exception : enforce;
 
-	ModuleCache mcache = ModuleCache(theAllocator);
+	ModuleCache mcache;
 	auto pair = generateAutocompleteTrees(source, mcache);
 	scope(exit) pair.destroy();
 
@@ -80,7 +80,7 @@ void expectSymbolsAndTypes(const string source, const string[][] results,
 // this one used to crash, see #125
 unittest
 {
-	ModuleCache cache = ModuleCache(theAllocator);
+	ModuleCache cache;
 	auto source = q{ auto a = true ? [42] : []; };
 	auto pair = generateAutocompleteTrees(source, cache);
 }
@@ -88,7 +88,7 @@ unittest
 // https://github.com/dlang-community/D-Scanner/issues/749
 unittest
 {
-	ModuleCache cache = ModuleCache(theAllocator);
+	ModuleCache cache;
 	auto source = q{ void test() { foo(new class A {});}  };
 	auto pair = generateAutocompleteTrees(source, cache);
 }
@@ -96,14 +96,14 @@ unittest
 // https://github.com/dlang-community/D-Scanner/issues/738
 unittest
 {
-	ModuleCache cache = ModuleCache(theAllocator);
+	ModuleCache cache;
 	auto source = q{ void b() { c = } alias b this;  };
 	auto pair = generateAutocompleteTrees(source, cache);
 }
 
 unittest
 {
-	ModuleCache cache = ModuleCache(theAllocator);
+	ModuleCache cache;
 
 	writeln("Running function literal tests...");
 	const sources = [
@@ -128,7 +128,7 @@ unittest
 
 unittest
 {
-	ModuleCache cache = ModuleCache(theAllocator);
+	ModuleCache cache;
 
 	writeln("Running struct constructor tests...");
 	auto source = q{ struct A {int a; struct B {bool b;} int c;} };
@@ -143,7 +143,7 @@ unittest
 
 unittest
 {
-	ModuleCache cache = ModuleCache(theAllocator);
+	ModuleCache cache;
 
 	writeln("Running union constructor tests...");
 	auto source = q{ union A {int a; bool b;} };
@@ -155,7 +155,7 @@ unittest
 
 unittest
 {
-	ModuleCache cache = ModuleCache(theAllocator);
+	ModuleCache cache;
 	writeln("Running non-importable symbols tests...");
 	auto source = q{
 		class A { this(int a){} }
@@ -173,7 +173,7 @@ unittest
 
 unittest
 {
-	ModuleCache cache = ModuleCache(theAllocator);
+	ModuleCache cache;
 
 	writeln("Running alias this tests...");
 	auto source = q{ struct A {int f;} struct B { A a; alias a this; void fun() { auto var = f; };} };
@@ -188,7 +188,7 @@ unittest
 
 unittest
 {
-	ModuleCache cache = ModuleCache(theAllocator);
+	ModuleCache cache;
 
 	writeln("Running anon struct tests...");
 	auto source = q{ struct A { struct {int a;}} };
@@ -201,7 +201,7 @@ unittest
 
 unittest
 {
-	ModuleCache cache = ModuleCache(theAllocator);
+	ModuleCache cache;
 
 	writeln("Running anon class tests...");
 	const sources = [
@@ -230,7 +230,7 @@ unittest
 
 unittest
 {
-	ModuleCache cache = ModuleCache(theAllocator);
+	ModuleCache cache;
 
 	writeln("Running the deduction from index expr tests...");
 	{
@@ -278,7 +278,7 @@ unittest
 
 unittest
 {
-	ModuleCache cache = ModuleCache(theAllocator);
+	ModuleCache cache;
 
 	writeln("Running `super` tests...");
 	auto source = q{ class A {} class B : A {} };
@@ -296,7 +296,7 @@ unittest
 
 unittest
 {
-	ModuleCache cache = ModuleCache(theAllocator);
+	ModuleCache cache;
 
 	writeln("Running the \"access chain with inherited type\" tests...");
 	auto source = q{ class A {} class B : A {} };
@@ -313,7 +313,7 @@ unittest
 
 unittest
 {
-	ModuleCache cache = ModuleCache(theAllocator);
+	ModuleCache cache;
 
 	writeln("Running template type parameters tests...");
 	{
@@ -340,7 +340,7 @@ unittest
 
 unittest
 {
-	ModuleCache cache = ModuleCache(theAllocator);
+	ModuleCache cache;
 
 	writeln("Running template variadic parameters tests...");
 	auto source = q{ struct Foo(T...){ }};
@@ -385,7 +385,7 @@ unittest
 		rmdir(dir);
 	}
 
-	ModuleCache cache = ModuleCache(theAllocator);
+	ModuleCache cache;
 	cache.addImportPaths([dir]);
 
 	const a = cache.getModuleSymbol(istring(fnameA));
@@ -429,7 +429,7 @@ unittest
 
 unittest
 {
-	ModuleCache cache = ModuleCache(theAllocator);
+	ModuleCache cache;
 
 	writeln("Testing protection scopes");
 	auto source = q{version(all) { private: } struct Foo{ }};
@@ -537,8 +537,7 @@ ScopeSymbolPair generateAutocompleteTrees(string source, string filename, ref Mo
 	RollbackAllocator rba;
 	Module m = parseModule(tokens, filename, &rba);
 
-	scope first = new FirstPass(m, internString(filename),
-			theAllocator, theAllocator, &cache);
+	scope first = new FirstPass(m, internString(filename), &cache);
 	first.run();
 
 	secondPass(first.rootSymbol, first.moduleScope, cache);
@@ -557,5 +556,5 @@ ScopeSymbolPair generateAutocompleteTrees(string source, string filename, size_t
 	auto tokens = lex(source);
 	RollbackAllocator rba;
 	return dsymbol.conversion.generateAutocompleteTrees(
-		tokens, theAllocator, &rba, cursorPosition, cache);
+		tokens, &rba, cursorPosition, cache);
 }

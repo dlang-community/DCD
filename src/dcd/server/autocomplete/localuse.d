@@ -46,7 +46,6 @@ public AutocompleteResponse findLocalUse(AutocompleteRequest request,
 {
 	AutocompleteResponse response;
 	RollbackAllocator rba;
-	scope allocator = new ASTAllocator();
 	auto cache = StringCache(request.sourceCode.length.optimalBucketCount);
 
 	// patchs the original request for the subsequent requests
@@ -62,7 +61,7 @@ public AutocompleteResponse findLocalUse(AutocompleteRequest request,
 		auto sortedTokens = assumeSorted(tokenArray);
 		auto beforeTokens = sortedTokens.lowerBound(cursorPosition);
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray,
-			allocator.allocatorObject, &rba, request.cursorPosition, moduleCache);
+			&rba, request.cursorPosition, moduleCache);
 		auto expression = getExpression(beforeTokens);
 		return SymbolStuff(getSymbolsByTokenChain(pair.scope_, expression,
 			cursorPosition, CompletionType.location), pair.symbol, pair.scope_);

@@ -34,8 +34,6 @@ import std.experimental.logger;
 import dparse.ast;
 import dparse.lexer;
 
-alias SymbolAllocator = GCAllocator; // NOTE using cache.symbolAllocator instead fails when analyzing Phobos master
-
 void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCache cache)
 {
 	with (CompletionKind) final switch (currentSymbol.acSymbol.kind)
@@ -115,7 +113,7 @@ do
 		if (moduleSymbol is null)
 		{
 		tryAgain:
-			DeferredSymbol* deferred = TypeLookupsAllocator.instance.make!DeferredSymbol(acSymbol);
+			DeferredSymbol* deferred = DeferredSymbolsAllocator.instance.make!DeferredSymbol(acSymbol);
 			deferred.typeLookups.insert(typeLookups[]);
 			// Get rid of the old references to the lookups, this new deferred
 			// symbol owns them now
@@ -191,7 +189,7 @@ do
 			break;
 		immutable qualifier = isAssoc ? SymbolQualifier.assocArray :
 			(isFunction ? SymbolQualifier.func : SymbolQualifier.array);
-		lastSuffix = SymbolAllocator.instance.make!DSymbol(back, CompletionKind.dummy, lastSuffix);
+		lastSuffix = GCAllocator.instance.make!DSymbol(back, CompletionKind.dummy, lastSuffix);
 		lastSuffix.qualifier = qualifier;
 		lastSuffix.ownType = true;
 		if (isFunction)
@@ -335,13 +333,13 @@ void resolveInheritance(DSymbol* symbol, ref TypeLookups typeLookups,
 			baseClass = symbols[0];
 		}
 
-		DSymbol* imp = SymbolAllocator.instance.make!DSymbol(IMPORT_SYMBOL_NAME,
+		DSymbol* imp = GCAllocator.instance.make!DSymbol(IMPORT_SYMBOL_NAME,
 			CompletionKind.importSymbol, baseClass);
 		symbol.addChild(imp, true);
 		symbolScope.addSymbol(imp, false);
 		if (baseClass.kind == CompletionKind.className)
 		{
-			auto s = SymbolAllocator.instance.make!DSymbol(SUPER_SYMBOL_NAME,
+			auto s = GCAllocator.instance.make!DSymbol(SUPER_SYMBOL_NAME,
 				CompletionKind.variableName, baseClass);
 			symbolScope.addSymbol(s, true);
 		}
@@ -359,7 +357,7 @@ void resolveAliasThis(DSymbol* symbol,
 		auto parts = symbol.getPartsByName(aliasThis.breadcrumbs.front);
 		if (parts.length == 0 || parts[0].type is null)
 			continue;
-		DSymbol* s = SymbolAllocator.instance.make!DSymbol(IMPORT_SYMBOL_NAME,
+		DSymbol* s = GCAllocator.instance.make!DSymbol(IMPORT_SYMBOL_NAME,
 			CompletionKind.importSymbol, parts[0].type);
 		symbol.addChild(s, true);
 		auto symbolScope = moduleScope.getScopeByCursor(s.location);
@@ -395,7 +393,7 @@ void resolveMixinTemplates(DSymbol* symbol,
 		}
 		if (currentSymbol !is null)
 		{
-			auto i = SymbolAllocator.instance.make!DSymbol(IMPORT_SYMBOL_NAME,
+			auto i = GCAllocator.instance.make!DSymbol(IMPORT_SYMBOL_NAME,
 				CompletionKind.importSymbol, currentSymbol);
 			i.ownType = false;
 			symbol.addChild(i, true);
@@ -447,7 +445,7 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 		else
 		if (crumb == ARRAY_LITERAL_SYMBOL_NAME)
 		{
-			auto arr = SymbolAllocator.instance.make!(DSymbol)(ARRAY_LITERAL_SYMBOL_NAME, CompletionKind.dummy, currentSymbol);
+			auto arr = GCAllocator.instance.make!(DSymbol)(ARRAY_LITERAL_SYMBOL_NAME, CompletionKind.dummy, currentSymbol);
 			arr.qualifier = SymbolQualifier.array;
 			currentSymbol = arr;
 		}

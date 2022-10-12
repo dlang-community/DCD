@@ -48,8 +48,6 @@ import std.file;
 import std.experimental.lexer;
 import std.path;
 
-alias ASTAllocator = AllocatorList!(n => Region!Mallocator(1024 * 128), Mallocator);
-
 /**
  * Returns: true if a file exists at the given path.
  */
@@ -70,13 +68,6 @@ struct ModuleCache
 {
 	/// No copying.
 	@disable this(this);
-
-	@disable this();
-
-	this(RCIAllocator symbolAllocator)
-	{
-		this.symbolAllocator = symbolAllocator;
-	}
 
 	~this()
 	{
@@ -147,9 +138,6 @@ struct ModuleCache
 		foreach (symbol; deferredSymbols[])
 			DeferredSymbolsAllocator.instance.dispose(symbol);
 
-		// TODO: This call to deallocateAll is a workaround for issues of
-		// CAllocatorImpl and GCAllocator not interacting well.
-		symbolAllocator.deallocateAll();
 		cache.clear();
 		deferredSymbols.clear();
 		importPaths.clear();
@@ -198,14 +186,11 @@ struct ModuleCache
 
 		CacheEntry* newEntry = CacheAllocator.instance.make!CacheEntry();
 
-		scope semanticAllocator = new ASTAllocator();
 		import dparse.rollback_allocator:RollbackAllocator;
 		RollbackAllocator parseAllocator;
 		Module m = parseModuleSimple(tokens[], cachedLocation, &parseAllocator);
 
-		assert (!symbolAllocator.isNull);
-		scope first = new FirstPass(m, cachedLocation, symbolAllocator,
-									semanticAllocator.allocatorObject, &this, newEntry);
+		scope first = new FirstPass(m, cachedLocation, &this, newEntry);
 		first.run();
 
 		secondPass(first.rootSymbol, first.moduleScope, this);
@@ -354,8 +339,6 @@ struct ModuleCache
 		scanAll();
 		return cache[];
 	}
-
-	RCIAllocator symbolAllocator;
 
 	alias DeferredSymbols = UnrolledList!(DeferredSymbol*, DeferredSymbolsAllocator);
 	DeferredSymbols deferredSymbols;

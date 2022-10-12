@@ -134,13 +134,13 @@ auto getTokensBeforeCursor(const(ubyte[]) sourceCode, size_t cursorPosition,
  *     the request's source code, cursor position, and completion type.
  */
 SymbolStuff getSymbolsForCompletion(const AutocompleteRequest request,
-	const CompletionType type, RCIAllocator allocator, RollbackAllocator* rba,
+	const CompletionType type, RollbackAllocator* rba,
 	ref StringCache cache, ref ModuleCache moduleCache)
 {
 	const(Token)[] tokenArray;
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
 		request.cursorPosition, cache, tokenArray);
-	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, allocator,
+	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray,
 		rba, request.cursorPosition, moduleCache);
 	auto expression = getExpression(beforeTokens);
 	return SymbolStuff(getSymbolsByTokenChain(pair.scope_, expression,

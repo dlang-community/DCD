@@ -18,38 +18,38 @@
 
 module dsymbol.conversion;
 
+import dparse.ast;
+import dparse.lexer;
+import dparse.parser;
+import dparse.rollback_allocator;
 import dsymbol.cache_entry;
 import dsymbol.conversion.first;
 import dsymbol.conversion.second;
 import dsymbol.modulecache;
 import dsymbol.scope_;
+import dsymbol.semantic;
 import dsymbol.string_interning;
 import dsymbol.symbol;
-import dsymbol.semantic;
-import dparse.ast;
-import dparse.lexer;
-import dparse.parser;
-import dparse.rollback_allocator;
+import std.algorithm;
 import std.experimental.allocator;
 
 /**
  * Used by autocompletion.
  */
 ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
-	RCIAllocator symbolAllocator, RollbackAllocator* parseAllocator,
+	RollbackAllocator* parseAllocator,
 	size_t cursorPosition, ref ModuleCache cache)
 {
 	Module m = parseModuleForAutocomplete(tokens, internString("stdin"),
 		parseAllocator, cursorPosition);
 
-	scope first = new FirstPass(m, internString("stdin"), symbolAllocator,
-		symbolAllocator, &cache);
+	scope first = new FirstPass(m, internString("stdin"), &cache);
 	first.run();
 
 	secondPass(first.rootSymbol, first.moduleScope, cache);
-	auto r = first.rootSymbol.acSymbol;
+	auto r = move(first.rootSymbol.acSymbol);
 	typeid(SemanticSymbol).destroy(first.rootSymbol);
-	return ScopeSymbolPair(r, first.moduleScope);
+	return ScopeSymbolPair(r, move(first.moduleScope));
 }
 
 struct ScopeSymbolPair

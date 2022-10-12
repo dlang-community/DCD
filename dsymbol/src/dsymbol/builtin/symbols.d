@@ -8,7 +8,7 @@ import dsymbol.string_interning;
 import dsymbol.symbol;
 import std.experimental.allocator.mallocator : Mallocator;
 
-alias SymbolsAllocator = Mallocator;
+private alias SymbolsAllocator = Mallocator;
 
 /**
  * Symbols for the built in types

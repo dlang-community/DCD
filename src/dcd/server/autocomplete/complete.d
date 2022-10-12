@@ -214,10 +214,8 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	mixin(TYPE_IDENT_CASES);
 	case tok!")":
 	case tok!"]":
-		scope allocator = new ASTAllocator();
 		RollbackAllocator rba;
-		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray,
-			allocator.allocatorObject, &rba, cursorPosition, moduleCache);
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba, cursorPosition, moduleCache);
 		scope(exit) pair.destroy();
 		response.setCompletions(pair.scope_, getExpression(beforeTokens),
 			cursorPosition, CompletionType.identifiers, false, partial);
@@ -230,10 +228,8 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	case tok!";":
 	case tok!"}":
 	case tok!",":
-		scope allocator = new ASTAllocator();
 		RollbackAllocator rba;
-		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray,
-			allocator.allocatorObject, &rba, 1, moduleCache);
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba, 1, moduleCache);
 		scope(exit) pair.destroy();
 		response.setCompletions(pair.scope_, getExpression(beforeTokens),
 			1, CompletionType.identifiers, false, partial);
@@ -303,10 +299,8 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 	case tok!")":
 	case tok!"]":
 	mixin(STRING_LITERAL_CASES);
-		scope allocator = new ASTAllocator();
 		RollbackAllocator rba;
-		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray,
-			allocator.allocatorObject, &rba, cursorPosition, moduleCache);
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba, cursorPosition, moduleCache);
 		scope(exit) pair.destroy();
 		auto expression = getExpression(beforeTokens[0 .. $ - 1]);
 		response.setCompletions(pair.scope_, expression,

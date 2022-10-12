@@ -48,10 +48,9 @@ public AutocompleteResponse findDeclaration(const AutocompleteRequest request,
 {
 	AutocompleteResponse response;
 	RollbackAllocator rba;
-	scope allocator = new ASTAllocator();
 	auto cache = StringCache(request.sourceCode.length.optimalBucketCount);
 	SymbolStuff stuff = getSymbolsForCompletion(request, CompletionType.location,
-		allocator.allocatorObject, &rba, cache, moduleCache);
+		&rba, cache, moduleCache);
 	scope(exit) stuff.destroy();
 	if (stuff.symbols.length > 0)
 	{
@@ -76,10 +75,9 @@ public AutocompleteResponse symbolSearch(const AutocompleteRequest request,
 	auto cache = StringCache(request.sourceCode.length.optimalBucketCount);
 	const(Token)[] tokenArray = getTokensForParser(cast(ubyte[]) request.sourceCode,
 		config, &cache);
-	scope allocator = new ASTAllocator();
 	RollbackAllocator rba;
 	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray,
-		allocator.allocatorObject, &rba, request.cursorPosition, moduleCache);
+		&rba, request.cursorPosition, moduleCache);
 	scope(exit) pair.destroy();
 
 	static struct SearchResults
