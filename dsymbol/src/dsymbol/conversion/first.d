@@ -125,9 +125,8 @@ final class FirstPass : ASTVisitor
 	{
 		assert(dec);
 		pushSymbol(dec.name.text, CompletionKind.functionName, symbolFile,
-				dec.name.index, dec.returnType);
+				dec.name.index, dec.returnType, protection.current);
 		scope (exit) popSymbol();
-		currentSymbol.acSymbol.protection = protection.current;
 		currentSymbol.acSymbol.doc = makeDocumentation(dec.comment);
 
 		istring lastComment = this.lastComment;
@@ -374,6 +373,7 @@ final class FirstPass : ASTVisitor
 			auto objectImport = allocateSemanticSymbol(IMPORT_SYMBOL_NAME,
 				CompletionKind.importSymbol, objectLocation);
 			objectImport.acSymbol.skipOver = true;
+			objectImport.acSymbol.protection = protection.currentForImport;
 			currentSymbol.addChild(objectImport, true);
 			currentScope.addSymbol(objectImport.acSymbol, false);
 		}
@@ -440,6 +440,7 @@ final class FirstPass : ASTVisitor
 		thisSymbol.symbolFile = symbolFile;
 		thisSymbol.type = currentSymbol.acSymbol;
 		thisSymbol.ownType = false;
+		thisSymbol.protection = tok!"private";
 		currentScope.addSymbol(thisSymbol, false);
 
 		foreach (dec; structBody.declarations)
@@ -471,6 +472,7 @@ final class FirstPass : ASTVisitor
 			SemanticSymbol* importSymbol = allocateSemanticSymbol(IMPORT_SYMBOL_NAME,
 				CompletionKind.importSymbol, modulePath);
 			importSymbol.acSymbol.skipOver = protection.currentForImport != tok!"public";
+			importSymbol.acSymbol.protection = protection.currentForImport;
 			if (single.rename == tok!"")
 			{
 				size_t i = 0;
@@ -488,6 +490,8 @@ final class FirstPass : ASTVisitor
 						if (s.length == 0)
 						{
 							currentImportSymbol = GCAllocator.instance.make!DSymbol(ip, kind);
+							currentImportSymbol.protection = protection.currentForImport;
+							currentImportSymbol.skipOver = protection.currentForImport != tok!"public";
 							currentScope.addSymbol(currentImportSymbol, true);
 							if (last)
 							{
@@ -505,6 +509,8 @@ final class FirstPass : ASTVisitor
 						if (s.length == 0)
 						{
 							auto sym = GCAllocator.instance.make!DSymbol(ip, kind);
+							sym.protection = protection.currentForImport;
+							sym.skipOver = protection.currentForImport != tok!"public";
 							currentImportSymbol.addChild(sym, true);
 							currentImportSymbol = sym;
 							if (last)
@@ -527,6 +533,7 @@ final class FirstPass : ASTVisitor
 				SemanticSymbol* renameSymbol = allocateSemanticSymbol(
 					internString(single.rename.text), CompletionKind.aliasName,
 					modulePath);
+				renameSymbol.acSymbol.protection = protection.currentForImport;
 				renameSymbol.acSymbol.skipOver = protection.currentForImport != tok!"public";
 				renameSymbol.acSymbol.type = importSymbol.acSymbol;
 				renameSymbol.acSymbol.ownType = true;
@@ -544,7 +551,7 @@ final class FirstPass : ASTVisitor
 		istring modulePath = cache.resolveImportLocation(chain);
 		if (modulePath is null)
 		{
-			warning("Could not resolve location of module '", chain, "'");
+			warning("Could not resolve location of module '", chain.data, "'");
 			return;
 		}
 
@@ -572,6 +579,7 @@ final class FirstPass : ASTVisitor
 			importSymbol.acSymbol.qualifier = SymbolQualifier.selectiveImport;
 			importSymbol.typeLookups.insert(lookup);
 			importSymbol.acSymbol.skipOver = protection.currentForImport != tok!"public";
+			importSymbol.acSymbol.protection = protection.currentForImport;
 			currentSymbol.addChild(importSymbol, true);
 			currentScope.addSymbol(importSymbol.acSymbol, false);
 		}
@@ -831,10 +839,11 @@ private:
 	}
 
 	void pushSymbol(string name, CompletionKind kind, istring symbolFile,
-		size_t location = 0, const Type type = null)
+		size_t location = 0, const Type type = null,
+		const IdType protection = tok!"public")
 	{
 		SemanticSymbol* symbol = allocateSemanticSymbol(name, kind, symbolFile,
-			location);
+			location, protection);
 		if (type !is null)
 			addTypeToLookups(symbol.typeLookups, type);
 		symbol.parent = currentSymbol;
@@ -867,14 +876,13 @@ private:
 			dec.accept(this);
 			return;
 		}
-		pushSymbol(dec.name.text, kind, symbolFile, dec.name.index);
+		pushSymbol(dec.name.text, kind, symbolFile, dec.name.index, null, protection.current);
 		scope(exit) popSymbol();
 
 		if (kind == CompletionKind.className)
 			currentSymbol.acSymbol.addChildren(classSymbols[], false);
 		else
 			currentSymbol.acSymbol.addChildren(aggregateSymbols[], false);
-		currentSymbol.acSymbol.protection = protection.current;
 		currentSymbol.acSymbol.doc = makeDocumentation(dec.comment);
 
 		istring lastComment = this.lastComment;
@@ -1092,11 +1100,12 @@ private:
 	}
 
 	SemanticSymbol* allocateSemanticSymbol(string name, CompletionKind kind,
-		istring symbolFile, size_t location = 0)
+		istring symbolFile, size_t location = 0, IdType protection = tok!"public")
 	{
 		DSymbol* acSymbol = GCAllocator.instance.make!DSymbol(istring(name), kind);
 		acSymbol.location = location;
 		acSymbol.symbolFile = symbolFile;
+		acSymbol.protection = protection;
 		symbolsAllocated++;
 		return GCAllocator.instance.make!SemanticSymbol(acSymbol);
 	}
@@ -1213,17 +1222,19 @@ struct ProtectionStack
 
 	IdType currentForImport() const
 	{
-		return stack.empty ? tok!"default" : current();
+		// Imports are private unless specified otherwise.
+		return stack.empty ? tok!"private" : current();
 	}
 
 	IdType current() const
+	out(t; isProtection(t), str(t))
+	do
 	{
 		import std.algorithm.iteration : filter;
 		import std.range : choose, only;
 
-		IdType retVal;
-		foreach (t; choose(stack.empty, only(tok!"public"), stack[]).filter!(
-				a => a != tok!"{" && a != tok!":"))
+		IdType retVal = tok!"public";
+		foreach (t; stack[].filter!(a => a != tok!"{" && a != tok!":"))
 			retVal = cast(IdType) t;
 		return retVal;
 	}
@@ -1252,7 +1263,7 @@ struct ProtectionStack
 
 	void beginLocal(const IdType t)
 	{
-		assert (t != tok!"", "DERP!");
+		assert(isProtection(t), str(t));
 		stack.insertBack(t);
 	}
 

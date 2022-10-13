@@ -299,6 +299,7 @@ struct DSymbol
 	void addChild(DSymbol* symbol, bool owns)
 	{
 		assert(symbol !is null);
+		assert(isProtection(symbol.protection));
 		parts.insert(SymbolOwnership(symbol, owns));
 	}
 
@@ -307,6 +308,7 @@ struct DSymbol
 		foreach (symbol; symbols)
 		{
 			assert(symbol !is null);
+			assert(isProtection(symbol.protection));
 			parts.insert(SymbolOwnership(symbol, owns));
 		}
 	}
@@ -316,6 +318,7 @@ struct DSymbol
 		foreach (symbol; symbols)
 		{
 			assert(symbol !is null);
+			assert(isProtection(symbol.protection));
 			parts.insert(SymbolOwnership(symbol, owns));
 		}
 	}

@@ -296,15 +296,21 @@ private HashSet!(DSymbol*) symbolsMadeHere;
 
 private DSymbol* makeSymbol(string s, CompletionKind kind, DSymbol* type = null)
 {
+	import dparse.lexer : tok;
+
 	auto sym = rba.make!DSymbol(istring(s), kind, type);
 	sym.ownType = false;
+	sym.protection = tok!"public";
 	symbolsMadeHere.insert(sym);
 	return sym;
 }
 private DSymbol* makeSymbol(istring s, CompletionKind kind, DSymbol* type = null)
 {
+	import dparse.lexer : tok;
+
 	auto sym = rba.make!DSymbol(s, kind, type);
 	sym.ownType = false;
+	sym.protection = tok!"public";
 	symbolsMadeHere.insert(sym);
 	return sym;
 }
