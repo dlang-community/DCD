@@ -107,6 +107,8 @@ struct ModuleCache
 	 */
 	void removeImportPaths(const string[] paths)
 	{
+		import std.array : array;
+
 		foreach (path; paths[])
 		{
 			if (!importPaths[].canFind!(a => a.path == path))
@@ -115,7 +117,7 @@ struct ModuleCache
 				continue;
 			}
 
-			foreach (ref importPath; importPaths[].filter!(a => a.path == path))
+			foreach (ref importPath; importPaths[].filter!(a => a.path == path).array)
 				importPaths.remove(importPath);
 
 			foreach (cacheEntry; cache[])
