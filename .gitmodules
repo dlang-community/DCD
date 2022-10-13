@@ -8,3 +8,6 @@
 [submodule "d-test-utils"]
 	path = d-test-utils
 	url = https://github.com/dlang-community/d-test-utils.git
+[submodule "containers"]
+	path = containers
+	url = https://github.com/dlang-community/containers.git
