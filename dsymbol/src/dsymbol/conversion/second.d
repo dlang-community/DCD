@@ -173,19 +173,27 @@ do
 
 	// Create symbols for the type suffixes such as array and
 	// associative array
+
+	// Build calltip, for the symbol
+	string callTip;
+	foreach (b; lookup.breadcrumbs[])
+	{
+		if (b == ARRAY_SYMBOL_NAME)
+			callTip ~= "[]";
+		else if (b == ASSOC_ARRAY_SYMBOL_NAME)
+			callTip ~= "[...]";
+		else
+			callTip ~= b;
+	}
+
 	while (!lookup.breadcrumbs.empty)
 	{
 		auto back = lookup.breadcrumbs.back;
 		immutable bool isArr = back == ARRAY_SYMBOL_NAME;
 		immutable bool isAssoc = back == ASSOC_ARRAY_SYMBOL_NAME;
 		immutable bool isFunction = back == FUNCTION_SYMBOL_NAME;
-		if (back == POINTER_SYMBOL_NAME)
-		{
-			lastSuffix.isPointer = true;
-			lookup.breadcrumbs.popBack();
-			continue;
-		}
-		if (!isArr && !isAssoc && !isFunction)
+		immutable bool isPointer = back == POINTER_SYMBOL_NAME;
+		if (!isArr && !isAssoc && !isFunction && !isPointer)
 			break;
 		immutable qualifier = isAssoc ? SymbolQualifier.assocArray :
 			(isFunction ? SymbolQualifier.func : SymbolQualifier.array);
@@ -197,8 +205,16 @@ do
 			lookup.breadcrumbs.popBack();
 			lastSuffix.callTip = lookup.breadcrumbs.back();
 		}
+		else if (isPointer)
+		{
+			lastSuffix.callTip = istring(callTip);
+			lastSuffix.isPointer = true;
+		}
 		else
+		{
 			lastSuffix.addChildren(isArr ? arraySymbols[] : assocArraySymbols[], false);
+			lastSuffix.callTip = istring(callTip);
+		}
 
 		if (suffix is null)
 			suffix = lastSuffix;
@@ -244,7 +260,25 @@ do
 				if (symbols.length > 0)
 					currentSymbol = symbols[0];
 				else
+				{
+					// we can't resolve the type, so it's either enum/auto or a template
+					// let's handle that
+
+					// if there was known suffix, it's the type, use that
+					if (lastSuffix)
+					{
+						symbol.type = lastSuffix;
+					}
+
+					// other wise if the symbol has no type, then use the breadcrumb and make a symbol
+					// out of it, eg: 'T'
+					else if (!symbol.type)
+					{
+						symbol.type = GCAllocator.instance.make!DSymbol(part, CompletionKind.dummy, null);
+						symbol.ownType = true;
+					}
 					return;
+				}
 			}
 		}
 		else
@@ -275,6 +309,65 @@ do
 		suffix.ownType = false;
 		symbol.type = lastSuffix;
 		symbol.ownType = true;
+
+		// if that's a pointer, then add the symbols since we built a new one
+		if (lastSuffix.isPointer)
+		{
+			// add symbols based on what pointer is pointing to
+			bool isPtr = false;
+			bool ptrType = false;
+			bool ptrArray = false;
+			bool ptrAA = false;
+
+			auto index = callTip.length;
+			while(index--)
+			{
+				auto c = callTip[index];
+				if (c == '*')
+					isPtr = true;
+				else
+				{
+					if ((c == ')') && isPtr)
+					{
+						break;
+					}
+					else if (c == ']' && isPtr)
+					{
+						if (c > 1)
+						{
+							// TODO: if we ever put the length for static array
+							// this will need to be updated to support that
+							if(callTip[index -1] == '[') 
+							{
+								ptrArray = true;
+								break;
+							}
+
+							// TODO: if we ever put the type name for AA
+							// this will need to be updated to support that
+							if(callTip[index -1] == '.') 
+							{
+								ptrAA = true;
+								break;
+							}
+						}
+					}
+					else
+					{
+						ptrType = true;
+						break;
+					}
+				}
+			}
+
+			if (ptrType)
+				lastSuffix.addChildren(currentSymbol.parts[], false);
+			else if (ptrArray)
+				lastSuffix.addChildren(arraySymbols[], false);
+			else if (ptrAA)
+				lastSuffix.addChildren(assocArraySymbols[], false);
+		}
+
 		if (currentSymbol is null && !remainingImports.empty)
 		{
 //			info("Deferring type resolution for ", symbol.name);

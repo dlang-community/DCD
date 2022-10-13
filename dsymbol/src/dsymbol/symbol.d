@@ -339,7 +339,7 @@ struct DSymbol
 	 */
 	alias PartsAllocator = GCAllocator; // NOTE using `Mallocator` here fails when analysing Phobos
 	alias Parts = TTree!(SymbolOwnership, PartsAllocator, true, "a < b");
-	private Parts parts;
+	package Parts parts;
 
 	/**
 	 * DSymbol's name
