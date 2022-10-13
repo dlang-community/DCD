@@ -1,16 +1,10 @@
 [submodule "msgpack-d"]
 	path = msgpack-d
 	url = https://github.com/msgpack/msgpack-d.git
-[submodule "containers"]
-	path = containers
-	url = https://github.com/economicmodeling/containers.git
 [submodule "libdparse"]
 	path = libdparse
 	url = https://github.com/dlang-community/libdparse.git
 	branch = master
-[submodule "stdx-allocator"]
-	path = stdx-allocator
-	url = https://github.com/dlang-community/stdx-allocator
 [submodule "d-test-utils"]
 	path = d-test-utils
 	url = https://github.com/dlang-community/d-test-utils.git
