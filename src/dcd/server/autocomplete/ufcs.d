@@ -15,27 +15,32 @@ import std.regex;
 import dcd.server.autocomplete.calltip_utils;
 import containers.hashset : HashSet;
 import std.experimental.logger;
+import std.algorithm.iteration : map;
 
 void lookupUFCS(Scope* completionScope, DSymbol* beforeDotSymbol, size_t cursorPosition, ref AutocompleteResponse response)
 {
     // UFCS completion
     DSymbol*[] ufcsSymbols = getSymbolsForUFCS(completionScope, beforeDotSymbol, cursorPosition);
-
-    foreach (const symbol; ufcsSymbols)
-    {
-        response.completions ~= createCompletionForUFCS(symbol);
-    }
+    response.completions ~= map!(s => createCompletionForUFCS(s))(ufcsSymbols).array;
 }
 
 AutocompleteResponse.Completion createCompletionForUFCS(const DSymbol* symbol)
 {
-    return AutocompleteResponse.Completion(symbol.name, symbol.kind, removeFirstArgumentOfFunction(
+    return AutocompleteResponse.Completion(symbol.name, symbol.kind, "(UFCS) " ~ removeFirstArgumentOfFunction(
             symbol.callTip), symbol
             .symbolFile, symbol
             .location, symbol
             .doc);
 }
 
+// Check if beforeDotSymbol is null or void
+bool isInvalidForUFCSCompletion(const(DSymbol)* beforeDotSymbol)
+{
+    return beforeDotSymbol is null
+        || beforeDotSymbol.name is getBuiltinTypeName(tok!"void")
+        || (beforeDotSymbol.type !is null && beforeDotSymbol.type.name is getBuiltinTypeName(
+                tok!"void"));
+}
 /**
  * Get symbols suitable for UFCS.
  *
@@ -54,22 +59,16 @@ AutocompleteResponse.Completion createCompletionForUFCS(const DSymbol* symbol)
  */
 DSymbol*[] getSymbolsForUFCS(Scope* completionScope, const(DSymbol)* beforeDotSymbol, size_t cursorPosition)
 {
-    assert(beforeDotSymbol);
-
-    if (beforeDotSymbol.name is getBuiltinTypeName(tok!"void")
-        || (beforeDotSymbol.type !is null
-            && beforeDotSymbol.type.name is getBuiltinTypeName(tok!"void")))
-    {
-
-        return null; // no UFCS for void
+    if (beforeDotSymbol.isInvalidForUFCSCompletion) {
+        return null;
     }
 
     Scope* currentScope = completionScope.getScopeByCursor(cursorPosition);
     assert(currentScope);
     HashSet!size_t visited;
-    // local imports only
-    FilteredAppender!(a => a.isCallableWithArg(beforeDotSymbol), DSymbol*[]) app;
-    FilteredAppender!(a => a.protection != tok!"private", DSymbol*[]) globalsFunctions;
+
+    // local appender
+    FilteredAppender!(a => a.isCallableWithArg(beforeDotSymbol), DSymbol*[]) localAppender;
 
     while (currentScope !is null && currentScope.parent !is null)
     {
@@ -79,51 +78,58 @@ DSymbol*[] getSymbolsForUFCS(Scope* completionScope, const(DSymbol)* beforeDotSy
             if (sym.type is null)
                 continue;
             if (sym.qualifier == SymbolQualifier.selectiveImport)
-                app.put(sym.type);
+                localAppender.put(sym.type);
             else
-                sym.type.getParts(internString(null), app, visited);
+                sym.type.getParts(internString(null), localAppender, visited);
         }
 
         currentScope = currentScope.parent;
     }
+
+    // global appender
+    FilteredAppender!(a => a.isCallableWithArg(beforeDotSymbol, true), DSymbol*[]) globalAppender;
+
     // global symbols and global imports
     assert(currentScope !is null);
     assert(currentScope.parent is null);
     foreach (sym; currentScope.symbols)
     {
         if (sym.kind != CompletionKind.importSymbol)
-            app.put(sym);
+            localAppender.put(sym);
         else if (sym.type !is null)
         {
             if (sym.qualifier == SymbolQualifier.selectiveImport)
-                app.put(sym.type);
-            else{
-                sym.type.getParts(istring(null), globalsFunctions, visited);
-                foreach(gSym; globalsFunctions) {
-                    app.put(gSym);
-                }
+                localAppender.put(sym.type);
+            else
+            {
+                sym.type.getParts(istring(null), globalAppender, visited);
             }
         }
     }
-    return app.data;
+    return localAppender.opSlice ~ globalAppender.opSlice;
 }
 
 /**
    Params:
    symbol = the symbol to check
-   firstArgumentSymbol = the first argument
+   incomingSymbol = symbols we check on
    Returns:
-   true if if $(D symbol) is callable with $(D firstArgumentSymbol) as it's first argument
+   true if incomingSymbols first parameter matches beforeDotSymbol
    false otherwise
 */
-bool isCallableWithArg(const(DSymbol)* beforeDotSymbol, const(DSymbol)* firstArgumentSymbol)
+bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDotSymbol, bool isGlobalScope = false)
 {
-    if (beforeDotSymbol.kind == CompletionKind.functionName)
+    if (isGlobalScope && incomingSymbol.protection == tok!"private")
     {
-        // Keeping it simple only support for functions for now
-        // Where beforeDotSymbol matches first argument
-        return getFirstArgumentOfFunction(beforeDotSymbol.callTip) == firstArgumentSymbol.name;
+        return false;
     }
+
+    if (incomingSymbol.kind == CompletionKind.functionName && !incomingSymbol
+        .functionParameters.empty)
+    {
+        return incomingSymbol.functionParameters.front.type is beforeDotSymbol;
+    }
+
     return false;
 }
 
