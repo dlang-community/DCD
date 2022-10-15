@@ -1,5 +1,6 @@
 identifiers
 alignof	k
+doStuff	f
 init	k
 mangleof	k
 max	k

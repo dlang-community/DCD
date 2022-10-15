@@ -35,8 +35,9 @@ the issue.)
 	* *alias this*
 	* *auto* declarations (Mostly)
 	* *with* statements
+	* Simple UFCS suggestions for concrete types.
 * Not working:
-	* UFCS suggestions
+	* UFCS completion for templates, literals, UFCS function arguments, and '.' chaining with other UFCS functions.
 	* Autocompletion of declarations with template arguments (This will work to some extent, but it won't do things like replace T with int)
 	* Determining the type of an enum member when no base type is specified, but the first member has an initializer
 	* auto functions (which can then propagate the failure to auto declarations)
