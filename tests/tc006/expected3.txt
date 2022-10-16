@@ -1,6 +1,6 @@
 identifiers
 alignof	k
-doStuff	f
+doStuff	F
 init	k
 mangleof	k
 max	k

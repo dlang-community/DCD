@@ -132,6 +132,7 @@ tab character, followed by a completion kind
 * m - member variable name
 * k - keyword, built-in version, scope statement
 * f - function or method
+* F - UFCS function
 * g - enum name
 * e - enum member
 * P - package name
