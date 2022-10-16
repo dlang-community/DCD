@@ -75,6 +75,9 @@ enum CompletionKind : char
 	/// function or method
 	functionName = 'f',
 
+	/// UFCS function
+	ufcsName = 'F',
+
 	/// enum name
 	enumName = 'g',
 

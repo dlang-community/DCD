@@ -47,6 +47,7 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 	case variableName:
 	case memberVariableName:
 	case functionName:
+	case ufcsName:
 	case aliasName:
 		// type may not be null in the case of a renamed import
 		if (currentSymbol.acSymbol.type is null)

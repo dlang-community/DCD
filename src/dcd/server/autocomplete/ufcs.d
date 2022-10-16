@@ -23,7 +23,7 @@ void lookupUFCS(Scope* completionScope, DSymbol* beforeDotSymbol, size_t cursorP
 
 AutocompleteResponse.Completion createCompletionForUFCS(const DSymbol* symbol)
 {
-    return AutocompleteResponse.Completion(symbol.name, symbol.kind, "(UFCS) " ~ symbol.callTip, symbol
+    return AutocompleteResponse.Completion(symbol.name, CompletionKind.ufcsName, symbol.callTip, symbol
             .symbolFile, symbol
             .location, symbol
             .doc);
