@@ -202,7 +202,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	}
 	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == tok!".")
 		significantTokenType = beforeTokens[$ - 2].type;
-	else 
+	else
 		return response;
 
 	switch (significantTokenType)

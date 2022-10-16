@@ -12,10 +12,7 @@ import dsymbol.builtin.names;
 import std.string;
 import dparse.lexer : tok;
 import std.regex;
-import dcd.server.autocomplete.calltip_utils;
 import containers.hashset : HashSet;
-import std.experimental.logger;
-import std.algorithm.iteration : map;
 
 void lookupUFCS(Scope* completionScope, DSymbol* beforeDotSymbol, size_t cursorPosition, ref AutocompleteResponse response)
 {
@@ -26,8 +23,7 @@ void lookupUFCS(Scope* completionScope, DSymbol* beforeDotSymbol, size_t cursorP
 
 AutocompleteResponse.Completion createCompletionForUFCS(const DSymbol* symbol)
 {
-    return AutocompleteResponse.Completion(symbol.name, symbol.kind, "(UFCS) " ~ removeFirstArgumentOfFunction(
-            symbol.callTip), symbol
+    return AutocompleteResponse.Completion(symbol.name, symbol.kind, "(UFCS) " ~ symbol.callTip, symbol
             .symbolFile, symbol
             .location, symbol
             .doc);
@@ -59,7 +55,8 @@ bool isInvalidForUFCSCompletion(const(DSymbol)* beforeDotSymbol)
  */
 DSymbol*[] getSymbolsForUFCS(Scope* completionScope, const(DSymbol)* beforeDotSymbol, size_t cursorPosition)
 {
-    if (beforeDotSymbol.isInvalidForUFCSCompletion) {
+    if (beforeDotSymbol.isInvalidForUFCSCompletion)
+    {
         return null;
     }
 
