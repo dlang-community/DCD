@@ -434,22 +434,40 @@ struct DocString
 	/// Creates a non-ditto comment.
 	this(istring content)
 	{
-		this.content = content;
+		this.rawContent = content;
 	}
 
 	/// Creates a comment which may have been ditto, but has been resolved.
 	this(istring content, bool ditto)
 	{
-		this.content = content;
+		this.rawContent = content;
 		this.ditto = ditto;
 	}
 
-	alias content this;
+	alias toString this;
+
+	deprecated("use toString to get a full formatted doc string or rawContent for just what is applied directly (or ditto'd) on the function") alias content = rawContent;
 
 	/// Contains the documentation string associated with this symbol, resolves ditto to the previous comment with correct scope.
-	istring content;
+	istring rawContent;
 	/// `true` if the documentation was just a "ditto" comment copying from the previous comment.
 	bool ditto;
+	/// Contains the source code + docstring for each documented unittest example associated with this symbol.
+	istring[] examples;
+
+	// package-private because we don't want to overcomplicate the lifetime in
+	// the public API. (This might point to a broken address later)
+	package(dsymbol) DocString* dittoOf;
+
+	string toString() const @safe pure
+	{
+		import std.algorithm;
+		import std.array;
+
+		return examples.length
+			? (rawContent ~ "\n\n" ~ examples.map!"a.data".join("\n"))
+			: rawContent;
+	}
 }
 
 struct UpdatePair

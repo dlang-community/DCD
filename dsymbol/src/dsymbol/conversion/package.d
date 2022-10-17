@@ -138,10 +138,15 @@ class SimpleParser : Parser
 {
 	override Unittest parseUnittest()
 	{
+		auto start = index;
 		expect(tok!"unittest");
 		if (currentIs(tok!"{"))
 			skipBraces();
-		return allocator.make!Unittest;
+		auto ret = allocator.make!Unittest;
+		ret.tokens = tokens[start .. index];
+		ret.comment = comment;
+		comment = null;
+		return ret;
 	}
 
 	override MissingFunctionBody parseMissingFunctionBody()
