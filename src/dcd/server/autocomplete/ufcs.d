@@ -14,11 +14,15 @@ import dparse.lexer : tok;
 import std.regex;
 import containers.hashset : HashSet;
 
-void lookupUFCS(Scope* completionScope, DSymbol* beforeDotSymbol, size_t cursorPosition, ref AutocompleteResponse response)
+bool lookupUFCS(Scope* completionScope, DSymbol* beforeDotSymbol, size_t cursorPosition, ref AutocompleteResponse response)
 {
-    // UFCS completion
+    if (beforeDotSymbol.isInvalidForUFCSCompletion)
+        return false;
     DSymbol*[] ufcsSymbols = getSymbolsForUFCS(completionScope, beforeDotSymbol, cursorPosition);
+    if (ufcsSymbols.empty)
+        return false;
     response.completions ~= map!(s => createCompletionForUFCS(s))(ufcsSymbols).array;
+    return true;
 }
 
 AutocompleteResponse.Completion createCompletionForUFCS(const DSymbol* symbol)
@@ -168,4 +172,33 @@ bool doUFCSSearch(string beforeToken, string lastToken)
 {
     // we do the search if they are different from eachother
     return beforeToken != lastToken;
+}
+
+void lookupUFCSForDotChaining(T)(Scope* completionScope, ref T tokens, size_t cursorPosition, ref AutocompleteResponse response)
+{
+    auto filteredTokens = filter!(t => !t.text.empty)(tokens);
+
+    if (filteredTokens.empty)
+        return;
+
+    auto foundTokens = filteredTokens.array;
+    auto possibleUFCSSymbols = completionScope.getSymbolsByNameAndCursor(istring(null), cursorPosition);
+    for (auto i = foundTokens.length; i > 0; i--)
+    {
+        // Finding function return value type
+        auto foundSymbols = filter!(s => s.name == foundTokens[i - 1].text && s.kind == CompletionKind
+                .functionName)(possibleUFCSSymbols);
+        if (!foundSymbols.empty)
+        {
+            auto foundFunctionSymbol = foundSymbols.array.back;
+            if (foundFunctionSymbol.functionReturnType)
+            {
+                if (lookupUFCS(completionScope, foundFunctionSymbol.functionReturnType, cursorPosition, response))
+                {
+                    response.completionType = CompletionType.identifiers;
+                }
+            }
+            break;
+        }
+    }
 }

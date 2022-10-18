@@ -558,8 +558,10 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	DSymbol*[] symbols = getSymbolsByTokenChain(completionScope, tokens,
 		cursorPosition, completionType);
 
-	if (symbols.length == 0)
+	if (symbols.length == 0){
+		lookupUFCSForDotChaining(completionScope, tokens, cursorPosition, response);
 		return;
+	}
 
 	if (completionType == CompletionType.identifiers)
 	{

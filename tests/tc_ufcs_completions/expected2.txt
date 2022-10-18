@@ -1,12 +1,5 @@
 identifiers
-alignof	k
-fooHey	f
 hasArgname	F
-init	k
-mangleof	k
-sizeof	k
-stringof	k
-tupleof	k
 u	F
 ufcsBar	F
 ufcsBarRef	F
