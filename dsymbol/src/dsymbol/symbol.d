@@ -386,6 +386,12 @@ struct DSymbol
 	 */
 	DSymbol*[] functionParameters;
 
+	/** 
+	 * 
+	 * Return type of the function
+	 */
+	DSymbol* functionReturnType;
+
 	private uint _location;
 
 	/**

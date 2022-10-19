@@ -37,6 +37,8 @@ import std.experimental.allocator;
 import std.experimental.allocator.gc_allocator : GCAllocator;
 import std.experimental.logger;
 import std.typecons : Rebindable;
+import std.array : appender;
+import std.range : empty;
 
 /**
  * First Pass handles the following:
@@ -944,10 +946,23 @@ private:
 		}
 	}
 
+	void setFunctionReturnType(const Type returnType, ref DSymbol acSymbol){
+		if (returnType !is null)
+		{
+			auto app = appender!string();
+			app.formatNode(returnType);
+			auto foundSymbols = currentScope.getSymbolsByName(istring(app.data));
+			if (!foundSymbols.empty){
+				acSymbol.functionReturnType = foundSymbols[0];
+			}
+		}
+	}
+
 	void processParameters(SemanticSymbol* symbol, const Type returnType,
 		string functionName, const Parameters parameters,
 		const TemplateParameters templateParameters)
 	{
+		setFunctionReturnType(returnType, *symbol.acSymbol);
 		processTemplateParameters(symbol, templateParameters);
 		if (parameters !is null)
 		{
