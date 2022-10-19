@@ -332,18 +332,21 @@ struct ModuleCache
     /**
 	 * Params:
 	 *     moduleName = the name of the module being imported, in "a/b/c" style
+	 *     cb = the callback used to be called whenever a module is found, 
+     *     the absolute path is passed as parameter
 	 * Returns:
-	 *     The absolute path to the files that contains the module, or empty if
-	 *     not found.
+	 *     The number of resolved paths
 	 */
-    istring[] resolveImportLocations(string moduleName)
+    size_t resolveImportLocations(string moduleName, scope void delegate(istring) cb)
     {
         assert(moduleName !is null, "module name is null");
         if (isRooted(moduleName))
-            return [istring(moduleName)];
+        {
+            cb(istring(moduleName));
+            return 1;
+        }
 
-        istring[] ret;
-
+        size_t count = 0;
         string alternative;
         foreach (importPath; importPaths[])
         {
@@ -354,7 +357,8 @@ struct ModuleCache
                 && path.existsAnd!isFile)
             {
                 // prefer exact import names above .di/package.d files
-                ret ~= istring(path);
+                cb(istring(path));
+                count++;
             }
             // no exact matches and no .di/package.d matches either
             else if (!alternative.length)
@@ -363,7 +367,10 @@ struct ModuleCache
                 string dotD = dotDi[0 .. $ - 1];
                 string withoutSuffix = dotDi[0 .. $ - 3];
                 if (existsAnd!isFile(dotD))
-                    ret ~= istring(dotD); // return early for exactly matching .d files
+                {
+                    cb(istring(dotD));
+                    count++;
+                }
                 else if (existsAnd!isFile(dotDi))
                     alternative = dotDi;
                 else if (existsAnd!isDir(withoutSuffix))
@@ -381,16 +388,19 @@ struct ModuleCache
             {
                 string dotD = buildPath(path, moduleName) ~ ".d";
                 if (existsAnd!isFile(dotD))
-                    ret ~= istring(dotD); // return early for exactly matching .d files
+                {
+                    cb(istring(dotD));
+                    count++;
+                }
             }
         }
         if (alternative.length > 0)
         {
-            ret ~= istring(alternative);
+            cb(istring(alternative));
+            count++;
             alternative = "";
         }
-
-        return ret;
+        return count;
     }
 
 	auto getImportPaths() const
