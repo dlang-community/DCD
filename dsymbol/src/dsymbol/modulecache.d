@@ -329,6 +329,70 @@ struct ModuleCache
 		return alternative.length > 0 ? istring(alternative) : istring(null);
 	}
 
+    /**
+	 * Params:
+	 *     moduleName = the name of the module being imported, in "a/b/c" style
+	 * Returns:
+	 *     The absolute path to the files that contains the module, or empty if
+	 *     not found.
+	 */
+    istring[] resolveImportLocations(string moduleName)
+    {
+        assert(moduleName !is null, "module name is null");
+        if (isRooted(moduleName))
+            return [istring(moduleName)];
+
+        istring[] ret;
+
+        string alternative;
+        foreach (importPath; importPaths[])
+        {
+            auto path = importPath.path;
+            // import path is a filename
+            // first check string if this is a feasable path (no filesystem usage)
+            if (path.stripExtension.endsWith(moduleName)
+                && path.existsAnd!isFile)
+            {
+                // prefer exact import names above .di/package.d files
+                ret ~= istring(path);
+            }
+            // no exact matches and no .di/package.d matches either
+            else if (!alternative.length)
+            {
+                string dotDi = buildPath(path, moduleName) ~ ".di";
+                string dotD = dotDi[0 .. $ - 1];
+                string withoutSuffix = dotDi[0 .. $ - 3];
+                if (existsAnd!isFile(dotD))
+                    ret ~= istring(dotD); // return early for exactly matching .d files
+                else if (existsAnd!isFile(dotDi))
+                    alternative = dotDi;
+                else if (existsAnd!isDir(withoutSuffix))
+                {
+                    string packagePath = buildPath(withoutSuffix, "package.di");
+                    if (existsAnd!isFile(packagePath[0 .. $ - 1]))
+                        alternative = packagePath[0 .. $ - 1];
+                    else if (existsAnd!isFile(packagePath))
+                        alternative = packagePath;
+                }
+            }
+            // we have a potential .di/package.d file but continue searching for
+            // exact .d file matches to use instead
+            else
+            {
+                string dotD = buildPath(path, moduleName) ~ ".d";
+                if (existsAnd!isFile(dotD))
+                    ret ~= istring(dotD); // return early for exactly matching .d files
+            }
+        }
+        if (alternative.length > 0)
+        {
+            ret ~= istring(alternative);
+            alternative = "";
+        }
+
+        return ret;
+    }
+
 	auto getImportPaths() const
 	{
 		return importPaths[].map!(a => a.path);
