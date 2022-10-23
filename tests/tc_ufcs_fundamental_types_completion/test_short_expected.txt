@@ -1,2 +1,9 @@
 identifiers
-x	v
+alignof	k
+init	k
+mangleof	k
+max	k
+min	k
+sizeof	k
+someShort	F
+stringof	k
