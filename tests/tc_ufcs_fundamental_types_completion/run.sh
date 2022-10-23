@@ -1,52 +1,52 @@
 set -e
-#set -u
+set -u
 
-../../bin/dcd-client $1 -c24 file.d > test_bool_actual.txt
-../../bin/dcd-client $1 -c50 file.d > test_byte_actual.txt
-../../bin/dcd-client $1 -c78 file.d > test_ubyte_actual.txt
-../../bin/dcd-client $1 -c106 file.d > test_short_actual.txt
-../../bin/dcd-client $1 -c136 file.d > test_ushort_actual.txt
-../../bin/dcd-client $1 -c160 file.d > test_int_actual.txt
-../../bin/dcd-client $1 -c186 file.d > test_uint_actual.txt
-../../bin/dcd-client $1 -c212 file.d > test_long_actual.txt
-../../bin/dcd-client $1 -c240 file.d > test_ulong_actual.txt
-../../bin/dcd-client $1 -c266 file.d > test_cent_actual.txt
-../../bin/dcd-client $1 -c294 file.d > test_ucent_actual.txt
-../../bin/dcd-client $1 -c320 file.d > test_char_actual.txt
-../../bin/dcd-client $1 -c348 file.d > test_wchar_actual.txt
-../../bin/dcd-client $1 -c376 file.d > test_dchar_actual.txt
-../../bin/dcd-client $1 -c404 file.d > test_float_actual.txt
-../../bin/dcd-client $1 -c434 file.d > test_double_actual.txt
-../../bin/dcd-client $1 -c460 file.d > test_real_actual.txt
-../../bin/dcd-client $1 -c490 file.d > test_ifloat_actual.txt
-../../bin/dcd-client $1 -c522 file.d > test_idouble_actual.txt
-../../bin/dcd-client $1 -c550 file.d > test_ireal_actual.txt
-../../bin/dcd-client $1 -c580 file.d > test_cfloat_actual.txt
-../../bin/dcd-client $1 -c612 file.d > test_cdouble_actual.txt
-../../bin/dcd-client $1 -c640 file.d > test_creal_actual.txt
-../../bin/dcd-client $1 -c666 file.d > test_void_actual.txt
+../../bin/dcd-client $1 -c24 file.d > actual_bool_test.txt
+../../bin/dcd-client $1 -c50 file.d > actual_byte_test.txt
+../../bin/dcd-client $1 -c78 file.d > actual_ubyte_test.txt
+../../bin/dcd-client $1 -c106 file.d > actual_short_test.txt
+../../bin/dcd-client $1 -c136 file.d > actual_ushort_test.txt
+../../bin/dcd-client $1 -c160 file.d > actual_int_test.txt
+../../bin/dcd-client $1 -c186 file.d > actual_uint_test.txt
+../../bin/dcd-client $1 -c212 file.d > actual_long_test.txt
+../../bin/dcd-client $1 -c240 file.d > actual_ulong_test.txt
+../../bin/dcd-client $1 -c266 file.d > actual_cent_test.txt
+../../bin/dcd-client $1 -c294 file.d > actual_ucent_test.txt
+../../bin/dcd-client $1 -c320 file.d > actual_char_test.txt
+../../bin/dcd-client $1 -c348 file.d > actual_wchar_test.txt
+../../bin/dcd-client $1 -c376 file.d > actual_dchar_test.txt
+../../bin/dcd-client $1 -c404 file.d > actual_float_test.txt
+../../bin/dcd-client $1 -c434 file.d > actual_double_test.txt
+../../bin/dcd-client $1 -c460 file.d > actual_real_test.txt
+../../bin/dcd-client $1 -c490 file.d > actual_ifloat_test.txt
+../../bin/dcd-client $1 -c522 file.d > actual_idouble_test.txt
+../../bin/dcd-client $1 -c550 file.d > actual_ireal_test.txt
+../../bin/dcd-client $1 -c580 file.d > actual_cfloat_test.txt
+../../bin/dcd-client $1 -c612 file.d > actual_cdouble_test.txt
+../../bin/dcd-client $1 -c640 file.d > actual_creal_test.txt
+../../bin/dcd-client $1 -c666 file.d > actual_void_test.txt
 
-diff test_bool_actual.txt test_bool_expected.txt 
-diff test_byte_actual.txt test_byte_expected.txt
-diff test_ubyte_actual.txt test_ubyte_expected.txt
-diff test_short_actual.txt test_short_expected.txt
-diff test_ushort_actual.txt test_ushort_expected.txt
-diff test_int_actual.txt test_int_expected.txt
-diff test_uint_actual.txt test_uint_expected.txt
-diff test_long_actual.txt test_long_expected.txt
-diff test_ulong_actual.txt test_ulong_expected.txt
-diff test_cent_actual.txt test_cent_expected.txt
-diff test_ucent_actual.txt test_ucent_expected.txt
-diff test_char_actual.txt test_char_expected.txt
-diff test_wchar_actual.txt test_wchar_expected.txt
-diff test_dchar_actual.txt test_dchar_expected.txt
-diff test_float_actual.txt test_float_expected.txt
-diff test_double_actual.txt test_double_expected.txt
-diff test_real_actual.txt test_real_expected.txt
-diff test_ifloat_actual.txt test_ifloat_expected.txt
-diff test_idouble_actual.txt test_idouble_expected.txt
-diff test_ireal_actual.txt test_ireal_expected.txt
-diff test_cfloat_actual.txt test_cfloat_expected.txt
-diff test_cdouble_actual.txt test_cdouble_expected.txt
-diff test_creal_actual.txt test_creal_expected.txt
-diff test_void_actual.txt test_void_expected.txt
+diff actual_bool_test.txt expected_bool_test.txt
+diff actual_byte_test.txt expected_byte_test.txt
+diff actual_ubyte_test.txt expected_ubyte_test.txt
+diff actual_short_test.txt expected_short_test.txt
+diff actual_ushort_test.txt expected_ushort_test.txt
+diff actual_int_test.txt expected_int_test.txt
+diff actual_uint_test.txt expected_uint_test.txt
+diff actual_long_test.txt expected_long_test.txt
+diff actual_ulong_test.txt expected_ulong_test.txt
+diff actual_cent_test.txt expected_cent_test.txt
+diff actual_ucent_test.txt expected_ucent_test.txt
+diff actual_char_test.txt expected_char_test.txt
+diff actual_wchar_test.txt expected_wchar_test.txt
+diff actual_dchar_test.txt expected_dchar_test.txt
+diff actual_float_test.txt expected_float_test.txt
+diff actual_double_test.txt expected_double_test.txt
+diff actual_real_test.txt expected_real_test.txt
+diff actual_ifloat_test.txt expected_ifloat_test.txt
+diff actual_idouble_test.txt expected_idouble_test.txt
+diff actual_ireal_test.txt expected_ireal_test.txt
+diff actual_cfloat_test.txt expected_cfloat_test.txt
+diff actual_cdouble_test.txt expected_cdouble_test.txt
+diff actual_creal_test.txt expected_creal_test.txt
+diff actual_void_test.txt expected_void_test.txt
