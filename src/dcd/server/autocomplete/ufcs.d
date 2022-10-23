@@ -169,3 +169,19 @@ bool doUFCSSearch(string beforeToken, string lastToken)
     // we do the search if they are different from eachother
     return beforeToken != lastToken;
 }
+
+void getUFCSParenCompletion(ref DSymbol*[] symbols, Scope* completionScope, istring firstToken, istring nextToken, size_t cursorPosition)
+{
+    DSymbol* firstSymbol = completionScope.getFirstSymbolByNameAndCursor(firstToken, cursorPosition);
+    DSymbol*[] possibleUFCSSymbol = completionScope.getSymbolsByNameAndCursor(nextToken, cursorPosition);
+    foreach(nextSymbol; possibleUFCSSymbol){
+        if (nextSymbol && nextSymbol.functionParameters)
+        {
+            if (firstSymbol.type is nextSymbol.functionParameters.front.type)
+            {
+                nextSymbol.kind = CompletionKind.ufcsName;
+                symbols ~= nextSymbol;
+            }
+        }
+    }
+}
