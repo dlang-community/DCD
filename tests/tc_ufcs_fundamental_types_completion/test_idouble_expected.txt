@@ -1,0 +1,20 @@
+identifiers
+alignof	k
+dig	k
+epsilon	k
+im	k
+infinity	k
+init	k
+mangleof	k
+mant_dig	k
+max	k
+max_10_exp	k
+max_exp	k
+min_10_exp	k
+min_exp	k
+min_normal	k
+nan	k
+re	k
+sizeof	k
+someIdouble	F
+stringof	k
