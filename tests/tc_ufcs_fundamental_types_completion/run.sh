@@ -1,10 +1,10 @@
 set -e
-set -u
+#set -u
 
 ../../bin/dcd-client $1 -c24 file.d > test_bool_actual.txt
 ../../bin/dcd-client $1 -c50 file.d > test_byte_actual.txt
 ../../bin/dcd-client $1 -c78 file.d > test_ubyte_actual.txt
-../../bin/dcd-client $1 -c105 file.d > test_short_actual.txt
+../../bin/dcd-client $1 -c106 file.d > test_short_actual.txt
 ../../bin/dcd-client $1 -c136 file.d > test_ushort_actual.txt
 ../../bin/dcd-client $1 -c160 file.d > test_int_actual.txt
 ../../bin/dcd-client $1 -c186 file.d > test_uint_actual.txt
