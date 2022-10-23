@@ -558,6 +558,12 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	DSymbol*[] symbols = getSymbolsByTokenChain(completionScope, tokens,
 		cursorPosition, completionType);
 
+	if (tokens.length > 2 && tokens[1] == tok!".")
+	{
+		symbols.getUFCSParenCompletion(completionScope, stringToken(tokens[0]), stringToken(
+				tokens[2]), cursorPosition);
+	}
+
 	if (symbols.length == 0)
 		return;
 
