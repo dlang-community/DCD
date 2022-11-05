@@ -1,6 +1,6 @@
 name "common"
 stringImportPaths "../bin"
-preGenerateCommands "rdmd \"$PACKAGE_DIR/dubhash.d\""
+preGenerateCommands "$DC -run \"$PACKAGE_DIR/dubhash.d\""
 sourcePaths "src"
 importPaths "src"
 
