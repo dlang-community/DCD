@@ -173,6 +173,10 @@ bool doUFCSSearch(string beforeToken, string lastToken)
 void getUFCSParenCompletion(ref DSymbol*[] symbols, Scope* completionScope, istring firstToken, istring nextToken, size_t cursorPosition)
 {
     DSymbol* firstSymbol = completionScope.getFirstSymbolByNameAndCursor(firstToken, cursorPosition);
+
+    if (firstSymbol is null)
+        return;
+
     DSymbol*[] possibleUFCSSymbol = completionScope.getSymbolsByNameAndCursor(nextToken, cursorPosition);
     foreach(nextSymbol; possibleUFCSSymbol){
         if (nextSymbol && nextSymbol.functionParameters)
