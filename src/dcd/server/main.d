@@ -197,7 +197,19 @@ int runServer(string[] args)
 
 	serverLoop: while (true)
 	{
-		auto s = socket.accept();
+		Socket s;
+		try
+		{
+			s = socket.accept();
+		}
+		catch (SocketOSException e)
+		{
+			// happens on OSX when remote closes the connection before we finished accepting
+			// fails internally in phobos with it trying to set socket option SO_NOSIGPIPE with "Invalid argument"
+			// See https://bugs.gnunet.org/view.php?id=5825
+			error("unexpected internal error while acceping");
+			continue;
+		}
 		s.blocking = true;
 
 		if (useTCP)
@@ -224,6 +236,11 @@ int runServer(string[] args)
 
 		sw.reset();
 		sw.start();
+		scope (exit)
+		{
+			sw.stop();
+			info("Request processed in ", sw.peek);
+		}
 
 		size_t messageLength;
 		// bit magic!
@@ -252,26 +269,33 @@ int runServer(string[] args)
 		{
 			info("Clearing cache.");
 			cache.clear();
+			s.trySendResponse(AutocompleteResponse.ack, "Could not reply ack");
+			continue;
 		}
 		else if (request.kind & RequestKind.shutdown)
 		{
 			info("Shutting down.");
+			s.trySendResponse(AutocompleteResponse.ack, "Could not reply ack");
 			break serverLoop;
 		}
 		else if (request.kind & RequestKind.query)
 		{
-			s.sendResponse(AutocompleteResponse.ack);
+			s.trySendResponse(AutocompleteResponse.ack, "Could not reply ack");
 			continue;
 		}
+
+		bool needResponse;
 
 		if (request.kind & RequestKind.addImport)
 		{
 			cache.addImportPaths(request.importPaths);
+			needResponse = true;
 		}
 
 		if (request.kind & RequestKind.removeImport)
 		{
 			cache.removeImportPaths(request.importPaths);
+			needResponse = true;
 		}
 
 		if (request.kind & RequestKind.listImports)
@@ -279,7 +303,7 @@ int runServer(string[] args)
 			AutocompleteResponse response;
 			response.importPaths = cache.getImportPaths().map!(a => cast() a).array();
 			info("Returning import path list");
-			s.sendResponse(response);
+			s.trySendResponse(response, "Could not send import path list");
 		}
 		else
 		{
@@ -289,12 +313,12 @@ int runServer(string[] args)
 				&& !request.sourceCode.length)
 			{
 				warning("Received a ", request.kind, " request without source code");
-				s.sendResponse(AutocompleteResponse.init);
+				s.trySendResponse(AutocompleteResponse.init, "Could not send error response");
 			}
 			else if (request.kind & RequestKind.autocomplete)
 			{
 				info("Getting completions");
-				s.sendResponse(complete(request, cache));
+				s.trySendResponse(complete(request, cache), "Could not get completions");
 			}
 			else if (request.kind & RequestKind.doc)
 			{
@@ -304,13 +328,12 @@ int runServer(string[] args)
 			else if (request.kind & RequestKind.symbolLocation)
 				s.trySendResponse(findDeclaration(request, cache), "Could not get symbol location");
 			else if (request.kind & RequestKind.search)
-				s.sendResponse(symbolSearch(request, cache));
+				s.trySendResponse(symbolSearch(request, cache), "Could not perform symbol search");
 			else if (request.kind & RequestKind.localUse)
 				s.trySendResponse(findLocalUse(request, cache), "Couldnot find local usage");
+			else if (needResponse)
+				s.trySendResponse(AutocompleteResponse.ack, "Could not send ack");
 		}
-
-		sw.stop();
-		info("Request processed in ", sw.peek);
 	}
 	return 0;
 }
