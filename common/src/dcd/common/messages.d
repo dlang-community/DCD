@@ -205,7 +205,15 @@ bool sendRequest(Socket socket, AutocompleteRequest request)
 	auto messageLength = message.length;
 	messageBuffer[0 .. size_t.sizeof] = (cast(ubyte*) &messageLength)[0 .. size_t.sizeof];
 	messageBuffer[size_t.sizeof .. $] = message[];
-	return socket.send(messageBuffer) == messageBuffer.length;
+	size_t i;
+	while (i < messageBuffer.length)
+	{
+		auto sent = socket.send(messageBuffer[i .. $]);
+		if (sent == Socket.ERROR)
+			return false;
+		i += sent;
+	}
+	return true;
 }
 
 /**
