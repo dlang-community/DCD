@@ -151,7 +151,9 @@ int runClient(string[] args)
 			request.kind = RequestKind.clearCache;
 		Socket socket = createSocket(socketFile, port);
 		scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
-		return sendRequest(socket, request) ? 0 : 1;
+		if (!sendRequest(socket, request))
+			return 1;
+		return getResponse(socket).completionType == "ack" ? 0 : 2;
 	}
 	else if (addedImportPaths.length > 0 || removedImportPaths.length > 0)
 	{
@@ -165,7 +167,7 @@ int runClient(string[] args)
 			scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
 			if (!sendRequest(socket, request))
 				return 1;
-			return 0;
+			return getResponse(socket).completionType == "ack" ? 0 : 2;
 		}
 	}
 	else if (listImports)
@@ -173,7 +175,8 @@ int runClient(string[] args)
 		request.kind |= RequestKind.listImports;
 		Socket socket = createSocket(socketFile, port);
 		scope (exit) { socket.shutdown(SocketShutdown.BOTH); socket.close(); }
-		sendRequest(socket, request);
+		if (!sendRequest(socket, request))
+			return 1;
 		AutocompleteResponse response = getResponse(socket);
 		printImportList(response);
 		return 0;
