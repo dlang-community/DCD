@@ -656,7 +656,7 @@ in
 {
 	assert (beforeTokens.length > 0);
 }
-body
+do
 {
 	size_t i = beforeTokens.length - 1;
 	while (true) switch (beforeTokens[i].type)
