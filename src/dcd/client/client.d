@@ -51,7 +51,7 @@ private:
 
 int runClient(string[] args)
 {
-	sharedLog.fatalHandler = () {};
+	(cast()sharedLog).fatalHandler = () {};
 
 	size_t cursorPos = size_t.max;
 	string[] addedImportPaths;

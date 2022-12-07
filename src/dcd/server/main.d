@@ -75,7 +75,7 @@ int runServer(string[] args)
 		string socketFile = generateSocketName();
 	}
 
-	sharedLog.fatalHandler = () {};
+	(cast()sharedLog).fatalHandler = () {};
 
 	try
 	{
