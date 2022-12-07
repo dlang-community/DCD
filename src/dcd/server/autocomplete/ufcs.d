@@ -107,16 +107,18 @@ DSymbol*[] getSymbolsForUFCS(Scope* completionScope, const(DSymbol)* beforeDotSy
 }
 
 /**
-   Params:
-   symbol = the symbol to check
-   incomingSymbol = symbols we check on
-   Returns:
-   true if incomingSymbols first parameter matches beforeDotSymbol
-   false otherwise
-*/
-bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDotSymbol, bool isGlobalScope = false)
+ * Params:
+ *     incomingSymbol = the function symbol to check if it is valid for UFCS with `beforeDotType`.
+ *     beforeDotType = the type of the expression that's used before the dot.
+ *     isGlobalScope = the symbol to check
+ * Returns:
+ *     `true` if `incomingSymbols`' first parameter matches `beforeDotType`
+ *     `false` otherwise
+ */
+bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDotType, bool isGlobalScope = false)
 {
-    if (isGlobalScope && incomingSymbol.protection == tok!"private")
+    if (!incomingSymbol || !beforeDotType
+        || (isGlobalScope && incomingSymbol.protection == tok!"private"))
     {
         return false;
     }
@@ -124,7 +126,7 @@ bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDot
     if (incomingSymbol.kind == CompletionKind.functionName && !incomingSymbol
         .functionParameters.empty)
     {
-        return incomingSymbol.functionParameters.front.type is beforeDotSymbol;
+        return incomingSymbol.functionParameters.front.type is beforeDotType;
     }
 
     return false;
@@ -181,7 +183,7 @@ void getUFCSParenCompletion(ref DSymbol*[] symbols, Scope* completionScope, istr
     foreach(nextSymbol; possibleUFCSSymbol){
         if (nextSymbol && nextSymbol.functionParameters)
         {
-            if (firstSymbol.type is nextSymbol.functionParameters.front.type)
+            if (nextSymbol.isCallableWithArg(firstSymbol.type))
             {
                 nextSymbol.kind = CompletionKind.ufcsName;
                 symbols ~= nextSymbol;
