@@ -23,7 +23,7 @@ function startServer()
 {
 	"$server" "$tcp" --ignoreConfig -I $IMPORTS 2>stderr.txt > stdout.txt &
 	server_pid=$!
-	sleep 1s;
+	sleep 1
 }
 
 # Make sure that the server is shut down
@@ -33,7 +33,7 @@ echo "Shutting down currently-running server..."
 
 for socket in unix tcp; do
 	# allow some time for server to shutdown
-	sleep 0.5s;
+	sleep 0.5;
 
 	if [[ $socket == "tcp" ]]; then
 		tcp="--tcp"
@@ -54,7 +54,7 @@ for socket in unix tcp; do
 		fi
 		sleepTime=$((1 << $i))
 		echo "Server isn't up yet. Sleeping for ${sleepTime}s"
-		sleep "${sleepTime}s"
+		sleep "${sleepTime}"
 	done
 
 	# Run tests
