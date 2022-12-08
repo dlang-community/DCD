@@ -7,11 +7,11 @@ cp testfile2_old.d ../imports/testfile2.d
 sleep 1
 
 ../../bin/dcd-client $1 file.d -c39 > actual1.txt
-diff actual1.txt expected1.txt
+diff actual1.txt expected1.txt --strip-trailing-cr
 
 cp testfile2_new.d ../imports/testfile2.d
 # Same here
 sleep 1
 
 ../../bin/dcd-client $1 file.d -c39 > actual2.txt
-diff actual2.txt expected2.txt
+diff actual2.txt expected2.txt --strip-trailing-cr
