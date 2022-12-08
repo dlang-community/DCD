@@ -31,7 +31,7 @@ jobs:
           - { os: ubuntu-latest, dc: ldc-1.25.0, libdparse-version: min, build: debug, arch: x86_64 }
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
