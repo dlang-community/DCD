@@ -44,8 +44,8 @@ jobs:
 
       - name: Build
         run: |
-          rdmd ./d-test-utils/test_with_package.d $LIBDPARSE_VERSION libdparse -- dub build --build=${{ matrix.build }} --config=client --arch=${{ matrix.arch }}
-          rdmd ./d-test-utils/test_with_package.d $LIBDPARSE_VERSION libdparse -- dub build --build=${{ matrix.build }} --config=server --arch=${{ matrix.arch }}
+          dub build --build=${{ matrix.build }} --config=client --arch=${{ matrix.arch }}
+          dub build --build=${{ matrix.build }} --config=server --arch=${{ matrix.arch }}
 
       # Tests
 
@@ -64,6 +64,12 @@ jobs:
         run: |
           cd dsymbol
           rdmd ../d-test-utils/test_with_package.d $LIBDPARSE_VERSION libdparse -- dub test
+
+      # test that both lowest supplied and highest available libdparse versions are compatible (for DUB users depending on DCD)
+      - name: Test dependency versions
+        run: |
+          rdmd ./d-test-utils/test_with_package.d $LIBDPARSE_VERSION libdparse -- dub build --build=${{ matrix.build }} --config=client --arch=${{ matrix.arch }}
+          rdmd ./d-test-utils/test_with_package.d $LIBDPARSE_VERSION libdparse -- dub build --build=${{ matrix.build }} --config=server --arch=${{ matrix.arch }}
 
       - name: Linux Tests
         if: contains(matrix.os, 'ubuntu')

@@ -1,0 +1,10 @@
+{
+	"fileVersion": 1,
+	"versions": {
+		"dsymbol": "0.14.1",
+		"emsi_containers": "0.9.0",
+		"libdparse": "0.21.1",
+		"msgpack-d": "1.0.4",
+		"stdx-allocator": "2.77.5"
+	}
+}
