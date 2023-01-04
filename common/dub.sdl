@@ -5,5 +5,5 @@ preBuildCommands "\"$DC\" -run \"$PACKAGE_DIR/dubhash.d\""
 sourcePaths "src"
 importPaths "src"
 
-dependency "msgpack-d" version="1.0.1"
+dependency "msgpack-d" version="~>1.0"
 versions "built_with_dub"

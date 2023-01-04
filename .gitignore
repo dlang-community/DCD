@@ -28,3 +28,4 @@ stdout.txt
 # Dub files
 .dub
 dub.selections.json
+!/dub.selections.json
