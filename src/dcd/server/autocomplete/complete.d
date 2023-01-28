@@ -218,7 +218,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 		RollbackAllocator rba;
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba, cursorPosition, moduleCache);
 		scope(exit) pair.destroy();
-		response.setCompletions(pair.scope_, getExpression(beforeTokens),
+		response.setCompletions(moduleCache, pair.scope_, getExpression(beforeTokens),
 			cursorPosition, CompletionType.identifiers, false, partial);
 		break;
 	//  these tokens before a "." mean "Module Scope Operator"
@@ -232,7 +232,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 		RollbackAllocator rba;
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba, 1, moduleCache);
 		scope(exit) pair.destroy();
-		response.setCompletions(pair.scope_, getExpression(beforeTokens),
+		response.setCompletions(moduleCache, pair.scope_, getExpression(beforeTokens),
 			1, CompletionType.identifiers, false, partial);
 		break;
 	default:
@@ -304,7 +304,7 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba, cursorPosition, moduleCache);
 		scope(exit) pair.destroy();
 		auto expression = getExpression(beforeTokens[0 .. $ - 1]);
-		response.setCompletions(pair.scope_, expression,
+		response.setCompletions(moduleCache, pair.scope_, expression,
 			cursorPosition, CompletionType.calltips, beforeTokens[$ - 1] == tok!"[");
 		break;
 	default:
@@ -495,6 +495,7 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
  *
  */
 void setCompletions(T)(ref AutocompleteResponse response,
+	ref ModuleCache cache,
 	Scope* completionScope, T tokens, size_t cursorPosition,
 	CompletionType completionType, bool isBracket = false, string partial = null)
 {
@@ -557,6 +558,18 @@ void setCompletions(T)(ref AutocompleteResponse response,
 
 	DSymbol*[] symbols = getSymbolsByTokenChain(completionScope, tokens,
 		cursorPosition, completionType);
+
+	// check if there isn't any symbol that is a variable
+	// if the type is null, that's because the module was cached
+	// but not parsed properly, that's due to problems like
+	// public import with cyclic references
+	// so let's recache the module properly
+	foreach(sym; symbols)
+	{
+		foreach (it; sym.opSlice())
+			if (it.kind == CompletionKind.variableName && it.type is null)
+				cache.cacheModule(it.symbolFile, true);
+	}
 
 	if (tokens.length > 2 && tokens[1] == tok!".")
 	{

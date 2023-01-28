@@ -146,7 +146,7 @@ struct ModuleCache
 	/**
 	 * Caches the module at the given location
 	 */
-	DSymbol* cacheModule(string location)
+	DSymbol* cacheModule(string location, bool reparse = false)
 	{
 		import std.stdio : File;
 
@@ -157,7 +157,7 @@ struct ModuleCache
 		if (recursionGuard.contains(&cachedLocation.data[0]))
 			return null;
 
-		if (!needsReparsing(cachedLocation))
+		if (!reparse && !needsReparsing(cachedLocation))
 			return getEntryFor(cachedLocation).symbol;
 
 		recursionGuard.insert(&cachedLocation.data[0]);
