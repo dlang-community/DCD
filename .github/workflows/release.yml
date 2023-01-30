@@ -8,7 +8,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # use older ubuntu / linux version for glibc compatibility
+        os: [ubuntu-20.04, windows-latest, macos-latest]
         dc:
           - ldc-latest
         arch:
