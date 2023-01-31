@@ -359,28 +359,26 @@ final class FirstPass : ASTVisitor
 			dec.accept(this);
 	}
 
-	override void visit(const Module mod)
-	{
-		rootSymbol = allocateSemanticSymbol(null, CompletionKind.moduleName,
-			symbolFile);
-		currentSymbol = rootSymbol;
-		moduleScope = GCAllocator.instance.make!Scope(0, uint.max);
-		currentScope = moduleScope;
-		auto objectLocation = cache.resolveImportLocation("object");
-		if (objectLocation is null)
-			warning("Could not locate object.d or object.di");
-		else
-		{
-			auto objectImport = allocateSemanticSymbol(IMPORT_SYMBOL_NAME,
-				CompletionKind.importSymbol, objectLocation);
-			objectImport.acSymbol.skipOver = true;
-			currentSymbol.addChild(objectImport, true);
-			currentScope.addSymbol(objectImport.acSymbol, false);
-		}
-		foreach (s; builtinSymbols[])
-			currentScope.addSymbol(s, false);
-		mod.accept(this);
-	}
+    override void visit(const Module mod)
+    {
+        rootSymbol = allocateSemanticSymbol(null, CompletionKind.moduleName,
+            symbolFile);
+        currentSymbol = rootSymbol;
+        moduleScope = GCAllocator.instance.make!Scope(0, uint.max);
+        currentScope = moduleScope;
+        auto numResolved = cache.resolveImportLocations("object", (objectLocation) {
+            auto objectImport = allocateSemanticSymbol(IMPORT_SYMBOL_NAME,
+                CompletionKind.importSymbol, objectLocation);
+            objectImport.acSymbol.skipOver = true;
+            currentSymbol.addChild(objectImport, true);
+            currentScope.addSymbol(objectImport.acSymbol, false);
+        });
+        if (numResolved == 0)
+            warning("Could not locate any object.d or object.di");
+        foreach (s; builtinSymbols[])
+            currentScope.addSymbol(s, false);
+        mod.accept(this);
+    }
 
 	override void visit(const EnumDeclaration dec)
 	{
