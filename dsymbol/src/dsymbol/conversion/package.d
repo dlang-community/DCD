@@ -51,6 +51,7 @@ ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
 
 	void tryResolve(Scope* sc, ref ModuleCache cache)
 	{
+		if (sc is null) return;
 		auto symbols = sc.symbols;
 		foreach (item; symbols)
 		{
@@ -77,6 +78,7 @@ ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
 					}
 					else
 					{
+						if (part.symbolFile == "stdin") return;
 						auto moduleSymbol = cache.getModuleSymbol(part.symbolFile);
 						auto first = moduleSymbol.getFirstPartNamed(typeName);
 						if (first !is null)

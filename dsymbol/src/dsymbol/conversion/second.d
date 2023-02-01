@@ -247,7 +247,8 @@ do
 				else
 				{
 					// store the callTip, that'll be useful to resolve the type later
-					symbol.callTip = istring(part);
+					if (symbol.callTip is null)
+						symbol.callTip = istring(part);
 					return;
 				}
 			}
