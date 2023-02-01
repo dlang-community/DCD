@@ -246,9 +246,8 @@ do
 					currentSymbol = symbols[0];
 				else
 				{
-					// store the callTip, that'll be useful to resolve the type later
-					if (symbol.callTip is null)
-						symbol.callTip = istring(part);
+					// store the part, that'll be useful to resolve the type later
+					symbol.typeSymbolName = istring(part);
 					return;
 				}
 			}

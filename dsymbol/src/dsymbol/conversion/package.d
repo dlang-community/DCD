@@ -64,13 +64,14 @@ ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
 				visited.insert(cast(size_t) part);
 
 				// no type but a callTip, let's resolve its type
-				if (part.type is null && part.callTip !is null)
+				if (part.type is null && part.typeSymbolName !is null)
 				{
-					auto typeName = part.callTip;
+					import std.string: indexOf;
+					auto typeName = part.typeSymbolName;
 
 					// check if it is available in the scope
 					// otherwise grab its module symbol to check if it's publickly available
-					auto result = sc.getSymbolsAtGlobalScope(typeName);
+					auto result = sc.getSymbolsAtGlobalScope(istring(typeName));
 					if (result.length > 0)
 					{
 						part.type = result[0];
@@ -80,7 +81,7 @@ ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
 					{
 						if (part.symbolFile == "stdin") return;
 						auto moduleSymbol = cache.getModuleSymbol(part.symbolFile);
-						auto first = moduleSymbol.getFirstPartNamed(typeName);
+						auto first = moduleSymbol.getFirstPartNamed(istring(typeName));
 						if (first !is null)
 						{
 							part.type = first;
