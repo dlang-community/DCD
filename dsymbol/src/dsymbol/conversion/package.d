@@ -32,6 +32,7 @@ import dsymbol.string_interning;
 import dsymbol.symbol;
 import std.algorithm;
 import std.experimental.allocator;
+import containers.hashset;
 
 /**
  * Used by autocompletion.
@@ -47,6 +48,74 @@ ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
 	first.run();
 
 	secondPass(first.rootSymbol, first.moduleScope, cache);
+
+	void tryResolve(Scope* sc, ref ModuleCache cache)
+	{
+		auto symbols = sc.symbols;
+		foreach (item; symbols)
+		{
+			DSymbol* target = item.type;
+
+			void resolvePart(DSymbol* part, Scope* sc, ref HashSet!size_t visited)
+			{
+				if (visited.contains(cast(size_t) part))
+					return;
+				visited.insert(cast(size_t) part);
+
+				// no type but a callTip, let's resolve its type
+				if (part.type is null && part.callTip !is null)
+				{
+					auto typeName = part.callTip;
+
+					// check if it is available in the scope
+					// otherwise grab its module symbol to check if it's publickly available
+					auto result = sc.getSymbolsAtGlobalScope(typeName);
+					if (result.length > 0)
+					{
+						part.type = result[0];
+						return;
+					}
+					else
+					{
+						auto moduleSymbol = cache.getModuleSymbol(part.symbolFile);
+						auto first = moduleSymbol.getFirstPartNamed(typeName);
+						if (first !is null)
+						{
+							part.type = first;
+							return;
+						}
+						else
+						{
+							// type couldn't be found, that's stuff like templates
+							// now we could try to resolve them!
+							// warning("can't resolve: ", part.name, " callTip: ", typeName);
+							return;
+						}
+					}
+				}
+
+				if (part.type !is null)
+				{
+					foreach (typePart; part.type.opSlice())
+						resolvePart(typePart, sc, visited);
+				}
+			}
+
+			if (target !is null)
+			{
+				HashSet!size_t visited;
+				foreach (part; target.opSlice())
+				{
+					resolvePart(part, sc, visited);
+				}
+			}
+		}
+		if (sc.parent !is null) tryResolve(sc.parent, cache);
+	}
+
+	auto desired = first.moduleScope.getScopeByCursor(cursorPosition);
+	tryResolve(desired, cache);
+
 	auto r = move(first.rootSymbol.acSymbol);
 	typeid(SemanticSymbol).destroy(first.rootSymbol);
 	return ScopeSymbolPair(r, move(first.moduleScope));
