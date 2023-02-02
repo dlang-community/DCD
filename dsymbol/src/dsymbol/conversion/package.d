@@ -63,7 +63,7 @@ ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
 					return;
 				visited.insert(cast(size_t) part);
 
-				// no type but a callTip, let's resolve its type
+				// no type but a typeSymbolName, let's resolve its type
 				if (part.type is null && part.typeSymbolName !is null)
 				{
 					import std.string: indexOf;
