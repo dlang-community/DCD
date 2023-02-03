@@ -1128,7 +1128,8 @@ private:
 		{
 			if (suffix.star != tok!"")
 			{
-				currentSymbol.acSymbol.isPointer = true;
+				if (currentSymbol && currentSymbol.acSymbol)
+					currentSymbol.acSymbol.isPointer = true;
 				continue;
 			}
 			else if (suffix.type)
