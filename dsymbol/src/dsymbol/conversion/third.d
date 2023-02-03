@@ -96,6 +96,6 @@ void resolvePart(DSymbol* part, Scope* sc, ref ModuleCache cache, ref HashSet!si
     if (part.type !is null)
     {
         foreach (typePart; part.type.opSlice())
-            resolvePart(typePart, sc, visited);
+            resolvePart(typePart, sc, cache, visited);
     }
 }
