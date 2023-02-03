@@ -29,7 +29,7 @@ import containers.hashset;
 
 void thirdPass(Scope* mscope, ref ModuleCache cache, size_t cursorPosition)
 {
-	auto desired = first.moduleScope.getScopeByCursor(cursorPosition);
+	auto desired = mscope.getScopeByCursor(cursorPosition);
 	tryResolve(desired, cache);
 }
 
