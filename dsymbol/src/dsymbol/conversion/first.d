@@ -1127,7 +1127,10 @@ private:
 		foreach (suffix; type.typeSuffixes)
 		{
 			if (suffix.star != tok!"")
+			{
+				currentSymbol.acSymbol.isPointer = true;
 				continue;
+			}
 			else if (suffix.type)
 				lookup.breadcrumbs.insert(ASSOC_ARRAY_SYMBOL_NAME);
 			else if (suffix.array)
