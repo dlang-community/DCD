@@ -761,14 +761,120 @@ unittest
 
 AutocompleteResponse.Completion makeSymbolCompletionInfo(const DSymbol* symbol, char kind)
 {
-	string definition;
-	if ((kind == CompletionKind.variableName || kind == CompletionKind.memberVariableName) && symbol.type)
-		definition = symbol.type.name ~ ' ' ~ symbol.name;
-	else if (kind == CompletionKind.enumMember)
-		definition = symbol.name; // TODO: add enum value to definition string
+	string definition = symbol.callTip;
+	string symbolName = symbol.name;
+	char completionKind = kind;
+
+	// if symbol has a type, then let's try to resolve it
+	// and properly format the definition
+	if (symbol.type)
+	{
+		DSymbol* sym = cast(DSymbol*) symbol;
+		DSymbol* symType =  sym.type;
+
+		while (symType && sym && sym.type != sym)
+		{
+			// if that's a function, and its type is an alias then stop
+			// otherwise it breaks aliases of local functions
+			if (sym.kind == CompletionKind.functionName && symType.kind == CompletionKind.aliasName)
+				break;
+
+			// otherwise if we resolved something that's not an alias, we can stop
+			else if (sym.kind != CompletionKind.aliasName && symType.kind != CompletionKind.aliasName)
+				break;
+
+			// dummy are internal DCD stuff, as per the documentation on the enum
+			// we can safely ignore it
+			if (symType.kind == CompletionKind.dummy) break;
+
+			if (!symType.type) break;
+
+			sym = symType;
+			symType = symType.type;
+		}
+
+		if (sym)
+		{
+			// if the symbol has a calltip, then let's use that
+			// otherwise build something with its type
+			if (sym.callTip.length > 0 && indexOf(sym.callTip, " ") != -1)
+			{
+				definition = sym.callTip;
+			}
+			else if (sym.type)
+			{
+				string symName = symbol.name;
+				string symTypeName = symType.callTip.length > 0 ? symType.callTip : symType.name;
+				definition = symTypeName ~ " " ~ symName;
+			}
+
+
+			// if that's a function, and definition doesn't have white space
+			// that mean the function returns either auto/enum
+			if (sym.kind == CompletionKind.functionName && indexOf(definition, " ") == -1)
+			{
+				definition = "auto " ~ definition;
+			}
+
+
+			// if that's an alias that points to a function,
+			// then set the proper completion kind
+			// and show what it resolves to
+			if (symbol.kind == CompletionKind.aliasName && sym.kind == CompletionKind.functionName)
+			{
+				//completionKind = sym.kind;
+				definition = "-> " ~ sym.name ~ " : " ~ definition;
+			}
+		}
+	}
 	else
-		definition = symbol.callTip;
+	{
+		switch (kind) with (CompletionKind)
+		{
+		case enumMember:
+			definition = symbol.name; // TODO: add enum value to definition string
+			break;
+		case className:
+			definition = "Class";
+			break;
+		case interfaceName:
+			definition = "Interface";
+			break;
+		case structName:
+			definition = "Struct";
+			break;
+		case unionName:
+			definition = "Union";
+			break;
+		case keyword:
+			definition = "Keyword";
+			break;
+		case enumName:
+			definition = "Enum";
+			break;
+		case packageName:
+			definition = "Package";
+			break;
+		case moduleName:
+			definition = "Module";
+			break;
+		case templateName:
+		case mixinTemplateName:
+			definition = "Template";
+			break;
+		case typeTmpParam:
+			definition = "<T>";
+			break;
+		case variadicTmpParam:
+			definition = "<T...>";
+			break;
+		case aliasName: // Alias (eventually should show what it aliases to)
+		default:
+			break;
+		}
+	}
+
 	// TODO: definition strings could include more information, like on classes inheritance
-	return AutocompleteResponse.Completion(symbol.name, kind, definition,
+	return AutocompleteResponse.Completion(symbolName, completionKind, definition,
 		symbol.symbolFile, symbol.location, symbol.doc);
 }
