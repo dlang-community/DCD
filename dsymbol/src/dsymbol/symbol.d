@@ -386,6 +386,11 @@ struct DSymbol
 	 */
 	DSymbol*[] functionParameters;
 
+	/**
+	 * Used to resolve the type
+	 */
+	istring typeSymbolName;
+
 	private uint _location;
 
 	/**

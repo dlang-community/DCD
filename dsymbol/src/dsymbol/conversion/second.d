@@ -245,7 +245,11 @@ do
 				if (symbols.length > 0)
 					currentSymbol = symbols[0];
 				else
+				{
+					// store the part, that'll be useful to resolve the type later
+					symbol.typeSymbolName = istring(part);
 					return;
+				}
 			}
 		}
 		else
