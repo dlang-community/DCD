@@ -27,12 +27,19 @@ import dsymbol.deferred;
 
 import containers.hashset;
 
+
+/**
+ * Used to resolve remaining symbols when trying to parse modules that depend on each other (public imports)
+ */
 void thirdPass(Scope* mscope, ref ModuleCache cache, size_t cursorPosition)
 {
 	auto desired = mscope.getScopeByCursor(cursorPosition);
 	tryResolve(desired, cache);
 }
 
+/**
+ * Used to resolve missing symbols within a scope
+ */
 void tryResolve(Scope* sc, ref ModuleCache cache)
 {
     if (sc is null) return;
