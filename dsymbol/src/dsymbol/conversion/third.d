@@ -29,7 +29,10 @@ import containers.hashset;
 
 
 /**
- * Used to resolve remaining symbols when trying to parse modules that depend on each other (public imports)
+ * Used to resolve the type of remaining symbols that were left out due to modules being parsed from other modules that depend on each other (public imports)
+ * It will start from the scope of interest at the cursorPosition, and it'll traverse the scope from bottom to top and check if the symbol's type is know
+ * If it is, then it'll set its type
+ * If the symbol is not found, then it'll do nothing 
  */
 void thirdPass(Scope* mscope, ref ModuleCache cache, size_t cursorPosition)
 {
