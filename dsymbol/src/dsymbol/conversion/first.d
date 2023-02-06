@@ -272,7 +272,7 @@ final class FirstPass : ASTVisitor
 					else if (typeIdentifierPart.identifierOrTemplateInstance.templateInstance.templateArguments.templateSingleArgument)
 					{
 						auto singleArg = typeIdentifierPart.identifierOrTemplateInstance.templateInstance.templateArguments.templateSingleArgument;
-						symbol.acSymbol.tmplArgNames.insert(istring(singleArg.token.text));
+						symbol.acSymbol.tmplArgNames ~= istring(singleArg.token.text);
 					}
 				}
 			}

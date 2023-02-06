@@ -384,7 +384,7 @@ struct DSymbol
 	/**
 	 * Names of template arguments
 	 */
-	UnrolledList!(istring) tmplArgNames;
+	istring[] tmplArgNames;
 
 	/**
 	 * Function parameter symbols
