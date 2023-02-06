@@ -55,6 +55,13 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 			resolveType(currentSymbol.acSymbol, currentSymbol.typeLookups,
 				moduleScope, cache);
 		}
+
+		if (currentSymbol.acSymbol.tmplArgNames.length > 0 && currentSymbol.acSymbol.type)
+		{
+			auto type = currentSymbol.acSymbol.type;
+			if (type.kind == structName || type.kind == className)
+				resolveTemplate(currentSymbol.acSymbol, type, moduleScope, cache);
+		}
 		break;
 	case importSymbol:
 		if (currentSymbol.acSymbol.type is null)
@@ -96,6 +103,48 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 		break;
 	default:
 		break;
+	}
+}
+
+/**
+ * Resolve template arguments
+ */
+void resolveTemplate(DSymbol* sym, DSymbol* type, Scope* moduleScope, ref ModuleCache cache)
+{
+	if (sym.tmplArgNames.length > 1) return;
+	auto argName = sym.tmplArgNames.back;
+	auto result = moduleScope.getSymbolsAtGlobalScope(argName);
+	if (result.length > 0)
+	{
+		auto argSymbol = result[0];
+		DSymbol* newType = GCAllocator.instance.make!DSymbol(type.name, type.kind, null);
+		newType.qualifier = type.qualifier;
+		newType.protection = type.protection;
+		newType.symbolFile = type.symbolFile;
+		newType.doc = type.doc;
+		newType.callTip = type.callTip;
+		foreach(part; type.opSlice())
+		{
+			if (part.kind == typeTmpParam)
+			{ }
+			else if (part.type && part.type.kind == typeTmpParam)
+			{
+				DSymbol* newPart = GCAllocator.instance.make!DSymbol(part.name, part.kind, argSymbol);
+				newPart.qualifier = part.qualifier;
+				newPart.protection = part.protection;
+				newPart.symbolFile = part.symbolFile;
+				newPart.doc = part.doc;
+				newPart.callTip = part.callTip;
+				newType.addChild(newPart, true);
+			}
+			else
+			{
+				newType.addChild(part, false);
+			}
+		}
+		
+		sym.type = newType;
+		sym.ownType = true;
 	}
 }
 

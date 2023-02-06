@@ -255,6 +255,27 @@ final class FirstPass : ASTVisitor
 				// TODO: remove this cast. See the note on structFieldTypes
 				structFieldTypes.insert(cast() dec.type);
 			}
+			if (dec.type.type2 && dec.type.type2.typeIdentifierPart)
+			{
+				auto typeIdentifierPart = dec.type.type2.typeIdentifierPart;
+				if (typeIdentifierPart && typeIdentifierPart.identifierOrTemplateInstance &&
+				typeIdentifierPart.identifierOrTemplateInstance.templateInstance)
+				{
+					auto templateInstance = typeIdentifierPart.identifierOrTemplateInstance.templateInstance;
+					if (templateInstance.templateArguments.templateArgumentList)
+					{
+						foreach(i, targ; templateInstance.templateArguments.templateArgumentList.items)
+						{
+							// TODO: support template with multiple arguments
+						}
+					}
+					else if (typeIdentifierPart.identifierOrTemplateInstance.templateInstance.templateArguments.templateSingleArgument)
+					{
+						auto singleArg = typeIdentifierPart.identifierOrTemplateInstance.templateInstance.templateArguments.templateSingleArgument;
+						symbol.acSymbol.tmplArgNames.insert(istring(singleArg.token.text));
+					}
+				}
+			}
 		}
 		if (dec.autoDeclaration !is null)
 		{

@@ -382,6 +382,11 @@ struct DSymbol
 	UnrolledList!(istring) argNames;
 
 	/**
+	 * Names of template arguments
+	 */
+	UnrolledList!(istring) tmplArgNames;
+
+	/**
 	 * Function parameter symbols
 	 */
 	DSymbol*[] functionParameters;
