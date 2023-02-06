@@ -33,7 +33,6 @@ import std.experimental.allocator.gc_allocator : GCAllocator;
 import std.experimental.logger;
 import dparse.ast;
 import dparse.lexer;
-import std.compiler;
 
 void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCache cache)
 {
