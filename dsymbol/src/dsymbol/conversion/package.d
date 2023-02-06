@@ -25,6 +25,7 @@ import dparse.rollback_allocator;
 import dsymbol.cache_entry;
 import dsymbol.conversion.first;
 import dsymbol.conversion.second;
+import dsymbol.conversion.third;
 import dsymbol.modulecache;
 import dsymbol.scope_;
 import dsymbol.semantic;
@@ -49,75 +50,7 @@ ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
 
 	secondPass(first.rootSymbol, first.moduleScope, cache);
 
-	void tryResolve(Scope* sc, ref ModuleCache cache)
-	{
-		if (sc is null) return;
-		auto symbols = sc.symbols;
-		foreach (item; symbols)
-		{
-			DSymbol* target = item.type;
-
-			void resolvePart(DSymbol* part, Scope* sc, ref HashSet!size_t visited)
-			{
-				if (visited.contains(cast(size_t) part))
-					return;
-				visited.insert(cast(size_t) part);
-
-				// no type but a typeSymbolName, let's resolve its type
-				if (part.type is null && part.typeSymbolName !is null)
-				{
-					import std.string: indexOf;
-					auto typeName = part.typeSymbolName;
-
-					// check if it is available in the scope
-					// otherwise grab its module symbol to check if it's publickly available
-					auto result = sc.getSymbolsAtGlobalScope(istring(typeName));
-					if (result.length > 0)
-					{
-						part.type = result[0];
-						return;
-					}
-					else
-					{
-						if (part.symbolFile == "stdin") return;
-						auto moduleSymbol = cache.getModuleSymbol(part.symbolFile);
-						auto first = moduleSymbol.getFirstPartNamed(istring(typeName));
-						if (first !is null)
-						{
-							part.type = first;
-							return;
-						}
-						else
-						{
-							// type couldn't be found, that's stuff like templates
-							// now we could try to resolve them!
-							// warning("can't resolve: ", part.name, " callTip: ", typeName);
-							return;
-						}
-					}
-				}
-
-				if (part.type !is null)
-				{
-					foreach (typePart; part.type.opSlice())
-						resolvePart(typePart, sc, visited);
-				}
-			}
-
-			if (target !is null)
-			{
-				HashSet!size_t visited;
-				foreach (part; target.opSlice())
-				{
-					resolvePart(part, sc, visited);
-				}
-			}
-		}
-		if (sc.parent !is null) tryResolve(sc.parent, cache);
-	}
-
-	auto desired = first.moduleScope.getScopeByCursor(cursorPosition);
-	tryResolve(desired, cache);
+	thirdPass(first.moduleScope, cache, cursorPosition);
 
 	auto r = move(first.rootSymbol.acSymbol);
 	typeid(SemanticSymbol).destroy(first.rootSymbol);
