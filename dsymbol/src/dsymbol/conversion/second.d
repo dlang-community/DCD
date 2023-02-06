@@ -125,9 +125,9 @@ void resolveTemplate(DSymbol* sym, DSymbol* type, Scope* moduleScope, ref Module
 		newType.callTip = type.callTip;
 		foreach(part; type.opSlice())
 		{
-			if (part.kind == typeTmpParam)
+			if (part.kind == CompletionKind.typeTmpParam)
 			{ }
-			else if (part.type && part.type.kind == typeTmpParam)
+			else if (part.type && part.type.kind == CompletionKind.typeTmpParam)
 			{
 				DSymbol* newPart = GCAllocator.instance.make!DSymbol(part.name, part.kind, argSymbol);
 				newPart.qualifier = part.qualifier;
