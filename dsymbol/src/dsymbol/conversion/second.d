@@ -95,6 +95,7 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 			moduleScope, cache);
 		break;
 	case variableName:
+	case functionName:
 		if (currentSymbol.acSymbol.tmplArgNames.length > 0 && currentSymbol.acSymbol.type)
 		{
 			auto tArgNames = currentSymbol.acSymbol.tmplArgNames;
@@ -148,6 +149,13 @@ void resolveTemplate(DSymbol* sym, DSymbol* type, scope const istring[] tmplArgN
 				newPart.doc = part.doc;
 				newPart.callTip = part.callTip;
 				newPart.type = argSymbol;
+				if (part.kind == CompletionKind.functionName)
+				{
+					if (part.type && part.type.kind == CompletionKind.typeTmpParam)
+					{
+						newPart.type = argSymbol;
+					}
+				}
 				newType.addChild(newPart, true);
 			}
 			else
@@ -155,7 +163,8 @@ void resolveTemplate(DSymbol* sym, DSymbol* type, scope const istring[] tmplArgN
 				if (part.tmplArgNames.length > 0)
 				{
 					auto innerArg = part.tmplArgNames[0];
-					resolveTemplate(part, part.type, [argName], moduleScope, cache);
+					if (innerArg == currentT.name)
+						resolveTemplate(part, part.type, [argName], moduleScope, cache);
 				}
 				newType.addChild(part, false);
 			}
