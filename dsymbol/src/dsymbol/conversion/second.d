@@ -94,8 +94,90 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 		resolveMixinTemplates(currentSymbol.acSymbol, currentSymbol.typeLookups,
 			moduleScope, cache);
 		break;
+	case variableName:
+	case functionName:
+		if (currentSymbol.acSymbol.tmplArgNames.length > 0 && currentSymbol.acSymbol.type)
+		{
+			auto tArgNames = currentSymbol.acSymbol.tmplArgNames;
+			auto type = currentSymbol.acSymbol.type;
+			if (type.kind == structName || type.kind == className)
+			{
+				int depth;
+				resolveTemplate(currentSymbol.acSymbol, type, tArgNames, moduleScope, cache, depth);
+			}
+		}
+		else
+		{
+			warning("no type: ", currentSymbol.acSymbol.name," ", currentSymbol.acSymbol.kind);
+		}
+		break;
 	default:
 		break;
+	}
+}
+
+/**
+ * Resolve template arguments
+ */
+void resolveTemplate(DSymbol* sym, DSymbol* type, scope const istring[] tmplArgNames, Scope* moduleScope, ref ModuleCache cache, ref int depth)
+{
+	depth += 1;
+	if (tmplArgNames.length > 1) return;
+	auto argName = tmplArgNames[0];
+	auto result = moduleScope.getSymbolsAtGlobalScope(argName);
+	if (result.length > 0)
+	{
+		auto argSymbol = result[0];
+		DSymbol* newType = GCAllocator.instance.make!DSymbol("", CompletionKind.dummy, null);
+		newType.name = type.name;
+		newType.kind = type.kind;
+		newType.qualifier = type.qualifier;
+		newType.protection = type.protection;
+		newType.symbolFile = type.symbolFile;
+		newType.doc = type.doc;
+		newType.callTip = type.callTip;
+
+		DSymbol* currentT = null;
+		foreach(part; type.opSlice())
+		{
+			if (part.kind == CompletionKind.typeTmpParam)
+			{
+				currentT = part;
+			}
+			else if (part.type && part.type.kind == CompletionKind.typeTmpParam)
+			{
+				DSymbol* newPart = GCAllocator.instance.make!DSymbol(part.name, part.kind, argSymbol);
+				newPart.qualifier = part.qualifier;
+				newPart.protection = part.protection;
+				newPart.symbolFile = part.symbolFile;
+				newPart.doc = part.doc;
+				newPart.callTip = part.callTip;
+				newPart.type = argSymbol;
+				if (part.kind == CompletionKind.functionName)
+				{
+					if (part.type && part.type.kind == CompletionKind.typeTmpParam)
+					{
+						newPart.type = argSymbol;
+					}
+				}
+				newType.addChild(newPart, true);
+			}
+			else
+			{
+				if (part.tmplArgNames.length > 0)
+				{
+					auto innerArg = part.tmplArgNames[0];
+					if (innerArg == currentT.name)
+					{
+						if (depth < 50)
+							resolveTemplate(part, part.type, [argName], moduleScope, cache, depth);
+					}
+				}
+				newType.addChild(part, false);
+			}
+		}
+		sym.type = newType;
+		sym.ownType = true;
 	}
 }
 
