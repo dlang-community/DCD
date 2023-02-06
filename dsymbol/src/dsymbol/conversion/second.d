@@ -101,7 +101,10 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 			auto tArgNames = currentSymbol.acSymbol.tmplArgNames;
 			auto type = currentSymbol.acSymbol.type;
 			if (type.kind == structName || type.kind == className)
-				resolveTemplate(currentSymbol.acSymbol, type, tArgNames, moduleScope, cache);
+			{
+				int depth;
+				resolveTemplate(currentSymbol.acSymbol, type, tArgNames, moduleScope, cache, depth);
+			}
 		}
 		else
 		{
@@ -116,8 +119,9 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 /**
  * Resolve template arguments
  */
-void resolveTemplate(DSymbol* sym, DSymbol* type, scope const istring[] tmplArgNames, Scope* moduleScope, ref ModuleCache cache)
+void resolveTemplate(DSymbol* sym, DSymbol* type, scope const istring[] tmplArgNames, Scope* moduleScope, ref ModuleCache cache, ref int depth)
 {
+	depth += 1;
 	if (tmplArgNames.length > 1) return;
 	auto argName = tmplArgNames[0];
 	auto result = moduleScope.getSymbolsAtGlobalScope(argName);
@@ -164,7 +168,10 @@ void resolveTemplate(DSymbol* sym, DSymbol* type, scope const istring[] tmplArgN
 				{
 					auto innerArg = part.tmplArgNames[0];
 					if (innerArg == currentT.name)
-						resolveTemplate(part, part.type, [argName], moduleScope, cache);
+					{
+						if (depth < 50)
+							resolveTemplate(part, part.type, [argName], moduleScope, cache, depth);
+					}
 				}
 				newType.addChild(part, false);
 			}
