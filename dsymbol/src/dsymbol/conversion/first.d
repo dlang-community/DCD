@@ -283,7 +283,7 @@ final class FirstPass : ASTVisitor
 								auto t2 = castExpression.type.type2;
 
 								auto l = symbol.typeLookups.front;
-								// get rid of initialier type
+								// get rid of initializer type
 								// instead feed it with cast expression one
 								l.breadcrumbs.clear();
 								void buildChain(TypeLookup* lookup, TypeIdentifierPart tip)
