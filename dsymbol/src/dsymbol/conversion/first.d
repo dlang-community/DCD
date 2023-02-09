@@ -270,6 +270,43 @@ final class FirstPass : ASTVisitor
 				currentSymbol.addChild(symbol, true);
 				currentScope.addSymbol(symbol.acSymbol, false);
 
+				auto initializer = part.initializer.nonVoidInitializer;
+				if (initializer && initializer.assignExpression)
+				{
+					auto unary = cast(UnaryExpression) initializer.assignExpression;
+					if (unary)
+					{
+						if (auto castExpression = unary.castExpression)
+						{
+							if (castExpression.type && castExpression.type.type2)
+							{
+								auto t2 = castExpression.type.type2;
+
+								auto l = symbol.typeLookups.front;
+								// get rid of initialier type
+								// instead feed it with cast expression one
+								l.breadcrumbs.clear();
+								void buildChain(TypeLookup* lookup, TypeIdentifierPart tip)
+								{
+									if (tip.identifierOrTemplateInstance)
+									{
+										auto crumb = tip.identifierOrTemplateInstance.identifier.text;
+										lookup.breadcrumbs.insert(istring(crumb));
+									}
+									if (tip.typeIdentifierPart)
+										buildChain(lookup, tip.typeIdentifierPart);
+
+									// TODO: build template type
+									// tip.identifierOrTemplateInstance.templateInstance
+								}
+
+								if (t2 && t2.typeIdentifierPart)
+									buildChain(l, t2.typeIdentifierPart);
+							}
+						}
+					}
+				}
+
 				if (currentSymbol.acSymbol.kind == CompletionKind.structName
 					|| currentSymbol.acSymbol.kind == CompletionKind.unionName)
 				{
