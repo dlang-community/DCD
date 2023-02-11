@@ -37,4 +37,20 @@ struct TypeLookup
 	UnrolledList!istring breadcrumbs;
 	/// The kind of type lookup
 	TypeLookupKind kind;
+    /// To store information about template instances
+    VariableContext ctx;
+}
+
+
+struct VariableContext
+{
+    struct TypeInstance
+    {
+        string[] chain;
+        TypeInstance*[] args;
+        string name;
+        TypeInstance* parent;
+    }
+    TypeInstance* root;
+    int num;
 }

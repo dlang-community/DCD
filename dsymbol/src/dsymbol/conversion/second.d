@@ -55,6 +55,25 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 			resolveType(currentSymbol.acSymbol, currentSymbol.typeLookups,
 				moduleScope, cache);
 		}
+
+        if (currentSymbol.acSymbol.type && currentSymbol.typeLookups.length > 0)
+		{
+            TypeLookup* lookup = currentSymbol.typeLookups.front;
+            if (lookup.ctx.root)
+            {
+                auto type = currentSymbol.acSymbol.type;
+                if (type.kind == structName || type.kind == className)
+                {
+                    int depth;
+                    resolveTemplate(currentSymbol.acSymbol, type, lookup, lookup.ctx.root, moduleScope, cache, depth);
+                }
+            }
+		}
+		else
+		{
+			warning("no type: ", currentSymbol.acSymbol.name," ", currentSymbol.acSymbol.kind);
+		}
+
 		break;
 	case importSymbol:
 		if (currentSymbol.acSymbol.type is null)
@@ -76,6 +95,7 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 	case dummy:
 	case templateName:
 	case mixinTemplateName:
+	case argTmpParam:
 		break;
 	}
 
@@ -94,92 +114,161 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 		resolveMixinTemplates(currentSymbol.acSymbol, currentSymbol.typeLookups,
 			moduleScope, cache);
 		break;
-	case variableName:
-	case functionName:
-		if (currentSymbol.acSymbol.tmplArgNames.length > 0 && currentSymbol.acSymbol.type)
-		{
-			auto tArgNames = currentSymbol.acSymbol.tmplArgNames;
-			auto type = currentSymbol.acSymbol.type;
-			if (type.kind == structName || type.kind == className)
-			{
-				int depth;
-				resolveTemplate(currentSymbol.acSymbol, type, tArgNames, moduleScope, cache, depth);
-			}
-		}
-		else
-		{
-			warning("no type: ", currentSymbol.acSymbol.name," ", currentSymbol.acSymbol.kind);
-		}
-		break;
 	default:
 		break;
 	}
 }
 
+
+DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableContext.TypeInstance* ti, ref ModuleCache cache, Scope* moduleScope, ref int depth, DSymbol*[string] m = null)
+{
+	warning("processing type: ", type.name, " ", ti.chain, " ", ti.args);
+    DSymbol* newType = GCAllocator.instance.make!DSymbol("", CompletionKind.dummy, null);
+    newType.name = type.name;
+    newType.kind = type.kind;
+    newType.qualifier = type.qualifier;
+    newType.protection = type.protection;
+    newType.symbolFile = type.symbolFile;
+    newType.doc = type.doc;
+    newType.callTip = type.callTip;
+    DSymbol*[string] mapping;
+
+    if (m)
+    foreach(k,v; m)
+    {
+    	mapping[k] = v;
+    }
+
+    int[string] mapping_index;
+    int count = 0;
+    if (ti.args.length > 0)
+    {
+    	warning("hard args, build mapping");
+        foreach(part; type.opSlice())
+        {
+            if (part.kind == CompletionKind.typeTmpParam)
+            {
+                scope(exit) count++;
+                
+                warning("building mapping for: ", part.name, " chain: ", ti.args[count].chain);
+                auto key = part.name;
+                
+                DSymbol* first;
+                foreach(i, crumb; ti.args[count].chain)
+                {
+                    if (i == 0)
+                    {
+                        auto result = moduleScope.getSymbolsAtGlobalScope(istring(crumb));
+                        if (result.length == 0)
+                        {
+                            error("can't find symbol: ", crumb);
+                            break;
+                        }
+                        first = result[0];
+                    }
+                    else {
+                        first = first.getFirstPartNamed(istring(crumb));
+                    }
+                }
+
+				mapping_index[key] = count;
+                if (first is null)
+                {
+                	error("can't find type for mapping: ", part.name);
+                	continue;
+                }
+                warning("  map: ", key ,"->", first.name);
+        
+                mapping[key] =  createTypeWithTemplateArgs(first, lookup, ti.args[count], cache, moduleScope, depth, m ? m : mapping);
+            }
+        }
+    }
+    
+
+    string[] T_names;
+
+    foreach(part; type.opSlice())
+    {
+        if (part.kind == CompletionKind.typeTmpParam)
+        {
+        	warning("    #", count, " ", part.name);
+        	T_names ~= part.name;
+        }
+        else if (part.type && part.type.kind == CompletionKind.typeTmpParam)
+        {
+        	DSymbol* newPart = GCAllocator.instance.make!DSymbol(part.name, part.kind, null);
+            newPart.qualifier = part.qualifier;
+            newPart.protection = part.protection;
+            newPart.symbolFile = part.symbolFile;
+            newPart.doc = part.doc;
+            newPart.callTip = part.callTip;
+            newPart.ownType = true;
+
+            if (part.type.name in mapping)
+            {
+                newPart.type = mapping[part.type.name];
+                warning("         mapping found: ", part.type.name," -> ", newPart.type.name);
+            }
+            else 
+            if (m && part.type.name in m)
+            {
+                newPart.type = m[part.type.name];
+                warning("         mapping found: ", part.type.name," -> ", newPart.type.name);
+            }
+            else
+                error("         mapping not found: ", part.type.name);
+
+            newType.addChild(newPart, true);
+        }
+        else
+        {
+        	if (depth < 50)
+			if (part.type && part.kind == CompletionKind.variableName)
+			foreach(partPart; part.type.opSlice())
+			{
+				if (partPart.kind == CompletionKind.typeTmpParam)
+				{
+
+					warning("go agane ", part.name, " ", part.type.name, " with arg: ", ti.chain," Ts: ", T_names);
+
+					foreach(arg; ti.args)
+					{
+						warning(" >", arg.chain, " ", arg.args);
+					}
+					//resolveTemplate(part, part.type, lookup, ti, moduleScope, cache, depth, mapping);
+
+					break;
+				}
+			}
+            newType.addChild(part, true);
+        }
+    }
+    return newType;
+}
+
+
 /**
  * Resolve template arguments
  */
-void resolveTemplate(DSymbol* sym, DSymbol* type, scope const istring[] tmplArgNames, Scope* moduleScope, ref ModuleCache cache, ref int depth)
+void resolveTemplate(DSymbol* variableSym, DSymbol* type, TypeLookup* lookup, VariableContext.TypeInstance* current, Scope* moduleScope, ref ModuleCache cache, ref int depth, DSymbol*[string] mapping = null)
 {
 	depth += 1;
-	if (tmplArgNames.length > 1) return;
-	auto argName = tmplArgNames[0];
-	auto result = moduleScope.getSymbolsAtGlobalScope(argName);
-	if (result.length > 0)
-	{
-		auto argSymbol = result[0];
-		DSymbol* newType = GCAllocator.instance.make!DSymbol("", CompletionKind.dummy, null);
-		newType.name = type.name;
-		newType.kind = type.kind;
-		newType.qualifier = type.qualifier;
-		newType.protection = type.protection;
-		newType.symbolFile = type.symbolFile;
-		newType.doc = type.doc;
-		newType.callTip = type.callTip;
 
-		DSymbol* currentT = null;
-		foreach(part; type.opSlice())
-		{
-			if (part.kind == CompletionKind.typeTmpParam)
-			{
-				currentT = part;
-			}
-			else if (part.type && part.type.kind == CompletionKind.typeTmpParam)
-			{
-				DSymbol* newPart = GCAllocator.instance.make!DSymbol(part.name, part.kind, argSymbol);
-				newPart.qualifier = part.qualifier;
-				newPart.protection = part.protection;
-				newPart.symbolFile = part.symbolFile;
-				newPart.doc = part.doc;
-				newPart.callTip = part.callTip;
-				newPart.type = argSymbol;
-				if (part.kind == CompletionKind.functionName)
-				{
-					if (part.type && part.type.kind == CompletionKind.typeTmpParam)
-					{
-						newPart.type = argSymbol;
-					}
-				}
-				newType.addChild(newPart, true);
-			}
-			else
-			{
-				if (part.tmplArgNames.length > 0)
-				{
-					auto innerArg = part.tmplArgNames[0];
-					if (innerArg == currentT.name)
-					{
-						if (depth < 50)
-							resolveTemplate(part, part.type, [argName], moduleScope, cache, depth);
-					}
-				}
-				newType.addChild(part, false);
-			}
-		}
-		sym.type = newType;
-		sym.ownType = true;
-	}
+
+    warning("resolving template for var: ", variableSym.name, " type: ", type.name, "depth: ", depth);
+    warning("current args: ");
+    foreach(i, arg; current.args)
+    	warning("    i: ", i, " ", arg.chain);
+    DSymbol* newType = createTypeWithTemplateArgs(type, lookup, current, cache, moduleScope, depth, mapping);
+    
+
+
+
+	variableSym.type = newType;
+	variableSym.ownType = true;
+
 }
+
 
 void resolveImport(DSymbol* acSymbol, ref TypeLookups typeLookups,
 	ref ModuleCache cache)
@@ -521,13 +610,17 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 	auto crumbs = lookup.breadcrumbs[];
 	foreach (crumb; crumbs)
 	{
+        warning("search: ", crumb);
 		if (i == 0)
 		{
 			currentSymbol = moduleScope.getFirstSymbolByNameAndCursor(
 				symbolNameToTypeName(crumb), symbol.location);
 
 			if (currentSymbol is null)
-				return;
+			{
+                warning("return 0");
+                return;
+            }
 		}
 		else
 		if (crumb == ARRAY_LITERAL_SYMBOL_NAME)
@@ -589,12 +682,18 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 		{
 			typeSwap(currentSymbol);
 			if (currentSymbol is null )
-				return;
+			{
+                warning("return ", i);
+                return;
+            }
 			currentSymbol = currentSymbol.getFirstPartNamed(crumb);
 		}
 		++i;
 		if (currentSymbol is null)
-			return;
+		{
+            warning("return ", i);
+            return;
+        }
 	}
 	typeSwap(currentSymbol);
 	symbol.type = currentSymbol;

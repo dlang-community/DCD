@@ -104,6 +104,9 @@ enum CompletionKind : char
 
 	/// type template parameter when no constraint
 	typeTmpParam = 'h',
+
+	/// type template argument when no constraint
+	argTmpParam = 'H',
 }
 
 /**
@@ -387,6 +390,11 @@ struct DSymbol
 	istring[] tmplArgNames;
 
 	/**
+	 * Template arguments symbols
+	 */
+	DSymbol*[] tmplArgs;
+
+	/**
 	 * Function parameter symbols
 	 */
 	DSymbol*[] functionParameters;
@@ -431,7 +439,8 @@ struct DSymbol
 	mixin(bitfields!(bool, "ownType", 1,
 		bool, "skipOver", 1,
 		bool, "isPointer", 1,
-		ubyte, "", 5));
+		bool, "isAutoDeclaration", 1,
+		ubyte, "", 4));
 	// dfmt on
 
 	/// Protection level for this symbol
