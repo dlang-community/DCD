@@ -1,0 +1,2 @@
+identifiers
+inside_inner	v	int inside_inner	stdin 0	

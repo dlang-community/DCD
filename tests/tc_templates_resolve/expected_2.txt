@@ -1,0 +1,3 @@
+identifiers
+yo_T	v	A yo_T	stdin 0	
+yo_U	v	B yo_U	stdin 0	
