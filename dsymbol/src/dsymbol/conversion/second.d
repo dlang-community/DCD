@@ -133,12 +133,12 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 	newType.type = type.type;
 	DSymbol*[string] mapping;
 
-	if (m)
-	foreach(k,v; m)
-	{
-		warning("store mapping: ".yellow, k, " ", v.name);
-		mapping[k] = v;
-	}
+	//if (m)
+	//foreach(k,v; m)
+	//{
+	//	warning("store mapping: ".yellow, k, " ", v.name);
+	//	mapping[k] = v;
+	//}
 
 	int[string] mapping_index;
 	int count = 0;
@@ -161,11 +161,13 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 					if (i == 0)
 					{
 
-						if (key in mapping)
+						if (m)
+						if (key in m)
 						{
 							//first = mapping[argName];
 							//continue;
-							argName = mapping[key].name;
+							argName = m[key].name;
+							warning("mapping found: k: ".yellow, key, " v: ", argName);
 						}
 
 						auto result = moduleScope.getSymbolsAtGlobalScope(istring(argName));
@@ -199,7 +201,7 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 
 				auto ca = ti.args[count];
 				if (ca.chain.length > 0) 
-				mapping[key] =  createTypeWithTemplateArgs(first, lookup, ca, cache, moduleScope, depth, mapping);
+				mapping[key] =  createTypeWithTemplateArgs(first, lookup, ca, cache, moduleScope, depth, null);
 			}
 		}
 	}
@@ -214,6 +216,7 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 		{
 			warning("    #", count, " ", part.name);
 			T_names ~= part.name;
+			//newType.addChild(part, false);
 		}
 		else if (part.type && part.type.kind == CompletionKind.typeTmpParam)
 		{
@@ -243,21 +246,30 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 		}
 		else
 		{
-			//if (depth < 50)
-			//if (part.type && part.kind == CompletionKind.variableName)
-			//foreach(partPart; part.type.opSlice())
-			//{
-			//    if (partPart.kind == CompletionKind.typeTmpParam)
-			//    {
-			//        foreach(arg; ti.args)
-			//        {
-			//            warning(" >", arg.chain, " ", arg.args);
-			//        }
-			//        warning("go agane ".blue, part.name, " ", part.type.name, " with arg: ", ti.chain," Ts: ", T_names);
-			//        //resolveTemplate(part, part.type, lookup, ti, moduleScope, cache, depth, mapping);
-			//        break;
-			//    }
-			//}
+			DSymbol* part_T;
+
+			if (depth < 50)
+			if (part.type && part.kind == CompletionKind.variableName)
+			foreach(partPart; part.type.opSlice())
+			{
+			    if (partPart.kind == CompletionKind.typeTmpParam)
+			    {
+			    	part_T = part;
+			        foreach(arg; ti.args)
+			        {
+			            warning(" > ", arg.chain);
+			            foreach(aa; arg.args)
+			            	warning("    > ", aa.chain);
+			        }
+			        warning("go agane ".blue, part.name, " ", part.type.name, " with arg: ", ti.chain," Ts: ", T_names);
+			        resolveTemplate(part, part.type, lookup, ti, moduleScope, cache, depth, mapping);
+			        break;
+			    }
+			    else if (partPart.type && partPart.type.kind == CompletionKind.typeTmpParam)
+			    {
+			    	warning("here!".red," ", partPart.name," ", partPart.type.name);
+			    }
+			}
 			warning("adding untouched: ", part.name, "into: ", newType);
 			newType.addChild(part, false);
 		}

@@ -247,19 +247,14 @@ final class FirstPass : ASTVisitor
 
 	void processTypeIdentifierPart(SemanticSymbol* symbol, TypeLookup* lookup, VariableContext* ctx, VariableContext.TypeInstance* current, TypeIdentifierPart tip)
 	{
-
-		auto newArg = GCAllocator.instance.make!(VariableContext.TypeInstance)();
-		newArg.parent = current;
-		current.args ~= newArg;
-
 		if (tip.identifierOrTemplateInstance)
 		{
-			processIdentifierOrTemplate(symbol, lookup, ctx, newArg, tip.identifierOrTemplateInstance);
+			processIdentifierOrTemplate(symbol, lookup, ctx, current, tip.identifierOrTemplateInstance);
 		}
 
 		if (tip.typeIdentifierPart)
 		{
-			error("i should probably handle this");
+			processTypeIdentifierPart(symbol, lookup, ctx, current, tip.typeIdentifierPart);
 		}
 	}
 
@@ -405,6 +400,8 @@ final class FirstPass : ASTVisitor
 
 				lookup.ctx.root = GCAllocator.instance.make!(VariableContext.TypeInstance)();
 				processTypeIdentifierPart(symbol, lookup, &lookup.ctx, lookup.ctx.root, typeIdentifierPart);
+
+				warning("template: ", lookup.ctx.root.chain);
 			}
 		}
 		if (dec.autoDeclaration !is null)
