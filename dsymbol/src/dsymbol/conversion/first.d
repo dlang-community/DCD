@@ -245,6 +245,24 @@ final class FirstPass : ASTVisitor
         }
     }
 
+    void processTypeIdentifierPart(SemanticSymbol* symbol, TypeLookup* lookup, VariableContext* ctx, VariableContext.TypeInstance* current, TypeIdentifierPart tip)
+    {
+
+        auto newArg = GCAllocator.instance.make!(VariableContext.TypeInstance)();
+        newArg.parent = current;
+        current.args ~= newArg;
+
+        if (tip.identifierOrTemplateInstance)
+        {
+            processIdentifierOrTemplate(symbol, lookup, ctx, newArg, tip.identifierOrTemplateInstance);
+        }
+
+        if (tip.typeIdentifierPart)
+        {
+            error("i should probably handle this");
+        }
+    }
+
     void processTemplateInstance(SemanticSymbol* symbol, TypeLookup* lookup, VariableContext* ctx, VariableContext.TypeInstance* current, TemplateInstance ti)
     {
         if (ti.identifier != tok!"")
@@ -264,6 +282,8 @@ final class FirstPass : ASTVisitor
                     if (targ.type.type2 is null) continue;
 
                     auto part = targ.type.type2.typeIdentifierPart;
+					if (part is null) continue;
+
                     auto newArg = GCAllocator.instance.make!(VariableContext.TypeInstance)();
                     newArg.parent = current;
                     current.args ~= newArg;
@@ -277,6 +297,11 @@ final class FirstPass : ASTVisitor
                         if (part.typeIdentifierPart.identifierOrTemplateInstance)
                         {
                             processIdentifierOrTemplate(symbol, lookup, ctx, newArg, part.typeIdentifierPart.identifierOrTemplateInstance);
+                        }
+
+                        if (part.typeIdentifierPart)
+                        {
+                            error("i should probably handle this");
                         }
                     }
                 }
@@ -373,47 +398,15 @@ final class FirstPass : ASTVisitor
                 // TODO: remove this cast. See the note on structFieldTypes
                 structFieldTypes.insert(cast() dec.type);
             }
-            if (dec.type.type2 && dec.type.type2.typeIdentifierPart)
+
+            auto lookup = symbol.typeLookups.front;
+
+            if (dec.type && dec.type.type2 && dec.type.type2.typeIdentifierPart)
             {
-                auto typeIdentifierPart = dec.type.type2.typeIdentifierPart;
-                if (typeIdentifierPart && typeIdentifierPart.identifierOrTemplateInstance &&
-                typeIdentifierPart.identifierOrTemplateInstance.templateInstance)
-                {
-                    auto templateInstance = typeIdentifierPart.identifierOrTemplateInstance.templateInstance;
+                TypeIdentifierPart typeIdentifierPart = cast(TypeIdentifierPart) dec.type.type2.typeIdentifierPart;
 
-                    // if template
-                    // 		allocate symbol
-                    // 		set kind to TypeArg
-                    // 		set index
-                    // 		for each argument
-                    // 			create child symbol
-                    // 			set kind to TypeArg
-                    // 			set index 
-
-                    // to resolve:
-                    //     get item.type
-                    //     copy symbol
-                    //     traverse and replace parts
-        
-                    if (!templateInstance.templateArguments)
-                    {}
-                    else if (templateInstance.templateArguments.templateArgumentList)
-                    {
-                        foreach(i, targ; templateInstance.templateArguments.templateArgumentList.items)
-                        {
-                            if (targ.type is null) continue;
-                            // TODO: support template with multiple arguments
-                            auto tokens = targ.type.type2.tokens;
-                            warning("    tokens: ", tokens[0].text);
-                        }
-            
-                    }
-                    else if (templateInstance.templateArguments.templateSingleArgument)
-                    {
-                        auto singleArg = typeIdentifierPart.identifierOrTemplateInstance.templateInstance.templateArguments.templateSingleArgument;
-                        symbol.acSymbol.tmplArgNames ~= istring(singleArg.token.text);
-                    }
-                }
+                lookup.ctx.root = GCAllocator.instance.make!(VariableContext.TypeInstance)();
+                processTypeIdentifierPart(symbol, lookup, &lookup.ctx, lookup.ctx.root, typeIdentifierPart);
             }
         }
         if (dec.autoDeclaration !is null)
@@ -462,6 +455,9 @@ final class FirstPass : ASTVisitor
 						else if (FunctionCallExpression fc = unary.functionCallExpression)
 						{
 						    warning("functioncall expression ", fc.type, " ", fc.unaryExpression," ", fc.templateArguments);
+                            //if (fc.unaryExpression)
+                            //    traverseUnaryExpression(symbol, lookup, &lookup.ctx, unary);
+                            unary = fc.unaryExpression;
 						}
 					}
 
@@ -498,7 +494,6 @@ final class FirstPass : ASTVisitor
                                 lookup.breadcrumbs.insert(istring(tic.text));
 
                                 lookup.ctx.root = GCAllocator.instance.make!(VariableContext.TypeInstance)();
-								assert(lookup.ctx.root != null);
                                 processTemplateInstance(symbol, lookup, &lookup.ctx, lookup.ctx.root, iot.templateInstance);
                             }
                         }

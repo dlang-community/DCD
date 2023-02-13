@@ -50,7 +50,7 @@ ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
 
 	secondPass(first.rootSymbol, first.moduleScope, cache);
 
-	thirdPass(first.moduleScope, cache, cursorPosition);
+	thirdPass(first.rootSymbol, first.moduleScope, cache, cursorPosition);
 
 	auto r = move(first.rootSymbol.acSymbol);
 	typeid(SemanticSymbol).destroy(first.rootSymbol);
