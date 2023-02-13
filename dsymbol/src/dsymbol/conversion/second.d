@@ -56,13 +56,15 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 			resolveType(currentSymbol.acSymbol, currentSymbol.typeLookups,
 				moduleScope, cache);
 		}
+
 		if (currentSymbol.acSymbol.type && currentSymbol.typeLookups.length > 0)
 		{
 			TypeLookup* lookup = currentSymbol.typeLookups.front;
 			if (lookup.ctx.root)
-			{
+			{	
 				auto type = currentSymbol.acSymbol.type;
-				if (type.kind == structName || type.kind == className && lookup.ctx.root.args.length > 0)
+				if (type.kind == structName || type.kind == className)
+				if (lookup.ctx.root.args.length > 0)
 				{
 					DSymbol*[string] mapping;
 					int depth;
@@ -226,50 +228,54 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 			newPart.symbolFile = part.symbolFile;
 			newPart.doc = part.doc;
 			newPart.callTip = part.callTip;
-			newPart.ownType = false;
 
 			if (part.type.name in mapping)
 			{
+				newPart.ownType = true;
 				newPart.type = mapping[part.type.name];
 				warning("         mapping found: ", part.type.name," -> ", newPart.type.name);
 			}
 			else 
 			if (m && part.type.name in m)
 			{
+				newPart.ownType = true;
 				newPart.type = m[part.type.name];
 				warning("         mapping in m found: ", part.type.name," -> ", newPart.type.name);
 			}
 			else
 				error("         mapping not found: ".red, part.type.name," type: ", type.name, " cur: ", ti.chain, "args: ", ti.args);
-
 			newType.addChild(newPart, true);
 		}
 		else
 		{
-			DSymbol* part_T;
+			// BUG: doing it recursively messes with the mapping
+			// i need to debug this and figure out perhaps a better way to do this stuff
+			// maybe move the VariableContext to the symbol directly
+			// i'll need to experiemnt with it
 
-			if (depth < 50)
-			if (part.type && part.kind == CompletionKind.variableName)
-			foreach(partPart; part.type.opSlice())
-			{
-			    if (partPart.kind == CompletionKind.typeTmpParam)
-			    {
-			    	part_T = part;
-			        foreach(arg; ti.args)
-			        {
-			            warning(" > ", arg.chain);
-			            foreach(aa; arg.args)
-			            	warning("    > ", aa.chain);
-			        }
-			        warning("go agane ".blue, part.name, " ", part.type.name, " with arg: ", ti.chain," Ts: ", T_names);
-			        resolveTemplate(part, part.type, lookup, ti, moduleScope, cache, depth, mapping);
-			        break;
-			    }
-			    else if (partPart.type && partPart.type.kind == CompletionKind.typeTmpParam)
-			    {
-			    	warning("here!".red," ", partPart.name," ", partPart.type.name);
-			    }
-			}
+			//DSymbol* part_T;
+			//if (depth < 50)
+			//if (part.type && part.kind == CompletionKind.variableName)
+			//foreach(partPart; part.type.opSlice())
+			//{
+			//    if (partPart.kind == CompletionKind.typeTmpParam)
+			//    {
+			//    	part_T = part;
+			//        foreach(arg; ti.args)
+			//        {
+			//            warning(" > ", arg.chain);
+			//            foreach(aa; arg.args)
+			//            	warning("    > ", aa.chain);
+			//        }
+			//        warning("go agane ".blue, part.name, " ", part.type.name, " with arg: ", ti.chain," Ts: ", T_names);
+			//        resolveTemplate(part, part.type, lookup, ti, moduleScope, cache, depth, mapping);
+			//        break;
+			//    }
+			//    //else if (partPart.type && partPart.type.kind == CompletionKind.typeTmpParam)
+			//    //{
+			//    //	warning("here!".red," ", partPart.name," ", partPart.type.name);
+			//    //}
+			//}
 			warning("adding untouched: ", part.name, "into: ", newType);
 			newType.addChild(part, false);
 		}
