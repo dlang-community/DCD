@@ -349,7 +349,65 @@ final class FirstPass : ASTVisitor
 			{
 				buildChainTemplateOrIdentifier(symbol, lookup, ctx, pe.identifierOrTemplateInstance);
 			}
+
+			if (pe.basicType != tok!"")
+				lookup.breadcrumbs.insert(internString(str(pe.basicType.type)));
+			switch (pe.primary.type)
+			{
+			case tok!"identifier":
+				lookup.breadcrumbs.insert(internString(pe.primary.text));
+				break;
+			case tok!"doubleLiteral":
+				lookup.breadcrumbs.insert(DOUBLE_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"floatLiteral":
+				lookup.breadcrumbs.insert(FLOAT_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"idoubleLiteral":
+				lookup.breadcrumbs.insert(IDOUBLE_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"ifloatLiteral":
+				lookup.breadcrumbs.insert(IFLOAT_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"intLiteral":
+				lookup.breadcrumbs.insert(INT_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"longLiteral":
+				lookup.breadcrumbs.insert(LONG_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"realLiteral":
+				lookup.breadcrumbs.insert(REAL_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"irealLiteral":
+				lookup.breadcrumbs.insert(IREAL_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"uintLiteral":
+				lookup.breadcrumbs.insert(UINT_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"ulongLiteral":
+				lookup.breadcrumbs.insert(ULONG_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"characterLiteral":
+				lookup.breadcrumbs.insert(CHAR_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"dstringLiteral":
+				lookup.breadcrumbs.insert(DSTRING_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"stringLiteral":
+				lookup.breadcrumbs.insert(STRING_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"wstringLiteral":
+				lookup.breadcrumbs.insert(WSTRING_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"false":
+			case tok!"true":
+				lookup.breadcrumbs.insert(BOOL_VALUE_SYMBOL_NAME);
+				break;
+			default:
+				break;
+			}
 		}
+
 		if (IdentifierOrTemplateInstance iot = ue.identifierOrTemplateInstance)
 		{
 			warning("has iot");
@@ -433,9 +491,10 @@ final class FirstPass : ASTVisitor
 				}
 
 				auto initializer = part.initializer.nonVoidInitializer;
+				UnaryExpression unary;
 				if (initializer && initializer.assignExpression)
 				{
-					UnaryExpression unary = cast(UnaryExpression) initializer.assignExpression;
+					unary = cast(UnaryExpression) initializer.assignExpression;
 					if (unary)
 					{
 						if (CastExpression castExpression = unary.castExpression)
@@ -463,7 +522,6 @@ final class FirstPass : ASTVisitor
 					}
 
 					if (unary
-						&& !unary.primaryExpression
 						&& !unary.indexExpression
 						&& !unary.throwExpression
 						&& !unary.assertExpression
@@ -512,7 +570,10 @@ final class FirstPass : ASTVisitor
 					}
 				}
 
-				if (symbol.acSymbol.name == "b")
+
+				import std.string: indexOf;
+
+				if (symbol.acSymbol.name.indexOf("from_auto_two") != -1)
 				{
 					import core.stdc.stdlib: exit;
 					auto lookup = symbol.typeLookups.front;
@@ -522,6 +583,16 @@ final class FirstPass : ASTVisitor
 						warning("root: ", lookup.ctx.root.chain);
 						foreach(arg; lookup.ctx.root.args)
 							warning("  arg: ", arg.chain);
+					}
+					if (unary)
+					{
+						warning("  primaryExpression: ", unary.primaryExpression);
+						warning("  indexExpression: ", unary.indexExpression);
+						warning("  throwExpression: ", unary.throwExpression);
+						warning("  assertExpression: ", unary.assertExpression);
+						warning("  argumentList: ", unary.argumentList); 
+						warning("  deleteExpression: ", unary.deleteExpression); 
+						warning("  newExpression: ", unary.newExpression); 
 					}
 					//exit(0);	
 				}
