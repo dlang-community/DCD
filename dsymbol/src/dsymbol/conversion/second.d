@@ -186,8 +186,13 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 			if (part.kind == CompletionKind.typeTmpParam)
 			{
 				scope(exit) count++;
-				
-				warning("building mapping for: ", part.name, " chain: ", ti.args[count].chain);
+				if (count >= ti.args.length)
+				{
+					warning("too many T for args available, investigate");
+					continue;
+				}
+				warning("building mapping for: ", part.name," count: ", count, "/", ti.args.length, " chain: ");
+				warning("    ", ti.args[count].chain);
 				auto key = part.name;
 				
 				DSymbol* first;
