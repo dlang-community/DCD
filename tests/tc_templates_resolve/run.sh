@@ -38,12 +38,12 @@ diff actual_2_2.txt expected_2_2.txt --strip-trailing-cr
 
 
 #echo "test c omplex"
-check complex 1192 actual_complex_1 expected_complex_1
-check complex 1236 actual_complex_2 expected_complex_2
-check complex 1282 actual_complex_3 expected_complex_3
-check complex 1328 actual_complex_4 expected_complex_4
-check complex 1354 actual_complex_5 expected_complex_5
-check complex 1382 actual_complex_6 expected_complex_6
-check complex 1410 actual_complex_7 expected_complex_7
-check complex 1437 actual_complex_8 expected_complex_8
+check complex 1121 actual_complex_1 expected_complex_1
+check complex 1162 actual_complex_2 expected_complex_2
+check complex 1205 actual_complex_3 expected_complex_3
+check complex 1248 actual_complex_4 expected_complex_4
+check complex 1271 actual_complex_5 expected_complex_5
+check complex 1296 actual_complex_6 expected_complex_6
+check complex 1321 actual_complex_7 expected_complex_7
+check complex 1345 actual_complex_8 expected_complex_8
 

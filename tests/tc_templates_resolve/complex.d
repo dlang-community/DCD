@@ -66,7 +66,6 @@ void main()
     What what;
     auto it = what.get_it!(A, B, C)();
 
-
     {
         from_auto.agane_one.
     }

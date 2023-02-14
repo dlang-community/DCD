@@ -1,7 +1,7 @@
 identifiers
 alignof	k			
 init	k			
-inside_aganeone	v	int inside_aganeone	stdin 137	
+inside_aganeone	v	int inside_aganeone	stdin 124	
 mangleof	k			
 sizeof	k			
 stringof	k			
