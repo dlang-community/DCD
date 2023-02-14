@@ -177,18 +177,29 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 				auto key = part.name;
 				
 				DSymbol* first;
+				bool isBuiltin;
 				foreach(i, crumb; ti.args[count].chain)
 				{
 					auto argName = crumb;
 					if (i == 0)
 					{
-
 						if (m)
 						if (key in m)
 						{
 							argName = m[key].name;
 						}
 
+						// check if that's a built in type
+						// if it is, then use it and skip the type creation step
+						foreach(builtin; builtinSymbols)
+						{
+							if (builtin.name == crumb)
+							{
+								first = builtin;
+								isBuiltin = true;
+								break;
+							}
+						}
 						auto result = moduleScope.getSymbolsAtGlobalScope(istring(argName));
 						if (result.length == 0)
 						{
@@ -205,7 +216,7 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 
 				auto ca = ti.args[count];
 				if (ca.chain.length > 0) 
-				mapping[key] =  createTypeWithTemplateArgs(first, lookup, ca, cache, moduleScope, depth, null);
+				mapping[key] = isBuiltin ? first : createTypeWithTemplateArgs(first, lookup, ca, cache, moduleScope, depth, null);
 			}
 		}
 	}

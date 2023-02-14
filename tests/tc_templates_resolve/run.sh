@@ -5,9 +5,6 @@ set -u
 
 MODE=$1
 
-
-# ../../bin/dcd-client $1 file1.d --extended -c 270
-
 function check () {
     echo "$1 $2"
     ../../bin/dcd-client $MODE $1.d --extended -c $2 > $3.txt
@@ -36,8 +33,13 @@ diff actual_2_1.txt expected_2_1.txt --strip-trailing-cr
 diff actual_2_2.txt expected_2_2.txt --strip-trailing-cr
 
 
+#echo "test5"
+../../bin/dcd-client $1 file3.d --extended -c 144 > actual_3_1.txt
+diff actual_3_1.txt expected_3_1.txt --strip-trailing-cr
 
-#echo "test c omplex"
+
+
+#echo "test complex"
 check complex 1121 actual_complex_1 expected_complex_1
 check complex 1162 actual_complex_2 expected_complex_2
 check complex 1205 actual_complex_3 expected_complex_3
@@ -46,4 +48,4 @@ check complex 1271 actual_complex_5 expected_complex_5
 check complex 1296 actual_complex_6 expected_complex_6
 check complex 1321 actual_complex_7 expected_complex_7
 check complex 1345 actual_complex_8 expected_complex_8
-
+check complex 1413 actual_complex_9 expected_complex_9
