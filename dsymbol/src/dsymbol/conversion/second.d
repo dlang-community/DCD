@@ -55,6 +55,22 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 			resolveType(currentSymbol.acSymbol, currentSymbol.typeLookups,
 				moduleScope, cache);
 		}
+
+		if (currentSymbol.acSymbol.type && currentSymbol.typeLookups.length > 0)
+		{
+			TypeLookup* lookup = currentSymbol.typeLookups.front;
+			if (lookup.ctx.root)
+			{	
+				auto type = currentSymbol.acSymbol.type;
+				if (type.kind == structName || type.kind == className || type.kind == functionName)
+				if (lookup.ctx.root.args.length > 0)
+				{
+					DSymbol*[string] mapping;
+					int depth;
+					resolveTemplate(currentSymbol.acSymbol, type, lookup, lookup.ctx.root, moduleScope, cache, depth, mapping);
+				}
+			}
+		}
 		break;
 	case importSymbol:
 		if (currentSymbol.acSymbol.type is null)
@@ -97,6 +113,198 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 	default:
 		break;
 	}
+}
+/**
+ * Extract the return type from the callTip of a function symbol
+ */
+string extractReturnType(string callTip)
+{
+	import std.string: indexOf;
+
+	auto spaceIndex = callTip.indexOf(" ");
+	if (spaceIndex <= 0) return "";
+
+	auto retPart = callTip[0 .. spaceIndex];
+	auto returnTypeConst = retPart.length > 6 ? retPart[0 .. 6] == "const(" : false;
+	auto returnTypeInout = retPart.length > 6 ? retPart[0 .. 6] == "inout(" : false;
+	if (returnTypeConst || returnTypeInout)
+	{
+		retPart = retPart[retPart.indexOf("(") + 1 .. $];
+		retPart = retPart[0 .. retPart.indexOf(")")];
+	}
+	auto returnTypePtr = retPart[$-1] == '*';
+	auto returnTypeArr = retPart[$-1] == ']';
+	if (returnTypePtr)
+	{
+		retPart = retPart[0 .. $-1];
+	}
+	return retPart;
+}
+
+/**
+ * Copy a Type symbol with templates arguments
+ * Returns: Copy of Type symbol
+ */
+DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableContext.TypeInstance* ti, ref ModuleCache cache, Scope* moduleScope, ref int depth, DSymbol*[string] m)
+{
+	assert(type);
+	DSymbol* newType = GCAllocator.instance.make!DSymbol("dummy", CompletionKind.dummy, null);
+	newType.name = type.name;
+	newType.kind = type.kind;
+	newType.qualifier = type.qualifier;
+	newType.protection = type.protection;
+	newType.symbolFile = type.symbolFile;
+	newType.doc = type.doc;
+	newType.callTip = type.callTip;
+	newType.type = type.type;
+	DSymbol*[string] mapping;
+
+	int count = 0;
+	if (ti.args.length > 0)
+	{
+		foreach(part; type.opSlice())
+		{
+			if (part.kind == CompletionKind.typeTmpParam)
+			{
+				scope(exit) count++;
+				if (count >= ti.args.length)
+				{
+					// warning("too many T for args available, investigate");
+					continue;
+				}
+				auto key = part.name;
+				
+				DSymbol* first;
+				foreach(i, crumb; ti.args[count].chain)
+				{
+					auto argName = crumb;
+					if (i == 0)
+					{
+
+						if (m)
+						if (key in m)
+						{
+							argName = m[key].name;
+						}
+
+						auto result = moduleScope.getSymbolsAtGlobalScope(istring(argName));
+						if (result.length == 0)
+						{
+							break;
+						}
+						first = result[0];
+					}
+					else
+						first = first.getFirstPartNamed(istring(argName));
+				}
+
+				if (first is null)
+					continue;
+
+				auto ca = ti.args[count];
+				if (ca.chain.length > 0) 
+				mapping[key] =  createTypeWithTemplateArgs(first, lookup, ca, cache, moduleScope, depth, null);
+			}
+		}
+	}
+	
+
+	// HACK: to support functions with template arguments that return a generic type
+	// first.d in processParameters only store the function's return type in the callTip
+	// maybe it's time to properly handle it by creating a proper symbol, so we can have
+	// proper support for functions that return complex types such as templates
+	if (type.kind == CompletionKind.functionName)
+	{
+		auto callTip = type.callTip;
+		if (callTip && callTip.length > 1)
+		{
+			auto retType = extractReturnType(callTip);
+			if (retType in mapping)
+				newType.type = mapping[retType];
+		}
+	}
+
+	assert(newType);
+	string[] T_names;
+	foreach(part; type.opSlice())
+	{
+		if (part.kind == CompletionKind.typeTmpParam)
+		{
+			T_names ~= part.name;
+		}
+		else if (part.type && part.type.kind == CompletionKind.typeTmpParam)
+		{
+			DSymbol* newPart = GCAllocator.instance.make!DSymbol(part.name, part.kind, null);
+			newPart.qualifier = part.qualifier;
+			newPart.protection = part.protection;
+			newPart.symbolFile = part.symbolFile;
+			newPart.doc = part.doc;
+			newPart.callTip = part.callTip;
+
+			if (part.type.name in mapping)
+			{
+				newPart.ownType = true;
+				newPart.type = mapping[part.type.name];
+			}
+			else if (m && part.type.name in m)
+			{
+				newPart.ownType = true;
+				newPart.type = m[part.type.name];
+			}
+
+			newType.addChild(newPart, true);
+		}
+		else
+		{
+			// BUG: doing it recursively messes with the mapping
+			// i need to debug this and figure out perhaps a better way to do this stuff
+			// maybe move the VariableContext to the symbol directly
+			// i'll need to experiemnt with it
+
+			//DSymbol* part_T;
+			//if (depth < 50)
+			//if (part.type && part.kind == CompletionKind.variableName)
+			//foreach(partPart; part.type.opSlice())
+			//{
+			//    if (partPart.kind == CompletionKind.typeTmpParam)
+			//    {
+			//    	part_T = part;
+			//        foreach(arg; ti.args)
+			//        {
+			//            warning(" > ", arg.chain);
+			//            foreach(aa; arg.args)
+			//            	warning("    > ", aa.chain);
+			//        }
+			//        warning("go agane ".blue, part.name, " ", part.type.name, " with arg: ", ti.chain," Ts: ", T_names);
+			//        resolveTemplate(part, part.type, lookup, ti, moduleScope, cache, depth, mapping);
+			//        break;
+			//    }
+			//    //else if (partPart.type && partPart.type.kind == CompletionKind.typeTmpParam)
+			//    //{
+			//    //	warning("here!".red," ", partPart.name," ", partPart.type.name);
+			//    //}
+			//}
+			newType.addChild(part, false);
+		}
+	}
+	return newType;
+}
+
+/**
+ * Resolve template arguments
+ */
+void resolveTemplate(DSymbol* variableSym, DSymbol* type, TypeLookup* lookup, VariableContext.TypeInstance* current, Scope* moduleScope, ref ModuleCache cache, ref int depth, DSymbol*[string] mapping = null)
+{
+	depth += 1;
+
+	if (variableSym is null || type is null) return;
+
+	if (current.chain.length == 0) return; // TODO: should not be empty, happens for simple stuff Inner inner;
+
+	DSymbol* newType = createTypeWithTemplateArgs(type, lookup, current, cache, moduleScope, depth, mapping);
+	
+	variableSym.type = newType;
+	variableSym.ownType = true;
 }
 
 void resolveImport(DSymbol* acSymbol, ref TypeLookups typeLookups,
