@@ -70,7 +70,14 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 				{
 					DSymbol*[string] mapping;
 					int depth;
-					resolveTemplate(currentSymbol.acSymbol, type, lookup, lookup.ctx.root, moduleScope, cache, depth, mapping);
+					try 
+					{
+						resolveTemplate(currentSymbol.acSymbol, type, lookup, lookup.ctx.root, moduleScope, cache, depth, mapping);
+					}
+					catch(Exception e)
+					{
+						warning("exception: ".red, currentSymbol.acSymbol.name);
+					}
 				}
 			}
 		}
@@ -243,7 +250,7 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 	if (type.kind == CompletionKind.functionName)
 	{
 		auto callTip = type.callTip;
-		if (callTip.length > 1)
+		if (callTip && callTip.length > 1)
 		{
 			auto retType = extractReturnType(callTip);
 			if (retType in mapping)

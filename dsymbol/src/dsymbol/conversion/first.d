@@ -432,16 +432,6 @@ final class FirstPass : ASTVisitor
 					structFieldTypes.insert(null);
 				}
 
-
-				// for auto declaration, we'll properly traverse the initializer
-				// and set the proper crumbs instead of using just the first one
-				// so we can handle things like cast/templates
-				auto lookup = symbol.typeLookups.front;
-				istring[] copy;
-				foreach(crumb; lookup.breadcrumbs[])
-					copy ~= crumb;
-				lookup.breadcrumbs.clear();
-
 				auto initializer = part.initializer.nonVoidInitializer;
 				if (initializer && initializer.assignExpression)
 				{
@@ -451,6 +441,8 @@ final class FirstPass : ASTVisitor
 						if (CastExpression castExpression = unary.castExpression)
 						{
 							warning("cast expression");
+							auto lookup = symbol.typeLookups.front;
+							lookup.breadcrumbs.clear();
 							if (castExpression.type && castExpression.type.type2)
 							{
 								Type2 t2 = castExpression.type.type2;
@@ -459,6 +451,7 @@ final class FirstPass : ASTVisitor
 									buildChain(symbol, lookup, &lookup.ctx, t2.typeIdentifierPart);
 								}
 							}
+							continue;
 						}
 						else if (FunctionCallExpression fc = unary.functionCallExpression)
 						{
@@ -469,8 +462,18 @@ final class FirstPass : ASTVisitor
 						}
 					}
 
-					if (unary)
+					if (unary
+						&& !unary.primaryExpression
+						&& !unary.indexExpression
+						&& !unary.throwExpression
+						&& !unary.assertExpression
+						&& !unary.argumentList 
+						&& !unary.deleteExpression 
+						&& !unary.newExpression 
+					)
 					{
+						auto lookup = symbol.typeLookups.front;
+						lookup.breadcrumbs.clear();
 						// build chain
 						traverseUnaryExpression(symbol, lookup, &lookup.ctx, unary);
 						// needs to be reversed because it got added in order (right->left)
@@ -509,14 +512,17 @@ final class FirstPass : ASTVisitor
 					}
 				}
 
-				if (symbol.acSymbol.name == "it")
+				if (symbol.acSymbol.name == "b")
 				{
 					import core.stdc.stdlib: exit;
+					auto lookup = symbol.typeLookups.front;
 					warning("crumb: ", lookup.breadcrumbs[]);
-
-					warning("root: ", lookup.ctx.root.chain);
-					foreach(arg; lookup.ctx.root.args)
-						warning("  arg: ", arg.chain);
+					if (lookup.ctx.root)
+					{
+						warning("root: ", lookup.ctx.root.chain);
+						foreach(arg; lookup.ctx.root.args)
+							warning("  arg: ", arg.chain);
+					}
 					//exit(0);	
 				}
 			}
