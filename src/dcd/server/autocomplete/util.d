@@ -768,7 +768,7 @@ AutocompleteResponse.Completion makeSymbolCompletionInfo(const DSymbol* symbol, 
 		{
 			string retTypeName = symbol.type.type.name;
 			string fnName = symbol.type.name;
-			definition = fnName ~ "()->" ~ retTypeName ~ " " ~ symbol.name;
+			definition = fnName ~ "() -> " ~ retTypeName ~ " " ~ symbol.name;
 		}
 		else
 			definition = symbol.type.name ~ ' ' ~ symbol.name;
