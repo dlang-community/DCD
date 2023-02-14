@@ -1,0 +1,8 @@
+identifiers
+alignof	k			
+init	k			
+inside_c	v	int inside_c	stdin 645	
+mangleof	k			
+sizeof	k			
+stringof	k			
+tupleof	k			

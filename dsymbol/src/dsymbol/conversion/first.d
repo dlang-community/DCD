@@ -32,6 +32,7 @@ import dsymbol.semantic;
 import dsymbol.string_interning;
 import dsymbol.symbol;
 import dsymbol.type_lookup;
+import dsymbol.coloredlogger;
 import std.algorithm.iteration : map;
 import std.experimental.allocator;
 import std.experimental.allocator.gc_allocator : GCAllocator;
@@ -258,6 +259,46 @@ final class FirstPass : ASTVisitor
 		}
 	}
 
+	void processTemplateArguments(SemanticSymbol* symbol, TypeLookup* lookup, VariableContext* ctx, VariableContext.TypeInstance* current, TemplateArguments targs)
+	{
+		if (targs.templateArgumentList)
+		{
+			foreach(i, targ; targs.templateArgumentList.items)
+			{
+				if (targ.type is null) continue;
+				if (targ.type.type2 is null) continue;
+
+				auto part = targ.type.type2.typeIdentifierPart;
+				if (part is null) continue;
+
+				auto newArg = GCAllocator.instance.make!(VariableContext.TypeInstance)();
+				newArg.parent = current;
+				current.args ~= newArg;
+
+				if (part.identifierOrTemplateInstance)
+				{
+					processIdentifierOrTemplate(symbol, lookup, ctx, newArg, part.identifierOrTemplateInstance);
+				}
+				if (part.typeIdentifierPart)
+				{
+					if (part.typeIdentifierPart.identifierOrTemplateInstance)
+					{
+						processIdentifierOrTemplate(symbol, lookup, ctx, newArg, part.typeIdentifierPart.identifierOrTemplateInstance);
+					}
+				}
+			}
+		}
+		else if (targs.templateSingleArgument)
+		{
+			auto singleArg = targs.templateSingleArgument;
+			auto arg = GCAllocator.instance.make!(VariableContext.TypeInstance)();
+			arg.parent = current;
+			arg.name = singleArg.token.text;
+			arg.chain ~= arg.name;
+			current.args ~= arg;
+		}
+	}
+
 	void processTemplateInstance(SemanticSymbol* symbol, TypeLookup* lookup, VariableContext* ctx, VariableContext.TypeInstance* current, TemplateInstance ti)
 	{
 		if (ti.identifier != tok!"")
@@ -269,47 +310,7 @@ final class FirstPass : ASTVisitor
 
 		if (ti.templateArguments)
 		{
-			if (ti.templateArguments.templateArgumentList)
-			{
-				foreach(i, targ; ti.templateArguments.templateArgumentList.items)
-				{
-					if (targ.type is null) continue;
-					if (targ.type.type2 is null) continue;
-
-					auto part = targ.type.type2.typeIdentifierPart;
-					if (part is null) continue;
-
-					auto newArg = GCAllocator.instance.make!(VariableContext.TypeInstance)();
-					newArg.parent = current;
-					current.args ~= newArg;
-
-					if (part.identifierOrTemplateInstance)
-					{
-						processIdentifierOrTemplate(symbol, lookup, ctx, newArg, part.identifierOrTemplateInstance);
-					}
-					if (part.typeIdentifierPart)
-					{
-						if (part.typeIdentifierPart.identifierOrTemplateInstance)
-						{
-							processIdentifierOrTemplate(symbol, lookup, ctx, newArg, part.typeIdentifierPart.identifierOrTemplateInstance);
-						}
-
-						if (part.typeIdentifierPart)
-						{
-							error("i should probably handle this");
-						}
-					}
-				}
-			}
-			else if (ti.templateArguments.templateSingleArgument)
-			{
-				auto singleArg = ti.templateArguments.templateSingleArgument;
-				auto arg = GCAllocator.instance.make!(VariableContext.TypeInstance)();
-				arg.parent = current;
-				arg.name = singleArg.token.text;
-				arg.chain ~= arg.name;
-				current.args ~= arg;
-			}
+			processTemplateArguments(symbol, lookup, ctx, current, ti.templateArguments);
 		}
 	}
 
@@ -477,9 +478,9 @@ final class FirstPass : ASTVisitor
 				currentSymbol.addChild(symbol, true);
 				currentScope.addSymbol(symbol.acSymbol, false);
 
-				warning("    part: ", symbol.acSymbol.name);
+				warning("part: ", symbol.acSymbol.name);
 
-				scope(exit) warning("crumbs: ", symbol.typeLookups.front.breadcrumbs[]);
+				scope(exit) warning("crumbs: ".red, symbol.typeLookups.front.breadcrumbs[]);
 
 
 				if (currentSymbol.acSymbol.kind == CompletionKind.structName
@@ -490,18 +491,26 @@ final class FirstPass : ASTVisitor
 					structFieldTypes.insert(null);
 				}
 
+				auto lookup = symbol.typeLookups.front;
+
+				scope(exit) if (lookup.ctx.root) foreach(arg; lookup.ctx.root.args) warning("args: ".red, arg.chain);
+
 				auto initializer = part.initializer.nonVoidInitializer;
-				UnaryExpression unary;
 				if (initializer && initializer.assignExpression)
 				{
-					unary = cast(UnaryExpression) initializer.assignExpression;
+					UnaryExpression unary = cast(UnaryExpression) initializer.assignExpression;
+
+					if (unary && (unary.newExpression || unary.indexExpression))
+					{
+						continue;
+					}
+
+					lookup.breadcrumbs.clear();
 					if (unary)
 					{
 						if (CastExpression castExpression = unary.castExpression)
 						{
 							warning("cast expression");
-							auto lookup = symbol.typeLookups.front;
-							lookup.breadcrumbs.clear();
 							if (castExpression.type && castExpression.type.type2)
 							{
 								Type2 t2 = castExpression.type.type2;
@@ -518,20 +527,14 @@ final class FirstPass : ASTVisitor
 							//if (fc.unaryExpression)
 							//    traverseUnaryExpression(symbol, lookup, &lookup.ctx, unary);
 							unary = fc.unaryExpression;
-						}
-					}
 
-					if (unary
-						&& !unary.indexExpression
-						&& !unary.throwExpression
-						&& !unary.assertExpression
-						&& !unary.argumentList 
-						&& !unary.deleteExpression 
-						&& !unary.newExpression 
-					)
-					{
-						auto lookup = symbol.typeLookups.front;
-						lookup.breadcrumbs.clear();
+							if (fc.templateArguments)
+							{
+								warning("fc template arguments!");
+								// lookup.ctx.root = GCAllocator.instance.make!(VariableContext.TypeInstance)();
+								// processTemplateArguments(symbol, lookup, &lookup.ctx, lookup.ctx.root, fc.templateArguments);
+							}
+						}
 						// build chain
 						traverseUnaryExpression(symbol, lookup, &lookup.ctx, unary);
 						// needs to be reversed because it got added in order (right->left)
@@ -550,49 +553,79 @@ final class FirstPass : ASTVisitor
 						// check template
 						if (IdentifierOrTemplateInstance iot = unary.identifierOrTemplateInstance)
 						{
-
 							auto crumb = iot.identifier;
+							warning("it's iot ", crumb);
+
 							if (crumb != tok!"")
 							{
 								//lookup.breadcrumbs.insert(istring(crumb.text));
 							}
 							else if (iot.templateInstance)
 							{
+								warning("iot template instance");
 								//auto tic = iot.templateInstance.identifier;
 								//warning("template! ", tic.text);
 								//if (tic != tok!"")
 								//	lookup.breadcrumbs.insert(istring(tic.text));
-
 								lookup.ctx.root = GCAllocator.instance.make!(VariableContext.TypeInstance)();
 								processTemplateInstance(symbol, lookup, &lookup.ctx, lookup.ctx.root, iot.templateInstance);
 							}
 						}
+						else if (PrimaryExpression pe = unary.primaryExpression)
+						{
+							if (pe.identifierOrTemplateInstance)
+							{
+								if (pe.identifierOrTemplateInstance.templateInstance)
+								{
+									warning("iot template instance");
+									//auto tic = iot.templateInstance.identifier;
+									//warning("template! ", tic.text);
+									//if (tic != tok!"")
+									//	lookup.breadcrumbs.insert(istring(tic.text));
+									lookup.ctx.root = GCAllocator.instance.make!(VariableContext.TypeInstance)();
+									processTemplateInstance(symbol, lookup, &lookup.ctx, lookup.ctx.root, pe.identifierOrTemplateInstance.templateInstance);
+								}
+							}
+						}
+					}
+					else 
+					{
+						warning("no unary".red);
+					}
+
+					if (unary)
+					{
+					
 					}
 				}
 
 
+
 				import std.string: indexOf;
 
-				if (symbol.acSymbol.name.indexOf("from_auto_two") != -1)
+				if (symbol.acSymbol.name.indexOf("b") != -1)
 				{
 					import core.stdc.stdlib: exit;
-					auto lookup = symbol.typeLookups.front;
-					warning("crumb: ", lookup.breadcrumbs[]);
+						warning("crumb: ", lookup.breadcrumbs[]);
 					if (lookup.ctx.root)
 					{
 						warning("root: ", lookup.ctx.root.chain);
 						foreach(arg; lookup.ctx.root.args)
 							warning("  arg: ", arg.chain);
 					}
+					UnaryExpression unary = cast(UnaryExpression) initializer.assignExpression;
 					if (unary)
 					{
-						warning("  primaryExpression: ", unary.primaryExpression);
-						warning("  indexExpression: ", unary.indexExpression);
-						warning("  throwExpression: ", unary.throwExpression);
-						warning("  assertExpression: ", unary.assertExpression);
-						warning("  argumentList: ", unary.argumentList); 
-						warning("  deleteExpression: ", unary.deleteExpression); 
-						warning("  newExpression: ", unary.newExpression); 
+						warning(" unaryExpression: ", unary.unaryExpression);
+						warning(" newExpression: ", unary.newExpression);
+						warning(" deleteExpression: ", unary.deleteExpression);
+						warning(" castExpression: ", unary.castExpression);
+						warning(" functionCallExpression: ", unary.functionCallExpression);
+						warning(" argumentList: ", unary.argumentList);
+						warning(" identifierOrTemplateInstance: ", unary.identifierOrTemplateInstance);
+						warning(" assertExpression: ", unary.assertExpression);
+						warning(" throwExpression: ", unary.throwExpression);
+						warning(" indexExpression: ", unary.indexExpression);
 					}
 					//exit(0);	
 				}

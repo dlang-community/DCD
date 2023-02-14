@@ -1,47 +1,31 @@
-struct Data
+struct A
 {
-    float inside_data;
-    Inner inner;
+    int inside_a;
 }
-
-struct Inner
+struct B
 {
-    float inside_inner;
+    int inside_b;
 }
-
-struct AganeOne(T)
+struct One(T)
 {
-    T yo;
+    T value_t;
+    One!T one_t;
 }
 
-struct AganeTwo(T, U)
+struct Two(T, U)
 {
-    T yo_T;
-    U yo_U;
+    T value_t;
+    U value_u;
 }
-
-struct Other(T)
-{
-    T what;
-    AganeOne!(T) agane_T;
-    AganeOne!(Inner) agane_inner;
-}
-
-struct One(T){ T inside_one; }
-
-struct Outter {
-    struct Two(T, U){ T agane_one; U agane_two;  One!(T) one_agane_one; }
-}
-
-struct A{ int inside_a;}
-struct B{ int inside_b;}
-
 
 void main()
 {
-    auto from_auto = Outter.Two!(
-                                    AganeOne!(Other!Data),
-                                    AganeTwo!(A, B)
-                                );
-    from_auto.agane_two.yo
+    One!A from_normal_one;
+    Two!(A, B) from_normal_two;
+    {
+        from_normal_one.
+    }
+    {
+        from_normal_two.
+    }
 }
