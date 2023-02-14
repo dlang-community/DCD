@@ -34,9 +34,8 @@ diff actual_2_2.txt expected_2_2.txt --strip-trailing-cr
 
 
 #echo "test5"
-../../bin/dcd-client $1 file3.d --extended -c 144 > actual_3_1.txt
+../../bin/dcd-client $1 file3.d --extended -c 135 > actual_3_1.txt
 diff actual_3_1.txt expected_3_1.txt --strip-trailing-cr
-
 
 
 #echo "test complex"
