@@ -1,9 +1,8 @@
 identifiers
-C	h
-alignof	k
-i	v
-init	k
-mangleof	k
-sizeof	k
-stringof	k
-tupleof	k
+alignof	k			
+i	v	int i	stdin 21	
+init	k			
+mangleof	k			
+sizeof	k			
+stringof	k			
+tupleof	k			
