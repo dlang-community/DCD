@@ -353,13 +353,13 @@ final class FirstPass : ASTVisitor
 		if (IdentifierOrTemplateInstance iot = ue.identifierOrTemplateInstance)
 		{
 			warning("has iot");
-			
-			 auto crumb = iot.identifier;
-			 if (crumb != tok!"")
-			 {
-				 warning(": ", crumb.text);
-				 lookup.breadcrumbs.insert(istring(crumb.text));
-			 }
+			buildChainTemplateOrIdentifier(symbol, lookup, ctx, iot);
+			 //auto crumb = iot.identifier;
+			 //if (crumb != tok!"")
+			 //{
+			//	 warning(": ", crumb.text);
+			//	 lookup.breadcrumbs.insert(istring(crumb.text));
+			 //}
 		}
 
 		if(ue.unaryExpression) traverseUnaryExpression(symbol, lookup, ctx, ue.unaryExpression);
@@ -420,12 +420,26 @@ final class FirstPass : ASTVisitor
 				currentScope.addSymbol(symbol.acSymbol, false);
 
 				warning("    part: ", symbol.acSymbol.name);
+
 				scope(exit) warning("crumbs: ", symbol.typeLookups.front.breadcrumbs[]);
+
+
+				if (currentSymbol.acSymbol.kind == CompletionKind.structName
+					|| currentSymbol.acSymbol.kind == CompletionKind.unionName)
+				{
+					structFieldNames.insert(symbol.acSymbol.name);
+					// TODO: remove this cast. See the note on structFieldTypes
+					structFieldTypes.insert(null);
+				}
+
 
 				// for auto declaration, we'll properly traverse the initializer
 				// and set the proper crumbs instead of using just the first one
 				// so we can handle things like cast/templates
 				auto lookup = symbol.typeLookups.front;
+				istring[] copy;
+				foreach(crumb; lookup.breadcrumbs[])
+					copy ~= crumb;
 				lookup.breadcrumbs.clear();
 
 				auto initializer = part.initializer.nonVoidInitializer;
@@ -479,13 +493,14 @@ final class FirstPass : ASTVisitor
 							auto crumb = iot.identifier;
 							if (crumb != tok!"")
 							{
-								lookup.breadcrumbs.insert(istring(crumb.text));
+								//lookup.breadcrumbs.insert(istring(crumb.text));
 							}
 							else if (iot.templateInstance)
 							{
-								auto tic = iot.templateInstance.identifier;
-								warning("template! ", tic.text);
-								lookup.breadcrumbs.insert(istring(tic.text));
+								//auto tic = iot.templateInstance.identifier;
+								//warning("template! ", tic.text);
+								//if (tic != tok!"")
+								//	lookup.breadcrumbs.insert(istring(tic.text));
 
 								lookup.ctx.root = GCAllocator.instance.make!(VariableContext.TypeInstance)();
 								processTemplateInstance(symbol, lookup, &lookup.ctx, lookup.ctx.root, iot.templateInstance);
@@ -494,12 +509,15 @@ final class FirstPass : ASTVisitor
 					}
 				}
 
-				if (currentSymbol.acSymbol.kind == CompletionKind.structName
-					|| currentSymbol.acSymbol.kind == CompletionKind.unionName)
+				if (symbol.acSymbol.name == "it")
 				{
-					structFieldNames.insert(symbol.acSymbol.name);
-					// TODO: remove this cast. See the note on structFieldTypes
-					structFieldTypes.insert(null);
+					import core.stdc.stdlib: exit;
+					warning("crumb: ", lookup.breadcrumbs[]);
+
+					warning("root: ", lookup.ctx.root.chain);
+					foreach(arg; lookup.ctx.root.args)
+						warning("  arg: ", arg.chain);
+					//exit(0);	
 				}
 			}
 		}

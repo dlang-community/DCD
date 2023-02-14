@@ -35,6 +35,8 @@ import std.experimental.logger;
 import dparse.ast;
 import dparse.lexer;
 
+//package void warning(A...)(A args){}
+
 void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCache cache)
 {
 	with (CompletionKind) final switch (currentSymbol.acSymbol.kind)
@@ -63,7 +65,7 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 			if (lookup.ctx.root)
 			{	
 				auto type = currentSymbol.acSymbol.type;
-				if (type.kind == structName || type.kind == className)
+				if (type.kind == structName || type.kind == className || (type.kind == functionName))
 				if (lookup.ctx.root.args.length > 0)
 				{
 					DSymbol*[string] mapping;
@@ -118,6 +120,31 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 	default:
 		break;
 	}
+}
+
+
+string extractReturnType(string callTip)
+{
+	import std.string: indexOf;
+
+	auto spaceIndex = callTip.indexOf(" ");
+	if (spaceIndex <= 0) return "";
+
+	auto retPart = callTip[0 .. spaceIndex];
+	auto returnTypeConst = retPart.length > 6 ? retPart[0 .. 6] == "const(" : false;
+	auto returnTypeInout = retPart.length > 6 ? retPart[0 .. 6] == "inout(" : false;
+	if (returnTypeConst || returnTypeInout)
+	{
+		retPart = retPart[retPart.indexOf("(") + 1 .. $];
+		retPart = retPart[0 .. retPart.indexOf(")")];
+	}
+	auto returnTypePtr = retPart[$-1] == '*';
+	auto returnTypeArr = retPart[$-1] == ']';
+	if (returnTypePtr)
+	{
+		retPart = retPart[0 .. $-1];
+	}
+	return retPart;
 }
 
 DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableContext.TypeInstance* ti, ref ModuleCache cache, Scope* moduleScope, ref int depth, DSymbol*[string] m)
@@ -209,11 +236,31 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 	}
 	
 
+	// HACK: to support functions with template arguments that return a generic type
+	// first.d in processParameters only store the function's return type in the callTip
+	// maybe it's time to properly handle it by creating a proper symbol, so we can have
+	// proper support for functions that return complex types such as templates
+	if (type.kind == CompletionKind.functionName)
+	{
+		auto callTip = type.callTip;
+		if (callTip.length > 1)
+		{
+			auto retType = extractReturnType(callTip);
+			if (retType in mapping)
+			{
+				newType.type = mapping[retType];
+			}
+		}
+	}
+
 	assert(newType);
-	warning("process parts..");
+	warning("process parts.. for type: ", type.name, ":", type.kind);
+	if (type.type)
+		warning ("  >>>>>>".red, type.type.name);
 	string[] T_names;
 	foreach(part; type.opSlice())
 	{
+		warning("part: ", part.name, ":",part.kind, " t: ", part.type?part.type.name:"");
 		if (part.kind == CompletionKind.typeTmpParam)
 		{
 			warning("    #", count, " ", part.name);
@@ -244,6 +291,7 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 			}
 			else
 				error("         mapping not found: ".red, part.type.name," type: ", type.name, " cur: ", ti.chain, "args: ", ti.args);
+
 			newType.addChild(newPart, true);
 		}
 		else
