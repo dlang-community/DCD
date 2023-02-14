@@ -260,7 +260,16 @@ final class FirstPass : ASTVisitor
 				if (targ.type.type2 is null) continue;
 
 				auto part = targ.type.type2.typeIdentifierPart;
-				if (part is null) continue;
+				if (part is null)
+				{
+					if (targ.type.type2.builtinType == tok!"") continue;
+					auto builtInName = getBuiltinTypeName(targ.type.type2.builtinType);
+					auto newArg = GCAllocator.instance.make!(VariableContext.TypeInstance)();
+					newArg.parent = current;
+					newArg.chain ~= builtInName;
+					current.args ~= newArg;
+					continue;
+				}
 
 				auto newArg = GCAllocator.instance.make!(VariableContext.TypeInstance)();
 				newArg.parent = current;
