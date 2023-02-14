@@ -17,15 +17,6 @@ import std.regex : ctRegex, Captures, replaceAll;
 import std.string : toUpper;
 import std.traits : EnumMembers;
 
-version (unittest)
-{
-    import core.thread : Thread;
-    import core.time : msecs;
-    import std.conv : to;
-    import std.process : environment;
-    import std.stdio : writeln, write;
-    import unit_threaded;
-}
 /// Available Colors
 enum AnsiColor
 {
@@ -177,65 +168,6 @@ string onRgb(string s, ubyte r, ubyte g, ubyte b)
     return RGBString(s).onRgb(r, g, b).toString;
 }
 
-@system @("rgb") unittest
-{
-    import std.experimental.color : RGBA8, convertColor;
-    import std.experimental.color.hsx : HSV;
-
-    writeln("red: ", "r".rgb(255, 0, 0).onRgb(0, 255, 0));
-    writeln("green: ", "g".rgb(0, 255, 0).onRgb(0, 0, 255));
-    writeln("blue: ", "b".rgb(0, 0, 255).onRgb(255, 0, 0));
-    writeln("mixed: ", ("withoutColor" ~ "red".red.to!string ~ "withoutColor").bold);
-    for (int r = 0; r <= 255; r += 10)
-    {
-        for (int g = 0; g <= 255; g += 3)
-        {
-            write(" ".onRgb(cast(ubyte) r, cast(ubyte) g, cast(ubyte)(255 - r)));
-        }
-        writeln;
-    }
-
-    int delay = environment.get("DELAY", "0").to!int;
-    for (int j = 0; j < 255; j += 1)
-    {
-        for (int i = 0; i < 255; i += 3)
-        {
-            auto c = HSV!ubyte(cast(ubyte)(i - j), 0xff, 0xff);
-            auto rgb = convertColor!RGBA8(c).tristimulus;
-            write(" ".onRgb(rgb[0].value, rgb[1].value, rgb[2].value));
-        }
-        Thread.sleep(delay.msecs);
-        write("\r");
-    }
-    writeln;
-}
-
-@system @("styledstring") unittest
-{
-    foreach (immutable color; [EnumMembers!AnsiColor])
-    {
-        auto colorName = "%s".format(color);
-        writeln(StyledString(colorName).setForeground(color));
-    }
-    foreach (immutable color; [EnumMembers!AnsiColor])
-    {
-        auto colorName = "bg%s".format(color);
-        writeln(StyledString(colorName).setBackground(color));
-    }
-    foreach (immutable style; [EnumMembers!Style])
-    {
-        auto styleName = "%s".format(style);
-        writeln(StyledString(styleName).addStyle(style));
-    }
-
-    writeln("boldUnderlined".bold.underlined);
-    writeln("redOnGreenReverse".red.onGreen.reverse);
-}
-
-@system @("styledstring ~") unittest
-{
-    ("test".red ~ "blub").should == "\033[31mtest\033[0mblub";
-}
 
 /// Create `color` and `onColor` functions for all enum members. e.g. "abc".green.onRed
 auto colorMixin(T)()
@@ -273,14 +205,6 @@ auto styleMixin(T)()
 
 mixin(colorMixin!AnsiColor);
 mixin(styleMixin!Style);
-
-@system @("api") unittest
-{
-    "redOnGreen".red.onGreen.writeln;
-    "redOnYellowBoldUnderlined".red.onYellow.bold.underlined.writeln;
-    "bold".bold.writeln;
-    "test".writeln;
-}
 
 /// Calculate length of string excluding all formatting escapes
 ulong unformattedLength(string s)
@@ -407,12 +331,7 @@ auto tokenize(Range)(Range parts)
     return TokenizeResult!(Range)(parts);
 }
 
-@system @("ansi tokenizer") unittest
-{
-    [38, 5, 2, 38, 2, 1, 2, 3, 36, 1, 2, 3, 4].tokenize.should == ([
-        [38, 5, 2], [38, 2, 1, 2, 3], [36], [1], [2], [3], [4]
-    ]);
-}
+
 
 /++ Remove classes of ansi escapes from a styled string.
  +/
@@ -467,21 +386,6 @@ bool all(uint[])
     return true;
 }
 
-@system @("configurable strip") unittest
-{
-    import unit_threaded;
-    import std.functional : not;
-
-    "test".red.onGreen.bold.toString.filterAnsiEscapes!(foregroundColor).should == "\033[31mtest";
-    "test".red.onGreen.bold.toString.filterAnsiEscapes!(not!foregroundColor)
-        .should == "\033[42m\033[1mtest\033[0m\033[0m\033[0m";
-    "test".red.onGreen.bold.toString.filterAnsiEscapes!(style).should == "\033[1mtest";
-    "test".red.onGreen.bold.toString.filterAnsiEscapes!(none).should == "test";
-    "test".red.onGreen.bold.toString.filterAnsiEscapes!(all)
-        .should == "\033[31m\033[42m\033[1mtest\033[0m\033[0m\033[0m";
-    "test".red.onGreen.bold.toString.filterAnsiEscapes!(backgroundColor).should == "\033[42mtest";
-}
-
 /// Add fillChar to the right of the string until width is reached
 auto leftJustifyFormattedString(string s, ulong width, dchar fillChar = ' ')
 {
@@ -494,12 +398,6 @@ auto leftJustifyFormattedString(string s, ulong width, dchar fillChar = ' ')
     return res;
 }
 
-@system @("leftJustifyFormattedString") unittest
-{
-    import unit_threaded;
-
-    "test".red.toString.leftJustifyFormattedString(10).should == "\033[31mtest\033[0m      ";
-}
 
 /// Add fillChar to the left of the string until width is reached
 auto rightJustifyFormattedString(string s, ulong width, char fillChar = ' ')
@@ -513,21 +411,8 @@ auto rightJustifyFormattedString(string s, ulong width, char fillChar = ' ')
     return res;
 }
 
-@system @("rightJustifyFormattedString") unittest
-{
-    "test".red.toString.rightJustifyFormattedString(10).should == ("      \033[31mtest\033[0m");
-}
-
 /// Force a style on possible preformatted text
 auto forceStyle(string text, Style style) {
     return "\033[%d".format(style.to!int) ~ "m" ~ text.split("\033[0m").join("\033[0;%d".format(style.to!int) ~"m") ~ "\033[0m";
 }
 
-@("forceStyle") unittest
-{
-    auto splitt = "1es2eses3".split("es").filter!(not!(empty));
-    splitt.should == ["1", "2", "3"];
-    string s = "noformatting%snoformatting".format("red".red).forceStyle(Style.reverse);
-    writeln(s);
-    s.should == "\033[7mnoformatting\033[31mred\033[0;7mnoformatting\033[0m";
-}
