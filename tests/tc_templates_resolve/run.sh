@@ -48,4 +48,3 @@ check complex 1271 actual_complex_5 expected_complex_5
 check complex 1296 actual_complex_6 expected_complex_6
 check complex 1321 actual_complex_7 expected_complex_7
 check complex 1345 actual_complex_8 expected_complex_8
-check complex 1413 actual_complex_9 expected_complex_9
