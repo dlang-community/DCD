@@ -1,6 +1,6 @@
 module dsymbol.coloredlogger;
 
-import std.logger;
+import std.experimental.logger;
 import std.stdio;
 import std.concurrency;
 import std.datetime;
