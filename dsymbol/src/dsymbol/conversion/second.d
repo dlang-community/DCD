@@ -95,8 +95,22 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 		break;
 	}
 
+	// let's be methodic about the way we traverse symbols
+	// so that childs have access to resolved symbols
+	// functions should be last, because inside, there might be symbols that references
+	// code from the parent not yet resolved (templates)
 	foreach (child; currentSymbol.children)
-		secondPass(child, moduleScope, cache);
+		if (child.acSymbol.kind != CompletionKind.variableName && child.acSymbol.kind != CompletionKind.functionName)
+			secondPass(child, moduleScope, cache);
+
+	foreach (child; currentSymbol.children)
+		if (child.acSymbol.kind == CompletionKind.variableName)
+			secondPass(child, moduleScope, cache);
+
+	foreach (child; currentSymbol.children)
+		if (child.acSymbol.kind == CompletionKind.functionName)
+			secondPass(child, moduleScope, cache);
+
 
 	// Alias this and mixin templates are resolved after child nodes are
 	// resolved so that the correct symbol information will be available.
