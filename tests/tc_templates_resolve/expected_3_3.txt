@@ -1,0 +1,9 @@
+identifiers
+alignof	k			
+init	k			
+mangleof	k			
+sizeof	k			
+stringof	k			
+tupleof	k			
+value_key	v	int value_key	stdin 0	
+value_value	v	int value_value	stdin 0	

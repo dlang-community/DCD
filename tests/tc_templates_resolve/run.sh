@@ -13,29 +13,39 @@ function check () {
 
 
 #echo "test1"
-../../bin/dcd-client $1 file1.d --extended -c 280 > actual_1_1.txt
-diff actual_1_1.txt expected_1_1.txt --strip-trailing-cr
+check file1 280 actual_1_1 expected_1_1
 
 
 #echo "test2"
-../../bin/dcd-client $1 file1.d --extended -c 315 > actual_1_2.txt
-diff actual_1_2.txt expected_1_2.txt --strip-trailing-cr
-
+check file1 315 actual_1_2 expected_1_2
 
 
 #echo "test3"
-../../bin/dcd-client $1 file2.d --extended -c 268 > actual_2_1.txt
-diff actual_2_1.txt expected_2_1.txt --strip-trailing-cr
+check file2 268 actual_2_1 expected_2_1
 
 
 #echo "test4"
-../../bin/dcd-client $1 file2.d --extended -c 305 > actual_2_2.txt
-diff actual_2_2.txt expected_2_2.txt --strip-trailing-cr
+check file2 305 actual_2_2 expected_2_2
 
 
 #echo "test5"
-../../bin/dcd-client $1 file3.d --extended -c 135 > actual_3_1.txt
-diff actual_3_1.txt expected_3_1.txt --strip-trailing-cr
+check file3 195 actual_3_1 expected_3_1
+
+
+#echo "test6"
+check file3 246 actual_3_2 expected_3_2
+
+
+#echo "test7"
+check file3 274 actual_3_3 expected_3_3
+
+
+#echo "test8"
+check file3 328 actual_3_4 expected_3_4
+
+
+#echo "test9"
+check file3 433 actual_3_5 expected_3_5
 
 
 #echo "test complex"
