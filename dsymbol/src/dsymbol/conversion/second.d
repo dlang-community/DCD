@@ -247,7 +247,11 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 		{
 			auto retType = extractReturnType(callTip);
 			if (retType in mapping)
-				newType.type = mapping[retType];
+			{
+				auto result = mapping[retType];
+				newType.ownType = result.kind == CompletionKind.keyword ? false : true;
+				newType.type = result;
+			}
 		}
 	}
 
@@ -270,13 +274,15 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 
 			if (part.type.name in mapping)
 			{
-				newPart.ownType = true;
-				newPart.type = mapping[part.type.name];
+				auto result = mapping[part.type.name];
+				newPart.ownType = result.kind == CompletionKind.keyword ? false : true;
+				newPart.type = result;
 			}
 			else if (m && part.type.name in m)
 			{
-				newPart.ownType = true;
-				newPart.type = m[part.type.name];
+				auto result =  m[part.type.name];
+				newPart.ownType = result.kind == CompletionKind.keyword ? false : true;
+				newPart.type = result;
 			}
 
 			newType.addChild(newPart, true);
