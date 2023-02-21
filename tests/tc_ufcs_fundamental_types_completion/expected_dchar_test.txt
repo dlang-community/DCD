@@ -6,4 +6,5 @@ max	k
 min	k
 sizeof	k
 someDchar	F
+someUint	F
 stringof	k

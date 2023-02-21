@@ -13,6 +13,19 @@ import std.string;
 import dparse.lexer : tok;
 import std.regex;
 import containers.hashset : HashSet;
+import dparse.ast;
+
+// https://dlang.org/spec/type.html#implicit-conversions
+enum string[string] INTEGER_PROMOTIONS = [
+        "bool": "int",
+        "byte": "int",
+        "ubyte": "int",
+        "short": "int",
+        "ushort": "int",
+        "char": "int",
+        "wchar": "int",
+        "dchar": "uint",
+    ];
 
 void lookupUFCS(Scope* completionScope, DSymbol* beforeDotSymbol, size_t cursorPosition, ref AutocompleteResponse response)
 {
@@ -106,6 +119,19 @@ DSymbol*[] getSymbolsForUFCS(Scope* completionScope, const(DSymbol)* beforeDotSy
     return localAppender.opSlice ~ globalAppender.opSlice;
 }
 
+bool willImplicitBeUpcasted(string from, string to)
+{
+    import std.stdio;
+
+    string* found = from in INTEGER_PROMOTIONS;
+    if (!found)
+    {
+        return false;
+    }
+
+    return INTEGER_PROMOTIONS[from] == to;
+}
+
 /**
  * Params:
  *     incomingSymbol = the function symbol to check if it is valid for UFCS with `beforeDotType`.
@@ -126,7 +152,8 @@ bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDot
     if (incomingSymbol.kind == CompletionKind.functionName && !incomingSymbol
         .functionParameters.empty)
     {
-        return incomingSymbol.functionParameters.front.type is beforeDotType;
+        return beforeDotType is incomingSymbol.functionParameters.front.type ||
+            willImplicitBeUpcasted(beforeDotType.name, incomingSymbol.functionParameters.front.type.name);
     }
 
     return false;
@@ -180,7 +207,8 @@ void getUFCSParenCompletion(ref DSymbol*[] symbols, Scope* completionScope, istr
         return;
 
     DSymbol*[] possibleUFCSSymbol = completionScope.getSymbolsByNameAndCursor(nextToken, cursorPosition);
-    foreach(nextSymbol; possibleUFCSSymbol){
+    foreach (nextSymbol; possibleUFCSSymbol)
+    {
         if (nextSymbol && nextSymbol.functionParameters)
         {
             if (nextSymbol.isCallableWithArg(firstSymbol.type))
@@ -190,4 +218,10 @@ void getUFCSParenCompletion(ref DSymbol*[] symbols, Scope* completionScope, istr
             }
         }
     }
+}
+
+unittest
+{
+    assert(!willImplicitBeUpcasted("A", "B"));
+    assert(willImplicitBeUpcasted("bool", "int"));
 }
