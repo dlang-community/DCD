@@ -6,4 +6,5 @@ max	k
 min	k
 sizeof	k
 someBool	F
+someInt	F
 stringof	k

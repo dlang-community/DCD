@@ -6,4 +6,5 @@ max	k
 min	k
 sizeof	k
 someByte	F
+someInt	F
 stringof	k
