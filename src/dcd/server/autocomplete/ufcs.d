@@ -129,12 +129,17 @@ bool willImplicitBeUpcasted(string from, string to)
     return INTEGER_PROMOTIONS[from] == to;
 }
 
-bool matchAliasThis(const(DSymbol)* aliasThisSymbol, const(DSymbol)* incomingSymbol)
+bool matchAliasThis(const(DSymbol)* beforeDotType, const(DSymbol)* incomingSymbol)
 {
-    if(aliasThisSymbol) {
-        return isCallableWithArg(incomingSymbol, aliasThisSymbol.type);
+    // For now we are only resolving the first alias this symbol
+    // when multiple alias this are supported, we can rethink another solution
+    if (!beforeDotType.aliasThisSymbols
+        || !beforeDotType.aliasThisSymbols.front
+        || beforeDotType.aliasThisSymbols.front == beforeDotType)
+    {
+        return false;
     }
-    return false;
+    return isCallableWithArg(incomingSymbol, beforeDotType.aliasThisSymbols.front.type);
 }
 
 /**
@@ -157,9 +162,10 @@ bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDot
     if (incomingSymbol.kind == CompletionKind.functionName && !incomingSymbol
         .functionParameters.empty)
     {
-        return beforeDotType is incomingSymbol.functionParameters.front.type 
-            || willImplicitBeUpcasted(beforeDotType.name, incomingSymbol.functionParameters.front.type.name) 
-            || matchAliasThis(beforeDotType.aliasThisSymbol, incomingSymbol);
+        return beforeDotType is incomingSymbol.functionParameters.front.type
+            || willImplicitBeUpcasted(beforeDotType.name, incomingSymbol
+                    .functionParameters.front.type.name)
+            || matchAliasThis(beforeDotType, incomingSymbol);
 
     }
 
@@ -208,12 +214,14 @@ bool doUFCSSearch(string beforeToken, string lastToken)
 
 void getUFCSParenCompletion(ref DSymbol*[] symbols, Scope* completionScope, istring firstToken, istring nextToken, size_t cursorPosition)
 {
-    DSymbol* firstSymbol = completionScope.getFirstSymbolByNameAndCursor(firstToken, cursorPosition);
+    DSymbol* firstSymbol = completionScope.getFirstSymbolByNameAndCursor(
+        firstToken, cursorPosition);
 
     if (firstSymbol is null)
         return;
 
-    DSymbol*[] possibleUFCSSymbol = completionScope.getSymbolsByNameAndCursor(nextToken, cursorPosition);
+    DSymbol*[] possibleUFCSSymbol = completionScope.getSymbolsByNameAndCursor(
+        nextToken, cursorPosition);
     foreach (nextSymbol; possibleUFCSSymbol)
     {
         if (nextSymbol && nextSymbol.functionParameters)
