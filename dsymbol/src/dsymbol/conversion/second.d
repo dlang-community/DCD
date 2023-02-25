@@ -362,6 +362,9 @@ void resolveAliasThis(DSymbol* symbol,
 		auto parts = symbol.getPartsByName(aliasThis.breadcrumbs.front);
 		if (parts.length == 0 || parts[0].type is null)
 			continue;
+
+		symbol.aliasThisSymbol = parts[0];
+
 		DSymbol* s = GCAllocator.instance.make!DSymbol(IMPORT_SYMBOL_NAME,
 			CompletionKind.importSymbol, parts[0].type);
 		symbol.addChild(s, true);

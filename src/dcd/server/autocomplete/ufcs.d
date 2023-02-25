@@ -13,7 +13,6 @@ import std.string;
 import dparse.lexer : tok;
 import std.regex;
 import containers.hashset : HashSet;
-import dparse.ast;
 
 // https://dlang.org/spec/type.html#implicit-conversions
 enum string[string] INTEGER_PROMOTIONS = [
@@ -121,8 +120,6 @@ DSymbol*[] getSymbolsForUFCS(Scope* completionScope, const(DSymbol)* beforeDotSy
 
 bool willImplicitBeUpcasted(string from, string to)
 {
-    import std.stdio;
-
     string* found = from in INTEGER_PROMOTIONS;
     if (!found)
     {
@@ -130,6 +127,14 @@ bool willImplicitBeUpcasted(string from, string to)
     }
 
     return INTEGER_PROMOTIONS[from] == to;
+}
+
+bool matchAliasThis(const(DSymbol)* aliasThisSymbol, const(DSymbol)* incomingSymbol)
+{
+    if(aliasThisSymbol) {
+        return isCallableWithArg(incomingSymbol, aliasThisSymbol.type);
+    }
+    return false;
 }
 
 /**
@@ -152,8 +157,10 @@ bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDot
     if (incomingSymbol.kind == CompletionKind.functionName && !incomingSymbol
         .functionParameters.empty)
     {
-        return beforeDotType is incomingSymbol.functionParameters.front.type ||
-            willImplicitBeUpcasted(beforeDotType.name, incomingSymbol.functionParameters.front.type.name);
+        return beforeDotType is incomingSymbol.functionParameters.front.type 
+            || willImplicitBeUpcasted(beforeDotType.name, incomingSymbol.functionParameters.front.type.name) 
+            || matchAliasThis(beforeDotType.aliasThisSymbol, incomingSymbol);
+
     }
 
     return false;

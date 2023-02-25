@@ -5,7 +5,7 @@ struct Foo {
 }
 
 struct IntAliased {
-    int x;
+    short x;
     alias x this;
 }
 
@@ -19,4 +19,5 @@ void ufcsBarRefImmuttableWrapped(ref immutable(Foo) foo, string mama) {}
 void ufcsBarScope(ref scope Foo foo, string mama) {}
 void ufcsBarReturnScope(return scope Foo foo, string mama) {}
 void ufcsSomeInt(int x) {}
+void ufcsSomeShort(short x) {}
 private void ufcsBarPrivate(Foo foo, string message) {}
