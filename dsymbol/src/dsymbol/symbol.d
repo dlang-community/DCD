@@ -375,6 +375,8 @@ struct DSymbol
 	// TODO: assert that the type is not a function
 	DSymbol* type;
 
+	// Is using alias this
+	DSymbol* aliasThisSymbol;
 	/**
 	 * Names of function arguments
 	 */
