@@ -146,7 +146,8 @@ do
 	{
 		if (moduleSymbol is null)
 		{
-			DeferredSymbol* deferred = DeferredSymbolsAllocator.instance.make!DeferredSymbol(acSymbol);
+			DeferredSymbol* deferred = DeferredSymbolsAllocator.instance.make!DeferredSymbol(
+				acSymbol);
 			cache.deferredSymbols.insert(deferred);
 		}
 		else
@@ -188,8 +189,8 @@ do
 		}
 		if (!isArr && !isAssoc && !isFunction)
 			break;
-		immutable qualifier = isAssoc ? SymbolQualifier.assocArray :
-			(isFunction ? SymbolQualifier.func : SymbolQualifier.array);
+		immutable qualifier = isAssoc ? SymbolQualifier.assocArray
+			: (isFunction ? SymbolQualifier.func : SymbolQualifier.array);
 		lastSuffix = GCAllocator.instance.make!DSymbol(back, CompletionKind.dummy, lastSuffix);
 		lastSuffix.qualifier = qualifier;
 		lastSuffix.ownType = true;
@@ -282,7 +283,7 @@ do
 		symbol.ownType = true;
 		if (currentSymbol is null && !remainingImports.empty)
 		{
-//			info("Deferring type resolution for ", symbol.name);
+			//			info("Deferring type resolution for ", symbol.name);
 			auto deferred = DeferredSymbolsAllocator.instance.make!DeferredSymbol(suffix);
 			// TODO: The scope has ownership of the import information
 			deferred.imports.insert(remainingImports[]);
@@ -298,7 +299,7 @@ do
 	else if (!remainingImports.empty)
 	{
 		auto deferred = DeferredSymbolsAllocator.instance.make!DeferredSymbol(symbol);
-//		info("Deferring type resolution for ", symbol.name);
+		//		info("Deferring type resolution for ", symbol.name);
 		// TODO: The scope has ownership of the import information
 		deferred.imports.insert(remainingImports[]);
 		deferred.typeLookups.insert(lookup);
@@ -355,6 +356,7 @@ void resolveAliasThis(DSymbol* symbol,
 	ref TypeLookups typeLookups, Scope* moduleScope, ref ModuleCache cache)
 {
 	import std.algorithm : filter;
+	import std.array : array;
 
 	foreach (aliasThis; typeLookups[].filter!(a => a.kind == TypeLookupKind.aliasThis))
 	{
@@ -363,7 +365,7 @@ void resolveAliasThis(DSymbol* symbol,
 		if (parts.length == 0 || parts[0].type is null)
 			continue;
 
-		symbol.aliasThisSymbol = parts[0];
+		symbol.aliasThisSymbols ~= parts;
 
 		DSymbol* s = GCAllocator.instance.make!DSymbol(IMPORT_SYMBOL_NAME,
 			CompletionKind.importSymbol, parts[0].type);
@@ -430,7 +432,6 @@ void resolveType(DSymbol* symbol, ref TypeLookups typeLookups,
 		assert(false, "How did this happen?");
 }
 
-
 void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 	Scope* moduleScope, ref ModuleCache cache)
 {
@@ -450,8 +451,7 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 			if (currentSymbol is null)
 				return;
 		}
-		else
-		if (crumb == ARRAY_LITERAL_SYMBOL_NAME)
+		else if (crumb == ARRAY_LITERAL_SYMBOL_NAME)
 		{
 			auto arr = GCAllocator.instance.make!(DSymbol)(ARRAY_LITERAL_SYMBOL_NAME, CompletionKind.dummy, currentSymbol);
 			arr.qualifier = SymbolQualifier.array;
@@ -465,8 +465,8 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 
 			// Index expressions can be an array index or an AA index
 			if (currentSymbol.qualifier == SymbolQualifier.array
-					|| currentSymbol.qualifier == SymbolQualifier.assocArray
-					|| currentSymbol.kind == CompletionKind.aliasName)
+				|| currentSymbol.qualifier == SymbolQualifier.assocArray
+				|| currentSymbol.kind == CompletionKind.aliasName)
 			{
 				if (currentSymbol.type !is null)
 					currentSymbol = currentSymbol.type;
@@ -488,7 +488,7 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 			if (currentSymbol is null)
 				return;
 			if (currentSymbol.qualifier == SymbolQualifier.array
-					|| currentSymbol.qualifier == SymbolQualifier.assocArray)
+				|| currentSymbol.qualifier == SymbolQualifier.assocArray)
 			{
 				currentSymbol = currentSymbol.type;
 				break;
@@ -509,7 +509,7 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 		else
 		{
 			typeSwap(currentSymbol);
-			if (currentSymbol is null )
+			if (currentSymbol is null)
 				return;
 			currentSymbol = currentSymbol.getFirstPartNamed(crumb);
 		}
@@ -525,7 +525,7 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 void typeSwap(ref DSymbol* currentSymbol)
 {
 	while (currentSymbol !is null && currentSymbol.type !is currentSymbol
-			&& (currentSymbol.kind == CompletionKind.variableName
+		&& (currentSymbol.kind == CompletionKind.variableName
 			|| currentSymbol.kind == CompletionKind.importSymbol
 			|| currentSymbol.kind == CompletionKind.withSymbol
 			|| currentSymbol.kind == CompletionKind.aliasName))

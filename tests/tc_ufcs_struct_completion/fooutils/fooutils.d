@@ -20,4 +20,5 @@ void ufcsBarScope(ref scope Foo foo, string mama) {}
 void ufcsBarReturnScope(return scope Foo foo, string mama) {}
 void ufcsSomeInt(int x) {}
 void ufcsSomeShort(short x) {}
+void ufcsExactAliasedType(IntAliased x) {}
 private void ufcsBarPrivate(Foo foo, string message) {}
