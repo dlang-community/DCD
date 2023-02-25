@@ -26,6 +26,8 @@ enum string[string] INTEGER_PROMOTIONS = [
         "dchar": "uint",
     ];
 
+enum MAX_RECURSION_DEPTH = 50;
+
 void lookupUFCS(Scope* completionScope, DSymbol* beforeDotSymbol, size_t cursorPosition, ref AutocompleteResponse response)
 {
     // UFCS completion
@@ -129,17 +131,19 @@ bool willImplicitBeUpcasted(string from, string to)
     return INTEGER_PROMOTIONS[from] == to;
 }
 
-bool matchAliasThis(const(DSymbol)* beforeDotType, const(DSymbol)* incomingSymbol)
+bool matchAliasThis(const(DSymbol)* beforeDotType, const(DSymbol)* incomingSymbol, int recursionDepth)
 {
     // For now we are only resolving the first alias this symbol
     // when multiple alias this are supported, we can rethink another solution
-    if (!beforeDotType.aliasThisSymbols
-        || !beforeDotType.aliasThisSymbols.front
-        || beforeDotType.aliasThisSymbols.front == beforeDotType)
+    if (beforeDotType.aliasThisSymbols.empty || beforeDotType.aliasThisSymbols.front == beforeDotType)
     {
         return false;
     }
-    return isCallableWithArg(incomingSymbol, beforeDotType.aliasThisSymbols.front.type);
+
+    //Incrementing depth count to ensure we don't run into an infinite loop
+    recursionDepth++;
+
+    return isCallableWithArg(incomingSymbol, beforeDotType.aliasThisSymbols.front.type, false, recursionDepth);
 }
 
 /**
@@ -151,10 +155,10 @@ bool matchAliasThis(const(DSymbol)* beforeDotType, const(DSymbol)* incomingSymbo
  *     `true` if `incomingSymbols`' first parameter matches `beforeDotType`
  *     `false` otherwise
  */
-bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDotType, bool isGlobalScope = false)
+bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDotType, bool isGlobalScope = false, int recursionDepth = 0)
 {
     if (!incomingSymbol || !beforeDotType
-        || (isGlobalScope && incomingSymbol.protection == tok!"private"))
+        || (isGlobalScope && incomingSymbol.protection == tok!"private") || recursionDepth > MAX_RECURSION_DEPTH)
     {
         return false;
     }
@@ -165,7 +169,7 @@ bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDot
         return beforeDotType is incomingSymbol.functionParameters.front.type
             || willImplicitBeUpcasted(beforeDotType.name, incomingSymbol
                     .functionParameters.front.type.name)
-            || matchAliasThis(beforeDotType, incomingSymbol);
+            || matchAliasThis(beforeDotType, incomingSymbol, recursionDepth);
 
     }
 
