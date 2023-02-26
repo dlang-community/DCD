@@ -37,6 +37,7 @@ import std.experimental.allocator;
 import std.experimental.allocator.gc_allocator : GCAllocator;
 import std.experimental.logger;
 import std.typecons : Rebindable;
+import std.array : appender;
 
 /**
  * First Pass handles the following:
@@ -148,6 +149,11 @@ final class FirstPass : ASTVisitor
 			processParameters(currentSymbol, dec.returnType,
 					currentSymbol.acSymbol.name, dec.parameters, dec.templateParameters);
 		}
+		auto app = appender!string();
+		app.formatNode(dec.returnType);
+
+		currentSymbol.typeLookups.insert(TypeLookupsAllocator.instance.make!TypeLookup(
+				istring(app.data), TypeLookupKind.returnType));
 	}
 
 	override void visit(const FunctionLiteralExpression exp)
@@ -778,7 +784,6 @@ private:
 
 	void createConstructor()
 	{
-		import std.array : appender;
 		import std.range : zip;
 
 		auto app = appender!string();
@@ -1064,7 +1069,6 @@ private:
 	istring formatCallTip(const Type returnType, string name,
 		const Parameters parameters, const TemplateParameters templateParameters)
 	{
-		import std.array : appender;
 
 		auto app = appender!string();
 		if (returnType !is null)
@@ -1136,7 +1140,6 @@ private:
 				lookup.breadcrumbs.insert(POINTER_SYMBOL_NAME);
 			else if (suffix.delegateOrFunction != tok!"")
 			{
-				import std.array : appender;
 				auto app = appender!string();
 				formatNode(app, type);
 				istring callTip = istring(app.data);
@@ -1341,7 +1344,6 @@ void writeIotcTo(T)(const IdentifierOrTemplateChain iotc, ref T output) nothrow
 static istring convertChainToImportPath(const IdentifierChain ic)
 {
 	import std.path : dirSeparator;
-	import std.array : appender;
 	auto app = appender!string();
 	foreach (i, ident; ic.identifiers)
 	{

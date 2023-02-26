@@ -33,6 +33,8 @@ import std.experimental.allocator.gc_allocator : GCAllocator;
 import std.experimental.logger;
 import dparse.ast;
 import dparse.lexer;
+import std.algorithm : filter;
+import std.range;
 
 void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCache cache)
 {
@@ -309,11 +311,28 @@ do
 
 private:
 
+void resolveReturnType(DSymbol* symbol, ref TypeLookups typeLookups,
+	Scope* moduleScope, ref ModuleCache cache)
+{
+	foreach (returnType; typeLookups[].filter!(a => a.kind == TypeLookupKind.returnType))
+	{
+		assert(returnType.breadcrumbs.length > 0);
+		auto parts = symbol.getPartsByName(returnType.breadcrumbs.front);
+		if (parts.empty){
+			// If nothing found try to lookup within the global scope
+			auto found = moduleScope.getSymbolsAtGlobalScope(returnType.breadcrumbs.front);
+			if (!found.empty) {
+				symbol.returnType = found.front;
+			}
+
+		}
+	}
+
+}
+
 void resolveInheritance(DSymbol* symbol, ref TypeLookups typeLookups,
 	Scope* moduleScope, ref ModuleCache cache)
 {
-	import std.algorithm : filter;
-
 	outer: foreach (TypeLookup* lookup; typeLookups[])
 	{
 		if (lookup.kind != TypeLookupKind.inherit)
@@ -355,9 +374,6 @@ void resolveInheritance(DSymbol* symbol, ref TypeLookups typeLookups,
 void resolveAliasThis(DSymbol* symbol,
 	ref TypeLookups typeLookups, Scope* moduleScope, ref ModuleCache cache)
 {
-	import std.algorithm : filter;
-	import std.array : array;
-
 	foreach (aliasThis; typeLookups[].filter!(a => a.kind == TypeLookupKind.aliasThis))
 	{
 		assert(aliasThis.breadcrumbs.length > 0);
@@ -379,8 +395,6 @@ void resolveAliasThis(DSymbol* symbol,
 void resolveMixinTemplates(DSymbol* symbol,
 	ref TypeLookups typeLookups, Scope* moduleScope, ref ModuleCache cache)
 {
-	import std.algorithm : filter;
-
 	foreach (mix; typeLookups[].filter!(a => a.kind == TypeLookupKind.mixinTemplate))
 	{
 		assert(mix.breadcrumbs.length > 0);
@@ -414,22 +428,21 @@ void resolveMixinTemplates(DSymbol* symbol,
 void resolveType(DSymbol* symbol, ref TypeLookups typeLookups,
 	Scope* moduleScope, ref ModuleCache cache)
 {
-
-	import std.conv;
-
-	if (typeLookups.length == 0)
-		return;
-	assert(typeLookups.length == 1);
-	auto lookup = typeLookups.front;
-	if (lookup.kind == TypeLookupKind.varOrFunType)
-		resolveTypeFromType(symbol, lookup, moduleScope, cache, null);
-	else if (lookup.kind == TypeLookupKind.initializer)
-		resolveTypeFromInitializer(symbol, lookup, moduleScope, cache);
-	// issue 94
-	else if (lookup.kind == TypeLookupKind.inherit)
-		resolveInheritance(symbol, typeLookups, moduleScope, cache);
-	else
-		assert(false, "How did this happen?");
+	// going through the lookups
+	foreach(lookup; typeLookups) {
+		if (lookup.kind == TypeLookupKind.varOrFunType)
+			resolveTypeFromType(symbol, lookup, moduleScope, cache, null);
+		else if (lookup.kind == TypeLookupKind.initializer)
+			resolveTypeFromInitializer(symbol, lookup, moduleScope, cache);
+		// issue 94
+		else if (lookup.kind == TypeLookupKind.inherit)
+			resolveInheritance(symbol, typeLookups, moduleScope, cache);
+		else if (lookup.kind == TypeLookupKind.returnType){
+			resolveReturnType(symbol, typeLookups, moduleScope, cache);
+		}
+		else
+			assert(false, "How did this happen?");
+		}
 }
 
 void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,

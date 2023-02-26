@@ -14,6 +14,7 @@ enum TypeLookupKind : ubyte
 	mixinTemplate,
 	varOrFunType,
 	selectiveImport,
+	returnType,
 }
 
 /**

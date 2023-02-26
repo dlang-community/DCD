@@ -129,6 +129,27 @@ unittest
 unittest
 {
 	ModuleCache cache;
+	writeln("Get return type name");
+	auto source = q{ int meaningOfLife() { return 42; } };
+	auto pair = generateAutocompleteTrees(source, cache);
+	auto meaningOfLife = pair.symbol.getFirstPartNamed(istring("meaningOfLife"));
+	assert(meaningOfLife.returnType.name == "int");
+}
+
+unittest
+{
+	ModuleCache cache;
+	writeln("Get return type name from class method");
+	auto source = q{ class Life { uint meaningOfLife() { return 42; } }};
+	auto pair = generateAutocompleteTrees(source, cache);
+	auto lifeClass = pair.symbol.getFirstPartNamed(istring("Life"));
+	auto meaningOfLife = lifeClass.getFirstPartNamed(istring("meaningOfLife"));
+	assert(meaningOfLife.returnType.name == "uint");
+}
+
+unittest
+{
+	ModuleCache cache;
 
 	writeln("Running struct constructor tests...");
 	auto source = q{ struct A {int a; struct B {bool b;} int c;} };
