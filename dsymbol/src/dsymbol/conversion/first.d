@@ -150,14 +150,8 @@ final class FirstPass : ASTVisitor
 					currentSymbol.acSymbol.name, dec.parameters, dec.templateParameters);
 		}
 
-		if (dec.returnType !is null) {
-
-			// Do lookup if return type exists
-			auto app = appender!string();
-			app.formatNode(dec.returnType);
-
-			currentSymbol.typeLookups.insert(TypeLookupsAllocator.instance.make!TypeLookup(
-					istring(app.data), TypeLookupKind.returnType));
+		if (dec.returnType !is null){
+			addTypeToLookups(currentSymbol.typeLookups, dec.returnType);
 		}
 	}
 

@@ -133,7 +133,7 @@ unittest
 	auto source = q{ int meaningOfLife() { return 42; } };
 	auto pair = generateAutocompleteTrees(source, cache);
 	auto meaningOfLife = pair.symbol.getFirstPartNamed(istring("meaningOfLife"));
-	assert(meaningOfLife.returnType.name == "int");
+	assert(meaningOfLife.type.name == "int");
 }
 
 unittest
@@ -144,7 +144,7 @@ unittest
 	auto pair = generateAutocompleteTrees(source, cache);
 	auto lifeClass = pair.symbol.getFirstPartNamed(istring("Life"));
 	auto meaningOfLife = lifeClass.getFirstPartNamed(istring("meaningOfLife"));
-	assert(meaningOfLife.returnType.name == "uint");
+	assert(meaningOfLife.type.name == "uint");
 }
 
 unittest

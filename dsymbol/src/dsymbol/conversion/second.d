@@ -311,25 +311,6 @@ do
 
 private:
 
-void resolveReturnType(DSymbol* symbol, ref TypeLookups typeLookups,
-	Scope* moduleScope, ref ModuleCache cache)
-{
-	foreach (returnType; typeLookups[].filter!(a => a.kind == TypeLookupKind.returnType))
-	{
-		assert(returnType.breadcrumbs.length > 0);
-		auto parts = symbol.getPartsByName(returnType.breadcrumbs.front);
-		if (parts.empty){
-			// If nothing found try to lookup within the global scope
-			auto found = moduleScope.getSymbolsAtGlobalScope(returnType.breadcrumbs.front);
-			if (!found.empty) {
-				symbol.returnType = found.front;
-			}
-
-		}
-	}
-
-}
-
 void resolveInheritance(DSymbol* symbol, ref TypeLookups typeLookups,
 	Scope* moduleScope, ref ModuleCache cache)
 {
@@ -437,9 +418,6 @@ void resolveType(DSymbol* symbol, ref TypeLookups typeLookups,
 		// issue 94
 		else if (lookup.kind == TypeLookupKind.inherit)
 			resolveInheritance(symbol, typeLookups, moduleScope, cache);
-		else if (lookup.kind == TypeLookupKind.returnType){
-			resolveReturnType(symbol, typeLookups, moduleScope, cache);
-		}
 		else
 			assert(false, "How did this happen?");
 		}
