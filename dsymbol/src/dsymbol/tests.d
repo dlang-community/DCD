@@ -150,6 +150,30 @@ unittest
 unittest
 {
 	ModuleCache cache;
+	writeln("Return type of auto should be null");
+	auto source = q{ class Life { auto meaningOfLife() { return 42; } }};
+	auto pair = generateAutocompleteTrees(source, cache);
+	auto lifeClass = pair.symbol.getFirstPartNamed(istring("Life"));
+	auto meaningOfLife = lifeClass.getFirstPartNamed(istring("meaningOfLife"));
+	assert(meaningOfLife.type is null);
+}
+
+unittest
+{
+	ModuleCache cache;
+	writeln("Return type of scope should be null");
+	auto source = q{ class Life { scope meaningOfLife() { return 42; } }};
+	auto pair = generateAutocompleteTrees(source, cache);
+	auto lifeClass = pair.symbol.getFirstPartNamed(istring("Life"));
+	auto meaningOfLife = lifeClass.getFirstPartNamed(istring("meaningOfLife"));
+	assert(meaningOfLife.type is null);
+}
+
+
+
+unittest
+{
+	ModuleCache cache;
 
 	writeln("Running struct constructor tests...");
 	auto source = q{ struct A {int a; struct B {bool b;} int c;} };
