@@ -375,9 +375,6 @@ struct DSymbol
 	// TODO: assert that the type is not a function
 	DSymbol* type;
 
-	// Return type symbol, if symbol currently is of function kind
-	DSymbol* returnType;
-
 	// Is alias this symbols
 	DSymbol*[] aliasThisSymbols;
 	/**

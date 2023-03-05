@@ -169,6 +169,56 @@ unittest
 	assert(meaningOfLife.type is null);
 }
 
+unittest
+{
+	ModuleCache cache;
+	writeln("Templated return type should be deduced correctly");
+	auto source = q{ 
+		struct AnswerToLife(T) {
+			T life;
+		}
+		AnswerToLife!int meaningOfLife() { return AnswerToLife!int(42);  }
+
+	};
+	ScopeSymbolPair pair = generateAutocompleteTrees(source, cache);
+	auto answerToLife = pair.symbol.getFirstPartNamed(istring("AnswerToLife"));
+	DSymbol* meaningOfLife = pair.symbol.getFirstPartNamed(istring("meaningOfLife"));
+	assert(meaningOfLife.type.name == "AnswerToLife");
+	assert(meaningOfLife.type is answerToLife);
+
+}
+
+unittest
+{
+	ModuleCache cache;
+	writeln("Array return type should be deduced correctly");
+	auto source = q{ 
+		int[] meaningOfLife() { return [42];  }
+
+	};
+	ScopeSymbolPair pair = generateAutocompleteTrees(source, cache);
+	DSymbol* meaningOfLife = pair.symbol.getFirstPartNamed(istring("meaningOfLife"));
+	assert(meaningOfLife.type.name == "*arr*");
+
+}
+
+unittest
+{
+	ModuleCache cache;
+	writeln("Int* return type should be deduced correctly");
+	auto source = q{ 
+		int* meaningOfLife()
+		{ 
+			auto life = 42;
+			return &life;
+		}
+
+	};
+	ScopeSymbolPair pair = generateAutocompleteTrees(source, cache);
+	DSymbol* meaningOfLife = pair.symbol.getFirstPartNamed(istring("meaningOfLife"));
+	writeln(meaningOfLife.type.name);
+	assert(meaningOfLife.type.name == "int");
+}
 
 
 unittest
