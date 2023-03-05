@@ -129,6 +129,101 @@ unittest
 unittest
 {
 	ModuleCache cache;
+	writeln("Get return type name");
+	auto source = q{ int meaningOfLife() { return 42; } };
+	auto pair = generateAutocompleteTrees(source, cache);
+	auto meaningOfLife = pair.symbol.getFirstPartNamed(istring("meaningOfLife"));
+	assert(meaningOfLife.type.name == "int");
+}
+
+unittest
+{
+	ModuleCache cache;
+	writeln("Get return type name from class method");
+	auto source = q{ class Life { uint meaningOfLife() { return 42; } }};
+	auto pair = generateAutocompleteTrees(source, cache);
+	auto lifeClass = pair.symbol.getFirstPartNamed(istring("Life"));
+	auto meaningOfLife = lifeClass.getFirstPartNamed(istring("meaningOfLife"));
+	assert(meaningOfLife.type.name == "uint");
+}
+
+unittest
+{
+	ModuleCache cache;
+	writeln("Return type of auto should be null");
+	auto source = q{ class Life { auto meaningOfLife() { return 42; } }};
+	auto pair = generateAutocompleteTrees(source, cache);
+	auto lifeClass = pair.symbol.getFirstPartNamed(istring("Life"));
+	auto meaningOfLife = lifeClass.getFirstPartNamed(istring("meaningOfLife"));
+	assert(meaningOfLife.type is null);
+}
+
+unittest
+{
+	ModuleCache cache;
+	writeln("Return type of scope should be null");
+	auto source = q{ class Life { scope meaningOfLife() { return 42; } }};
+	auto pair = generateAutocompleteTrees(source, cache);
+	auto lifeClass = pair.symbol.getFirstPartNamed(istring("Life"));
+	auto meaningOfLife = lifeClass.getFirstPartNamed(istring("meaningOfLife"));
+	assert(meaningOfLife.type is null);
+}
+
+unittest
+{
+	ModuleCache cache;
+	writeln("Templated return type should be deduced correctly");
+	auto source = q{ 
+		struct AnswerToLife(T) {
+			T life;
+		}
+		AnswerToLife!int meaningOfLife() { return AnswerToLife!int(42);  }
+
+	};
+	ScopeSymbolPair pair = generateAutocompleteTrees(source, cache);
+	auto answerToLife = pair.symbol.getFirstPartNamed(istring("AnswerToLife"));
+	DSymbol* meaningOfLife = pair.symbol.getFirstPartNamed(istring("meaningOfLife"));
+	assert(meaningOfLife.type.name == "AnswerToLife");
+	assert(meaningOfLife.type is answerToLife);
+
+}
+
+unittest
+{
+	ModuleCache cache;
+	writeln("Array return type should be deduced correctly");
+	auto source = q{ 
+		int[] meaningOfLife() { return [42];  }
+
+	};
+	ScopeSymbolPair pair = generateAutocompleteTrees(source, cache);
+	DSymbol* meaningOfLife = pair.symbol.getFirstPartNamed(istring("meaningOfLife"));
+	assert(meaningOfLife.type.name == "*arr*");
+
+}
+
+unittest
+{
+	ModuleCache cache;
+	writeln("Int* return type should be deduced correctly");
+	auto source = q{ 
+		int* meaningOfLife()
+		{ 
+			auto life = 42;
+			return &life;
+		}
+
+	};
+	ScopeSymbolPair pair = generateAutocompleteTrees(source, cache);
+	DSymbol* meaningOfLife = pair.symbol.getFirstPartNamed(istring("meaningOfLife"));
+	writeln(meaningOfLife.type.name);
+	assert(meaningOfLife.type.name == "int");
+}
+
+
+unittest
+{
+	ModuleCache cache;
 
 	writeln("Running struct constructor tests...");
 	auto source = q{ struct A {int a; struct B {bool b;} int c;} };
