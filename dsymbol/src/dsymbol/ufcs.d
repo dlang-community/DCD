@@ -1,9 +1,7 @@
-module dcd.server.autocomplete.ufcs;
+module dsymbol.ufcs;
 
-import dcd.server.autocomplete.util;
 import dsymbol.symbol;
 import dsymbol.scope_;
-import dcd.common.messages;
 import std.functional : unaryFun;
 import std.algorithm;
 import std.array;
@@ -27,21 +25,6 @@ enum string[string] INTEGER_PROMOTIONS = [
     ];
 
 enum MAX_RECURSION_DEPTH = 50;
-
-void lookupUFCS(Scope* completionScope, DSymbol* beforeDotSymbol, size_t cursorPosition, ref AutocompleteResponse response)
-{
-    // UFCS completion
-    DSymbol*[] ufcsSymbols = getSymbolsForUFCS(completionScope, beforeDotSymbol, cursorPosition);
-    response.completions ~= map!(s => createCompletionForUFCS(s))(ufcsSymbols).array;
-}
-
-AutocompleteResponse.Completion createCompletionForUFCS(const DSymbol* symbol)
-{
-    return AutocompleteResponse.Completion(symbol.name, CompletionKind.ufcsName, symbol.callTip, symbol
-            .symbolFile, symbol
-            .location, symbol
-            .doc);
-}
 
 // Check if beforeDotSymbol is null or void
 bool isInvalidForUFCSCompletion(const(DSymbol)* beforeDotSymbol)
@@ -208,12 +191,6 @@ struct FilteredAppender(alias predicate, T:
     FilteredAppender!("a%2", int[]) app;
     app.put(iota(10));
     assert(app.data == [1, 3, 5, 7, 9]);
-}
-
-bool doUFCSSearch(string beforeToken, string lastToken)
-{
-    // we do the search if they are different from eachother
-    return beforeToken != lastToken;
 }
 
 void getUFCSParenCompletion(ref DSymbol*[] symbols, Scope* completionScope, istring firstToken, istring nextToken, size_t cursorPosition)
