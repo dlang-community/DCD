@@ -37,7 +37,7 @@ import dsymbol.modulecache;
 import dsymbol.scope_;
 import dsymbol.string_interning;
 import dsymbol.symbol;
-import dcd.server.autocomplete.ufcs;
+import dsymbol.ufcs;
 
 enum ImportKind : ubyte
 {
@@ -771,4 +771,25 @@ AutocompleteResponse.Completion makeSymbolCompletionInfo(const DSymbol* symbol, 
 	// TODO: definition strings could include more information, like on classes inheritance
 	return AutocompleteResponse.Completion(symbol.name, kind, definition,
 		symbol.symbolFile, symbol.location, symbol.doc);
+}
+
+void lookupUFCS(Scope* completionScope, DSymbol* beforeDotSymbol, size_t cursorPosition, ref AutocompleteResponse response)
+{
+    // UFCS completion
+    DSymbol*[] ufcsSymbols = getSymbolsForUFCS(completionScope, beforeDotSymbol, cursorPosition);
+    response.completions ~= map!(s => createCompletionForUFCS(s))(ufcsSymbols).array;
+}
+
+AutocompleteResponse.Completion createCompletionForUFCS(const DSymbol* symbol)
+{
+    return AutocompleteResponse.Completion(symbol.name, CompletionKind.ufcsName, symbol.callTip, symbol
+            .symbolFile, symbol
+            .location, symbol
+            .doc);
+}
+
+bool doUFCSSearch(string beforeToken, string lastToken)
+{
+    // we do the search if they are different from eachother
+    return beforeToken != lastToken;
 }

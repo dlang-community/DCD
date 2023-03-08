@@ -30,7 +30,6 @@ import std.string;
 import std.typecons;
 
 import dcd.server.autocomplete.util;
-import dcd.server.autocomplete.ufcs;
 
 import dparse.lexer;
 import dparse.rollback_allocator;
@@ -42,6 +41,7 @@ import dsymbol.modulecache;
 import dsymbol.scope_;
 import dsymbol.string_interning;
 import dsymbol.symbol;
+import dsymbol.ufcs;
 
 import dcd.common.constants;
 import dcd.common.messages;
