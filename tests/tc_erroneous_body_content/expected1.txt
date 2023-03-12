@@ -1,6 +1,7 @@
 identifiers
 alignof	k
 b	v
+bar	F
 init	k
 mangleof	k
 sizeof	k
