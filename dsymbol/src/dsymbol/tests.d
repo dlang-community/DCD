@@ -658,7 +658,6 @@ ScopeSymbolPair generateAutocompleteTreesProd(string source, string filename, si
 
 version (linux)
 {
-	import std.string;
 	enum string ufcsExampleCode =
 q{class Incrementer
 {
@@ -690,4 +689,30 @@ void doIncrement()
 		assert(pair.ufcsSymbols[0].name == "increment");
 
 	}
+
+enum string ufcsTemplateExampleCode =
+q{int increment(T)(T x)
+{
+	return x++;
+}
+void doIncrement()
+{
+	int life = 42;
+	life.
+}};
+
+unittest
+	{
+		import dsymbol.ufcs;
+
+		writeln("Getting Templated UFCS Symbols For life");
+		ModuleCache cache;
+		// position of variable life 
+		size_t cursorPos = 82;
+		auto pair = generateAutocompleteTreesProd(ufcsTemplateExampleCode, randomDFilename, cursorPos, cache);
+		assert(pair.ufcsSymbols.length > 0);
+		assert(pair.ufcsSymbols[0].name == "increment");
+
+	}
+
 }

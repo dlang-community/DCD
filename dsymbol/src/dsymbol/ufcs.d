@@ -65,7 +65,6 @@ private DSymbol* deduceSymbolType(DSymbol* symbol)
 private bool isInvalidForUFCSCompletion(const(DSymbol)* beforeDotSymbol)
 {
     return beforeDotSymbol is null
-        || beforeDotSymbol.kind == CompletionKind.templateName
         || beforeDotSymbol.name is getBuiltinTypeName(tok!"void")
         || (beforeDotSymbol.type !is null && beforeDotSymbol.type.name is getBuiltinTypeName(
                 tok!"void"));
@@ -307,11 +306,11 @@ bool isCallableWithArg(DSymbol* incomingSymbol, const(DSymbol)* beforeDotType, b
         .functionParameters.empty)
     {
         if (beforeDotType is incomingSymbol.functionParameters.front.type
+            || incomingSymbol.functionParameters.front.type.kind is CompletionKind.typeTmpParam // non constrained template
             || willImplicitBeUpcasted(beforeDotType.name, incomingSymbol
                 .functionParameters.front.type.name)
             || matchAliasThis(beforeDotType, incomingSymbol, recursionDepth))
         {
-            // incomingSymbol.kind = CompletionKind.ufcsName;
             return true;
         }
 
