@@ -2,15 +2,31 @@ module dsymbol.ufcs;
 
 import dsymbol.symbol;
 import dsymbol.scope_;
+import dsymbol.builtin.names;
+import dsymbol.utils;
+import dparse.lexer : tok, Token;
 import std.functional : unaryFun;
 import std.algorithm;
 import std.array;
 import std.range;
-import dsymbol.builtin.names;
 import std.string;
-import dparse.lexer : tok;
 import std.regex;
 import containers.hashset : HashSet;
+import std.experimental.logger;
+
+enum UFCSCompletionContext
+{
+    DotCompletion,
+    ParenCompletion,
+    UnknownCompletion
+}
+
+struct TokenCursorResult
+{
+    UFCSCompletionContext completionContext = UFCSCompletionContext.UnknownCompletion;
+    istring functionName;
+    istring symbolIdentifierName;
+}
 
 // https://dlang.org/spec/type.html#implicit-conversions
 enum string[string] INTEGER_PROMOTIONS = [
@@ -26,43 +42,107 @@ enum string[string] INTEGER_PROMOTIONS = [
 
 enum MAX_RECURSION_DEPTH = 50;
 
+private DSymbol* deduceSymbolType(DSymbol* symbol)
+{
+    DSymbol* symbolType = symbol.type;
+    while (symbolType !is null && (symbolType.qualifier == SymbolQualifier.func
+            || symbolType.kind == CompletionKind.functionName
+            || symbolType.kind == CompletionKind.importSymbol
+            || symbolType.kind == CompletionKind.aliasName))
+    {
+        if (symbolType.type is null || symbolType.type is symbolType)
+        {
+            break;
+        }
+        //look at next type to deduce
+        symbolType = symbolType.type;
+    }
+    return symbolType;
+
+}
+
 // Check if beforeDotSymbol is null or void
-bool isInvalidForUFCSCompletion(const(DSymbol)* beforeDotSymbol)
+private bool isInvalidForUFCSCompletion(const(DSymbol)* beforeDotSymbol)
 {
     return beforeDotSymbol is null
+        || beforeDotSymbol.kind == CompletionKind.templateName
         || beforeDotSymbol.name is getBuiltinTypeName(tok!"void")
         || (beforeDotSymbol.type !is null && beforeDotSymbol.type.name is getBuiltinTypeName(
                 tok!"void"));
 }
-/**
- * Get symbols suitable for UFCS.
- *
- * a symbol is suitable for UFCS if it satisfies the following:
- * $(UL
- *  $(LI is global or imported)
- *  $(LI is callable with $(D beforeDotSymbol) as it's first argument)
- * )
- *
- * Params:
- *     completionScope = current scope
- *     beforeDotSymbol = the symbol before the dot (implicit first argument to UFCS function)
- *     cursorPosition = current position
- * Returns:
- *     callable an array of symbols suitable for UFCS at $(D cursorPosition)
- */
-DSymbol*[] getSymbolsForUFCS(Scope* completionScope, const(DSymbol)* beforeDotSymbol, size_t cursorPosition)
+
+private TokenCursorResult getCursorToken(const(Token)[] tokens, size_t cursorPosition)
 {
-    if (beforeDotSymbol.isInvalidForUFCSCompletion)
-    {
-        return null;
+    auto sortedTokens = assumeSorted(tokens);
+    auto sortedBeforeTokens = sortedTokens.lowerBound(cursorPosition);
+
+    TokenCursorResult tokenCursorResult;
+
+    if (sortedBeforeTokens.empty) {
+        return tokenCursorResult;
     }
 
-    Scope* currentScope = completionScope.getScopeByCursor(cursorPosition);
-    assert(currentScope);
-    HashSet!size_t visited;
+    if (sortedBeforeTokens.length >= 2 
+        && sortedBeforeTokens[$ - 1].type is tok!"."
+        && sortedBeforeTokens[$ - 2].type is tok!"identifier")
+    {
+        // Check if it's UFCS dot completion
+        tokenCursorResult.completionContext = UFCSCompletionContext.DotCompletion;
+        tokenCursorResult.symbolIdentifierName = istring(sortedBeforeTokens[$ - 2].text);
+        return tokenCursorResult;
+    }
+    else
+    {
+        // Check if it's UFCS paren completion
+        size_t index = goBackToOpenParen(sortedBeforeTokens);
 
-    // local appender
-    FilteredAppender!(a => a.isCallableWithArg(beforeDotSymbol), DSymbol*[]) localAppender;
+        if (index == size_t.max)
+        {
+            return tokenCursorResult;
+        }
+
+        auto slicedAtParen = sortedBeforeTokens[0 .. index];
+        if (slicedAtParen.length >= 4
+            && slicedAtParen[$ - 4].type is tok!"identifier"
+            && slicedAtParen[$ - 3].type is tok!"."
+            && slicedAtParen[$ - 2].type is tok!"identifier"
+            && slicedAtParen[$ - 1].type is tok!"(")
+        {
+            tokenCursorResult.completionContext = UFCSCompletionContext.ParenCompletion;
+            tokenCursorResult.symbolIdentifierName = istring(slicedAtParen[$ - 4].text);
+            tokenCursorResult.functionName = istring(slicedAtParen[$ - 2].text);
+            return tokenCursorResult;
+        }
+
+    }
+    // if none then it's unknown
+    return tokenCursorResult;
+}
+
+private void getUFCSSymbols(T, Y)(ref T localAppender, ref Y globalAppender, Scope* completionScope, size_t cursorPosition)
+
+{
+
+    Scope* currentScope = completionScope.getScopeByCursor(cursorPosition);
+    if (currentScope is null)
+    {
+        return;
+    }
+
+    DSymbol*[] cursorSymbols = currentScope.getSymbolsInCursorScope(cursorPosition);
+    if (cursorSymbols.empty)
+    {
+        return;
+    }
+
+    auto filteredSymbols = cursorSymbols.filter!(s => s.kind == CompletionKind.functionName).array;
+
+    foreach (DSymbol* sym; filteredSymbols)
+    {
+        globalAppender.put(sym);
+    }
+
+    HashSet!size_t visited;
 
     while (currentScope !is null && currentScope.parent !is null)
     {
@@ -74,18 +154,19 @@ DSymbol*[] getSymbolsForUFCS(Scope* completionScope, const(DSymbol)* beforeDotSy
             if (sym.qualifier == SymbolQualifier.selectiveImport)
                 localAppender.put(sym.type);
             else
-                sym.type.getParts(internString(null), localAppender, visited);
+                sym.type.getParts(istring(null), localAppender, visited);
         }
 
         currentScope = currentScope.parent;
     }
 
-    // global appender
-    FilteredAppender!(a => a.isCallableWithArg(beforeDotSymbol, true), DSymbol*[]) globalAppender;
-
-    // global symbols and global imports
+    if (currentScope is null)
+    {
+        return;
+    }
     assert(currentScope !is null);
     assert(currentScope.parent is null);
+
     foreach (sym; currentScope.symbols)
     {
         if (sym.kind != CompletionKind.importSymbol)
@@ -100,10 +181,86 @@ DSymbol*[] getSymbolsForUFCS(Scope* completionScope, const(DSymbol)* beforeDotSy
             }
         }
     }
-    return localAppender.opSlice ~ globalAppender.opSlice;
 }
 
-bool willImplicitBeUpcasted(string from, string to)
+DSymbol*[] getUFCSSymbolsForCursor(Scope* completionScope, ref const(Token)[] tokens, size_t cursorPosition)
+{
+    DSymbol* cursorSymbol;
+    DSymbol* cursorSymbolType;
+
+    TokenCursorResult tokenCursorResult = getCursorToken(tokens, cursorPosition);
+
+    if (tokenCursorResult.completionContext is UFCSCompletionContext.UnknownCompletion)
+    {
+        trace("Is not a valid UFCS completion");
+        return [];
+    }
+
+    cursorSymbol = completionScope.getFirstSymbolByNameAndCursor(
+        tokenCursorResult.symbolIdentifierName, cursorPosition);
+
+    if (cursorSymbol is null)
+    {
+        warning("Coudn't find symbol ", tokenCursorResult.symbolIdentifierName);
+        return [];
+    }
+
+    if (cursorSymbol.isInvalidForUFCSCompletion)
+    {
+        trace("CursorSymbol is invalid");
+        return [];
+    }
+
+    cursorSymbolType = deduceSymbolType(cursorSymbol);
+
+    if (cursorSymbolType is null)
+    {
+        return [];
+    }
+
+    if (cursorSymbolType.isInvalidForUFCSCompletion)
+    {
+        trace("CursorSymbolType isn't valid for UFCS completion");
+        return [];
+    }
+
+    if (tokenCursorResult.completionContext == UFCSCompletionContext.ParenCompletion)
+    {
+        return getUFCSSymbolsForParenCompletion(cursorSymbolType, completionScope, tokenCursorResult.functionName, cursorPosition);
+    }
+    else
+    {
+        return getUFCSSymbolsForDotCompletion(cursorSymbolType, completionScope, cursorPosition);
+    }
+
+}
+
+private DSymbol*[] getUFCSSymbolsForDotCompletion(DSymbol* symbolType, Scope* completionScope, size_t cursorPosition)
+{
+    // local appender
+    FilteredAppender!(a => a.isCallableWithArg(symbolType), DSymbol*[]) localAppender;
+    // global appender
+    FilteredAppender!(a => a.isCallableWithArg(symbolType, true), DSymbol*[]) globalAppender;
+
+    getUFCSSymbols(localAppender, globalAppender, completionScope, cursorPosition);
+
+    return localAppender.data ~ globalAppender.data;
+}
+
+DSymbol*[] getUFCSSymbolsForParenCompletion(DSymbol* symbolType, Scope* completionScope, istring searchWord, size_t cursorPosition)
+{
+    // local appender
+    FilteredAppender!(a => a.isCallableWithArg(symbolType) && a.name.among(searchWord), DSymbol*[]) localAppender;
+    // global appender
+    FilteredAppender!(a => a.isCallableWithArg(symbolType, true) && a.name.among(searchWord), DSymbol*[]) globalAppender;
+
+    getUFCSSymbols(localAppender, globalAppender, completionScope, cursorPosition);
+
+    return localAppender.data ~ globalAppender.data;
+
+}
+
+private bool willImplicitBeUpcasted(string from, string to)
 {
     string* found = from in INTEGER_PROMOTIONS;
     if (!found)
@@ -114,7 +271,7 @@ bool willImplicitBeUpcasted(string from, string to)
     return INTEGER_PROMOTIONS[from] == to;
 }
 
-bool matchAliasThis(const(DSymbol)* beforeDotType, const(DSymbol)* incomingSymbol, int recursionDepth)
+private bool matchAliasThis(const(DSymbol)* beforeDotType, DSymbol* incomingSymbol, int recursionDepth)
 {
     // For now we are only resolving the first alias this symbol
     // when multiple alias this are supported, we can rethink another solution
@@ -138,7 +295,7 @@ bool matchAliasThis(const(DSymbol)* beforeDotType, const(DSymbol)* incomingSymbo
  *     `true` if `incomingSymbols`' first parameter matches `beforeDotType`
  *     `false` otherwise
  */
-bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDotType, bool isGlobalScope = false, int recursionDepth = 0)
+bool isCallableWithArg(DSymbol* incomingSymbol, const(DSymbol)* beforeDotType, bool isGlobalScope = false, int recursionDepth = 0)
 {
     if (!incomingSymbol || !beforeDotType
         || (isGlobalScope && incomingSymbol.protection == tok!"private") || recursionDepth > MAX_RECURSION_DEPTH)
@@ -149,13 +306,16 @@ bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDot
     if (incomingSymbol.kind == CompletionKind.functionName && !incomingSymbol
         .functionParameters.empty)
     {
-        return beforeDotType is incomingSymbol.functionParameters.front.type
+        if (beforeDotType is incomingSymbol.functionParameters.front.type
             || willImplicitBeUpcasted(beforeDotType.name, incomingSymbol
-                    .functionParameters.front.type.name)
-            || matchAliasThis(beforeDotType, incomingSymbol, recursionDepth);
+                .functionParameters.front.type.name)
+            || matchAliasThis(beforeDotType, incomingSymbol, recursionDepth))
+        {
+            // incomingSymbol.kind = CompletionKind.ufcsName;
+            return true;
+        }
 
     }
-
     return false;
 }
 
@@ -191,29 +351,6 @@ struct FilteredAppender(alias predicate, T:
     FilteredAppender!("a%2", int[]) app;
     app.put(iota(10));
     assert(app.data == [1, 3, 5, 7, 9]);
-}
-
-void getUFCSParenCompletion(ref DSymbol*[] symbols, Scope* completionScope, istring firstToken, istring nextToken, size_t cursorPosition)
-{
-    DSymbol* firstSymbol = completionScope.getFirstSymbolByNameAndCursor(
-        firstToken, cursorPosition);
-
-    if (firstSymbol is null)
-        return;
-
-    DSymbol*[] possibleUFCSSymbol = completionScope.getSymbolsByNameAndCursor(
-        nextToken, cursorPosition);
-    foreach (nextSymbol; possibleUFCSSymbol)
-    {
-        if (nextSymbol && nextSymbol.functionParameters)
-        {
-            if (nextSymbol.isCallableWithArg(firstSymbol.type))
-            {
-                nextSymbol.kind = CompletionKind.ufcsName;
-                symbols ~= nextSymbol;
-            }
-        }
-    }
 }
 
 unittest
