@@ -3,10 +3,11 @@ module dsymbol.tests;
 import std.experimental.allocator;
 import dparse.ast, dparse.parser, dparse.lexer, dparse.rollback_allocator;
 import dsymbol.cache_entry, dsymbol.modulecache, dsymbol.symbol;
-import dsymbol.conversion, dsymbol.conversion.first, dsymbol.conversion.second;
+import dsymbol.conversion, dsymbol.conversion.first, dsymbol.conversion.second, dsymbol.conversion.third;
 import dsymbol.semantic, dsymbol.string_interning, dsymbol.builtin.names;
 import std.file, std.path, std.format;
 import std.stdio : writeln, stdout;
+import dsymbol.ufcs;
 
 /**
  * Parses `source`, caches its symbols and compares the the cache content
@@ -413,7 +414,7 @@ unittest
 	writeln("Running template type parameters tests...");
 	{
 		auto source = q{ struct Foo(T : int){} struct Bar(T : Foo){} };
-		auto pair = generateAutocompleteTrees(source, "", 0, cache);
+		auto pair = generateAutocompleteTreesProd(source, "", 0, cache);
 		DSymbol* T1 = pair.symbol.getFirstPartNamed(internString("Foo"));
 		DSymbol* T2 = T1.getFirstPartNamed(internString("T"));
 		assert(T2.type.name == "int");
@@ -424,7 +425,7 @@ unittest
 	}
 	{
 		auto source = q{ struct Foo(T){ }};
-		auto pair = generateAutocompleteTrees(source, "", 0, cache);
+		auto pair = generateAutocompleteTreesProd(source, "", 0, cache);
 		DSymbol* T1 = pair.symbol.getFirstPartNamed(internString("Foo"));
 		assert(T1);
 		DSymbol* T2 = T1.getFirstPartNamed(internString("T"));
@@ -439,7 +440,7 @@ unittest
 
 	writeln("Running template variadic parameters tests...");
 	auto source = q{ struct Foo(T...){ }};
-	auto pair = generateAutocompleteTrees(source, "", 0, cache);
+	auto pair = generateAutocompleteTreesProd(source, "", 0, cache);
 	DSymbol* T1 = pair.symbol.getFirstPartNamed(internString("Foo"));
 	assert(T1);
 	DSymbol* T2 = T1.getFirstPartNamed(internString("T"));
@@ -528,15 +529,14 @@ unittest
 
 	writeln("Testing protection scopes");
 	auto source = q{version(all) { private: } struct Foo{ }};
-	auto pair = generateAutocompleteTrees(source, "", 0, cache);
+	auto pair = generateAutocompleteTreesProd(source, "", 0, cache);
 	DSymbol* T1 = pair.symbol.getFirstPartNamed(internString("Foo"));
 	assert(T1);
 	assert(T1.protection != tok!"private");
 }
 
 // check for memory leaks on thread termination (in static constructors)
-version (linux)
-unittest
+version (linux) unittest
 {
 	import core.memory : GC;
 	import core.thread : Thread;
@@ -584,6 +584,7 @@ static this()
 {
 	stringCache = StringCache(StringCache.defaultBucketCount);
 }
+
 static ~this()
 {
 	destroy(stringCache);
@@ -598,6 +599,7 @@ const(Token)[] lex(string source, string filename)
 {
 	import dparse.lexer : getTokensForParser;
 	import std.string : representation;
+
 	LexerConfig config;
 	config.fileName = filename;
 	return getTokensForParser(source.dup.representation, config, &stringCache);
@@ -626,7 +628,7 @@ ScopeSymbolPair generateAutocompleteTrees(string source, ref ModuleCache cache)
 	return generateAutocompleteTrees(source, randomDFilename, cache);
 }
 
-ScopeSymbolPair generateAutocompleteTrees(string source, string filename, ref ModuleCache cache)
+ScopeSymbolPair generateAutocompleteTrees(string source, string filename, ref ModuleCache cache, size_t cursorPosition = -1)
 {
 	auto tokens = lex(source);
 	RollbackAllocator rba;
@@ -635,21 +637,57 @@ ScopeSymbolPair generateAutocompleteTrees(string source, string filename, ref Mo
 	scope first = new FirstPass(m, internString(filename), &cache);
 	first.run();
 
+
 	secondPass(first.rootSymbol, first.moduleScope, cache);
+	thirdPass(first.moduleScope, cache, cursorPosition);
+	auto ufcsSymbols = getUFCSSymbolsForCursor(first.moduleScope, tokens, cursorPosition);
 	auto r = first.rootSymbol.acSymbol;
 	typeid(SemanticSymbol).destroy(first.rootSymbol);
-	return ScopeSymbolPair(r, first.moduleScope);
+	return ScopeSymbolPair(r, first.moduleScope, ufcsSymbols);
 }
 
-ScopeSymbolPair generateAutocompleteTrees(string source, size_t cursorPosition, ref ModuleCache cache)
-{
-	return generateAutocompleteTrees(source, null, cache);
-}
-
-ScopeSymbolPair generateAutocompleteTrees(string source, string filename, size_t cursorPosition, ref ModuleCache cache)
+ScopeSymbolPair generateAutocompleteTreesProd(string source, string filename, size_t cursorPosition, ref ModuleCache cache)
 {
 	auto tokens = lex(source);
 	RollbackAllocator rba;
 	return dsymbol.conversion.generateAutocompleteTrees(
 		tokens, &rba, cursorPosition, cache);
+}
+
+
+
+version (linux)
+{
+	import std.string;
+	enum string ufcsExampleCode =
+q{class Incrementer
+{
+	int run(int x)
+	{
+		return x++;
+	}
+}
+int increment(int x)
+{
+	return x++;
+}
+void doIncrement()
+{
+	int life = 42;
+	life.
+}};
+
+	unittest
+	{
+		import dsymbol.ufcs;
+
+		writeln("Getting UFCS Symbols For life");
+		ModuleCache cache;
+		// position of variable life 
+		size_t cursorPos = 139;
+		auto pair = generateAutocompleteTreesProd(ufcsExampleCode, randomDFilename, cursorPos, cache);
+		assert(pair.ufcsSymbols.length > 0);
+		assert(pair.ufcsSymbols[0].name == "increment");
+
+	}
 }

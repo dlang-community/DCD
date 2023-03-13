@@ -31,6 +31,7 @@ import dsymbol.scope_;
 import dsymbol.semantic;
 import dsymbol.string_interning;
 import dsymbol.symbol;
+import dsymbol.ufcs;
 import std.algorithm;
 import std.experimental.allocator;
 import containers.hashset;
@@ -52,9 +53,11 @@ ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
 
 	thirdPass(first.moduleScope, cache, cursorPosition);
 
+    auto ufcsSymbols = getUFCSSymbolsForCursor(first.moduleScope, tokens, cursorPosition);
+
 	auto r = move(first.rootSymbol.acSymbol);
 	typeid(SemanticSymbol).destroy(first.rootSymbol);
-	return ScopeSymbolPair(r, move(first.moduleScope));
+	return ScopeSymbolPair(r, move(first.moduleScope), ufcsSymbols);
 }
 
 struct ScopeSymbolPair
@@ -67,6 +70,7 @@ struct ScopeSymbolPair
 
 	DSymbol* symbol;
 	Scope* scope_;
+	DSymbol*[] ufcsSymbols;
 }
 
 /**

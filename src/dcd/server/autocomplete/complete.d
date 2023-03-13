@@ -42,6 +42,7 @@ import dsymbol.scope_;
 import dsymbol.string_interning;
 import dsymbol.symbol;
 import dsymbol.ufcs;
+import dsymbol.utils;
 
 import dcd.common.constants;
 import dcd.common.messages;
@@ -220,6 +221,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 		scope(exit) pair.destroy();
 		response.setCompletions(pair.scope_, getExpression(beforeTokens),
 			cursorPosition, CompletionType.identifiers, false, partial);
+		response.completions ~= pair.ufcsSymbols.map!(s => makeSymbolCompletionInfo(s, CompletionKind.ufcsName)).array;
 		break;
 	//  these tokens before a "." mean "Module Scope Operator"
 	case tok!":":
@@ -306,6 +308,8 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 		auto expression = getExpression(beforeTokens[0 .. $ - 1]);
 		response.setCompletions(pair.scope_, expression,
 			cursorPosition, CompletionType.calltips, beforeTokens[$ - 1] == tok!"[");
+		response.completions ~= pair.ufcsSymbols.map!(s => makeSymbolCompletionInfo(s, char.init)).array;
+		response.completionType = CompletionType.calltips;
 		break;
 	default:
 		break;
@@ -559,9 +563,8 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		cursorPosition, completionType);
 
 	if (tokens.length > 2 && tokens[1] == tok!".")
-	{
-		symbols.getUFCSParenCompletion(completionScope, stringToken(tokens[0]), stringToken(
-				tokens[2]), cursorPosition);
+	{	
+		
 	}
 
 	if (symbols.length == 0)
@@ -581,7 +584,6 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		}
 		addSymToResponse(symbols[0], response, partial, completionScope);
 		response.completionType = CompletionType.identifiers;
-		lookupUFCS(completionScope, symbols[0], cursorPosition, response);
 	}
 	else if (completionType == CompletionType.calltips)
 	{

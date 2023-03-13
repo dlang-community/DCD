@@ -1,5 +1,5 @@
 module dsymbol.utils;
-import dparse.lexer : tok, IdType;
+import dparse.lexer : tok, IdType, Token;
 
 enum TYPE_IDENT_CASES = q{
 	case tok!"int":
