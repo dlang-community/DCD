@@ -311,6 +311,7 @@ bool isCallableWithArg(DSymbol* incomingSymbol, const(DSymbol)* beforeDotType, b
                 .functionParameters.front.type.name)
             || matchAliasThis(beforeDotType, incomingSymbol, recursionDepth))
         {
+            incomingSymbol.kind = CompletionKind.ufcsName;
             return true;
         }
 

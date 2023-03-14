@@ -614,7 +614,7 @@ bool isUdaExpression(T)(ref T tokens)
 AutocompleteResponse.Completion makeSymbolCompletionInfo(const DSymbol* symbol, char kind)
 {
 	string definition;
-	if ((kind == CompletionKind.variableName || kind == CompletionKind.ufcsName || kind == CompletionKind.memberVariableName) && symbol.type)
+	if ((kind == CompletionKind.variableName || kind == CompletionKind.memberVariableName) && symbol.type)
 		definition = symbol.type.name ~ ' ' ~ symbol.name;
 	else if (kind == CompletionKind.enumMember)
 		definition = symbol.name; // TODO: add enum value to definition string
