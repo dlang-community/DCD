@@ -1,2 +1,0 @@
-identifiers
-world	v	World world	/home/davu/code/repos/vushu/DCD/tests/tc_recursive_public_import/testing/a.d 77	
