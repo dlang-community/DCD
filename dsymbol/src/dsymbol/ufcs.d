@@ -14,16 +14,16 @@ import std.regex;
 import containers.hashset : HashSet;
 import std.experimental.logger;
 
-enum UFCSCompletionContext
+enum CompletionContext
 {
+    UnknownCompletion,
     DotCompletion,
     ParenCompletion,
-    UnknownCompletion
 }
 
 struct TokenCursorResult
 {
-    UFCSCompletionContext completionContext = UFCSCompletionContext.UnknownCompletion;
+    CompletionContext completionContext;
     istring functionName;
     istring symbolIdentifierName;
 }
@@ -86,7 +86,7 @@ private TokenCursorResult getCursorToken(const(Token)[] tokens, size_t cursorPos
         && sortedBeforeTokens[$ - 2].type is tok!"identifier")
     {
         // Check if it's UFCS dot completion
-        tokenCursorResult.completionContext = UFCSCompletionContext.DotCompletion;
+        tokenCursorResult.completionContext = CompletionContext.DotCompletion;
         tokenCursorResult.symbolIdentifierName = istring(sortedBeforeTokens[$ - 2].text);
         return tokenCursorResult;
     }
@@ -107,7 +107,7 @@ private TokenCursorResult getCursorToken(const(Token)[] tokens, size_t cursorPos
             && slicedAtParen[$ - 2].type is tok!"identifier"
             && slicedAtParen[$ - 1].type is tok!"(")
         {
-            tokenCursorResult.completionContext = UFCSCompletionContext.ParenCompletion;
+            tokenCursorResult.completionContext = CompletionContext.ParenCompletion;
             tokenCursorResult.symbolIdentifierName = istring(slicedAtParen[$ - 4].text);
             tokenCursorResult.functionName = istring(slicedAtParen[$ - 2].text);
             return tokenCursorResult;
@@ -119,7 +119,6 @@ private TokenCursorResult getCursorToken(const(Token)[] tokens, size_t cursorPos
 }
 
 private void getUFCSSymbols(T, Y)(ref T localAppender, ref Y globalAppender, Scope* completionScope, size_t cursorPosition)
-
 {
 
     Scope* currentScope = completionScope.getScopeByCursor(cursorPosition);
@@ -132,13 +131,6 @@ private void getUFCSSymbols(T, Y)(ref T localAppender, ref Y globalAppender, Sco
     if (cursorSymbols.empty)
     {
         return;
-    }
-
-    auto filteredSymbols = cursorSymbols.filter!(s => s.kind == CompletionKind.functionName).array;
-
-    foreach (DSymbol* sym; filteredSymbols)
-    {
-        globalAppender.put(sym);
     }
 
     HashSet!size_t visited;
@@ -189,7 +181,7 @@ DSymbol*[] getUFCSSymbolsForCursor(Scope* completionScope, ref const(Token)[] to
 
     TokenCursorResult tokenCursorResult = getCursorToken(tokens, cursorPosition);
 
-    if (tokenCursorResult.completionContext is UFCSCompletionContext.UnknownCompletion)
+    if (tokenCursorResult.completionContext is CompletionContext.UnknownCompletion)
     {
         trace("Is not a valid UFCS completion");
         return [];
@@ -206,7 +198,7 @@ DSymbol*[] getUFCSSymbolsForCursor(Scope* completionScope, ref const(Token)[] to
 
     if (cursorSymbol.isInvalidForUFCSCompletion)
     {
-        trace("CursorSymbol is invalid");
+        trace("CursorSymbol is invalid for UFCS");
         return [];
     }
 
@@ -223,7 +215,7 @@ DSymbol*[] getUFCSSymbolsForCursor(Scope* completionScope, ref const(Token)[] to
         return [];
     }
 
-    if (tokenCursorResult.completionContext == UFCSCompletionContext.ParenCompletion)
+    if (tokenCursorResult.completionContext == CompletionContext.ParenCompletion)
     {
         return getUFCSSymbolsForParenCompletion(cursorSymbolType, completionScope, tokenCursorResult.functionName, cursorPosition);
     }
@@ -246,7 +238,7 @@ private DSymbol*[] getUFCSSymbolsForDotCompletion(DSymbol* symbolType, Scope* co
     return localAppender.data ~ globalAppender.data;
 }
 
-DSymbol*[] getUFCSSymbolsForParenCompletion(DSymbol* symbolType, Scope* completionScope, istring searchWord, size_t cursorPosition)
+private DSymbol*[] getUFCSSymbolsForParenCompletion(DSymbol* symbolType, Scope* completionScope, istring searchWord, size_t cursorPosition)
 {
     // local appender
     FilteredAppender!(a => a.isCallableWithArg(symbolType) && a.name.among(searchWord), DSymbol*[]) localAppender;
@@ -259,10 +251,21 @@ DSymbol*[] getUFCSSymbolsForParenCompletion(DSymbol* symbolType, Scope* completi
 
 }
 
-private bool willImplicitBeUpcasted(string from, string to)
+private bool willImplicitBeUpcasted(const(DSymbol)* from, const(DSymbol)* to)
 {
+    if (from is null || to is null || to.functionParameters.empty || to.functionParameters.front.type is null) {
+        return false;
+    }
+
+    string fromTypeName = from.name.data;
+    string toTypeName = to.functionParameters.front.type.name.data;
+
+    return typeWillBeUpcastedTo(fromTypeName, toTypeName);
+}
+
+private bool typeWillBeUpcastedTo(string from, string to) {
     string* found = from in INTEGER_PROMOTIONS;
-    if (!found)
+    if (found is null)
     {
         return false;
     }
@@ -270,7 +273,7 @@ private bool willImplicitBeUpcasted(string from, string to)
     return INTEGER_PROMOTIONS[from] == to;
 }
 
-private bool matchAliasThis(const(DSymbol)* beforeDotType, DSymbol* incomingSymbol, int recursionDepth)
+private bool matchAliasThis(const(DSymbol)* beforeDotType, const(DSymbol)* incomingSymbol, int recursionDepth)
 {
     // For now we are only resolving the first alias this symbol
     // when multiple alias this are supported, we can rethink another solution
@@ -285,6 +288,10 @@ private bool matchAliasThis(const(DSymbol)* beforeDotType, DSymbol* incomingSymb
     return isCallableWithArg(incomingSymbol, beforeDotType.aliasThisSymbols.front.type, false, recursionDepth);
 }
 
+bool isNonConstrainedTemplate(const(DSymbol)* incomingSymbol){
+    return incomingSymbol.functionParameters.front.type !is null && incomingSymbol.functionParameters.front.type.kind is CompletionKind.typeTmpParam; 
+}
+
 /**
  * Params:
  *     incomingSymbol = the function symbol to check if it is valid for UFCS with `beforeDotType`.
@@ -294,26 +301,22 @@ private bool matchAliasThis(const(DSymbol)* beforeDotType, DSymbol* incomingSymb
  *     `true` if `incomingSymbols`' first parameter matches `beforeDotType`
  *     `false` otherwise
  */
-bool isCallableWithArg(DSymbol* incomingSymbol, const(DSymbol)* beforeDotType, bool isGlobalScope = false, int recursionDepth = 0)
+bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDotType, bool isGlobalScope = false, int recursionDepth = 0)
 {
-    if (!incomingSymbol || !beforeDotType
-        || (isGlobalScope && incomingSymbol.protection == tok!"private") || recursionDepth > MAX_RECURSION_DEPTH)
+    if (incomingSymbol is null 
+        || beforeDotType is null
+        || isGlobalScope && incomingSymbol.protection is tok!"private" // don't show private functions if we are in global scope
+        || recursionDepth > MAX_RECURSION_DEPTH)
     {
         return false;
     }
 
-    if (incomingSymbol.kind == CompletionKind.functionName && !incomingSymbol
-        .functionParameters.empty)
+    if (incomingSymbol.kind is CompletionKind.functionName && !incomingSymbol.functionParameters.empty && incomingSymbol.functionParameters.front.type)
     {
-        if (beforeDotType is incomingSymbol.functionParameters.front.type
-            || incomingSymbol.functionParameters.front.type.kind is CompletionKind.typeTmpParam // non constrained template
-            || willImplicitBeUpcasted(beforeDotType.name, incomingSymbol
-                .functionParameters.front.type.name)
-            || matchAliasThis(beforeDotType, incomingSymbol, recursionDepth))
-        {
-            incomingSymbol.kind = CompletionKind.ufcsName;
-            return true;
-        }
+        return beforeDotType is incomingSymbol.functionParameters.front.type
+            || isNonConstrainedTemplate(incomingSymbol)
+            || willImplicitBeUpcasted(beforeDotType, incomingSymbol)
+            || matchAliasThis(beforeDotType, incomingSymbol, recursionDepth);
 
     }
     return false;
@@ -355,6 +358,6 @@ struct FilteredAppender(alias predicate, T:
 
 unittest
 {
-    assert(!willImplicitBeUpcasted("A", "B"));
-    assert(willImplicitBeUpcasted("bool", "int"));
+    assert(!typeWillBeUpcastedTo("A", "B"));
+    assert(typeWillBeUpcastedTo("bool", "int"));
 }

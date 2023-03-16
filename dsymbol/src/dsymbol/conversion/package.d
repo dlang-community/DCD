@@ -66,6 +66,9 @@ struct ScopeSymbolPair
 	{
 		typeid(DSymbol).destroy(symbol);
 		typeid(Scope).destroy(scope_);
+		foreach(ufcsSym; ufcsSymbols){
+			typeid(DSymbol).destroy(ufcsSym);
+		}
 	}
 
 	DSymbol* symbol;

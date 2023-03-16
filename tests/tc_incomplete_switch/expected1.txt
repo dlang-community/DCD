@@ -2,7 +2,6 @@ identifiers
 __monitor	v
 __vptr	v
 alignof	k
-bar	F
 classinfo	v
 e	v
 init	k
