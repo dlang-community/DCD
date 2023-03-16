@@ -279,10 +279,6 @@ private bool matchAliasThis(const(DSymbol)* beforeDotType, const(DSymbol)* incom
     return isCallableWithArg(incomingSymbol, beforeDotType.aliasThisSymbols.front.type, false, recursionDepth);
 }
 
-bool isNonConstrainedTemplate(const(DSymbol)* incomingSymbol){
-    return incomingSymbol.functionParameters.front.type !is null && incomingSymbol.functionParameters.front.type.kind is CompletionKind.typeTmpParam; 
-}
-
 /**
  * Params:
  *     incomingSymbol = the function symbol to check if it is valid for UFCS with `beforeDotType`.
@@ -305,7 +301,6 @@ bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDot
     if (incomingSymbol.kind is CompletionKind.functionName && !incomingSymbol.functionParameters.empty && incomingSymbol.functionParameters.front.type)
     {
         return beforeDotType is incomingSymbol.functionParameters.front.type
-            || isNonConstrainedTemplate(incomingSymbol)
             || willImplicitBeUpcasted(beforeDotType, incomingSymbol)
             || matchAliasThis(beforeDotType, incomingSymbol, recursionDepth);
 

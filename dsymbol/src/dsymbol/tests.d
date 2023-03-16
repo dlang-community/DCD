@@ -710,8 +710,7 @@ unittest
 		// position of variable life 
 		size_t cursorPos = 82;
 		auto pair = generateAutocompleteTreesProd(ufcsTemplateExampleCode, randomDFilename, cursorPos, cache);
-		assert(pair.ufcsSymbols.length > 0);
-		assert(pair.ufcsSymbols[0].name == "increment");
+		assert(pair.ufcsSymbols.length == 0);
 
 	}
 
