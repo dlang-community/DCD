@@ -1129,9 +1129,7 @@ private:
 
 		foreach (suffix; type.typeSuffixes)
 		{
-			if (suffix.star != tok!"")
-				continue;
-			else if (suffix.type)
+			if (suffix.type)
 				lookup.breadcrumbs.insert(ASSOC_ARRAY_SYMBOL_NAME);
 			else if (suffix.array)
 				lookup.breadcrumbs.insert(ARRAY_SYMBOL_NAME);

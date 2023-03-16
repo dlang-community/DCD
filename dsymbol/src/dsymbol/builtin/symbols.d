@@ -41,6 +41,11 @@ TTree!(DSymbol*, SymbolsAllocator, true, "a < b") classSymbols;
 TTree!(DSymbol*, SymbolsAllocator, true, "a < b") enumSymbols;
 
 /**
+ * Pointer properties (when not implicitly dereferencing)
+ */
+TTree!(DSymbol*, SymbolsAllocator, true, "a < b") pointerSymbols;
+
+/**
  * Variadic template parameters properties
  */
 DSymbol* variadicTmpParamSymbol;
@@ -191,6 +196,12 @@ static this()
 	aggregateSymbols.insert(stringof_);
 	aggregateSymbols.insert(init);
 
+	pointerSymbols.insert(mangleof_);
+	pointerSymbols.insert(alignof_);
+	pointerSymbols.insert(sizeof_);
+	pointerSymbols.insert(stringof_);
+	pointerSymbols.insert(init);
+
 	classSymbols.insert(makeSymbol("classinfo", CompletionKind.variableName));
 	classSymbols.insert(tupleof);
 	classSymbols.insert(makeSymbol("__vptr", CompletionKind.variableName));
@@ -283,6 +294,7 @@ static ~this()
 	destroy(aggregateSymbols);
 	destroy(classSymbols);
 	destroy(enumSymbols);
+	destroy(pointerSymbols);
 
 	foreach (sym; symbolsMadeHere[])
 		destroy(*sym);
