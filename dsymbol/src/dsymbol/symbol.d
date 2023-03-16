@@ -131,6 +131,8 @@ enum SymbolQualifier : ubyte
 	func,
 	/// Selective import
 	selectiveImport,
+	/// The symbol is a pointer
+	pointer,
 }
 
 /**
@@ -227,6 +229,11 @@ struct DSymbol
 		if (visited.contains(cast(size_t) &this))
 			return;
 		visited.insert(cast(size_t) &this);
+
+		// pointers are implicitly dereferenced on members (a single layer)
+		if (qualifier == SymbolQualifier.pointer
+			&& this.type.qualifier != SymbolQualifier.pointer)
+			return type.getParts!OR(name, app, visited, onlyOne);
 
 		if (name is null)
 		{
@@ -427,9 +434,13 @@ struct DSymbol
 	// dfmt off
 	mixin(bitfields!(bool, "ownType", 1,
 		bool, "skipOver", 1,
-		bool, "isPointer", 1,
-		ubyte, "", 5));
+		ubyte, "", 6));
 	// dfmt on
+
+	deprecated bool isPointer()
+	{
+		return qualifier == SymbolQualifier.pointer;
+	}
 
 	/// Protection level for this symbol
 	IdType protection;

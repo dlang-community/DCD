@@ -1,0 +1,30 @@
+identifiers
+alignof	k				
+init	k				
+mangleof	k				
+member	v	int member	stdin 16		int
+sizeof	k				
+stringof	k				
+tupleof	k				
+identifiers
+alignof	k				
+init	k				
+mangleof	k				
+member	v	int member	stdin 16		int
+sizeof	k				
+stringof	k				
+tupleof	k				
+identifiers
+alignof	k				
+init	k				
+mangleof	k				
+sizeof	k				
+stringof	k				
+identifiers
+alignof	k				
+init	k				
+mangleof	k				
+member	v	int member	stdin 16		int
+sizeof	k				
+stringof	k				
+tupleof	k				

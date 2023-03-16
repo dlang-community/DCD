@@ -180,29 +180,30 @@ do
 	while (!lookup.breadcrumbs.empty)
 	{
 		auto back = lookup.breadcrumbs.back;
-		immutable bool isArr = back == ARRAY_SYMBOL_NAME;
-		immutable bool isAssoc = back == ASSOC_ARRAY_SYMBOL_NAME;
-		immutable bool isFunction = back == FUNCTION_SYMBOL_NAME;
-		if (back == POINTER_SYMBOL_NAME)
-		{
-			lastSuffix.isPointer = true;
-			lookup.breadcrumbs.popBack();
-			continue;
-		}
-		if (!isArr && !isAssoc && !isFunction)
-			break;
-		immutable qualifier = isAssoc ? SymbolQualifier.assocArray
-			: (isFunction ? SymbolQualifier.func : SymbolQualifier.array);
+		SymbolQualifier qualifier;
+		if (back == ARRAY_SYMBOL_NAME) qualifier = SymbolQualifier.array;
+		else if (back == ASSOC_ARRAY_SYMBOL_NAME) qualifier = SymbolQualifier.assocArray;
+		else if (back == FUNCTION_SYMBOL_NAME) qualifier = SymbolQualifier.func;
+		else if (back == POINTER_SYMBOL_NAME) qualifier = SymbolQualifier.pointer;
+		else break;
+
 		lastSuffix = GCAllocator.instance.make!DSymbol(back, CompletionKind.dummy, lastSuffix);
 		lastSuffix.qualifier = qualifier;
 		lastSuffix.ownType = true;
-		if (isFunction)
+
+		final switch (qualifier)
 		{
+		case SymbolQualifier.none:
+		case SymbolQualifier.selectiveImport:
+			assert(false, "this should never be generated");
+		case SymbolQualifier.func:
 			lookup.breadcrumbs.popBack();
 			lastSuffix.callTip = lookup.breadcrumbs.back();
+			break;
+		case SymbolQualifier.array: lastSuffix.addChildren(arraySymbols[], false); break;
+		case SymbolQualifier.assocArray: lastSuffix.addChildren(assocArraySymbols[], false); break;
+		case SymbolQualifier.pointer: lastSuffix.addChildren(pointerSymbols[], false); break;
 		}
-		else
-			lastSuffix.addChildren(isArr ? arraySymbols[] : assocArraySymbols[], false);
 
 		if (suffix is null)
 			suffix = lastSuffix;
@@ -454,9 +455,10 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 			if (currentSymbol is null)
 				return;
 
-			// Index expressions can be an array index or an AA index
+			// Index expressions can be on a pointer, an array or an AA
 			if (currentSymbol.qualifier == SymbolQualifier.array
 				|| currentSymbol.qualifier == SymbolQualifier.assocArray
+				|| currentSymbol.qualifier == SymbolQualifier.pointer
 				|| currentSymbol.kind == CompletionKind.aliasName)
 			{
 				if (currentSymbol.type !is null)
