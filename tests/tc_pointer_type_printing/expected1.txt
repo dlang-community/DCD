@@ -1,0 +1,14 @@
+identifiers
+itemA	v	S itemA	stdin 44		S
+itemB	v	S* itemB	stdin 55		S*
+itemC	v	S[]* itemC	stdin 68		S[]*
+itemD	v	S[][]* itemD	stdin 83		S[][]*
+itemE	v	S[][]*[] itemE	stdin 100		S[][]*[]
+itemF	v	S[][]*[][] itemF	stdin 119		S[][]*[][]
+itemG	v	S[][...]*[][] itemG	stdin 141		S[][...]*[][]
+itemH	v	S[][]*[...][] itemH	stdin 163		S[][]*[...][]
+itemI	v	S[...][]*[...][] itemI	stdin 188		S[...][]*[...][]
+itemJ	v	S[...]*[]*[...][] itemJ	stdin 214		S[...]*[]*[...][]
+itemK	v	S[...]*[]**[...][] itemK	stdin 241		S[...]*[]**[...][]
+itemL	v	S[...]*[]*[...]*[] itemL	stdin 268		S[...]*[]*[...]*[]
+itemM	v	S[...]*[]*[...]*[]* itemM	stdin 296		S[...]*[]*[...]*[]*

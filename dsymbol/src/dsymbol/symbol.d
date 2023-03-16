@@ -445,6 +445,43 @@ struct DSymbol
 	/// Protection level for this symbol
 	IdType protection;
 
+	string formatType(string suffix = "") const
+	{
+		if (kind == CompletionKind.functionName)
+		{
+			if (type) // try to give return type symbol
+				return type.formatType;
+			else // null if unresolved, user can manually pick .name or .callTip if needed
+				return null;
+		}
+		else if (name == POINTER_SYMBOL_NAME)
+		{
+			if (!type)
+				return suffix ~ "*";
+			else
+				return type.formatType(suffix ~ "*");
+		}
+		else if (name == ARRAY_SYMBOL_NAME)
+		{
+			if (!type)
+				return suffix ~ "[]";
+			else
+				return type.formatType(suffix ~ "[]");
+		}
+		else if (name == ASSOC_ARRAY_SYMBOL_NAME)
+		{
+			// TODO: include AA key type
+			if (!type)
+				return suffix ~ "[...]";
+			else
+				return type.formatType(suffix ~ "[...]");
+		}
+		else
+		{
+			// TODO: include template parameters
+			return name ~ suffix;
+		}
+	}
 }
 
 /**

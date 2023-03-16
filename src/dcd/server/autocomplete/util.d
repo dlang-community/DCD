@@ -614,16 +614,26 @@ bool isUdaExpression(T)(ref T tokens)
 
 AutocompleteResponse.Completion makeSymbolCompletionInfo(const DSymbol* symbol, char kind)
 {
-	string definition;
-	if ((kind == CompletionKind.variableName || kind == CompletionKind.memberVariableName) && symbol.type)
-		definition = symbol.type.name ~ ' ' ~ symbol.name;
-	else if (kind == CompletionKind.enumMember)
-		definition = symbol.name; // TODO: add enum value to definition string
-	else
-		definition = symbol.callTip;
-	// TODO: definition strings could include more information, like on classes inheritance
-	return AutocompleteResponse.Completion(symbol.name, kind, definition,
+	auto ret = AutocompleteResponse.Completion(symbol.name, kind, null,
 		symbol.symbolFile, symbol.location, symbol.doc);
+
+	if (symbol.type)
+		ret.typeOf = symbol.type.formatType;
+
+	if ((kind == CompletionKind.variableName || kind == CompletionKind.memberVariableName) && symbol.type)
+	{
+		if (symbol.type.kind == CompletionKind.functionName && !ret.typeOf.length)
+			ret.definition = symbol.type.name ~ ' ' ~ symbol.name;
+		else
+			ret.definition = ret.typeOf ~ ' ' ~ symbol.name;
+	}
+	else if (kind == CompletionKind.enumMember)
+		ret.definition = symbol.name; // TODO: add enum value to definition string
+	else
+		ret.definition = symbol.callTip;
+
+	// TODO: extend completion with more info such as class inheritance
+	return ret;
 }
 
 bool doUFCSSearch(string beforeToken, string lastToken)

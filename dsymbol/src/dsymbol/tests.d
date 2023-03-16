@@ -217,8 +217,8 @@ unittest
 	};
 	ScopeSymbolPair pair = generateAutocompleteTrees(source, cache);
 	DSymbol* meaningOfLife = pair.symbol.getFirstPartNamed(istring("meaningOfLife"));
-	writeln(meaningOfLife.type.name);
-	assert(meaningOfLife.type.name == "int");
+	writeln(meaningOfLife.type.formatType);
+	assert(meaningOfLife.type.formatType == "int*");
 }
 
 

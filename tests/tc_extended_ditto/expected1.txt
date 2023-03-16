@@ -1,3 +1,3 @@
 identifiers
-foo	f	void foo()	stdin 26	my documentation
-foo	f	void foo(int i)	stdin 49	my documentation
+foo	f	void foo()	stdin 26	my documentation	void
+foo	f	void foo(int i)	stdin 49	my documentation	void
