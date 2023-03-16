@@ -127,12 +127,6 @@ private void getUFCSSymbols(T, Y)(ref T localAppender, ref Y globalAppender, Sco
         return;
     }
 
-    DSymbol*[] cursorSymbols = currentScope.getSymbolsInCursorScope(cursorPosition);
-    if (cursorSymbols.empty)
-    {
-        return;
-    }
-
     HashSet!size_t visited;
 
     while (currentScope !is null && currentScope.parent !is null)
