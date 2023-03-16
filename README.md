@@ -175,13 +175,19 @@ a tab separated format:
 * definition: function or variable definition string or close approximation for information display purpose
 * symbol location: in which file (or `stdin`) & byte offset this symbol is defined. Separated with a space.
 * documentation: escaped documentation string of this symbol
+* typeOf: resolved type name of this symbol:
+	<!-- the items in list are copied from messages.d -->
+	* For variables, fields, globals, constants: resolved type or empty if unresolved.
+	* For functions: resolved return type or empty if unresolved.
+	* For constructors: may be struct/class name or empty in any case.
+	* Otherwise (probably) empty.
 
 #### Example `--extended` output
 
 	identifiers
 	libraryFunction	f	Tuple!long libraryFunction(string s, string s2)	stdin 190	foobar
-	libraryFunction	f	int* libraryFunction(string s)	stdin 99	Hello\nWorld
-	libraryVariable	v	int libraryVariable	stdin 56	My variable
+	libraryFunction	f	int* libraryFunction(string s)	stdin 99	Hello\nWorld	int*
+	libraryVariable	v	int libraryVariable	stdin 56	My variable	int
 	libreTypes	g		stdin 298
 
 #### Note
@@ -189,6 +195,9 @@ a tab separated format:
 DCD's output will start with "identifiers" when completing at a left paren
 character if the keywords *pragma*, *scope*, *__traits*, *extern*, or *version*
 were just before the paren.
+
+Types in the calltips and typeOf column may not be complete, e.g. missing
+template parameters or typeof expressions, etc.
 
 ### Parenthesis completion
 

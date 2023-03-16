@@ -152,6 +152,14 @@ struct AutocompleteResponse
 		 * Documentation associated with this symbol.
 		 */
 		string documentation;
+		// when changing the behavior here, update README.md
+		/**
+		 * For variables, fields, globals, constants: resolved type or empty if unresolved.
+		 * For functions: resolved return type or empty if unresolved.
+		 * For constructors: may be struct/class name or empty in any case.
+		 * Otherwise (probably) empty.
+		 */
+		string typeOf;
 	}
 
 	/**

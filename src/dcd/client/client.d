@@ -396,7 +396,8 @@ void printCompletionResponse(ref const AutocompleteResponse response, bool exten
 						completion.kind == char.init ? "" : "" ~ completion.kind,
 						completion.definition,
 						completion.symbolFilePath.length ? completion.symbolFilePath ~ " " ~ completion.symbolLocation.to!string : "",
-						completion.documentation
+						completion.documentation,
+						completion.typeOf
 					));
 				else
 					app.put(makeTabSeparated(completion.identifier, "" ~ completion.kind));

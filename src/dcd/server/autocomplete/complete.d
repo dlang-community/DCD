@@ -701,5 +701,6 @@ do
 	auto completion = makeSymbolCompletionInfo(symbol, char.init);
 	completion.identifier = "this";
 	completion.definition = generatedStructConstructorCalltip;
+	completion.typeOf = symbol.name;
 	return completion;
 }

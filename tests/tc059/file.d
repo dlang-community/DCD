@@ -5,6 +5,8 @@ void main(string[] args)
 
 /// My variable
 int libraryVariable;
+/// ditto
+int* libraryVariable2;
 
 /// Hello
 /// World

@@ -1,4 +1,5 @@
 identifiers
-libraryFunction	f	Tuple!long libraryFunction(string s, string s2)	stdin 190	foobar
-libraryFunction	f	int* libraryFunction(string s)	stdin 99	Hello\nWorld
-libraryVariable	v	int libraryVariable	stdin 56	My variable
+libraryFunction	f	Tuple!long libraryFunction(string s, string s2)	stdin 223	foobar	
+libraryFunction	f	int* libraryFunction(string s)	stdin 132	Hello\nWorld	int*
+libraryVariable	v	int libraryVariable	stdin 56	My variable	int
+libraryVariable2	v	int* libraryVariable2	stdin 88	My variable	int*
