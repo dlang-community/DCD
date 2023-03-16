@@ -264,13 +264,10 @@ private bool willImplicitBeUpcasted(const(DSymbol)* from, const(DSymbol)* to)
 }
 
 private bool typeWillBeUpcastedTo(string from, string to) {
-    string* found = from in INTEGER_PROMOTIONS;
-    if (found is null)
-    {
-        return false;
-    }
+    if (auto promotionType = from in INTEGER_PROMOTIONS)
+        return *promotionType == to;
 
-    return INTEGER_PROMOTIONS[from] == to;
+    return false;
 }
 
 private bool matchAliasThis(const(DSymbol)* beforeDotType, const(DSymbol)* incomingSymbol, int recursionDepth)
