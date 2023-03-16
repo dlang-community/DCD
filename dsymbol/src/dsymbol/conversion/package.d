@@ -66,9 +66,8 @@ struct ScopeSymbolPair
 	{
 		typeid(DSymbol).destroy(symbol);
 		typeid(Scope).destroy(scope_);
-		foreach(ufcsSym; ufcsSymbols){
-			typeid(DSymbol).destroy(ufcsSym);
-		}
+		// don't destroy ufcsSymbols contents since we don't own the values
+		// array itself is GC-allocated, so we just let it live
 	}
 
 	DSymbol* symbol;
