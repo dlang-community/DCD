@@ -24,8 +24,12 @@ callgrind.*
 tests/tc*/actual*.txt
 stderr.txt
 stdout.txt
+# script-generated expected with absolute file paths
+tests/tc_locate_ufcs_function/expected.txt
+tests/tc_recursive_public_import/expected.txt
 
 # Dub files
 .dub
 dub.selections.json
 !/dub.selections.json
+dcd*-test-*
