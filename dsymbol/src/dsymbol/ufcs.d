@@ -42,9 +42,9 @@ enum string[string] INTEGER_PROMOTIONS = [
 
 enum MAX_RECURSION_DEPTH = 50;
 
-private DSymbol* deduceSymbolType(DSymbol* symbol)
+private const(DSymbol)* deduceSymbolType(const(DSymbol)* symbol)
 {
-    DSymbol* symbolType = symbol.type;
+    const(DSymbol)* symbolType = symbol.type;
     while (symbolType !is null && (symbolType.qualifier == SymbolQualifier.func
             || symbolType.kind == CompletionKind.functionName
             || symbolType.kind == CompletionKind.importSymbol
@@ -57,6 +57,7 @@ private DSymbol* deduceSymbolType(DSymbol* symbol)
         //look at next type to deduce
         symbolType = symbolType.type;
     }
+
     return symbolType;
 
 }
@@ -170,9 +171,6 @@ private void getUFCSSymbols(T, Y)(ref T localAppender, ref Y globalAppender, Sco
 
 DSymbol*[] getUFCSSymbolsForCursor(Scope* completionScope, ref const(Token)[] tokens, size_t cursorPosition)
 {
-    DSymbol* cursorSymbol;
-    DSymbol* cursorSymbolType;
-
     TokenCursorResult tokenCursorResult = getCursorToken(tokens, cursorPosition);
 
     if (tokenCursorResult.completionContext is CompletionContext.UnknownCompletion)
@@ -181,7 +179,7 @@ DSymbol*[] getUFCSSymbolsForCursor(Scope* completionScope, ref const(Token)[] to
         return [];
     }
 
-    cursorSymbol = completionScope.getFirstSymbolByNameAndCursor(
+    const(DSymbol)* cursorSymbol = completionScope.getFirstSymbolByNameAndCursor(
         tokenCursorResult.symbolIdentifierName, cursorPosition);
 
     if (cursorSymbol is null)
@@ -196,7 +194,7 @@ DSymbol*[] getUFCSSymbolsForCursor(Scope* completionScope, ref const(Token)[] to
         return [];
     }
 
-    cursorSymbolType = deduceSymbolType(cursorSymbol);
+    const(DSymbol)* cursorSymbolType = deduceSymbolType(cursorSymbol);
 
     if (cursorSymbolType is null)
     {
@@ -220,7 +218,7 @@ DSymbol*[] getUFCSSymbolsForCursor(Scope* completionScope, ref const(Token)[] to
 
 }
 
-private DSymbol*[] getUFCSSymbolsForDotCompletion(DSymbol* symbolType, Scope* completionScope, size_t cursorPosition)
+private DSymbol*[] getUFCSSymbolsForDotCompletion(const(DSymbol)* symbolType, Scope* completionScope, size_t cursorPosition)
 {
     // local appender
     FilteredAppender!(a => a.isCallableWithArg(symbolType), DSymbol*[]) localAppender;
@@ -232,7 +230,7 @@ private DSymbol*[] getUFCSSymbolsForDotCompletion(DSymbol* symbolType, Scope* co
     return localAppender.data ~ globalAppender.data;
 }
 
-private DSymbol*[] getUFCSSymbolsForParenCompletion(DSymbol* symbolType, Scope* completionScope, istring searchWord, size_t cursorPosition)
+private DSymbol*[] getUFCSSymbolsForParenCompletion(const(DSymbol)* symbolType, Scope* completionScope, istring searchWord, size_t cursorPosition)
 {
     // local appender
     FilteredAppender!(a => a.isCallableWithArg(symbolType) && a.name.among(searchWord), DSymbol*[]) localAppender;
@@ -280,7 +278,16 @@ private bool matchAliasThis(const(DSymbol)* beforeDotType, const(DSymbol)* incom
 }
 
 bool isNonConstrainedTemplate(const(DSymbol)* incomingSymbol){
-    return incomingSymbol.functionParameters.front.type !is null && incomingSymbol.functionParameters.front.type.kind is CompletionKind.typeTmpParam; 
+    return incomingSymbol.functionParameters.front.type !is null 
+            && incomingSymbol.functionParameters.front.type.kind is CompletionKind.typeTmpParam; 
+}
+
+private bool matchesWithTypeOfPointer(const(DSymbol)* incomingSymbol, const(DSymbol)* cursorSymbolType) {
+
+    return incomingSymbol.functionParameters.front.type.qualifier == SymbolQualifier.pointer 
+        && cursorSymbolType.qualifier == SymbolQualifier.pointer
+        && incomingSymbol.functionParameters.front.type.type is cursorSymbolType.type;
+
 }
 
 /**
@@ -294,7 +301,7 @@ bool isNonConstrainedTemplate(const(DSymbol)* incomingSymbol){
  */
 bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDotType, bool isGlobalScope = false, int recursionDepth = 0)
 {
-    if (incomingSymbol is null 
+    if (incomingSymbol is null
         || beforeDotType is null
         || isGlobalScope && incomingSymbol.protection is tok!"private" // don't show private functions if we are in global scope
         || recursionDepth > MAX_RECURSION_DEPTH)
@@ -306,6 +313,7 @@ bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDot
     {
         return beforeDotType is incomingSymbol.functionParameters.front.type
             || isNonConstrainedTemplate(incomingSymbol)
+            || matchesWithTypeOfPointer(incomingSymbol, beforeDotType)
             || willImplicitBeUpcasted(beforeDotType, incomingSymbol)
             || matchAliasThis(beforeDotType, incomingSymbol, recursionDepth);
 
