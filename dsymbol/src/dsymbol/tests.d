@@ -658,7 +658,11 @@ ScopeSymbolPair generateAutocompleteTreesProd(string source, string filename, si
 
 version (linux)
 {
-	enum string ufcsExampleCode =
+
+	unittest
+	{
+
+enum string ufcsExampleCode =
 q{class Incrementer
 {
 	int run(int x)
@@ -676,9 +680,6 @@ void doIncrement()
 	life.
 }};
 
-	unittest
-	{
-		import dsymbol.ufcs;
 
 		writeln("Getting UFCS Symbols For life");
 		ModuleCache cache;
@@ -701,9 +702,19 @@ void doIncrement()
 	life.
 }};
 
-unittest
+	unittest
 	{
-		import dsymbol.ufcs;
+
+enum string ufcsTemplateExampleCode =
+q{int increment(T)(T x)
+{
+	return x++;
+}
+void doIncrement()
+{
+	int life = 42;
+	life.
+}};
 
 		writeln("Getting Templated UFCS Symbols For life");
 		ModuleCache cache;
@@ -713,6 +724,25 @@ unittest
 		assert(pair.ufcsSymbols.length > 0);
 		assert(pair.ufcsSymbols[0].name == "increment");
 
+	}
+
+    unittest
+	{
+
+enum string ufcsPointerExampleCode =
+q{void increment(int* x) { }
+void doIncrement(int* x, int* y)
+{
+	y.
+}};
+
+		writeln("Getting Ptr UFCS completion");
+		ModuleCache cache;
+		// position of variable life
+		size_t cursorPos = 65;
+		auto pair = generateAutocompleteTreesProd(ufcsPointerExampleCode, randomDFilename, cursorPos, cache);
+		assert(pair.ufcsSymbols[0].name == "increment");
+		assert(pair.ufcsSymbols[1].name == "doIncrement");
 	}
 
 }

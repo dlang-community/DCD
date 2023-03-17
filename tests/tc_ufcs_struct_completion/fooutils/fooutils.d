@@ -10,6 +10,7 @@ struct IntAliased {
 }
 
 void u(Foo foo) {}
+void ufcsHelloPtr(Foo* foo) {}
 void ufcsHello(ref Foo foo) {}
 void ufcsBar(Foo foo, string mama) {}
 void ufcsBarRef(ref Foo foo, string mama) {}
