@@ -1,6 +1,7 @@
 identifiers
 alignof	k
-arrayStuff	F
+arrayStuff1	F
+arrayStuff7	F
 doArray	F
 dup	k
 idup	k
