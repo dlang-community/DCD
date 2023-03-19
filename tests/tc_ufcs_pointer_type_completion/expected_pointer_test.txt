@@ -1,7 +1,8 @@
 identifiers
 alignof	k
 doIncrement	F
-increment	F
+increment1	F
+increment7	F
 init	k
 mangleof	k
 max	k
