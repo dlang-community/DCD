@@ -290,6 +290,13 @@ private bool matchesWithTypeOfPointer(const(DSymbol)* incomingSymbol, const(DSym
 
 }
 
+private bool matchesWithTypeOfArray(const(DSymbol)* incomingSymbol, const(DSymbol)* cursorSymbolType) {
+    return incomingSymbol.functionParameters.front.type.qualifier == SymbolQualifier.array 
+        && cursorSymbolType.qualifier == SymbolQualifier.array
+        && incomingSymbol.functionParameters.front.type.type is cursorSymbolType.type;
+
+}
+
 /**
  * Params:
  *     incomingSymbol = the function symbol to check if it is valid for UFCS with `beforeDotType`.
@@ -313,6 +320,7 @@ bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDot
     {
         return beforeDotType is incomingSymbol.functionParameters.front.type
             || isNonConstrainedTemplate(incomingSymbol)
+            || matchesWithTypeOfArray(incomingSymbol, beforeDotType)
             || matchesWithTypeOfPointer(incomingSymbol, beforeDotType)
             || willImplicitBeUpcasted(beforeDotType, incomingSymbol)
             || matchAliasThis(beforeDotType, incomingSymbol, recursionDepth);
