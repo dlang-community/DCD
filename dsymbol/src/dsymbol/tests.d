@@ -661,8 +661,7 @@ version (linux)
 
 	unittest
 	{
-
-enum string ufcsExampleCode =
+		enum string ufcsExampleCode =
 q{class Incrementer
 {
 	int run(int x)
@@ -704,8 +703,7 @@ void doIncrement()
 
 	unittest
 	{
-
-enum string ufcsTemplateExampleCode =
+		enum string ufcsTemplateExampleCode =
 q{int increment(T)(T x)
 {
 	return x++;
@@ -726,10 +724,9 @@ void doIncrement()
 
 	}
 
-    unittest
+	unittest
 	{
-
-enum string ufcsPointerExampleCode =
+		enum string ufcsPointerExampleCode =
 q{void increment(int* x) { }
 void doIncrement(int* x, int* y)
 {
