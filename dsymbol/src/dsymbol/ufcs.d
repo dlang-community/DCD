@@ -26,6 +26,7 @@ struct TokenCursorResult
     CompletionContext completionContext;
     istring functionName;
     istring symbolIdentifierName;
+    string partialIdentifier;
 }
 
 // https://dlang.org/spec/type.html#implicit-conversions
@@ -82,6 +83,13 @@ private TokenCursorResult getCursorToken(const(Token)[] tokens, size_t cursorPos
         return tokenCursorResult;
     }
 
+    // move before identifier for
+    if (sortedBeforeTokens[$ - 1].type is tok!"identifier")
+    {
+        tokenCursorResult.partialIdentifier = sortedBeforeTokens[$ - 1].text;
+        sortedBeforeTokens = sortedBeforeTokens[0 .. $ - 1];
+    }
+
     if (sortedBeforeTokens.length >= 2 
         && sortedBeforeTokens[$ - 1].type is tok!"."
         && sortedBeforeTokens[$ - 2].type is tok!"identifier")
@@ -91,7 +99,7 @@ private TokenCursorResult getCursorToken(const(Token)[] tokens, size_t cursorPos
         tokenCursorResult.symbolIdentifierName = istring(sortedBeforeTokens[$ - 2].text);
         return tokenCursorResult;
     }
-    else
+    else if (!tokenCursorResult.partialIdentifier.length)
     {
         // Check if it's UFCS paren completion
         size_t index = goBackToOpenParen(sortedBeforeTokens);
@@ -213,17 +221,23 @@ DSymbol*[] getUFCSSymbolsForCursor(Scope* completionScope, ref const(Token)[] to
     }
     else
     {
-        return getUFCSSymbolsForDotCompletion(cursorSymbolType, completionScope, cursorPosition);
+        return getUFCSSymbolsForDotCompletion(cursorSymbolType, completionScope, cursorPosition, tokenCursorResult.partialIdentifier);
     }
 
 }
 
-private DSymbol*[] getUFCSSymbolsForDotCompletion(const(DSymbol)* symbolType, Scope* completionScope, size_t cursorPosition)
+private DSymbol*[] getUFCSSymbolsForDotCompletion(const(DSymbol)* symbolType, Scope* completionScope, size_t cursorPosition, string partial)
 {
     // local appender
-    FilteredAppender!(a => a.isCallableWithArg(symbolType), DSymbol*[]) localAppender;
+    FilteredAppender!((DSymbol* a) =>
+            a.isCallableWithArg(symbolType)
+            && toUpper(a.name.data).startsWith(toUpper(partial)),
+        DSymbol*[]) localAppender;
     // global appender
-    FilteredAppender!(a => a.isCallableWithArg(symbolType, true), DSymbol*[]) globalAppender;
+    FilteredAppender!((DSymbol* a) =>
+            a.isCallableWithArg(symbolType, true)
+            && toUpper(a.name.data).startsWith(toUpper(partial)),
+        DSymbol*[]) globalAppender;
 
     getUFCSSymbols(localAppender, globalAppender, completionScope, cursorPosition);
 
