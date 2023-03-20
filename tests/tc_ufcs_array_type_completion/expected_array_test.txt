@@ -1,13 +1,3 @@
 identifiers
-alignof	k
 arrayStuff1	F
 arrayStuff7	F
-doArray	F
-dup	k
-idup	k
-init	k
-length	k
-mangleof	k
-ptr	k
-sizeof	k
-stringof	k
