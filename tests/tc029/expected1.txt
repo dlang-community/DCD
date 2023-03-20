@@ -6,3 +6,6 @@ cfloat	k
 char	k
 complicatedLess	l
 creal	k
+dchar	k
+ucent	k
+wchar	k

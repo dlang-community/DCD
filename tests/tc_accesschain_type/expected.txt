@@ -1,2 +1,7 @@
 identifiers
+alignof	k
 foo	f
+mangleof	k
+sizeof	k
+stringof	k
+tupleof	k

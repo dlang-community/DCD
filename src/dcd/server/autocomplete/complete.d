@@ -188,7 +188,6 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 		{
 			partial = t.text[0 .. cursorPosition - t.index];
 			// issue 442 - prevent `partial` to start in the middle of a MBC
-			// since later there's a non-nothrow call to `toUpper`
 			import std.utf : validate, UTFException;
 			try validate(partial);
 			catch (UTFException)
@@ -513,7 +512,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		foreach (sym; s.opSlice())
 		{
 			if (sym.name !is null && sym.name.length > 0 && isPublicCompletionKind(sym.kind)
-				&& (p is null ? true : toUpper(sym.name.data).startsWith(toUpper(p)))
+				&& prettyFuzzyMatch(sym.name.data, p)
 				&& !r.completions.canFind!(a => a.identifier == sym.name)
 				&& sym.name[0] != '*'
 				&& mightBeRelevantInCompletionScope(sym, completionScope))
@@ -531,7 +530,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	{
 		auto currentSymbols = completionScope.getSymbolsInCursorScope(cursorPosition);
 		foreach (s; currentSymbols.filter!(a => isPublicCompletionKind(a.kind)
-				&& toUpper(a.name.data).startsWith(toUpper(partial))
+				&& prettyFuzzyMatch(a.name.data, partial)
 				&& mightBeRelevantInCompletionScope(a, completionScope)))
 		{
 			response.completions ~= makeSymbolCompletionInfo(s, s.kind);
@@ -549,8 +548,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				&& a.kind != CompletionKind.importSymbol
 				&& a.kind != CompletionKind.dummy
 				&& a.symbolFile == "stdin"
-				&& (partial !is null && toUpper(a.name.data).startsWith(toUpper(partial))
-					|| partial is null)
+				&& prettyFuzzyMatch(a.name.data, partial)
 				&& mightBeRelevantInCompletionScope(a, completionScope)))
 		{
 			response.completions ~= makeSymbolCompletionInfo(s, s.kind);

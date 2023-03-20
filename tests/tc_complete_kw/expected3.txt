@@ -1,2 +1,3 @@
 identifiers
+init	k
 internal	v

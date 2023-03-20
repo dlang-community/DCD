@@ -153,3 +153,19 @@ unittest
 	i = skipParenReverseBefore(t, i, tok!")", tok!"(");
 	assert(i == 1);
 }
+
+/// Checks if `doesThis` roughly starts with `matchThis`, case-insensitive
+bool prettyFuzzyMatch(scope const(char)[] doesThis, scope const(char)[] matchThis) @safe pure nothrow @nogc
+{
+	import fuzzymatch;
+
+	if (!matchThis.length)
+		return true;
+
+	// return false if identifier starts with _, but search doesn't or vice-versa
+	if (doesThis.length && (doesThis[0] == '_' && matchThis[0] != '_'
+		|| doesThis[0] != '_' && matchThis[0] == '_'))
+		return false;
+
+	return fuzzyMatchesString(doesThis, matchThis);
+}

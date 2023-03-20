@@ -7,6 +7,7 @@
 	"targetType": "library",
 	"dependencies": {
 		"libdparse": ">=0.20.0 <1.0.0",
-		"emsi_containers": "~>0.9.0"
+		"emsi_containers": "~>0.9.0",
+		"fuzzymatch": "~>1.0"
 	}
 }

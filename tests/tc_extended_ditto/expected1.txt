@@ -1,3 +1,6 @@
 identifiers
+cfloat	k				cfloat
+float	k				float
 foo	f	void foo()	stdin 26	my documentation	void
 foo	f	void foo(int i)	stdin 49	my documentation	void
+ifloat	k				ifloat
