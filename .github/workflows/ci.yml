@@ -75,14 +75,14 @@ jobs:
       - name: Linux Tests
         if: contains(matrix.os, 'ubuntu')
         run: |
-          ./run_tests.sh
+          ./run_tests.sh --extra
         working-directory: tests
         shell: bash
 
       - name: Windows and MacOS Tests
         if: contains(matrix.os, 'windows') || contains(matrix.os, 'macos')
         run: |
-          ./run_tests.sh
+          ./run_tests.sh --extra
         working-directory: tests
         shell: bash
         continue-on-error: true
