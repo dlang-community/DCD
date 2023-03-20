@@ -7,6 +7,7 @@ IMPORTS=$(pwd)/imports
 export IMPORTS
 SOCKETMODES="unix tcp"
 TIME_SERVER=0
+EXTRA_TESTCASES=
 
 # `--arguments` must come before test dirs!
 while (( "$#" )); do
@@ -22,6 +23,9 @@ while (( "$#" )); do
 		# socket mode can still be overriden with `--tcp-only`
 		TIME_SERVER=1
 		SOCKETMODES="unix"
+	elif [[ "$1" == "--extra" ]]; then
+		# also include tests in the "extra" directory that long to complete
+		EXTRA_TESTCASES="extra/*/"
 	elif [[ "$1" =~ ^-- ]]; then
 		echo "Unrecognized test argument: $1"
 		exit 1
@@ -108,7 +112,7 @@ for socket in $SOCKETMODES; do # supported: unix tcp
 	done
 
 	# Run tests
-	for testCase in $TESTCASES; do
+	for testCase in $TESTCASES $EXTRA_TESTCASES; do
 		cd $testCase
 
 		./run.sh "$tcp"

@@ -137,7 +137,7 @@ ldcserver: githash
 	${LDC} $(LDC_SERVER_FLAGS) ${SERVER_SRC} -oq -of=bin/dcd-server
 
 test: debugserver dmdclient
-	cd tests && ./run_tests.sh
+	cd tests && ./run_tests.sh --extra
 
 release:
 	./release.sh

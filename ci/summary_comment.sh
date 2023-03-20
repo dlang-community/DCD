@@ -34,7 +34,7 @@ echo "STAT:rough build time=${build_time}s"
 echo "STAT:"
 
 cd tests
-./run_tests.sh --time-server
+./run_tests.sh --time-server --extra
 
 echo "STAT:DCD run_tests.sh $(grep -F 'Elapsed (wall clock) time' stderr.txt)"
 echo "STAT:DCD run_tests.sh $(grep -F 'Maximum resident set size (kbytes)' stderr.txt)"
@@ -49,7 +49,7 @@ rm -rf .dub bin/dcd-server
 dub build --build=profile-gc --config=server --compiler=dmd 2>&1 || echo "DCD BUILD FAILED"
 
 cd tests
-./run_tests.sh
+./run_tests.sh --extra
 
 echo "STAT:top 5 GC sources in server:"
 if [ ! -f "profilegc.log" ]; then
