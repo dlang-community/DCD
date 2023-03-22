@@ -41,7 +41,7 @@ enum string[string] INTEGER_PROMOTIONS = [
         "dchar": "uint",
     ];
 
-enum MAX_RECURSION_DEPTH = 50;
+enum MAX_NUMBER_OF_MATCHING_RUNS = 50;
 
 private const(DSymbol)* deduceSymbolType(const(DSymbol)* symbol)
 {
@@ -127,7 +127,7 @@ private TokenCursorResult getCursorToken(const(Token)[] tokens, size_t cursorPos
     return tokenCursorResult;
 }
 
-private void getUFCSSymbols(T, Y)(ref T localAppender, ref Y globalAppender, Scope* completionScope, size_t cursorPosition)
+private void getUFCSSymbols(T, Y)(scope ref T localAppender, scope ref Y globalAppender, Scope* completionScope, size_t cursorPosition)
 {
 
     Scope* currentScope = completionScope.getScopeByCursor(cursorPosition);
@@ -177,7 +177,7 @@ private void getUFCSSymbols(T, Y)(ref T localAppender, ref Y globalAppender, Sco
     }
 }
 
-DSymbol*[] getUFCSSymbolsForCursor(Scope* completionScope, ref const(Token)[] tokens, size_t cursorPosition)
+DSymbol*[] getUFCSSymbolsForCursor(Scope* completionScope, scope ref const(Token)[] tokens, size_t cursorPosition)
 {
     TokenCursorResult tokenCursorResult = getCursorToken(tokens, cursorPosition);
 
@@ -257,58 +257,72 @@ private DSymbol*[] getUFCSSymbolsForParenCompletion(const(DSymbol)* symbolType, 
 
 }
 
-private bool willImplicitBeUpcasted(const(DSymbol)* from, const(DSymbol)* to)
+private bool willImplicitBeUpcasted(scope ref const(DSymbol) incomingSymbolType, scope ref const(DSymbol) significantSymbolType)
 {
-    if (from is null || to is null || to.functionParameters.empty || to.functionParameters.front.type is null) {
-        return false;
-    }
-
-    string fromTypeName = from.name.data;
-    string toTypeName = to.functionParameters.front.type.name.data;
+    string fromTypeName = significantSymbolType.name.data;
+    string toTypeName = incomingSymbolType.name.data;
 
     return typeWillBeUpcastedTo(fromTypeName, toTypeName);
 }
 
-private bool typeWillBeUpcastedTo(string from, string to) {
+private bool typeWillBeUpcastedTo(string from, string to)
+{
     if (auto promotionType = from in INTEGER_PROMOTIONS)
         return *promotionType == to;
 
     return false;
 }
 
-private bool matchAliasThis(const(DSymbol)* beforeDotType, const(DSymbol)* incomingSymbol, int recursionDepth)
+bool isNonConstrainedTemplate(scope ref const(DSymbol) symbolType)
 {
-    // For now we are only resolving the first alias this symbol
-    // when multiple alias this are supported, we can rethink another solution
-    if (beforeDotType.aliasThisSymbols.empty || beforeDotType.aliasThisSymbols.front == beforeDotType)
-    {
-        return false;
-    }
-
-    //Incrementing depth count to ensure we don't run into an infinite loop
-    recursionDepth++;
-
-    return isCallableWithArg(incomingSymbol, beforeDotType.aliasThisSymbols.front.type, false, recursionDepth);
+    return symbolType.kind is CompletionKind.typeTmpParam;
 }
 
-bool isNonConstrainedTemplate(const(DSymbol)* incomingSymbol){
-    return incomingSymbol.functionParameters.front.type !is null 
-            && incomingSymbol.functionParameters.front.type.kind is CompletionKind.typeTmpParam; 
+private bool matchesWithTypeOfPointer(scope ref const(DSymbol) incomingSymbolType, scope ref const(DSymbol) significantSymbolType)
+{
+    return incomingSymbolType.qualifier == SymbolQualifier.pointer
+        && significantSymbolType.qualifier == SymbolQualifier.pointer
+        && incomingSymbolType.type is significantSymbolType.type;
 }
 
-private bool matchesWithTypeOfPointer(const(DSymbol)* incomingSymbol, const(DSymbol)* cursorSymbolType) {
-
-    return incomingSymbol.functionParameters.front.type.qualifier == SymbolQualifier.pointer 
-        && cursorSymbolType.qualifier == SymbolQualifier.pointer
-        && incomingSymbol.functionParameters.front.type.type is cursorSymbolType.type;
-
-}
-
-private bool matchesWithTypeOfArray(const(DSymbol)* incomingSymbol, const(DSymbol)* cursorSymbolType) {
-    return incomingSymbol.functionParameters.front.type.qualifier == SymbolQualifier.array 
+private bool matchesWithTypeOfArray(scope ref const(DSymbol) incomingSymbolType, scope ref const(DSymbol) cursorSymbolType)
+{
+    return incomingSymbolType.qualifier == SymbolQualifier.array
         && cursorSymbolType.qualifier == SymbolQualifier.array
-        && incomingSymbol.functionParameters.front.type.type is cursorSymbolType.type;
+        && incomingSymbolType.type is cursorSymbolType.type;
 
+}
+
+private bool typeMatchesWith(scope ref const(DSymbol) incomingSymbolType, scope ref const(DSymbol) significantSymbolType) {
+    return incomingSymbolType is significantSymbolType
+        || isNonConstrainedTemplate(incomingSymbolType)
+        || matchesWithTypeOfArray(incomingSymbolType, significantSymbolType)
+        || matchesWithTypeOfPointer(incomingSymbolType, significantSymbolType)
+        || willImplicitBeUpcasted(incomingSymbolType, significantSymbolType);
+}
+
+private bool matchSymbolType(const(DSymbol)* incomingSymbolType, const(DSymbol)* significantSymbolType) {
+
+    auto currentSignificantSymbolType = significantSymbolType;
+    uint numberOfRetries = 0;
+
+    do
+    {
+        if (typeMatchesWith(*incomingSymbolType, *currentSignificantSymbolType)){
+            return true;
+        }
+
+        if (currentSignificantSymbolType.aliasThisSymbols.empty || currentSignificantSymbolType is currentSignificantSymbolType.aliasThisSymbols.front){
+            return false;
+        }
+
+        numberOfRetries++;
+        // For now we are only resolving the first alias this symbol
+        // when multiple alias this are supported, we can rethink another solution
+        currentSignificantSymbolType = currentSignificantSymbolType.aliasThisSymbols.front.type;
+    }
+    while(numberOfRetries <= MAX_NUMBER_OF_MATCHING_RUNS);
+    return false;
 }
 
 /**
@@ -320,25 +334,18 @@ private bool matchesWithTypeOfArray(const(DSymbol)* incomingSymbol, const(DSymbo
  *     `true` if `incomingSymbols`' first parameter matches `beforeDotType`
  *     `false` otherwise
  */
-bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDotType, bool isGlobalScope = false, int recursionDepth = 0)
+bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDotType, bool isGlobalScope = false)
 {
     if (incomingSymbol is null
         || beforeDotType is null
-        || isGlobalScope && incomingSymbol.protection is tok!"private" // don't show private functions if we are in global scope
-        || recursionDepth > MAX_RECURSION_DEPTH)
+        || isGlobalScope && incomingSymbol.protection is tok!"private") // don't show private functions if we are in global scope
     {
         return false;
     }
 
     if (incomingSymbol.kind is CompletionKind.functionName && !incomingSymbol.functionParameters.empty && incomingSymbol.functionParameters.front.type)
     {
-        return beforeDotType is incomingSymbol.functionParameters.front.type
-            || isNonConstrainedTemplate(incomingSymbol)
-            || matchesWithTypeOfArray(incomingSymbol, beforeDotType)
-            || matchesWithTypeOfPointer(incomingSymbol, beforeDotType)
-            || willImplicitBeUpcasted(beforeDotType, incomingSymbol)
-            || matchAliasThis(beforeDotType, incomingSymbol, recursionDepth);
-
+        return matchSymbolType(incomingSymbol.functionParameters.front.type, beforeDotType);
     }
     return false;
 }
