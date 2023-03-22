@@ -20,6 +20,11 @@ jobs:
     - name: Prepare compiler
       uses: dlang-community/setup-dlang@v1
       with:
+        compiler: dmd-latest
+
+    - name: Prepare compiler
+      uses: dlang-community/setup-dlang@v1
+      with:
         compiler: ldc-latest
 
     - name: Checkout

@@ -19,8 +19,8 @@ dub upgrade --missing-only
 rm -rf .dub bin
 
 start=`date +%s`
-dub build --build=release --config=client --force 2>&1 || echo "DCD BUILD FAILED"
-dub build --build=release --config=server --force 2>&1 || echo "DCD BUILD FAILED"
+dub build --build=release --config=client --compiler=ldc2 --force 2>&1 || echo "DCD BUILD FAILED"
+dub build --build=release --config=server --compiler=ldc2 --force 2>&1 || echo "DCD BUILD FAILED"
 end=`date +%s`
 build_time=$( echo "$end - $start" | bc -l )
 
@@ -33,10 +33,6 @@ echo "STAT:server size=$(wc -c bin/dcd-server)"
 echo "STAT:rough build time=${build_time}s"
 echo "STAT:"
 
-# now rebuild server with -profile=gc
-rm -rf .dub bin/dcd-server
-dub build --build=profile-gc --config=server 2>&1 || echo "DCD BUILD FAILED"
-
 cd tests
 ./run_tests.sh --time-server
 
@@ -46,8 +42,14 @@ echo "STAT:DCD run_tests.sh $(grep -F 'Maximum resident set size (kbytes)' stder
 echo "STAT:"
 grep -E 'Request processed in .*' stderr.txt | rdmd ../ci/request_time_stats.d
 echo "STAT:"
-echo "STAT:top 5 GC sources in server:"
 
+# now rebuild server with -profile=gc
+rm -rf .dub bin/dcd-server
+dub build --build=profile-gc --config=server --compiler=dmd 2>&1 || echo "DCD BUILD FAILED"
+
+./run_tests.sh --time-server
+
+echo "STAT:top 5 GC sources in server:"
 if [ ! -f "profilegc.log" ]; then
 	echo 'Missing profilegc.log file!'
 	echo 'Tail for stderr.txt:'
