@@ -127,7 +127,7 @@ private TokenCursorResult getCursorToken(const(Token)[] tokens, size_t cursorPos
     return tokenCursorResult;
 }
 
-private void getUFCSSymbols(T, Y)(ref T localAppender, ref Y globalAppender, Scope* completionScope, size_t cursorPosition)
+private void getUFCSSymbols(T, Y)(scope ref T localAppender, scope ref Y globalAppender, Scope* completionScope, size_t cursorPosition)
 {
 
     Scope* currentScope = completionScope.getScopeByCursor(cursorPosition);
@@ -177,7 +177,7 @@ private void getUFCSSymbols(T, Y)(ref T localAppender, ref Y globalAppender, Sco
     }
 }
 
-DSymbol*[] getUFCSSymbolsForCursor(Scope* completionScope, ref const(Token)[] tokens, size_t cursorPosition)
+DSymbol*[] getUFCSSymbolsForCursor(Scope* completionScope, scope ref const(Token)[] tokens, size_t cursorPosition)
 {
     TokenCursorResult tokenCursorResult = getCursorToken(tokens, cursorPosition);
 
@@ -257,7 +257,7 @@ private DSymbol*[] getUFCSSymbolsForParenCompletion(const(DSymbol)* symbolType, 
 
 }
 
-private bool willImplicitBeUpcasted(ref const(DSymbol) incomingSymbolType, ref const(DSymbol) significantSymbolType)
+private bool willImplicitBeUpcasted(scope ref const(DSymbol) incomingSymbolType, scope ref const(DSymbol) significantSymbolType)
 {
     string fromTypeName = significantSymbolType.name.data;
     string toTypeName = incomingSymbolType.name.data;
@@ -273,19 +273,19 @@ private bool typeWillBeUpcastedTo(string from, string to)
     return false;
 }
 
-bool isNonConstrainedTemplate(ref const(DSymbol) symbolType)
+bool isNonConstrainedTemplate(scope ref const(DSymbol) symbolType)
 {
     return symbolType.kind is CompletionKind.typeTmpParam;
 }
 
-private bool matchesWithTypeOfPointer(ref const(DSymbol) incomingSymbolType, ref const(DSymbol) significantSymbolType)
+private bool matchesWithTypeOfPointer(scope ref const(DSymbol) incomingSymbolType, scope ref const(DSymbol) significantSymbolType)
 {
     return incomingSymbolType.qualifier == SymbolQualifier.pointer
         && significantSymbolType.qualifier == SymbolQualifier.pointer
         && incomingSymbolType.type is significantSymbolType.type;
 }
 
-private bool matchesWithTypeOfArray(ref const(DSymbol) incomingSymbolType, ref const(DSymbol) cursorSymbolType)
+private bool matchesWithTypeOfArray(scope ref const(DSymbol) incomingSymbolType, scope ref const(DSymbol) cursorSymbolType)
 {
     return incomingSymbolType.qualifier == SymbolQualifier.array
         && cursorSymbolType.qualifier == SymbolQualifier.array
@@ -293,7 +293,7 @@ private bool matchesWithTypeOfArray(ref const(DSymbol) incomingSymbolType, ref c
 
 }
 
-private bool typeMatchesWith(ref const(DSymbol) incomingSymbolType, ref const(DSymbol) significantSymbolType) {
+private bool typeMatchesWith(scope ref const(DSymbol) incomingSymbolType, scope ref const(DSymbol) significantSymbolType) {
     return incomingSymbolType is significantSymbolType
         || isNonConstrainedTemplate(incomingSymbolType)
         || matchesWithTypeOfArray(incomingSymbolType, significantSymbolType)
