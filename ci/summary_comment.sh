@@ -16,9 +16,11 @@ ldc2 --version
 # fetch missing packages before timing
 dub upgrade --missing-only
 
+rm -rf .dub bin
+
 start=`date +%s`
-dub build --build=release --config=client 2>&1 || echo "DCD BUILD FAILED"
-dub build --build=release --config=server 2>&1 || echo "DCD BUILD FAILED"
+dub build --build=release --config=client --force 2>&1 || echo "DCD BUILD FAILED"
+dub build --build=release --config=server --force 2>&1 || echo "DCD BUILD FAILED"
 end=`date +%s`
 build_time=$( echo "$end - $start" | bc -l )
 
@@ -32,7 +34,7 @@ echo "STAT:rough build time=${build_time}s"
 echo "STAT:"
 
 # now rebuild server with -profile=gc
-dub build --build=profile-gc --config=server 2>&1 || echo "DCD BUILD FAILED"
+dub build --build=profile-gc --config=server --force 2>&1 || echo "DCD BUILD FAILED"
 
 cd tests
 ./run_tests.sh --time-server
