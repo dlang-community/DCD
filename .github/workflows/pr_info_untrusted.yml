@@ -16,11 +16,6 @@ jobs:
     # we first create a comment thanking the user in pr_info_intro.yml
     # (separate step due to needing GITHUB_TOKEN access)
 
-    - name: '[Linux] Install dependencies'
-      if: runner.os == 'Linux'
-      run: |
-        sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev netcat
-
     # Compiler to test with
     - name: Prepare compiler
       uses: dlang-community/setup-dlang@v1
