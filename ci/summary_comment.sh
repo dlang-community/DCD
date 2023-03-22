@@ -51,6 +51,6 @@ echo "STAT:top 5 GC sources in server:"
 if [ ! -f "profilegc.log" ]; then
 	echo 'Missing profilegc.log file!'
 	echo 'Tail for stderr.txt:'
-	tail stderr.txt
+	tail -n50 stderr.txt
 fi
 head -n6 profilegc.log | sed 's/^/STAT:/g'
