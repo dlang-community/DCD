@@ -45,6 +45,15 @@ import dcd.server.server;
 
 int main(string[] args)
 {
+	version (D_ProfileGC)
+	{
+		import core.runtime;
+
+		// make sure profilegc.log is written to cwd and not to `/`
+		// (since we `chdir` to `/` later)
+		profilegc_setlogfilename(buildPath(getcwd, "profilegc.log"));
+	}
+
 	try
 	{
 		return runServer(args);
