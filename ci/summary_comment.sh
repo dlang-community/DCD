@@ -44,10 +44,12 @@ grep -E 'Request processed in .*' stderr.txt | rdmd ../ci/request_time_stats.d
 echo "STAT:"
 
 # now rebuild server with -profile=gc
+cd ..
 rm -rf .dub bin/dcd-server
 dub build --build=profile-gc --config=server --compiler=dmd 2>&1 || echo "DCD BUILD FAILED"
 
-./run_tests.sh --time-server
+cd tests
+./run_tests.sh
 
 echo "STAT:top 5 GC sources in server:"
 if [ ! -f "profilegc.log" ]; then
