@@ -34,11 +34,11 @@ echo "STAT:rough build time=${build_time}s"
 echo "STAT:"
 
 # now rebuild server with -profile=gc
-dub build --build=profile-gc --config=server --force 2>&1 || echo "DCD BUILD FAILED"
+rm -rf .dub bin/dcd-server
+dub build --build=profile-gc --config=server 2>&1 || echo "DCD BUILD FAILED"
 
 cd tests
 ./run_tests.sh --time-server
-sleep 1
 
 echo "STAT:DCD run_tests.sh $(grep -F 'Elapsed (wall clock) time' stderr.txt)"
 echo "STAT:DCD run_tests.sh $(grep -F 'Maximum resident set size (kbytes)' stderr.txt)"
@@ -47,4 +47,10 @@ echo "STAT:"
 grep -E 'Request processed in .*' stderr.txt | rdmd ../ci/request_time_stats.d
 echo "STAT:"
 echo "STAT:top 5 GC sources in server:"
+
+if [ ! -f "profilegc.log" ]; then
+	echo 'Missing profilegc.log file!'
+	echo 'Tail for stderr.txt:'
+	tail stderr.txt
+fi
 head -n6 profilegc.log | sed 's/^/STAT:/g'
