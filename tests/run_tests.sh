@@ -44,6 +44,7 @@ pass_count=0
 client="../bin/dcd-client"
 server="../bin/dcd-server"
 tcp=""
+server_pid=""
 
 function startServer()
 {
@@ -57,6 +58,24 @@ function startServer()
 	sleep 1
 }
 
+function waitShutdown()
+{
+	if [[ -z "$server_pid" ]]; then
+		sleep 0.5 # not owned by us
+	else
+		( sleep 15 ; echo 'Waiting for shutdown timed out'; kill $server_pid ) &
+		killerPid=$!
+
+		wait $server_pid
+		status=$?
+		(kill -0 $killerPid && kill $killerPid) || true
+
+		server_pid=""
+
+		return $status
+	fi
+}
+
 # Make sure that the server is shut down
 echo "Shutting down currently-running server..."
 "$client" --shutdown 2>/dev/null > /dev/null
@@ -64,7 +83,7 @@ echo "Shutting down currently-running server..."
 
 for socket in $SOCKETMODES; do # supported: unix tcp
 	# allow some time for server to shutdown
-	sleep 0.5;
+	waitShutdown
 
 	if [[ $socket == "tcp" ]]; then
 		tcp="--tcp"
@@ -118,6 +137,8 @@ for socket in $SOCKETMODES; do # supported: unix tcp
 	# Shut down
 	echo "Shutting down server..."
 	"$client" --shutdown "$tcp" 2>/dev/null > /dev/null
+
+	waitShutdown
 
 	# Report
 	if [[ $fail_count -eq 0 ]]; then
