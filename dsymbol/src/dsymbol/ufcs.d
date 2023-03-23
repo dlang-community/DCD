@@ -231,12 +231,12 @@ private DSymbol*[] getUFCSSymbolsForDotCompletion(const(DSymbol)* symbolType, Sc
     // local appender
     FilteredAppender!((DSymbol* a) =>
             a.isCallableWithArg(symbolType)
-            && toUpper(a.name.data).startsWith(toUpper(partial)),
+            && prettyFuzzyMatch(a.name.data, partial),
         DSymbol*[]) localAppender;
     // global appender
     FilteredAppender!((DSymbol* a) =>
             a.isCallableWithArg(symbolType, true)
-            && toUpper(a.name.data).startsWith(toUpper(partial)),
+            && prettyFuzzyMatch(a.name.data, partial),
         DSymbol*[]) globalAppender;
 
     getUFCSSymbols(localAppender, globalAppender, completionScope, cursorPosition);

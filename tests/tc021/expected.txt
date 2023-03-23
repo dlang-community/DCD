@@ -3,3 +3,6 @@ idouble	k
 ifloat	k
 int	k
 ireal	k
+string	l
+uint	k
+void	k

@@ -1,3 +1,5 @@
 identifiers
 Foo	s
+cfloat	k
 float	k
+ifloat	k
