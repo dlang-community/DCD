@@ -723,20 +723,20 @@ final class FirstPass : ASTVisitor
 
 	override void visit(const IfStatement ifs)
 	{
-		if (ifs.identifier != tok!"" && ifs.thenStatement)
+		if (ifs.condition && ifs.condition.identifier != tok!"" && ifs.thenStatement)
 		{
 			pushScope(ifs.thenStatement.startLocation, ifs.thenStatement.endLocation);
 			scope(exit) popScope();
 
-			SemanticSymbol* symbol = allocateSemanticSymbol(ifs.identifier.text,
-				CompletionKind.variableName, symbolFile, ifs.identifier.index);
-			if (ifs.type !is null)
-				addTypeToLookups(symbol.typeLookups, ifs.type);
+			SemanticSymbol* symbol = allocateSemanticSymbol(ifs.condition.identifier.text,
+				CompletionKind.variableName, symbolFile, ifs.condition.identifier.index);
+			if (ifs.condition !is null && ifs.condition.type !is null)
+				addTypeToLookups(symbol.typeLookups, ifs.condition.type);
 			symbol.parent = currentSymbol;
 			currentSymbol.addChild(symbol, true);
 			currentScope.addSymbol(symbol.acSymbol, true);
-			if (symbol.typeLookups.empty && ifs.expression !is null)
-				populateInitializer(symbol, ifs.expression, false);
+			if (symbol.typeLookups.empty && ifs.condition !is null && ifs.condition.expression !is null)
+				populateInitializer(symbol, ifs.condition.expression, false);
 		}
 		ifs.accept(this);
 	}
@@ -1091,7 +1091,10 @@ private:
 		auto lookup = TypeLookupsAllocator.instance.make!TypeLookup(TypeLookupKind.initializer);
 		scope visitor = new InitializerVisitor(lookup, appendForeach, this);
 		symbol.typeLookups.insert(lookup);
-		visitor.visit(initializer);
+		static if (is(T == typeof(feExpression)))
+			visitor.dynamicDispatch(initializer);
+		else
+			visitor.visit(initializer);
 	}
 
 	SemanticSymbol* allocateSemanticSymbol(string name, CompletionKind kind,
@@ -1361,6 +1364,7 @@ class InitializerVisitor : ASTVisitor
 	}
 
 	alias visit = ASTVisitor.visit;
+	alias dynamicDispatch = ASTVisitor.dynamicDispatch;
 
 	override void visit(const FunctionLiteralExpression exp)
 	{
@@ -1442,7 +1446,7 @@ class InitializerVisitor : ASTVisitor
 
 	override void visit(const IndexExpression expr)
 	{
-		expr.unaryExpression.accept(this);
+		dynamicDispatch(expr.unaryExpression);
 		foreach (index; expr.indexes)
 			if (index.high is null)
 				lookup.breadcrumbs.insert(ARRAY_SYMBOL_NAME);
@@ -1534,10 +1538,10 @@ class InitializerVisitor : ASTVisitor
 		on = false;
 	}
 
-	override void visit(const ExpressionNode expression)
+	override void dynamicDispatch(const ExpressionNode expression)
 	{
 		on = true;
-		expression.accept(this);
+		super.dynamicDispatch(expression);
 		if (appendForeach)
 			lookup.breadcrumbs.insert(internString("foreach"));
 		on = false;
