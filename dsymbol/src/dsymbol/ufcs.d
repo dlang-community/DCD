@@ -21,12 +21,18 @@ enum CompletionContext
     ParenCompletion,
 }
 
+
 struct TokenCursorResult
 {
     CompletionContext completionContext;
     istring functionName;
-    istring symbolIdentifierName;
+    Token significantToken;
     string partialIdentifier;
+}
+
+struct DeducedSymbolTypeResult{
+    const(DSymbol)* deducedSymbolType;
+    bool success = false;
 }
 
 // https://dlang.org/spec/type.html#implicit-conversions
@@ -43,15 +49,31 @@ enum string[string] INTEGER_PROMOTIONS = [
 
 enum MAX_NUMBER_OF_MATCHING_RUNS = 50;
 
-private const(DSymbol)* deduceSymbolType(const(DSymbol)* symbol)
+private DeducedSymbolTypeResult deduceSymbolTypeByToken(Scope* completionScope, scope ref const(Token) significantToken, size_t cursorPosition)
 {
+    DeducedSymbolTypeResult result;
+    //Literal type deduction
+    if (significantToken.type is tok!"stringLiteral"){
+        result.deducedSymbolType = completionScope.getFirstSymbolByNameAndCursor(istring("string"), cursorPosition);
+        result.success = true;
+        return result;
+    }
+
+    const(DSymbol)* symbol = completionScope.getFirstSymbolByNameAndCursor(istring(significantToken.text), cursorPosition);
+
+    if (symbol is null) {
+        return result;
+    }
+
     const(DSymbol)* symbolType = symbol.type;
     while (symbolType !is null && (symbolType.qualifier == SymbolQualifier.func
             || symbolType.kind == CompletionKind.functionName
             || symbolType.kind == CompletionKind.importSymbol
             || symbolType.kind == CompletionKind.aliasName))
     {
-        if (symbolType.type is null || symbolType.type is symbolType)
+        if (symbolType.type is null
+            || symbolType.type is symbolType
+            || symbolType.name.data == "string") // special case for string
         {
             break;
         }
@@ -59,7 +81,10 @@ private const(DSymbol)* deduceSymbolType(const(DSymbol)* symbol)
         symbolType = symbolType.type;
     }
 
-    return symbolType;
+
+    result.deducedSymbolType = symbolType;
+    result.success = true;
+    return result;
 
 }
 
@@ -90,13 +115,13 @@ private TokenCursorResult getCursorToken(const(Token)[] tokens, size_t cursorPos
         sortedBeforeTokens = sortedBeforeTokens[0 .. $ - 1];
     }
 
-    if (sortedBeforeTokens.length >= 2 
+    if (sortedBeforeTokens.length >= 2
         && sortedBeforeTokens[$ - 1].type is tok!"."
-        && sortedBeforeTokens[$ - 2].type is tok!"identifier")
+        && (sortedBeforeTokens[$ - 2].type is tok!"identifier" || sortedBeforeTokens[$ - 2].type is tok!"stringLiteral"))
     {
         // Check if it's UFCS dot completion
         tokenCursorResult.completionContext = CompletionContext.DotCompletion;
-        tokenCursorResult.symbolIdentifierName = istring(sortedBeforeTokens[$ - 2].text);
+        tokenCursorResult.significantToken = sortedBeforeTokens[$ - 2];
         return tokenCursorResult;
     }
     else if (!tokenCursorResult.partialIdentifier.length)
@@ -117,7 +142,7 @@ private TokenCursorResult getCursorToken(const(Token)[] tokens, size_t cursorPos
             && slicedAtParen[$ - 1].type is tok!"(")
         {
             tokenCursorResult.completionContext = CompletionContext.ParenCompletion;
-            tokenCursorResult.symbolIdentifierName = istring(slicedAtParen[$ - 4].text);
+            tokenCursorResult.significantToken = slicedAtParen[$ - 4];
             tokenCursorResult.functionName = istring(slicedAtParen[$ - 2].text);
             return tokenCursorResult;
         }
@@ -187,29 +212,14 @@ DSymbol*[] getUFCSSymbolsForCursor(Scope* completionScope, scope ref const(Token
         return [];
     }
 
-    const(DSymbol)* cursorSymbol = completionScope.getFirstSymbolByNameAndCursor(
-        tokenCursorResult.symbolIdentifierName, cursorPosition);
+    DeducedSymbolTypeResult deducedSymbolTypeResult = deduceSymbolTypeByToken(completionScope, tokenCursorResult.significantToken, cursorPosition);
 
-    if (cursorSymbol is null)
-    {
-        warning("Coudn't find symbol ", tokenCursorResult.symbolIdentifierName);
-        return [];
-    }
-
-    if (cursorSymbol.isInvalidForUFCSCompletion)
-    {
-        trace("CursorSymbol is invalid for UFCS");
-        return [];
-    }
-
-    const(DSymbol)* cursorSymbolType = deduceSymbolType(cursorSymbol);
-
-    if (cursorSymbolType is null)
+    if (deducedSymbolTypeResult.deducedSymbolType is null)
     {
         return [];
     }
 
-    if (cursorSymbolType.isInvalidForUFCSCompletion)
+    if (deducedSymbolTypeResult.deducedSymbolType.isInvalidForUFCSCompletion)
     {
         trace("CursorSymbolType isn't valid for UFCS completion");
         return [];
@@ -217,11 +227,11 @@ DSymbol*[] getUFCSSymbolsForCursor(Scope* completionScope, scope ref const(Token
 
     if (tokenCursorResult.completionContext == CompletionContext.ParenCompletion)
     {
-        return getUFCSSymbolsForParenCompletion(cursorSymbolType, completionScope, tokenCursorResult.functionName, cursorPosition);
+        return getUFCSSymbolsForParenCompletion(deducedSymbolTypeResult.deducedSymbolType, completionScope, tokenCursorResult.functionName, cursorPosition);
     }
     else
     {
-        return getUFCSSymbolsForDotCompletion(cursorSymbolType, completionScope, cursorPosition, tokenCursorResult.partialIdentifier);
+        return getUFCSSymbolsForDotCompletion(deducedSymbolTypeResult.deducedSymbolType, completionScope, cursorPosition, tokenCursorResult.partialIdentifier);
     }
 
 }
