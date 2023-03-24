@@ -1,0 +1,13 @@
+identifiers
+alignof	k
+dup	k
+idup	k
+init	k
+length	k
+mangleof	k
+ptr	k
+sizeof	k
+stringof	k
+testUfcs	F
+ufcsString	F
+ufcsStringBar	F
