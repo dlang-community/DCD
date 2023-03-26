@@ -1,4 +1,0 @@
-identifiers
-testUfcs	F
-ufcsString	F
-ufcsStringBar	F

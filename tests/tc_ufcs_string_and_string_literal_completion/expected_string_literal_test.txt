@@ -8,6 +8,5 @@ mangleof	k
 ptr	k
 sizeof	k
 stringof	k
-testUfcs	F
 ufcsString	F
 ufcsStringBar	F
