@@ -8,7 +8,9 @@ void main()
 	foo.
 }
 
-void aliasStruct() {
+void aliasStruct(Foo f) {
 	auto intAliased = IntAliased();
 	intAliased.
+	f.
+	f.
 }

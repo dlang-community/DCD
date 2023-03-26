@@ -31,6 +31,7 @@ import dparse.rollback_allocator;
 import dsymbol.conversion;
 import dsymbol.modulecache;
 import dsymbol.symbol;
+import dsymbol.utils;
 
 import dcd.common.messages;
 

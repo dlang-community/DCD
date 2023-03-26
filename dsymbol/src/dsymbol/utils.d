@@ -153,3 +153,91 @@ unittest
 	i = skipParenReverseBefore(t, i, tok!")", tok!"(");
 	assert(i == 1);
 }
+
+T getExpression(T)(T beforeTokens)
+{
+	enum EXPRESSION_LOOP_BREAK = q{
+		if (i + 1 < beforeTokens.length) switch (beforeTokens[i + 1].type)
+		{
+		mixin (TYPE_IDENT_AND_LITERAL_CASES);
+			i++;
+			break expressionLoop;
+		default:
+			break;
+		}
+	};
+
+	if (beforeTokens.length == 0)
+		return beforeTokens[0 .. 0];
+	size_t i = beforeTokens.length - 1;
+	size_t sliceEnd = beforeTokens.length;
+	IdType open;
+	IdType close;
+	uint skipCount = 0;
+
+	expressionLoop: while (true)
+	{
+		switch (beforeTokens[i].type)
+		{
+		case tok!"import":
+			i++;
+			break expressionLoop;
+		mixin (TYPE_IDENT_AND_LITERAL_CASES);
+			mixin (EXPRESSION_LOOP_BREAK);
+			break;
+		case tok!".":
+			break;
+		case tok!")":
+			open = tok!")";
+			close = tok!"(";
+			goto skip;
+		case tok!"]":
+			open = tok!"]";
+			close = tok!"[";
+		skip:
+			mixin (EXPRESSION_LOOP_BREAK);
+			immutable bookmark = i;
+			i = beforeTokens.skipParenReverse(i, open, close);
+
+			skipCount++;
+
+			// check the current token after skipping parens to the left.
+			// if it's a loop keyword, pretend we never skipped the parens.
+			if (i > 0) switch (beforeTokens[i - 1].type)
+			{
+				case tok!"scope":
+				case tok!"if":
+				case tok!"while":
+				case tok!"for":
+				case tok!"foreach":
+				case tok!"foreach_reverse":
+				case tok!"do":
+				case tok!"cast":
+				case tok!"catch":
+					i = bookmark + 1;
+					break expressionLoop;
+				case tok!"!":
+					// only break if the bang is for a template instance
+					if (i - 2 >= 0  && beforeTokens[i - 2].type == tok!"identifier" && skipCount == 1)
+					{
+						sliceEnd = i - 1;
+						i -= 2;
+						break expressionLoop;
+					}
+					break;
+				default:
+					break;
+			}
+			break;
+		default:
+			i++;
+			break expressionLoop;
+		}
+		if (i == 0)
+			break;
+		else
+			i--;
+	}
+	return beforeTokens[i .. sliceEnd];
+}
+

@@ -1,4 +1,5 @@
 identifiers
+aliasStruct	F
 alignof	k
 fooHey	f
 hasArgname	F

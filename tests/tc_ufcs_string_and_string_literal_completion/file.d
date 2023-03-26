@@ -1,6 +1,7 @@
+struct Hello { void hi(){} }
 void ufcsString(string input){}
 void ufcsStringBar(string input){}
-void testUfcs(string x){
+void testUfcs(Hello x){
 	"foo".
 	x.
 }

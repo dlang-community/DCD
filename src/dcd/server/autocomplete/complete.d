@@ -208,18 +208,9 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	switch (significantTokenType)
 	{
 	mixin(STRING_LITERAL_CASES);
-	{
-		foreach (symbol; arraySymbols){
+		foreach (symbol; arraySymbols)
 			response.completions ~= makeSymbolCompletionInfo(symbol, symbol.kind);
-		}
-		response.completionType = CompletionType.identifiers;
-		RollbackAllocator rba;
-		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba, cursorPosition, moduleCache);
-		scope(exit) pair.destroy();
-		response.completions ~= pair.ufcsSymbols.map!(s => makeSymbolCompletionInfo(s, CompletionKind.ufcsName)).array;
-		break;
-	}
-
+		goto case;
 	mixin(TYPE_IDENT_CASES);
 	case tok!")":
 	case tok!"]":
