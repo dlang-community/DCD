@@ -8,7 +8,7 @@
   "license": "GPL-3.0",
   "dependencies": {
     ":dsymbol": "*",
-    "libdparse": ">=0.20.0 <0.23.0",
+    "libdparse": { "repository":"git+https://github.com/dlang-community/libdparse.git", "version": "df3f78097186eca0b01701931d472581729a0025" },
     ":common": "*",
     "emsi_containers": "~>0.9.0"
   },
