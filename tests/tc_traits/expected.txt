@@ -1,13 +1,17 @@
 identifiers
 allMembers	k
+child	k
+classInstanceAlignment	k
 classInstanceSize	k
 compiles	k
 derivedMembers	k
 getAliasThis	k
 getAttributes	k
+getCppNamespaces	k
 getFunctionAttributes	k
 getFunctionVariadicStyle	k
 getLinkage	k
+getLocation	k
 getMember	k
 getOverloads	k
 getParameterStorageClasses	k
@@ -18,12 +22,17 @@ getUnitTests	k
 getVirtualFunctions	k
 getVirtualIndex	k
 getVirtualMethods	k
+getVisibility	k
+hasCopyConstructor	k
 hasMember	k
+hasPostblit	k
 identifier	k
+initSymbol	k
 isAbstractClass	k
 isAbstractFunction	k
 isArithmetic	k
 isAssociativeArray	k
+isCopyable	k
 isDeprecated	k
 isDisabled	k
 isFinalClass	k
@@ -32,10 +41,12 @@ isFloating	k
 isFuture	k
 isIntegral	k
 isLazy	k
+isModule	k
 isNested	k
 isOut	k
 isOverrideFunction	k
 isPOD	k
+isPackage	k
 isRef	k
 isReturnOnStack	k
 isSame	k
@@ -47,4 +58,6 @@ isUnsigned	k
 isVirtualFunction	k
 isVirtualMethod	k
 isZeroInit	k
+parameters	k
 parent	k
+toType	k

@@ -21,10 +21,12 @@ immutable ConstantCompletion[] pragmas = [
 immutable ConstantCompletion[] traits = [
 	// generated from traits.dd
 	ConstantCompletion("allMembers", `$(P Takes a single argument, which must evaluate to either
-a type or an expression of type.
-A tuple of string literals is returned, each of which
-is the name of a member of that type combined with all
-of the members of the base classes (if the type is a class).
+a module, a struct, a union, a class, an interface, an enum, or a
+template instantiation.
+
+A sequence of string literals is returned, each of which
+is the name of a member of that argument combined with all
+of the members of its base classes (if the argument is a class).
 No name is repeated.
 Builtin properties are not included.
 )
@@ -53,6 +55,59 @@ void main()
 
 $(P The order in which the strings appear in the result
 is not defined.)`),
+	ConstantCompletion("child", `$(P Takes two arguments.
+The first must be a symbol or expression.
+The second is a symbol, such as an alias to a member of the first
+argument.
+The result is the second argument interpreted with its $(D this)
+context set to the value of the first argument.
+)
+
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
+---
+import std.stdio;
+
+struct A
+{
+    int i;
+    int foo(int j) {
+        return i * j;
+    }
+    T bar(T)(T t) {
+        return i + t;
+    }
+}
+
+alias Ai = A.i;
+alias Abar = A.bar!int;
+
+void main()
+{
+    A a;
+
+    __traits(child, a, Ai) = 3;
+    writeln(a.i);
+    writeln(__traits(child, a, A.foo)(2));
+    writeln(__traits(child, a, Abar)(5));
+}
+---
+)
+
+Prints:
+
+$(CONSOLE
+3
+6
+8
+)`),
+	ConstantCompletion("classInstanceAlignment", `$(P Takes a single argument, which must evaluate to either
+a class type or an expression of class type.
+The result
+is of type $(CODE size_t), and the value is the alignment
+of a runtime instance of the class type.
+It is based on the static type of a class, not the
+polymorphic type.
+)`),
 	ConstantCompletion("classInstanceSize", `$(P Takes a single argument, which must evaluate to either
 a class type or an expression of class type.
 The result
@@ -109,7 +164,7 @@ partial specialization allows for.)
 )`),
 	ConstantCompletion("derivedMembers", `$(P Takes a single argument, which must evaluate to either
 a type or an expression of type.
-A tuple of string literals is returned, each of which
+A sequence of string literals is returned, each of which
 is the name of a member of that type.
 No name is repeated.
 Base class member names are not included.
@@ -139,7 +194,7 @@ void main()
 $(P The order in which the strings appear in the result
 is not defined.)`),
 	ConstantCompletion("getAliasThis", `$(P Takes one argument, a type. If the type has ` ~ "`" ~ `alias this` ~ "`" ~ ` declarations,
-    returns a sequence of the names (as ` ~ "`" ~ `string` ~ "`" ~ `s) of the members used in
+    returns a *ValueSeq* of the names (as ` ~ "`" ~ `string` ~ "`" ~ `s) of the members used in
     those declarations. Otherwise returns an empty sequence.
 )
 
@@ -167,8 +222,8 @@ tuple("var")
 tuple()
 )`),
 	ConstantCompletion("getAttributes", `$(P
-    Takes one argument, a symbol. Returns a tuple of all attached user-defined attributes.
-    If no UDAs exist it will return an empty tuple.
+    Takes one argument, a symbol. Returns a sequence of all attached user-defined attributes.
+    If no UDAs exist it will return an empty sequence
 )
 
 $(P
@@ -197,21 +252,39 @@ tuple("string", 7)
 tuple((Foo))
 )
 )`),
+	ConstantCompletion("getCppNamespaces", `$(P The argument is a symbol.
+The result is a *ValueSeq* of strings, possibly empty, that correspond to the namespaces the symbol resides in.
+)
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
+---
+extern(C++, "ns")
+struct Foo {}
+struct Bar {}
+extern(C++, __traits(getCppNamespaces, Foo)) struct Baz {}
+static assert(__traits(getCppNamespaces, Foo) ==  __traits(getCppNamespaces, Baz));
+void main()
+{
+    static assert(__traits(getCppNamespaces, Foo)[0] == "ns");
+    static assert(!__traits(getCppNamespaces, Bar).length);
+    static assert(__traits(getCppNamespaces, Foo) ==  __traits(getCppNamespaces, Baz));
+}
+---
+)`),
 	ConstantCompletion("getFunctionAttributes", `$(P
     Takes one argument which must either be a function symbol, function literal,
-    or a function pointer. It returns a string tuple of all the attributes of
+    or a function pointer. It returns a string *ValueSeq* of all the attributes of
     that function $(B excluding) any user-defined attributes (UDAs can be
-    retrieved with the $(RELATIVE_LINK2 get-attributes, getAttributes) trait).
-    If no attributes exist it will return an empty tuple.
+    retrieved with the $(GLINK getAttributes) trait).
+    If no attributes exist it will return an empty sequence.
 )
 
 
-    $(B Note:) The order of the attributes in the returned tuple is
+    $(B Note:) The order of the attributes in the returned sequence is
     implementation-defined and should not be relied upon.
 
     $(P
         A list of currently supported attributes are:)
-        $(UL $(LI $(D pure), $(D nothrow), $(D @nogc), $(D @property), $(D @system), $(D @trusted), $(D @safe), and $(D ref)))
+        $(UL $(LI $(D pure), $(D nothrow), $(D @nogc), $(D @property), $(D @system), $(D @trusted), $(D @safe), $(D ref) and $(D @live)))
         $(B Note:) $(D ref) is a function attribute even though it applies to the return type.
 
     $(P
@@ -232,8 +305,6 @@ struct S
 }
 
 pragma(msg, __traits(getFunctionAttributes, S.test));
-
-void main(){}
 ---
 )
 
@@ -249,8 +320,6 @@ $(P Note that some attributes can be inferred. For example:)
 $(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 pragma(msg, __traits(getFunctionAttributes, (int x) @trusted { return x * 2; }));
-
-void main(){}
 ---
 )
 
@@ -260,7 +329,10 @@ $(CONSOLE
 tuple("pure", "nothrow", "@nogc", "@trusted")
 )
 )
-)`),
+)
+
+
+$(H2 $(LNAME2 function-parameters, Function Parameter Traits))`),
 	ConstantCompletion("getFunctionVariadicStyle", `$(P
     Takes one argument which must either be a function symbol, or a type
     that is a function, delegate or a function pointer.
@@ -330,6 +402,11 @@ static assert(__traits(getLinkage, FooCPPClass) == "C++");
 static assert(__traits(getLinkage, FooCPPInterface) == "C++");
 ---
 )`),
+	ConstantCompletion("getLocation", `$(P Takes one argument which is a symbol.
+To disambiguate between overloads, pass the result of $(GLINK getOverloads) with the desired index, to ` ~ "`" ~ `getLocation` ~ "`" ~ `.
+Returns a *ValueSeq* of a string and two ` ~ "`" ~ `int` ~ "`" ~ `s which correspond to the filename, line number and column number where the argument
+was declared.
+)`),
 	ConstantCompletion("getMember", `$(P Takes two arguments, the second must be a string.
 The result is an expression formed from the first
 argument, followed by a $(SINGLEQUOTE .), followed by the second
@@ -363,7 +440,7 @@ The second argument is a ` ~ "`" ~ `string` ~ "`" ~ ` that matches the name of
 the member(s) to return.
 The third argument is a ` ~ "`" ~ `bool` ~ "`" ~ `, and is optional.  If ` ~ "`" ~ `true` ~ "`" ~ `, the
 result will also include template overloads.
-The result is a tuple of all the overloads of the supplied name.
+The result is a symbol sequence of all the overloads of the supplied name.
 )
 
 $(SPEC_RUNNABLE_EXAMPLE_COMPILE
@@ -413,11 +490,11 @@ bar(int n)
 )`),
 	ConstantCompletion("getParameterStorageClasses", `$(P
     Takes two arguments.
-    The first must either be a function symbol, or a type
+    The first must either be a function symbol, a function call, or a type
     that is a function, delegate or a function pointer.
     The second is an integer identifying which parameter, where the first parameter is
     0.
-    It returns a tuple of strings representing the storage classes of that parameter.
+    It returns a *ValueSeq* of strings representing the storage classes of that parameter.
 )
 
 $(SPEC_RUNNABLE_EXAMPLE_COMPILE
@@ -430,6 +507,13 @@ static assert(__traits(getParameterStorageClasses, foo, 0)[1] == "ref");
 static assert(__traits(getParameterStorageClasses, foo, 1)[0] == "scope");
 static assert(__traits(getParameterStorageClasses, foo, 2)[0] == "out");
 static assert(__traits(getParameterStorageClasses, typeof(&foo), 3)[0] == "lazy");
+
+int* p, a;
+int b, c;
+
+static assert(__traits(getParameterStorageClasses, foo(p, a, b, c), 1)[0] == "scope");
+static assert(__traits(getParameterStorageClasses, foo(p, a, b, c), 2)[0] == "out");
+static assert(__traits(getParameterStorageClasses, foo(p, a, b, c), 3)[0] == "lazy");
 ---
 )`),
 	ConstantCompletion("getPointerBitmap", `$(P The argument is a type.
@@ -470,39 +554,7 @@ void main()
 }
 ---
 )`),
-	ConstantCompletion("getProtection", `$(P The argument is a symbol.
-The result is a string giving its protection level: "public", "private", "protected", "export", or "package".
-)
-
-$(SPEC_RUNNABLE_EXAMPLE_COMPILE
----
-import std.stdio;
-
-class D
-{
-    export void foo() { }
-    public int bar;
-}
-
-void main()
-{
-    D d = new D();
-
-    auto i = __traits(getProtection, d.foo);
-    writeln(i);
-
-    auto j = __traits(getProtection, d.bar);
-    writeln(j);
-}
----
-)
-
-Prints:
-
-$(CONSOLE
-export
-public
-)`),
+	ConstantCompletion("getProtection", `$(P A backward-compatible alias for $(GLINK getVisibility).)`),
 	ConstantCompletion("getTargetInfo", `$(P Receives a string key as argument.
 The result is an expression describing the requested target information.
 )
@@ -520,23 +572,24 @@ A reliable subset exists which are always available:
 
 $(UL
 $(LI $(D "cppRuntimeLibrary") - The C++ runtime library affinity for this toolchain)
+$(LI $(D "cppStd") - The version of the C++ standard supported by $(D extern$(LPAREN)C++$(RPAREN)) code, equivalent to the ` ~ "`" ~ `__cplusplus` ~ "`" ~ ` macro in a C++ compiler)
 $(LI $(D "floatAbi") - Floating point ABI; may be $(D "hard"), $(D "soft"), or $(D "softfp"))
 $(LI $(D "objectFormat") - Target object format)
 )`),
 	ConstantCompletion("getUnitTests", `$(P
         Takes one argument, a symbol of an aggregate (e.g. struct/class/module).
-        The result is a tuple of all the unit test functions of that aggregate.
+        The result is a symbol sequence of all the unit test functions of that aggregate.
         The functions returned are like normal nested static functions,
         $(DDSUBLINK glossary, ctfe, CTFE) will work and
         $(DDSUBLINK spec/attribute, uda, UDAs) will be accessible.
 )
 
-$(H3 Note:)
+$(H4 Note:)
 
 $(P
         The -unittest flag needs to be passed to the compiler. If the flag
         is not passed $(CODE __traits(getUnitTests)) will always return an
-        empty tuple.
+        empty sequence.
 )
 
 $(SPEC_RUNNABLE_EXAMPLE_COMPILE
@@ -612,7 +665,7 @@ a virtual function, $(D -1) is returned instead.
 class type.
 The second argument is a string that matches the name of
 one of the functions of that class.
-The result is a tuple of the virtual overloads of that function.
+The result is a symbol sequence of the virtual overloads of that function.
 It does not include final functions that do not override anything.
 )
 
@@ -654,6 +707,74 @@ void()
 int()
 2
 )`),
+	ConstantCompletion("getVisibility", `$(P The argument is a symbol.
+The result is a string giving its visibility level: "public", "private", "protected", "export", or "package".
+)
+
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
+---
+import std.stdio;
+
+class D
+{
+    export void foo() { }
+    public int bar;
+}
+
+void main()
+{
+    D d = new D();
+
+    auto i = __traits(getVisibility, d.foo);
+    writeln(i);
+
+    auto j = __traits(getVisibility, d.bar);
+    writeln(j);
+}
+---
+)
+
+Prints:
+
+$(CONSOLE
+export
+public
+)`),
+	ConstantCompletion("hasCopyConstructor", `$(P The argument is a type. If it is a struct with a copy constructor, returns $(D true). Otherwise, return $(D false). Note that a copy constructor is distinct from a postblit.
+)
+
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
+---
+
+import std.stdio;
+
+struct S
+{
+}
+
+class C
+{
+}
+
+struct P
+{
+    this(ref P rhs) {}
+}
+
+struct B
+{
+    this(this) {}
+}
+
+void main()
+{
+    writeln(__traits(hasCopyConstructor, S)); // false
+    writeln(__traits(hasCopyConstructor, C)); // false
+    writeln(__traits(hasCopyConstructor, P)); // true
+    writeln(__traits(hasCopyConstructor, B)); // false, this is a postblit
+}
+---
+)`),
 	ConstantCompletion("hasMember", `$(P The first argument is a type that has members, or
 is an expression of a type that has members.
 The second argument is a string.
@@ -668,8 +789,6 @@ import std.stdio;
 struct S
 {
     int m;
-
-    import std.stdio; // imports write
 }
 
 void main()
@@ -679,18 +798,52 @@ void main()
     writeln(__traits(hasMember, S, "m")); // true
     writeln(__traits(hasMember, s, "m")); // true
     writeln(__traits(hasMember, S, "y")); // false
-    writeln(__traits(hasMember, S, "write")); // true
+    writeln(__traits(hasMember, S, "write")); // false, but callable like a member via UFCS
     writeln(__traits(hasMember, int, "sizeof")); // true
+}
+---
+)`),
+	ConstantCompletion("hasPostblit", `$(P The argument is a type. If it is a struct with a postblit, returns $(D true). Otherwise, return $(D false). Note a postblit is distinct from a copy constructor.
+)
+
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
+---
+
+import std.stdio;
+
+struct S
+{
+}
+
+class C
+{
+}
+
+struct P
+{
+    this(ref P rhs) {}
+}
+
+struct B
+{
+    this(this) {}
+}
+
+
+void main()
+{
+    writeln(__traits(hasPostblit, S)); // false
+    writeln(__traits(hasPostblit, C)); // false
+    writeln(__traits(hasPostblit, P)); // false, this is a copy ctor
+    writeln(__traits(hasPostblit, B)); // true
 }
 ---
 )`),
 	ConstantCompletion("identifier", `$(P Takes one argument, a symbol. Returns the identifier
 for that symbol as a string literal.
 )
-$(SPEC_RUNNABLE_EXAMPLE_COMPILE
+$(SPEC_RUNNABLE_EXAMPLE_RUN
 ---
-import std.stdio;
-
 int var = 123;
 pragma(msg, typeof(var));                       // int
 pragma(msg, typeof(__traits(identifier, var))); // string
@@ -698,6 +851,50 @@ writeln(var);                                   // 123
 writeln(__traits(identifier, var));             // "var"
 ---
 )`),
+	ConstantCompletion("initSymbol", `$(P Takes a single argument, which must evaluate to a ` ~ "`" ~ `class` ~ "`" ~ `, ` ~ "`" ~ `struct` ~ "`" ~ ` or ` ~ "`" ~ `union` ~ "`" ~ ` type.
+    Returns a ` ~ "`" ~ `const(void)[]` ~ "`" ~ ` that holds the initial state of any instance of the supplied type.
+    The slice is constructed for any type ` ~ "`" ~ `T` ~ "`" ~ ` as follows:
+
+    - ` ~ "`" ~ `ptr` ~ "`" ~ ` points to either the initializer symbol of ` ~ "`" ~ `T` ~ "`" ~ `
+       or ` ~ "`" ~ `null` ~ "`" ~ ` if ` ~ "`" ~ `T` ~ "`" ~ ` is a zero-initialized struct / unions.
+
+    - ` ~ "`" ~ `length` ~ "`" ~ ` is equal to the size of an instance, i.e. ` ~ "`" ~ `T.sizeof` ~ "`" ~ ` for structs / unions and
+      $(RELATIVE_LINK2 classInstanceSize, $(D __traits(classInstanceSize, T)` ~ "`" ~ `)) for classes.
+)
+
+$(P
+    This trait matches the behaviour of ` ~ "`" ~ `TypeInfo.initializer()` ~ "`" ~ ` but can also be used when
+    ` ~ "`" ~ `TypeInfo` ~ "`" ~ ` is not available.
+)
+
+$(P
+    This traits is not available during $(DDSUBLINK glossary, ctfe, CTFE) because the actual address
+    of the initializer symbol will be set by the linker and hence is not available at compile time.
+)
+
+---
+class C
+{
+    int i = 4;
+}
+
+/// Initializes a malloc'ed instance of ` ~ "`" ~ `C` ~ "`" ~ `
+void main()
+{
+    const void[] initSym = __traits(initSymbol, C);
+
+    void* ptr = malloc(initSym.length);
+    scope (exit) free(ptr);
+
+    ptr[0..initSym.length] = initSym[];
+
+    C c = cast(C) ptr;
+    assert(c.i == 4);
+}
+---
+
+
+$(H2 $(LNAME2 functions, Function Traits))`),
 	ConstantCompletion("isAbstractClass", `$(P If the arguments are all either types that are abstract classes,
 or expressions that are typed as abstract classes, then $(D true)
 is returned.
@@ -766,6 +963,8 @@ is returned.
 Otherwise, $(D false) is returned.
 If there are no arguments, $(D false) is returned.)
 
+$(P Arithmetic types are integral types and floating point types.)
+
 $(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 import std.stdio;
@@ -791,6 +990,24 @@ false
 )`),
 	ConstantCompletion("isAssociativeArray", `$(P Works like $(D isArithmetic), except it's for associative array
 types.)`),
+	ConstantCompletion("isCopyable", `$(P Takes one argument. If that argument is a copyable type then $(D true) is returned,
+otherwise $(D false).
+)
+
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
+---
+struct S
+{
+}
+static assert( __traits(isCopyable, S));
+
+struct T
+{
+    @disable this(this); // disable copy construction
+}
+static assert(!__traits(isCopyable, T));
+---
+)`),
 	ConstantCompletion("isDeprecated", `$(P Takes one argument. It returns ` ~ "`" ~ `true` ~ "`" ~ ` if the argument is a symbol
 marked with the ` ~ "`" ~ `deprecated` ~ "`" ~ ` keyword, otherwise ` ~ "`" ~ `false` ~ "`" ~ `.)`),
 	ConstantCompletion("isDisabled", `$(P Takes one argument and returns ` ~ "`" ~ `true` ~ "`" ~ ` if it's a function declaration
@@ -854,8 +1071,17 @@ void main()
 }
 ---
 )`),
-	ConstantCompletion("isFloating", `$(P Works like $(D isArithmetic), except it's for floating
-point types (including imaginary and complex types).)
+	ConstantCompletion("isFloating", `$(P If the arguments are all either types that are floating point types,
+or expressions that are typed as floating point types, then $(D true)
+is returned.
+Otherwise, $(D false) is returned.
+If there are no arguments, $(D false) is returned.)
+
+$(P The floating point types are:
+` ~ "`" ~ `float` ~ "`" ~ `, ` ~ "`" ~ `double` ~ "`" ~ `, ` ~ "`" ~ `real` ~ "`" ~ `,
+` ~ "`" ~ `ifloat` ~ "`" ~ `, ` ~ "`" ~ `idouble` ~ "`" ~ `, ` ~ "`" ~ `ireal` ~ "`" ~ `,
+` ~ "`" ~ `cfloat` ~ "`" ~ `, ` ~ "`" ~ `cdouble` ~ "`" ~ `, ` ~ "`" ~ `creal` ~ "`" ~ `,
+vectors of floating point types, and enums with a floating point base type.)
 
 $(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
@@ -864,8 +1090,6 @@ import core.simd : float4;
 enum E : float { a, b }
 
 static assert(__traits(isFloating, float));
-static assert(__traits(isFloating, idouble));
-static assert(__traits(isFloating, creal));
 static assert(__traits(isFloating, E));
 static assert(__traits(isFloating, float4));
 
@@ -875,8 +1099,16 @@ static assert(!__traits(isFloating, float[4]));
 	ConstantCompletion("isFuture", `$(P Takes one argument. It returns ` ~ "`" ~ `true` ~ "`" ~ ` if the argument is a symbol
 marked with the ` ~ "`" ~ `@future` ~ "`" ~ ` keyword, otherwise ` ~ "`" ~ `false` ~ "`" ~ `. Currently, only
 functions and variable declarations have support for the ` ~ "`" ~ `@future` ~ "`" ~ ` keyword.)`),
-	ConstantCompletion("isIntegral", `$(P Works like $(D isArithmetic), except it's for integral
-types (including character types).)
+	ConstantCompletion("isIntegral", `$(P If the arguments are all either types that are integral types,
+or expressions that are typed as integral types, then $(D true)
+is returned.
+Otherwise, $(D false) is returned.
+If there are no arguments, $(D false) is returned.)
+
+$(P The integral types are:
+` ~ "`" ~ `byte` ~ "`" ~ `, ` ~ "`" ~ `ubyte` ~ "`" ~ `, ` ~ "`" ~ `short` ~ "`" ~ `, ` ~ "`" ~ `ushort` ~ "`" ~ `, ` ~ "`" ~ `int` ~ "`" ~ `, ` ~ "`" ~ `uint` ~ "`" ~ `, ` ~ "`" ~ `long` ~ "`" ~ `, ` ~ "`" ~ `ulong` ~ "`" ~ `, ` ~ "`" ~ `cent` ~ "`" ~ `, ` ~ "`" ~ `ucent` ~ "`" ~ `,
+` ~ "`" ~ `bool` ~ "`" ~ `, ` ~ "`" ~ `char` ~ "`" ~ `, ` ~ "`" ~ `wchar` ~ "`" ~ `, ` ~ "`" ~ `dchar` ~ "`" ~ `,
+vectors of integral types, and enums with an integral base type.)
 
 $(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
@@ -922,6 +1154,27 @@ void foolazy(lazy int x)
     static assert(!__traits(isOut, x));
     static assert(__traits(isLazy, x));
 }
+---
+)`),
+	ConstantCompletion("isModule", `$(P Takes one argument. If that argument is a symbol that refers to a
+$(DDLINK spec/module, Modules, module) then $(D true) is returned, otherwise $(D false).
+$(DDSUBLINK spec/module, package-module, Package modules) are considered to be
+modules even if they have not been directly imported as modules.
+)
+
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
+---
+import core.thread;
+import std.algorithm.sorting;
+
+// A regular package (no package.d)
+static assert(!__traits(isModule, core));
+// A package module (has a package.d file)
+// Note that we haven't imported std.algorithm directly.
+// (In other words, we don't have an "import std.algorithm;" directive.)
+static assert(__traits(isModule, std.algorithm));
+// A regular module
+static assert(__traits(isModule, std.algorithm.sorting));
 ---
 )`),
 	ConstantCompletion("isNested", `$(P Takes one argument.
@@ -988,6 +1241,17 @@ void main()
 )`),
 	ConstantCompletion("isPOD", `$(P Takes one argument, which must be a type. It returns
 $(D true) if the type is a $(DDSUBLINK glossary, pod, POD) type, otherwise $(D false).)`),
+	ConstantCompletion("isPackage", `$(P Takes one argument. If that argument is a symbol that refers to a
+$(DDSUBLINK spec/module, PackageName, package) then $(D true) is returned,
+otherwise $(D false).
+)
+
+---
+import std.algorithm.sorting;
+static assert(__traits(isPackage, std));
+static assert(__traits(isPackage, std.algorithm));
+static assert(!__traits(isPackage, std.algorithm.sorting));
+---`),
 	ConstantCompletion("isRef", `$(P Takes one argument. If that argument is a declaration,
 $(D true) is returned if it is $(D_KEYWORD ref), $(D_KEYWORD out),
 or $(D_KEYWORD lazy), otherwise $(D false).
@@ -1049,34 +1313,42 @@ $(LI When using inline assembly to correctly call a function.)
 $(LI Testing that the compiler does this correctly is normally hackish and awkward,
 this enables efficient, direct, and simple testing.)
 ))`),
-	ConstantCompletion("isSame", `$(P Takes two arguments and returns bool $(D true) if they
-are the same symbol, $(D false) if not.)
+	ConstantCompletion("isSame", `$(P Compares two arguments and evaluates to ` ~ "`" ~ `bool` ~ "`" ~ `.)
+
+$(P The result is ` ~ "`" ~ `true` ~ "`" ~ ` if the two arguments are the same symbol
+(once aliases are resolved).)
 
 $(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
-import std.stdio;
-
 struct S { }
 
 int foo();
 int bar();
 
-void main()
-{
-    writeln(__traits(isSame, foo, foo)); // true
-    writeln(__traits(isSame, foo, bar)); // false
-    writeln(__traits(isSame, foo, S));   // false
-    writeln(__traits(isSame, S, S));     // true
-    writeln(__traits(isSame, std, S));   // false
-    writeln(__traits(isSame, std, std)); // true
-}
+static assert(__traits(isSame, foo, foo));
+static assert(!__traits(isSame, foo, bar));
+static assert(!__traits(isSame, foo, S));
+static assert(__traits(isSame, S, S));
+static assert(!__traits(isSame, object, S));
+static assert(__traits(isSame, object, object));
+
+alias daz = foo;
+static assert(__traits(isSame, foo, daz));
 ---
 )
 
-$(P If the two arguments are expressions made up of literals
-or enums that evaluate to the same value, true is returned.)
+$(P The result is ` ~ "`" ~ `true` ~ "`" ~ ` if the two arguments are expressions
+made up of literals or enums that evaluate to the same value.)
 
-$(P If the two arguments are both lambda functions (or aliases
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
+---
+enum e = 3;
+static assert(__traits(isSame, (e), 3));
+static assert(__traits(isSame, 5, 2 + e));
+---
+)
+$(P If the two arguments are both
+$(DDSUBLINK spec/expression, function_literals, lambda functions) (or aliases
 to lambda functions), then they are compared for equality. For
 the comparison to be computed correctly, the following conditions
 must be met for both lambda functions:)
@@ -1093,11 +1365,20 @@ statements, the function is considered incomparable.)
 )
 
 $(P If these constraints aren't fulfilled, the function is considered
-incomparable and ` ~ "`" ~ `isSame` ~ "`" ~ ` returns $(D false).)
+incomparable and the result is $(D false).)
 
+    $(SPEC_RUNNABLE_EXAMPLE_COMPILE
+    ---
+    static assert(__traits(isSame, (a, b) => a + b, (c, d) => c + d));
+    static assert(__traits(isSame, a => ++a, b => ++b));
+    static assert(!__traits(isSame, (int a, int b) => a + b, (a, b) => a + b));
+    static assert(__traits(isSame, (a, b) => a + b + 10, (c, d) => c + d + 10));
+    ---
+    )
 $(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
 int f() { return 2; }
+
 void test(alias pred)()
 {
     // f() from main is a different function from top-level f()
@@ -1106,11 +1387,6 @@ void test(alias pred)()
 
 void main()
 {
-    static assert(__traits(isSame, (a, b) => a + b, (c, d) => c + d));
-    static assert(__traits(isSame, a => ++a, b => ++b));
-    static assert(!__traits(isSame, (int a, int b) => a + b, (a, b) => a + b));
-    static assert(__traits(isSame, (a, b) => a + b + 10, (c, d) => c + d + 10));
-
     // lambdas accessing local variables are considered incomparable
     int b;
     static assert(!__traits(isSame, a => a + b, a => a + b));
@@ -1119,34 +1395,65 @@ void main()
     int f() { return 3;}
     static assert(__traits(isSame, a => a + f(), a => a + f()));
     test!((int a) => a + f())();
-
+}
+---
+)
+    $(SPEC_RUNNABLE_EXAMPLE_COMPILE
+    ---
     class A
     {
-        int a;
-        this(int a)
-        {
-            this.a = a;
-        }
+int a;
+this(int a)
+{
+    this.a = a;
+}
     }
 
     class B
     {
-        int a;
-        this(int a)
-        {
-            this.a = a;
-        }
+int a;
+this(int a)
+{
+    this.a = a;
+}
     }
 
     static assert(__traits(isSame, (A a) => ++a.a, (A b) => ++b.a));
     // lambdas with different data types are considered incomparable,
     // even if the memory layout is the same
     static assert(!__traits(isSame, (A a) => ++a.a, (B a) => ++a.a));
-}
+    ---
+    )
+
+$(P If the two arguments are tuples then the result is ` ~ "`" ~ `true` ~ "`" ~ ` if the
+two tuples, after expansion, have the same length and if each pair
+of nth argument respects the constraints previously specified.)
+
+$(SPEC_RUNNABLE_EXAMPLE_COMPILE
+---
+import std.meta;
+
+struct S { }
+
+// like __traits(isSame,0,0) && __traits(isSame,1,1)
+static assert(__traits(isSame, AliasSeq!(0,1), AliasSeq!(0,1)));
+// like __traits(isSame,S,std.meta) && __traits(isSame,1,1)
+static assert(!__traits(isSame, AliasSeq!(S,1), AliasSeq!(std.meta,1)));
+// the length of the sequences is different
+static assert(!__traits(isSame, AliasSeq!(1), AliasSeq!(1,2)));
 ---
 )`),
-	ConstantCompletion("isScalar", `$(P Works like $(D isArithmetic), except it's for scalar
-types.)
+	ConstantCompletion("isScalar", `$(P If the arguments are all either types that are scalar types,
+or expressions that are typed as scalar types, then $(D true)
+is returned.
+Otherwise, $(D false) is returned.
+If there are no arguments, $(D false) is returned.)
+
+$(P Scalar types are integral types,
+floating point types,
+pointer types,
+vectors of scalar types,
+and enums with a scalar base type.)
 
 $(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
@@ -1207,8 +1514,8 @@ void main()
 }
 ---
 )`),
-	ConstantCompletion("isTemplate", `$(P Takes one argument. If that argument is a template then $(D true) is returned,
-otherwise $(D false).
+	ConstantCompletion("isTemplate", `$(P Takes one argument. If that argument or any of its overloads is a template
+then $(D true) is returned, otherwise $(D false).
 )
 
 $(SPEC_RUNNABLE_EXAMPLE_COMPILE
@@ -1219,8 +1526,16 @@ static assert(!__traits(isTemplate,foo!int()));
 static assert(!__traits(isTemplate,"string"));
 ---
 )`),
-	ConstantCompletion("isUnsigned", `$(P Works like $(D isArithmetic), except it's for unsigned
-types.)
+	ConstantCompletion("isUnsigned", `$(P If the arguments are all either types that are unsigned types,
+or expressions that are typed as unsigned types, then $(D true)
+is returned.
+Otherwise, $(D false) is returned.
+If there are no arguments, $(D false) is returned.)
+
+$(P The unsigned types are:
+` ~ "`" ~ `ubyte` ~ "`" ~ `, ` ~ "`" ~ `ushort` ~ "`" ~ `, ` ~ "`" ~ `uint` ~ "`" ~ `, ` ~ "`" ~ `ulong` ~ "`" ~ `, ` ~ "`" ~ `ucent` ~ "`" ~ `,
+` ~ "`" ~ `bool` ~ "`" ~ `, ` ~ "`" ~ `char` ~ "`" ~ `, ` ~ "`" ~ `wchar` ~ "`" ~ `, ` ~ "`" ~ `dchar` ~ "`" ~ `,
+vectors of unsigned types, and enums with an unsigned base type.)
 
 $(SPEC_RUNNABLE_EXAMPLE_COMPILE
 ---
@@ -1295,9 +1610,90 @@ void test()
 class C { int x = -1; }
 
 static assert(__traits(isZeroInit, C));
+
+// For initializing arrays of element type ` ~ "`" ~ `void` ~ "`" ~ `.
+static assert(__traits(isZeroInit, void));
 ---
 )`),
+	ConstantCompletion("parameters", `$(P May only be used inside a function. Takes no arguments, and returns
+a sequence of the enclosing function's parameters.)
+
+$(P If the function is nested, the parameters returned are those of the
+inner function, not the outer one.)
+
+---
+int add(int x, int y)
+{
+    return x + y;
+}
+
+int forwardToAdd(int x, int y)
+{
+    return add(__traits(parameters));
+    // equivalent to;
+    //return add(x, y);
+}
+
+int nestedExample(int x)
+{
+    // outer function's parameters
+    static assert(typeof(__traits(parameters)).length == 1);
+
+    int add(int x, int y)
+    {
+        // inner function's parameters
+        static assert(typeof(__traits(parameters)).length == 2);
+        return x + y;
+    }
+
+    return add(x, x);
+}
+
+class C
+{
+    int opApply(int delegate(size_t, C) dg)
+    {
+        if (dg(0, this)) return 1;
+        return 0;
+    }
+}
+
+void foreachExample(C c, int x)
+{
+    foreach(idx; 0..5)
+    {
+        static assert(is(typeof(__traits(parameters)) == AliasSeq!(C, int)));
+    }
+    foreach(idx, elem; c)
+    {
+        //  __traits(parameters) sees past the delegate passed to opApply
+        static assert(is(typeof(__traits(parameters)) == AliasSeq!(C, int)));
+    }
+}
+---
+
+
+$(H2 $(LNAME2 symbols, Symbol Traits))`),
 	ConstantCompletion("parent", `$(P Takes a single argument which must evaluate to a symbol.
 The result is the symbol that is the parent of it.
 )`),
+	ConstantCompletion("toType", `$(P Takes a single argument, which must evaluate to an expression of type ` ~ "`" ~ `string` ~ "`" ~ `.
+The contents of the string must correspond to the $(DDSUBLINK spec/abi, name_mangling, mangled contents of a type)
+that has been seen by the implementation.)
+
+$(P Only D mangling is supported. Other manglings, such as C++ mangling, are not.)
+
+$(P The value returned is a type.)
+
+---
+template Type(T) { alias Type = T; }
+
+Type!(__traits(toType, "i")) j = 3; // j is declared as type ` ~ "`" ~ `int` ~ "`" ~ `
+
+static assert(is(Type!(__traits(toType, (int*).mangleof)) == int*));
+
+__traits(toType, "i") x = 4; // x is also declared as type ` ~ "`" ~ `int` ~ "`" ~ `
+---
+
+$(RATIONALE Provides the inverse operation of the $(DDSUBLINK spec/property, mangleof, ` ~ "`" ~ `.mangleof` ~ "`" ~ `) property.)`),
 ];
