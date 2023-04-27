@@ -329,10 +329,7 @@ $(CONSOLE
 tuple("pure", "nothrow", "@nogc", "@trusted")
 )
 )
-)
-
-
-$(H2 $(LNAME2 function-parameters, Function Parameter Traits))`),
+)`),
 	ConstantCompletion("getFunctionVariadicStyle", `$(P
     Takes one argument which must either be a function symbol, or a type
     that is a function, delegate or a function pointer.
@@ -891,10 +888,7 @@ void main()
     C c = cast(C) ptr;
     assert(c.i == 4);
 }
----
-
-
-$(H2 $(LNAME2 functions, Function Traits))`),
+---`),
 	ConstantCompletion("isAbstractClass", `$(P If the arguments are all either types that are abstract classes,
 or expressions that are typed as abstract classes, then $(D true)
 is returned.
@@ -1670,10 +1664,7 @@ void foreachExample(C c, int x)
         static assert(is(typeof(__traits(parameters)) == AliasSeq!(C, int)));
     }
 }
----
-
-
-$(H2 $(LNAME2 symbols, Symbol Traits))`),
+---`),
 	ConstantCompletion("parent", `$(P Takes a single argument which must evaluate to a symbol.
 The result is the symbol that is the parent of it.
 )`),
