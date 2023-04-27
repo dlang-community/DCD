@@ -135,6 +135,11 @@ ConstantCompletion[] parseTraits(string ddoc)
 			foundTerminator = true;
 			break;
 		}
+		else if (line.startsWith("$(H2 $(LNAME2"))
+		{
+			addCurrent();
+			seekingToFirst = true;
+		}
 		else if (line.canFind("$(GNAME "))
 		{
 			addCurrent();
