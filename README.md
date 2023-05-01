@@ -42,7 +42,7 @@ the issue.)
 	* Autocompletion of declarations with template arguments (This will work to some extent, but it won't do things like replace T with int)
 	* Determining the type of an enum member when no base type is specified, but the first member has an initializer
 	* auto functions (which can then propagate the failure to auto declarations)
-	* That one feature that you *REALLY* needed
+	* That one feature that you *REALLY* needed.
 
 # Setup
 ### General
