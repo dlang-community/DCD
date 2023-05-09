@@ -46,6 +46,10 @@ TTree!(DSymbol*, SymbolsAllocator, true, "a < b") enumSymbols;
 TTree!(DSymbol*, SymbolsAllocator, true, "a < b") pointerSymbols;
 
 /**
+ * Templated properties
+ */
+TTree!(DSymbol*, SymbolsAllocator, true, "a < b") templatedSymbols;
+/**
  * Variadic template parameters properties
  */
 DSymbol* variadicTmpParamSymbol;
