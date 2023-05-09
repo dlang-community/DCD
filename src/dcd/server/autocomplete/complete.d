@@ -47,6 +47,11 @@ import dsymbol.utils;
 import dcd.common.constants;
 import dcd.common.messages;
 
+enum CompletionToken {
+	none,
+	bracket, bang
+}
+
 /**
  * Handles autocompletion
  * Params:
@@ -134,9 +139,13 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 			|| beforeTokens[$ - 1] == tok!",")
 		{
 			immutable size_t end = goBackToOpenParen(beforeTokens);
-			if (end != size_t.max)
-				return parenCompletion(beforeTokens[0 .. end], tokenArray,
+			if (end != size_t.max) {
+				return callTipCompletion(beforeTokens[0 .. end], tokenArray,
 					request.cursorPosition, moduleCache);
+			}
+		}
+		else if (beforeTokens[$ - 1] == tok!"!"){ // Bang completion
+			return callTipCompletion(beforeTokens, tokenArray, request.cursorPosition, moduleCache);
 		}
 		else
 		{
@@ -218,7 +227,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba, cursorPosition, moduleCache);
 		scope(exit) pair.destroy();
 		response.setCompletions(pair.scope_, getExpression(beforeTokens),
-			cursorPosition, CompletionType.identifiers, false, partial);
+			cursorPosition, CompletionType.identifiers, CompletionToken.none, partial);
 		if (!pair.ufcsSymbols.empty) {
 			response.completions ~= pair.ufcsSymbols.map!(s => makeSymbolCompletionInfo(s, CompletionKind.ufcsName)).array;
 			// Setting CompletionType in case of none symbols are found via setCompletions, but we have UFCS symbols.
@@ -237,7 +246,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba, 1, moduleCache);
 		scope(exit) pair.destroy();
 		response.setCompletions(pair.scope_, getExpression(beforeTokens),
-			1, CompletionType.identifiers, false, partial);
+			1, CompletionType.identifiers, CompletionToken.none, partial);
 		break;
 	default:
 		break;
@@ -246,7 +255,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 }
 
 /**
- * Handles paren completion for function calls and some keywords
+ * Handles calltip completion for function calls and some keywords
  * Params:
  *     beforeTokens = the tokens before the cursor
  *     tokenArray = all tokens in the file
@@ -254,7 +263,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
  * Returns:
  *     the autocompletion response
  */
-AutocompleteResponse parenCompletion(T)(T beforeTokens,
+AutocompleteResponse callTipCompletion(T)(T beforeTokens,
 	const(Token)[] tokenArray, size_t cursorPosition, ref ModuleCache moduleCache)
 {
 	AutocompleteResponse response;
@@ -309,7 +318,7 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 		scope(exit) pair.destroy();
 		auto expression = getExpression(beforeTokens[0 .. $ - 1]);
 		response.setCompletions(pair.scope_, expression,
-			cursorPosition, CompletionType.calltips, beforeTokens[$ - 1] == tok!"[");
+			cursorPosition, CompletionType.calltips, getCompletionToken(beforeTokens));
 		if (!pair.ufcsSymbols.empty) {
 			response.completions ~= pair.ufcsSymbols.map!(s => makeSymbolCompletionInfo(s, CompletionKind.ufcsName)).array;
 			// Setting CompletionType in case of none symbols are found via setCompletions, but we have UFCS symbols.
@@ -320,6 +329,18 @@ AutocompleteResponse parenCompletion(T)(T beforeTokens,
 		break;
 	}
 	return response;
+}
+
+CompletionToken getCompletionToken(T)(T beforeTokens) {
+	if(beforeTokens[$ - 1] == tok!"["){
+		return CompletionToken.bracket;
+	}
+
+	if(beforeTokens[$ - 1] == tok!"!"){
+		return CompletionToken.bang;
+	}
+
+	return CompletionToken.none;
 }
 
 /**
@@ -505,7 +526,7 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
  */
 void setCompletions(T)(ref AutocompleteResponse response,
 	Scope* completionScope, T tokens, size_t cursorPosition,
-	CompletionType completionType, bool isBracket = false, string partial = null)
+	CompletionType completionType, CompletionToken completionToken = CompletionToken.none, string partial = null)
 {
 	static void addSymToResponse(const(DSymbol)* s, ref AutocompleteResponse r, string p,
 		Scope* completionScope, size_t[] circularGuard = [])
@@ -567,6 +588,11 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	DSymbol*[] symbols = getSymbolsByTokenChain(completionScope, tokens,
 		cursorPosition, completionType);
 
+	// If bang completion we check if symbol is also templated
+	if (completionToken == CompletionToken.bang && symbols.length >= 1 && symbols[0].qualifier != SymbolQualifier.templated){
+		return;
+	}
+
 	if (symbols.length == 0)
 		return;
 
@@ -607,7 +633,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 						symbols = [dumb];
 						goto setCallTips;
 					}
-					if (isBracket)
+					if (completionToken == CompletionToken.bracket)
 					{
 						auto index = dumb.getPartsByName(internString("opIndex"));
 						if (index.length > 0)

@@ -203,6 +203,7 @@ do
 		case SymbolQualifier.array: lastSuffix.addChildren(arraySymbols[], false); break;
 		case SymbolQualifier.assocArray: lastSuffix.addChildren(assocArraySymbols[], false); break;
 		case SymbolQualifier.pointer: lastSuffix.addChildren(pointerSymbols[], false); break;
+		case SymbolQualifier.templated: lastSuffix.addChildren(templatedSymbols[], false); break;
 		}
 
 		if (suffix is null)

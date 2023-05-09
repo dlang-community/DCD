@@ -1041,6 +1041,7 @@ private:
 					continue;
 				SemanticSymbol* templateParameter = allocateSemanticSymbol(name,
 					kind, symbolFile, index);
+				symbol.acSymbol.qualifier = SymbolQualifier.templated;
 				if (type !is null)
 					addTypeToLookups(templateParameter.typeLookups, type);
 

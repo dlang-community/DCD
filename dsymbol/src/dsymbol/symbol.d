@@ -133,6 +133,8 @@ enum SymbolQualifier : ubyte
 	selectiveImport,
 	/// The symbol is a pointer
 	pointer,
+	/// The symbol is templated
+	templated,
 }
 
 /**
