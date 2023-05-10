@@ -21,3 +21,11 @@ void instantiateTemp2() {
 void instantiateTemp3() {
 	doSomething!
 }
+
+void instantiateTemp4() {
+	doSomething!(
+}
+
+void instantiateTemp5() {
+	doSomething!("something",
+}

@@ -1,2 +1,2 @@
 calltips
-this(T data)
+Wrapper(T)
