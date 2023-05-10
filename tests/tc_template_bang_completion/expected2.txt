@@ -1,2 +1,2 @@
 calltips
-this(T foo, X bar)
+Something(T, X)

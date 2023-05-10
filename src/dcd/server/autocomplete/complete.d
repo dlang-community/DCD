@@ -28,6 +28,7 @@ import std.path;
 import std.range : assumeSorted;
 import std.string;
 import std.typecons;
+import std.exception : enforce;
 
 import dcd.server.autocomplete.util;
 
@@ -47,7 +48,7 @@ import dsymbol.utils;
 import dcd.common.constants;
 import dcd.common.messages;
 
-enum CallTipHint {
+enum CalltipHint {
 	none, // asserts false if passed into setCompletion with CompletionType.calltips
 	regularArguments,
 	templateArguments,
@@ -135,33 +136,32 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 		}
 	}
 
-	if (beforeTokens.length >= 2)
-	{
-		if (beforeTokens[$ - 1] == tok!"(" || beforeTokens[$ - 1] == tok!"["
-			|| beforeTokens[$ - 1] == tok!",")
+	auto calltipHint = getCalltipHint(beforeTokens);
+
+	final switch (calltipHint) with (CalltipHint) {
+	case regularArguments:
+		immutable size_t end = goBackToOpenParen(beforeTokens);
+		if (end != size_t.max)
+			return calltipCompletion(beforeTokens[0 .. end], tokenArray,
+				request.cursorPosition, moduleCache, calltipHint);
+		break;
+	case templateArguments, indexOperator:
+		return calltipCompletion(beforeTokens, tokenArray, request.cursorPosition, moduleCache, calltipHint);
+	case none:
+		// could be import or dot completion
+		if (beforeTokens.length < 2){
+			break;
+		}
+
+		ImportKind kind = determineImportKind(beforeTokens);
+		if (kind == ImportKind.neither)
 		{
-			immutable size_t end = goBackToOpenParen(beforeTokens);
-			if (end != size_t.max) {
-				return callTipCompletion(beforeTokens[0 .. end], tokenArray,
-					request.cursorPosition, moduleCache);
-			}
+			if (beforeTokens.isUdaExpression)
+				beforeTokens = beforeTokens[$ - 1 .. $];
+			return dotCompletion(beforeTokens, tokenArray, request.cursorPosition,
+				moduleCache);
 		}
-		else if (beforeTokens[$ - 1] == tok!"!"){ // Bang completion
-			return callTipCompletion(beforeTokens, tokenArray, request.cursorPosition, moduleCache);
-		}
-		else
-		{
-			ImportKind kind = determineImportKind(beforeTokens);
-			if (kind == ImportKind.neither)
-			{
-				if (beforeTokens.isUdaExpression)
-					beforeTokens = beforeTokens[$-1 .. $];
-				return dotCompletion(beforeTokens, tokenArray, request.cursorPosition,
-					moduleCache);
-			}
-			else
-				return importCompletion(beforeTokens, kind, moduleCache);
-		}
+		return importCompletion(beforeTokens, kind, moduleCache);
 	}
 	return dotCompletion(beforeTokens, tokenArray, request.cursorPosition, moduleCache);
 }
@@ -229,7 +229,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba, cursorPosition, moduleCache);
 		scope(exit) pair.destroy();
 		response.setCompletions(pair.scope_, getExpression(beforeTokens),
-			cursorPosition, CompletionType.identifiers, CompletionToken.none, partial);
+			cursorPosition, CompletionType.identifiers, CalltipHint.none, partial);
 		if (!pair.ufcsSymbols.empty) {
 			response.completions ~= pair.ufcsSymbols.map!(s => makeSymbolCompletionInfo(s, CompletionKind.ufcsName)).array;
 			// Setting CompletionType in case of none symbols are found via setCompletions, but we have UFCS symbols.
@@ -248,7 +248,7 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba, 1, moduleCache);
 		scope(exit) pair.destroy();
 		response.setCompletions(pair.scope_, getExpression(beforeTokens),
-			1, CompletionType.identifiers, CompletionToken.none, partial);
+			1, CompletionType.identifiers, CalltipHint.none, partial);
 		break;
 	default:
 		break;
@@ -265,12 +265,15 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
  * Returns:
  *     the autocompletion response
  */
-AutocompleteResponse callTipCompletion(T)(T beforeTokens,
-	const(Token)[] tokenArray, size_t cursorPosition, ref ModuleCache moduleCache)
+deprecated("Use `calltipCompletion` instead") alias parenCompletion = calltipCompletion;
+AutocompleteResponse calltipCompletion(T)(T beforeTokens,
+	const(Token)[] tokenArray, size_t cursorPosition, ref ModuleCache moduleCache, CalltipHint calltipHint = CalltipHint.none)
 {
 	AutocompleteResponse response;
 	immutable(ConstantCompletion)[] completions;
-	switch (beforeTokens[$ - 2].type)
+	auto significantTokenId = getSignificantTokenId(beforeTokens);
+
+	switch (significantTokenId)
 	{
 	case tok!"__traits":
 		completions = traits;
@@ -318,9 +321,11 @@ AutocompleteResponse callTipCompletion(T)(T beforeTokens,
 		RollbackAllocator rba;
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba, cursorPosition, moduleCache);
 		scope(exit) pair.destroy();
-		auto expression = getExpression(beforeTokens[0 .. $ - 1]);
+		// We remove by 2 when the calltip hint is !( else remove by 1.
+		auto endOffset = beforeTokens.isBangParenCalltipHint ? 2 : 1;
+		auto expression = getExpression(beforeTokens[0 .. $ - endOffset]);
 		response.setCompletions(pair.scope_, expression,
-			cursorPosition, CompletionType.calltips, getCompletionToken(beforeTokens));
+			cursorPosition, CompletionType.calltips, calltipHint);
 		if (!pair.ufcsSymbols.empty) {
 			response.completions ~= pair.ufcsSymbols.map!(s => makeSymbolCompletionInfo(s, CompletionKind.ufcsName)).array;
 			// Setting CompletionType in case of none symbols are found via setCompletions, but we have UFCS symbols.
@@ -333,16 +338,54 @@ AutocompleteResponse callTipCompletion(T)(T beforeTokens,
 	return response;
 }
 
-CompletionToken getCompletionToken(T)(T beforeTokens) {
-	if(beforeTokens[$ - 1] == tok!"["){
-		return CompletionToken.bracket;
+IdType getSignificantTokenId(T)(T beforeTokens){
+	auto significantTokenId = beforeTokens[$ - 2].type;
+	if (beforeTokens.isBangParenCalltipHint) {
+		if(beforeTokens[$ - 3] == tok!"identifier"){
+			return beforeTokens[$ - 3].type;
+		}
+	}
+	return significantTokenId;
+}
+/**
+ * Hinting what the user expects for calltip completion
+ * Params:
+ *   beforeTokens = tokens before the cursor
+ * Returns: calltipHint based of beforeTokens
+ */
+CalltipHint getCalltipHint(T)(T beforeTokens) {
+	if (beforeTokens.length < 2){
+		return CalltipHint.none;
+	}
+	if (beforeTokens[$ - 1] == tok!"(" || beforeTokens[$ - 1] == tok!"["
+			|| beforeTokens[$ - 1] == tok!",")
+	{
+		return CalltipHint.regularArguments;
+	}
+	if(beforeTokens[$ - 2] == tok!"identifier" && beforeTokens[$ - 1] == tok!"["){
+		return CalltipHint.indexOperator;
 	}
 
-	if(beforeTokens[$ - 1] == tok!"!"){
-		return CompletionToken.bang;
+	if(beforeTokens.isSingleBangCalltipHint || beforeTokens.isBangParenCalltipHint){
+		return CalltipHint.templateArguments;
 	}
 
-	return CompletionToken.none;
+	return CalltipHint.none;
+}
+
+// Check if we are doing a single "!" calltip hint
+private bool isSingleBangCalltipHint(T)(T beforeTokens) {
+	return beforeTokens.length >= 2
+		&& beforeTokens[$ - 2] == tok!"identifier"
+		&& beforeTokens[$ - 1] == tok!"!";
+}
+
+// Check if we are doing a "!(" calltip hint
+private bool isBangParenCalltipHint(T)(T beforeTokens){
+	return beforeTokens.length >= 3
+		&& beforeTokens[$ - 3] == tok!"identifier"
+		&& beforeTokens[$ - 2] == tok!"!"
+		&& beforeTokens[$ - 1] == tok!"(";
 }
 
 /**
@@ -528,7 +571,7 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
  */
 void setCompletions(T)(ref AutocompleteResponse response,
 	Scope* completionScope, T tokens, size_t cursorPosition,
-	CompletionType completionType, CompletionToken completionToken = CompletionToken.none, string partial = null)
+	CompletionType completionType, CalltipHint callTipHint = CalltipHint.none, string partial = null)
 {
 	static void addSymToResponse(const(DSymbol)* s, ref AutocompleteResponse r, string p,
 		Scope* completionScope, size_t[] circularGuard = [])
@@ -590,8 +633,8 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	DSymbol*[] symbols = getSymbolsByTokenChain(completionScope, tokens,
 		cursorPosition, completionType);
 
-	// If bang completion we check if symbol is also templated
-	if (completionToken == CompletionToken.bang && symbols.length >= 1 && symbols[0].qualifier != SymbolQualifier.templated){
+	// If calltipHint is templateArguments we ensure that the symbol is also templated
+	if (callTipHint == CalltipHint.templateArguments && symbols.length >= 1 && symbols[0].qualifier != SymbolQualifier.templated){
 		return;
 	}
 
@@ -615,6 +658,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	}
 	else if (completionType == CompletionType.calltips)
 	{
+		enforce(callTipHint != CalltipHint.none, "Make sure to have a properly defined calltipHint!");
 		//trace("Showing call tips for ", symbols[0].name, " of kind ", symbols[0].kind);
 		if (symbols[0].kind != CompletionKind.functionName
 			&& symbols[0].callTip is null)
@@ -635,7 +679,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 						symbols = [dumb];
 						goto setCallTips;
 					}
-					if (completionToken == CompletionToken.bracket)
+					if (callTipHint == CalltipHint.indexOperator)
 					{
 						auto index = dumb.getPartsByName(internString("opIndex"));
 						if (index.length > 0)
@@ -652,9 +696,15 @@ void setCompletions(T)(ref AutocompleteResponse response,
 					}
 				}
 			}
-			if (symbols[0].kind == CompletionKind.structName
-				|| symbols[0].kind == CompletionKind.className)
+			if ((symbols[0].kind == CompletionKind.structName || symbols[0].kind == CompletionKind.className))
 			{
+				if (callTipHint == CalltipHint.templateArguments) {
+					response.completionType = CompletionType.calltips;
+					response.completions = [generateStructConstructorCalltip(symbols[0], callTipHint)];
+					return;
+				}
+
+				//Else we do calltip for regular arguments
 				auto constructor = symbols[0].getPartsByName(CONSTRUCTOR_SYMBOL_NAME);
 				if (constructor.length == 0)
 				{
@@ -662,7 +712,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 					if (symbols[0].kind == CompletionKind.structName)
 					{
 						response.completionType = CompletionType.calltips;
-						response.completions = [generateStructConstructorCalltip(symbols[0])];
+						response.completions = [generateStructConstructorCalltip(symbols[0], callTipHint)];
 						return;
 					}
 				}
@@ -672,6 +722,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 					goto setCallTips;
 				}
 			}
+
 		}
 	setCallTips:
 		response.completionType = CompletionType.calltips;
@@ -702,23 +753,27 @@ bool mightBeRelevantInCompletionScope(const DSymbol* symbol, Scope* scope_)
 }
 
 
-AutocompleteResponse.Completion generateStructConstructorCalltip(const DSymbol* symbol)
+AutocompleteResponse.Completion generateStructConstructorCalltip(const DSymbol* symbol, CalltipHint calltipHint = CalltipHint.regularArguments)
 in
 {
-	assert(symbol.kind == CompletionKind.structName);
+	if (calltipHint == CalltipHint.regularArguments)
+	{
+		assert(symbol.kind == CompletionKind.structName);
+	}
 }
 do
 {
-	string generatedStructConstructorCalltip = "this(";
-	const(DSymbol)*[] fields = symbol.opSlice().filter!(
-		a => a.kind == CompletionKind.variableName).map!(a => cast(const(DSymbol)*) a).array();
+	string generatedStructConstructorCalltip = calltipHint == CalltipHint.regularArguments ? "this(" : symbol.name ~ "(";
+	auto completionKindFilter = calltipHint == CalltipHint.regularArguments ? CompletionKind.variableName : CompletionKind.typeTmpParam;
+	const(DSymbol)*[] fields =
+	symbol.opSlice().filter!(a => a.kind == completionKindFilter).map!(a => cast(const(DSymbol)*) a).array();
 	fields.sort!((a, b) => a.location < b.location);
 	foreach (i, field; fields)
 	{
-		if (field.kind != CompletionKind.variableName)
+		if (field.kind != completionKindFilter)
 			continue;
 		i++;
-		if (field.type !is null)
+		if (field.type !is null && calltipHint == CalltipHint.regularArguments)
 		{
 			generatedStructConstructorCalltip ~= field.type.name;
 			generatedStructConstructorCalltip ~= " ";
@@ -729,7 +784,7 @@ do
 	}
 	generatedStructConstructorCalltip ~= ")";
 	auto completion = makeSymbolCompletionInfo(symbol, char.init);
-	completion.identifier = "this";
+	completion.identifier = calltipHint == CalltipHint.regularArguments ? "this" : symbol.name;
 	completion.definition = generatedStructConstructorCalltip;
 	completion.typeOf = symbol.name;
 	return completion;
