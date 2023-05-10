@@ -47,9 +47,11 @@ import dsymbol.utils;
 import dcd.common.constants;
 import dcd.common.messages;
 
-enum CompletionToken {
-	none,
-	bracket, bang
+enum CallTipHint {
+	none, // asserts false if passed into setCompletion with CompletionType.calltips
+	regularArguments,
+	templateArguments,
+	indexOperator,
 }
 
 /**
