@@ -46,7 +46,7 @@ TTree!(DSymbol*, SymbolsAllocator, true, "a < b") enumSymbols;
 TTree!(DSymbol*, SymbolsAllocator, true, "a < b") pointerSymbols;
 
 /**
- * Templated properties
+ * Properties for the template arguments of declarations (none)
  */
 TTree!(DSymbol*, SymbolsAllocator, true, "a < b") templatedSymbols;
 /**
