@@ -136,17 +136,12 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 		}
 	}
 
-	auto calltipHint = getCalltipHint(beforeTokens);
+	size_t parenIndex;
+	auto calltipHint = getCalltipHint(beforeTokens, parenIndex);
 
 	final switch (calltipHint) with (CalltipHint) {
-	case regularArguments:
-		immutable size_t end = goBackToOpenParen(beforeTokens);
-		if (end != size_t.max)
-			return calltipCompletion(beforeTokens[0 .. end], tokenArray,
-				request.cursorPosition, moduleCache, calltipHint);
-		break;
-	case templateArguments, indexOperator:
-		return calltipCompletion(beforeTokens, tokenArray, request.cursorPosition, moduleCache, calltipHint);
+	case regularArguments, templateArguments, indexOperator:
+		return calltipCompletion(beforeTokens[0 .. parenIndex], tokenArray, request.cursorPosition, moduleCache, calltipHint);
 	case none:
 		// could be import or dot completion
 		if (beforeTokens.length < 2){
@@ -322,7 +317,7 @@ AutocompleteResponse calltipCompletion(T)(T beforeTokens,
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba, cursorPosition, moduleCache);
 		scope(exit) pair.destroy();
 		// We remove by 2 when the calltip hint is !( else remove by 1.
-		auto endOffset = beforeTokens.isBangParenCalltipHint ? 2 : 1;
+		auto endOffset = beforeTokens.isTemplateBangParen ? 2 : 1;
 		auto expression = getExpression(beforeTokens[0 .. $ - endOffset]);
 		response.setCompletions(pair.scope_, expression,
 			cursorPosition, CompletionType.calltips, calltipHint);
@@ -340,10 +335,8 @@ AutocompleteResponse calltipCompletion(T)(T beforeTokens,
 
 IdType getSignificantTokenId(T)(T beforeTokens){
 	auto significantTokenId = beforeTokens[$ - 2].type;
-	if (beforeTokens.isBangParenCalltipHint) {
-		if(beforeTokens[$ - 3] == tok!"identifier"){
-			return beforeTokens[$ - 3].type;
-		}
+	if (beforeTokens.isTemplateBangParen) {
+		return beforeTokens[$ - 3].type;
 	}
 	return significantTokenId;
 }
@@ -353,39 +346,35 @@ IdType getSignificantTokenId(T)(T beforeTokens){
  *   beforeTokens = tokens before the cursor
  * Returns: calltipHint based of beforeTokens
  */
-CalltipHint getCalltipHint(T)(T beforeTokens) {
+CalltipHint getCalltipHint(T)(T beforeTokens, out size_t parenIndex) {
 	if (beforeTokens.length < 2){
 		return CalltipHint.none;
 	}
-	if (beforeTokens[$ - 1] == tok!"(" || beforeTokens[$ - 1] == tok!"["
-			|| beforeTokens[$ - 1] == tok!",")
+
+	parenIndex = beforeTokens.length;
+	// evaluate at comma case
+	if (beforeTokens.isComma){
+		parenIndex = beforeTokens.goBackToOpenParen;
+		// check if we are actually a "!("
+		if (beforeTokens[0 .. parenIndex].isTemplateBangParen){
+			return CalltipHint.templateArguments;
+		}
+		return CalltipHint.regularArguments;
+	}
+
+	if (beforeTokens.isOpenParen || beforeTokens.isOpenSquareBracket)
 	{
 		return CalltipHint.regularArguments;
 	}
-	if(beforeTokens[$ - 2] == tok!"identifier" && beforeTokens[$ - 1] == tok!"["){
+	if(beforeTokens.isIndexOperator){
 		return CalltipHint.indexOperator;
 	}
 
-	if(beforeTokens.isSingleBangCalltipHint || beforeTokens.isBangParenCalltipHint){
+	if(beforeTokens.isTemplateBang || beforeTokens.isTemplateBangParen){
 		return CalltipHint.templateArguments;
 	}
 
 	return CalltipHint.none;
-}
-
-// Check if we are doing a single "!" calltip hint
-private bool isSingleBangCalltipHint(T)(T beforeTokens) {
-	return beforeTokens.length >= 2
-		&& beforeTokens[$ - 2] == tok!"identifier"
-		&& beforeTokens[$ - 1] == tok!"!";
-}
-
-// Check if we are doing a "!(" calltip hint
-private bool isBangParenCalltipHint(T)(T beforeTokens){
-	return beforeTokens.length >= 3
-		&& beforeTokens[$ - 3] == tok!"identifier"
-		&& beforeTokens[$ - 2] == tok!"!"
-		&& beforeTokens[$ - 1] == tok!"(";
 }
 
 /**

@@ -29,3 +29,15 @@ void instantiateTemp4() {
 void instantiateTemp5() {
 	doSomething!("something",
 }
+
+void instantiateTemp6() {
+	Something!("something",
+}
+
+void shouldNotComplete1() {
+	Something!!
+}
+
+void shouldNotComplete2() {
+	Something!!(
+}
