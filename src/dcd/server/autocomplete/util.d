@@ -546,8 +546,43 @@ AutocompleteResponse.Completion makeSymbolCompletionInfo(const DSymbol* symbol, 
 	return ret;
 }
 
-bool doUFCSSearch(string beforeToken, string lastToken)
+bool doUFCSSearch(string beforeToken, string lastToken) pure
 {
     // we do the search if they are different from eachother
     return beforeToken != lastToken;
+}
+
+// Check if we are doing an index operation calltip hint
+bool isIndexOperator(T)(T beforeTokens) pure {
+	return beforeTokens.length >= 2 && beforeTokens[$ - 2] == tok!"identifier" && beforeTokens[$ - 1] == tok!"[";
+}
+
+// Check if we are doing "," calltip hint
+bool isComma(T)(T beforeTokens) pure {
+	return beforeTokens.length >= 1 && beforeTokens[$ - 1] == tok!",";
+}
+
+// Check if we are doing "[" calltip hint
+bool isOpenSquareBracket(T)(T beforeTokens) pure {
+	return beforeTokens.length >= 1 && beforeTokens[$ - 1] == tok!"[";
+}
+
+// Check if we are doing "(" calltip hint
+bool isOpenParen(T)(T beforeTokens) pure {
+	return beforeTokens.length >= 1 && beforeTokens[$ - 1] == tok!"(";
+}
+
+// Check if we are doing a single "!" calltip hint
+bool isTemplateBang(T)(T beforeTokens) pure {
+	return beforeTokens.length >= 2
+		&& beforeTokens[$ - 2] == tok!"identifier"
+		&& beforeTokens[$ - 1] == tok!"!";
+}
+
+// Check if we are doing "!(" calltip hint
+bool isTemplateBangParen(T)(T beforeTokens) pure {
+	return beforeTokens.length >= 3
+		&& beforeTokens[$ - 3] == tok!"identifier"
+		&& beforeTokens[$ - 2] == tok!"!"
+		&& beforeTokens[$ - 1] == tok!"(";
 }
