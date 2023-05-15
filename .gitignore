@@ -16,6 +16,10 @@ perf.data.old
 
 # Valgrind reports
 callgrind.*
+massif.*
+
+# D profiling tools
+profilegc.log
 
 # GDB temp files
 .gdb_history
