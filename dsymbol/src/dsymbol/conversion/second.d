@@ -434,15 +434,29 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 	size_t i = 0;
 
 	auto crumbs = lookup.breadcrumbs[];
+	auto bl = lookup.breadcrumbs.length;
+	bool isArray = lookup.breadcrumbs.back == ARRAY_LITERAL_SYMBOL_NAME || lookup.breadcrumbs.back == ARRAY_SYMBOL_NAME;
 	foreach (crumb; crumbs)
 	{
-		if (i == 0)
+		// if the function has a crumb, then it could be a templated function or a cast, we can use that to guess the its Type
+		if (i == 0 || (!isArray && (i > 0 && bl > 1)))
 		{
 			currentSymbol = moduleScope.getFirstSymbolByNameAndCursor(
 				symbolNameToTypeName(crumb), symbol.location);
 
+			// check if the type was already known
+			if (i == bl-2 && currentSymbol !is null && currentSymbol.type !is null)
+			{
+				if (moduleScope.hasSymbolRecursive(currentSymbol.type))
+					break;
+			}
+
 			if (currentSymbol is null)
-				return;
+				continue;
+			else if (currentSymbol.type is null)
+				break; // this is a fully resolved type (casting)!
+			else if (currentSymbol.type.name == "void")
+				return; // it's void, no need to continue
 		}
 		else if (crumb == ARRAY_LITERAL_SYMBOL_NAME)
 		{
@@ -508,9 +522,9 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 			currentSymbol = currentSymbol.getFirstPartNamed(crumb);
 		}
 		++i;
-		if (currentSymbol is null)
-			return;
 	}
+	if (currentSymbol is null)
+		return;
 	typeSwap(currentSymbol);
 	symbol.type = currentSymbol;
 	symbol.ownType = false;
