@@ -964,6 +964,39 @@ private:
 				if (p.type !is null)
 					addTypeToLookups(parameter.typeLookups, p.type);
 				parameter.parent = currentSymbol;
+				foreach (const attribute; p.parameterAttributes)
+				{
+					switch (attribute.idType)
+					{
+					case tok!"ref":
+						if (!parameter.acSymbol.parameterIsAutoRef)
+							parameter.acSymbol.parameterIsRef = true;
+						break;
+					case tok!"auto":
+						// assume this is `auto ref`, since otherwise `auto` is
+						// not a valid parameter attribute.
+						if (!parameter.acSymbol.parameterIsRef)
+							parameter.acSymbol.parameterIsAutoRef = true;
+						break;
+					case tok!"scope":
+						parameter.acSymbol.parameterIsScope = true;
+						break;
+					case tok!"return":
+						parameter.acSymbol.parameterIsReturn = true;
+						break;
+					case tok!"lazy":
+						parameter.acSymbol.parameterIsLazy = true;
+						break;
+					case tok!"out":
+						parameter.acSymbol.parameterIsOut = true;
+						break;
+					case tok!"in":
+						parameter.acSymbol.parameterIsIn = true;
+						break;
+					default:
+						break;
+					}
+				}
 				currentSymbol.acSymbol.argNames.insert(parameter.acSymbol.name);
 
 				currentSymbol.acSymbol.functionParameters ~= parameter.acSymbol;

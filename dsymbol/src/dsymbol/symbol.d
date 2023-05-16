@@ -434,10 +434,40 @@ struct DSymbol
 	 * If true, this symbol owns its type and will free it on destruction
 	 */
 	// dfmt off
-	mixin(bitfields!(bool, "ownType", 1,
+	mixin(bitfields!(
+		bool, "ownType", 1,
 		bool, "skipOver", 1,
-		ubyte, "", 6));
+		bool, "_flag0", 1, // planned: const/immutable/shared/inout for types and parameters
+		bool, "_flag1", 1,
+		bool, "_flag2", 1,
+		bool, "_flag3", 1,
+		bool, "_flag4", 1,
+		bool, "_flag5", 1,
+		bool, "_flag6", 1,
+		bool, "_flag7", 1,
+		bool, "_flag8", 1,
+		bool, "_flag9", 1,
+		bool, "_flag10", 1,
+		uint, "", 3,
+	));
 	// dfmt on
+
+	/// Only valid for parameters: the parameter has storage class `ref` (not `auto ref`)
+	alias parameterIsRef = _flag4;
+	/// Only valid for parameters: the parameter has storage class `auto ref` (not `ref`)
+	alias parameterIsAutoRef = _flag5;
+	// TODO: maybe parameterIsScope and parameterIsReturn need to be differentiated for `scope return` and `return scope`?
+	// unsure about the needed semantics here.
+	/// Only valid for parameters: the parameter has storage class `scope`
+	alias parameterIsScope = _flag6;
+	/// Only valid for parameters: the parameter has storage class `return`
+	alias parameterIsReturn = _flag7;
+	/// Only valid for parameters: the parameter has storage class `lazy`
+	alias parameterIsLazy = _flag8;
+	/// Only valid for parameters: the parameter has storage class `out`
+	alias parameterIsOut = _flag9;
+	/// Only valid for parameters: the parameter has storage class `in`
+	alias parameterIsIn = _flag10;
 
 	deprecated bool isPointer()
 	{
