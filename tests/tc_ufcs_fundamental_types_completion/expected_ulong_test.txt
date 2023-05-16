@@ -5,5 +5,9 @@ mangleof	k
 max	k
 min	k
 sizeof	k
+someDouble	F
+someFloat	F
+someLong	F
+someReal	F
 someUlong	F
 stringof	k

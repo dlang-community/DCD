@@ -32,7 +32,7 @@ struct TokenCursorResult
 
 // https://dlang.org/spec/type.html#implicit-conversions
 enum string[string] INTEGER_PROMOTIONS = [
-        "bool": "int",
+        "bool": "byte",
         "byte": "int",
         "ubyte": "int",
         "short": "int",
@@ -40,6 +40,15 @@ enum string[string] INTEGER_PROMOTIONS = [
         "char": "int",
         "wchar": "int",
         "dchar": "uint",
+
+        // found in test case extra/tc_ufcs_all_kinds:
+        "int": "float",
+        "uint": "float",
+        "long": "float",
+        "ulong": "float",
+
+        "float": "double",
+        "double": "real",
     ];
 
 enum MAX_NUMBER_OF_MATCHING_RUNS = 50;
@@ -273,10 +282,59 @@ private bool willImplicitBeUpcasted(scope ref const(DSymbol) incomingSymbolType,
 
 private bool typeWillBeUpcastedTo(string from, string to)
 {
-    if (auto promotionType = from in INTEGER_PROMOTIONS)
-        return *promotionType == to;
+    while (true)
+    {
+        if (typeWillIntegerUpcastedTo(from, to))
+            return true;
+        if (from.typeIsFloating && to.typeIsFloating)
+            return true;
 
-    return false;
+        if (auto promotionType = from in INTEGER_PROMOTIONS)
+        {
+            if (*promotionType == to)
+                return true;
+            from = *promotionType;
+        }
+        else
+            return false;
+    }
+}
+
+private bool typeWillIntegerUpcastedTo(string from, string to)
+{
+    int fromIntSize = getIntegerTypeSize(from);
+    int toIntSize = getIntegerTypeSize(to);
+    return fromIntSize != 0 && toIntSize != 0 && fromIntSize <= toIntSize;
+}
+
+private int getIntegerTypeSize(string type)
+{
+    switch (type)
+    {
+    // ordered by subjective frequency of use, since the compiler may use that
+    // for optimization.
+    case "int", "uint": return 4;
+    case "long", "ulong": return 8;
+    case "byte", "ubyte": return 1;
+    case "short", "ushort": return 2;
+    case "dchar": return 4;
+    case "wchar": return 2;
+    case "char": return 1;
+    default: return 0;
+    }
+}
+
+private bool typeIsFloating(string type)
+{
+    switch (type)
+    {
+    case "float":
+    case "double":
+    case "real":
+        return true;
+    default:
+        return false;
+    }
 }
 
 bool isNonConstrainedTemplate(scope ref const(DSymbol) symbolType)
@@ -303,20 +361,23 @@ private bool typeMatchesWith(scope ref const(DSymbol) incomingSymbolType, scope 
     return incomingSymbolType is significantSymbolType
         || isNonConstrainedTemplate(incomingSymbolType)
         || matchesWithTypeOfArray(incomingSymbolType, significantSymbolType)
-        || matchesWithTypeOfPointer(incomingSymbolType, significantSymbolType)
-        || willImplicitBeUpcasted(incomingSymbolType, significantSymbolType);
+        || matchesWithTypeOfPointer(incomingSymbolType, significantSymbolType);
 }
 
-private bool matchSymbolType(const(DSymbol)* incomingSymbolType, const(DSymbol)* significantSymbolType) {
+private bool matchSymbolType(const(DSymbol)* firstParameter, const(DSymbol)* significantSymbolType) {
 
     auto currentSignificantSymbolType = significantSymbolType;
     uint numberOfRetries = 0;
 
     do
     {
-        if (typeMatchesWith(*incomingSymbolType, *currentSignificantSymbolType)){
+        if (typeMatchesWith(*firstParameter.type, *currentSignificantSymbolType)) {
             return true;
         }
+
+        if (!(firstParameter.parameterIsRef || firstParameter.parameterIsOut)
+            && willImplicitBeUpcasted(*firstParameter.type, *currentSignificantSymbolType))
+            return true;
 
         if (currentSignificantSymbolType.aliasThisSymbols.empty || currentSignificantSymbolType is currentSignificantSymbolType.aliasThisSymbols.front){
             return false;
@@ -351,7 +412,7 @@ bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDot
 
     if (incomingSymbol.kind is CompletionKind.functionName && !incomingSymbol.functionParameters.empty && incomingSymbol.functionParameters.front.type)
     {
-        return matchSymbolType(incomingSymbol.functionParameters.front.type, beforeDotType);
+        return matchSymbolType(incomingSymbol.functionParameters.front, beforeDotType);
     }
     return false;
 }
