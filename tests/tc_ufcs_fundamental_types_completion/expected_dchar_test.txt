@@ -6,5 +6,11 @@ max	k
 min	k
 sizeof	k
 someDchar	F
+someDouble	F
+someFloat	F
+someInt	F
+someLong	F
+someReal	F
 someUint	F
+someUlong	F
 stringof	k

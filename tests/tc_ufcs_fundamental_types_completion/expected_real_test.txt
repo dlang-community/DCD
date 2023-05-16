@@ -14,5 +14,7 @@ min_exp	k
 min_normal	k
 nan	k
 sizeof	k
+someDouble	F
+someFloat	F
 someReal	F
 stringof	k

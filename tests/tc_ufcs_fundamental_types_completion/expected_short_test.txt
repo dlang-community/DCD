@@ -5,6 +5,15 @@ mangleof	k
 max	k
 min	k
 sizeof	k
+someDchar	F
+someDouble	F
+someFloat	F
 someInt	F
+someLong	F
+someReal	F
 someShort	F
+someUint	F
+someUlong	F
+someUshort	F
+someWchar	F
 stringof	k
