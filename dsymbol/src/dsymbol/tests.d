@@ -335,6 +335,8 @@ unittest
 		DSymbol* S = pair.symbol.getFirstPartNamed(internString("S"));
 		DSymbol* b = pair.symbol.getFirstPartNamed(internString("b"));
 		assert(S);
+		assert(b);
+		assert(b.type);
 		assert(b.type is S);
 	}
 	{
@@ -343,6 +345,8 @@ unittest
 		DSymbol* S = pair.symbol.getFirstPartNamed(internString("S"));
 		DSymbol* b = pair.symbol.getFirstPartNamed(internString("b"));
 		assert(S);
+		assert(b);
+		assert(b.type);
 		assert(b.type is S);
 	}
 	{
@@ -351,6 +355,8 @@ unittest
 		DSymbol* S = pair.symbol.getFirstPartNamed(internString("S"));
 		DSymbol* b = pair.symbol.getFirstPartNamed(internString("b"));
 		assert(S);
+		assert(b);
+		assert(b.type);
 		assert(b.type.type is S);
 	}
 	{
@@ -359,6 +365,8 @@ unittest
 		DSymbol* S = pair.symbol.getFirstPartNamed(internString("S"));
 		DSymbol* b = pair.symbol.getFirstPartNamed(internString("b"));
 		assert(S);
+		assert(b);
+		assert(b.type);
 		assert(b.type.name == ARRAY_SYMBOL_NAME);
 		assert(b.type.type is S);
 	}
@@ -368,6 +376,7 @@ unittest
 		DSymbol* S = pair.symbol.getFirstPartNamed(internString("S"));
 		DSymbol* b = pair.symbol.getFirstPartNamed(internString("b"));
 		assert(S);
+		assert(b);
 		assert(b.type is S);
 	}
 }
