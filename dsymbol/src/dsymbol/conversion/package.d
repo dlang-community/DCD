@@ -51,7 +51,7 @@ ScopeSymbolPair generateAutocompleteTrees(const(Token)[] tokens,
 
 	secondPass(first.rootSymbol, first.moduleScope, cache);
 
-	thirdPass(first.moduleScope, cache, cursorPosition);
+	thirdPass(first.rootSymbol, first.moduleScope, cache, cursorPosition);
 
     auto ufcsSymbols = getUFCSSymbolsForCursor(first.moduleScope, tokens, cursorPosition);
 

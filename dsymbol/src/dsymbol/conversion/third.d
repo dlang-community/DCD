@@ -34,10 +34,46 @@ import containers.hashset;
  * If it is, then it'll set its type
  * If the symbol is not found, then it'll do nothing 
  */
-void thirdPass(Scope* mscope, ref ModuleCache cache, size_t cursorPosition)
+void thirdPass(SemanticSymbol* root, Scope* mscope, ref ModuleCache cache, size_t cursorPosition)
 {
 	auto desired = mscope.getScopeByCursor(cursorPosition);
 	tryResolve(desired, cache);
+
+	// Check if there are any left out symbols
+	// Check issue 717 and test tc717
+	checkMissingTypes(root, mscope, cache);
+}
+
+void checkMissingTypes(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCache cache)
+{
+	import dsymbol.conversion.second;
+	import dsymbol.type_lookup;
+
+	with (CompletionKind) switch (currentSymbol.acSymbol.kind)
+	{
+	case withSymbol:
+	case variableName:
+	case memberVariableName:
+	case functionName:
+	case ufcsName:
+	case aliasName:
+		if (currentSymbol.acSymbol.type is null)
+		{
+			if (currentSymbol.typeLookups.length == 0)
+				break;
+			auto lookup = currentSymbol.typeLookups.front;
+			if (lookup.kind == TypeLookupKind.varOrFunType)
+				resolveTypeFromType(currentSymbol.acSymbol, lookup, moduleScope, cache, null);
+			else if (lookup.kind == TypeLookupKind.initializer)
+				resolveTypeFromInitializer(currentSymbol.acSymbol, lookup, moduleScope, cache);
+		}
+		break;
+		default:
+		break;
+	}
+
+	foreach (child; currentSymbol.children)
+		checkMissingTypes(child, moduleScope, cache);
 }
 
 /**
