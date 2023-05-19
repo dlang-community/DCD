@@ -33,11 +33,12 @@ import dsymbol.string_interning;
 import dsymbol.symbol;
 import dsymbol.type_lookup;
 import std.algorithm.iteration : map;
+import std.array : appender;
 import std.experimental.allocator;
 import std.experimental.allocator.gc_allocator : GCAllocator;
 import std.experimental.logger;
+import std.meta : AliasSeq;
 import std.typecons : Rebindable;
-import std.array : appender;
 
 /**
  * First Pass handles the following:
@@ -762,11 +763,12 @@ final class FirstPass : ASTVisitor
 			withStatement.accept(this);
 	}
 
-	override void visit(const ArgumentList list)
-	{
-		scope visitor = new ArgumentListVisitor(this);
-		visitor.visit(list);
-	}
+	static foreach (T; AliasSeq!(ArgumentList, NamedArgumentList))
+		override void visit(const T list)
+		{
+			scope visitor = new ArgumentListVisitor(this);
+			visitor.visit(list);
+		}
 
 	alias visit = ASTVisitor.visit;
 
@@ -1557,11 +1559,12 @@ class InitializerVisitor : ASTVisitor
 		ne.arguments = nace.constructorArguments;
 	}
 
-	override void visit(const ArgumentList list)
-	{
-		scope visitor = new ArgumentListVisitor(fp);
-		visitor.visit(list);
-	}
+	static foreach (T; AliasSeq!(ArgumentList, NamedArgumentList))
+		override void visit(const T list)
+		{
+			scope visitor = new ArgumentListVisitor(fp);
+			visitor.visit(list);
+		}
 
 	override void visit(const Expression expression)
 	{
