@@ -648,7 +648,7 @@ ScopeSymbolPair generateAutocompleteTrees(string source, string filename, ref Mo
 
 
 	secondPass(first.rootSymbol, first.moduleScope, cache);
-	thirdPass(first.moduleScope, cache, cursorPosition);
+	thirdPass(first.rootSymbol, first.moduleScope, cache, cursorPosition);
 	auto ufcsSymbols = getUFCSSymbolsForCursor(first.moduleScope, tokens, cursorPosition);
 	auto r = first.rootSymbol.acSymbol;
 	typeid(SemanticSymbol).destroy(first.rootSymbol);
