@@ -26,13 +26,17 @@ import std.datetime.stopwatch : AutoStart, StopWatch;
 import std.exception : enforce;
 import std.experimental.allocator;
 import std.experimental.allocator.mallocator;
-import std.experimental.logger;
 import std.file;
 import std.getopt;
 import std.path: buildPath;
 import std.process;
 import std.socket;
 import std.stdio;
+
+static if (__VERSION__ >= 2_101)
+	import std.logger;
+else
+	import std.experimental.logger;
 
 import msgpack;
 
@@ -72,7 +76,7 @@ int runServer(string[] args)
 	bool printVersion;
 	bool ignoreConfig;
 	string[] importPaths;
-	LogLevel level = globalLogLevel;
+	LogLevel level = LogLevel.info;
 	version(Windows)
 	{
 		bool useTCP = true;
@@ -99,7 +103,10 @@ int runServer(string[] args)
 		return 1;
 	}
 
-	globalLogLevel = level;
+	static if (__VERSION__ >= 2_101)
+		(cast()sharedLog).logLevel = level;
+	else
+		globalLogLevel = level;
 
 	if (printVersion)
 	{
