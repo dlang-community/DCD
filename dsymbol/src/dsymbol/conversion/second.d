@@ -311,6 +311,97 @@ do
 	}
 }
 
+void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
+	Scope* moduleScope, ref ModuleCache cache)
+{
+	if (lookup.breadcrumbs.length == 0)
+		return;
+	DSymbol* currentSymbol = null;
+	size_t i = 0;
+
+	auto crumbs = lookup.breadcrumbs[];
+	foreach (crumb; crumbs)
+	{
+		if (i == 0)
+		{
+			currentSymbol = moduleScope.getFirstSymbolByNameAndCursor(
+				symbolNameToTypeName(crumb), symbol.location);
+
+			if (currentSymbol is null)
+				return;
+		}
+		else if (crumb == ARRAY_LITERAL_SYMBOL_NAME)
+		{
+			auto arr = GCAllocator.instance.make!(DSymbol)(ARRAY_LITERAL_SYMBOL_NAME, CompletionKind.dummy, currentSymbol);
+			arr.qualifier = SymbolQualifier.array;
+			currentSymbol = arr;
+		}
+		else if (crumb == ARRAY_SYMBOL_NAME)
+		{
+			typeSwap(currentSymbol);
+			if (currentSymbol is null)
+				return;
+
+			// Index expressions can be on a pointer, an array or an AA
+			if (currentSymbol.qualifier == SymbolQualifier.array
+				|| currentSymbol.qualifier == SymbolQualifier.assocArray
+				|| currentSymbol.qualifier == SymbolQualifier.pointer
+				|| currentSymbol.kind == CompletionKind.aliasName)
+			{
+				if (currentSymbol.type !is null)
+					currentSymbol = currentSymbol.type;
+				else
+					return;
+			}
+			else
+			{
+				auto opIndex = currentSymbol.getFirstPartNamed(internString("opIndex"));
+				if (opIndex !is null)
+					currentSymbol = opIndex.type;
+				else
+					return;
+			}
+		}
+		else if (crumb == "foreach")
+		{
+			typeSwap(currentSymbol);
+			if (currentSymbol is null)
+				return;
+			if (currentSymbol.qualifier == SymbolQualifier.array
+				|| currentSymbol.qualifier == SymbolQualifier.assocArray)
+			{
+				currentSymbol = currentSymbol.type;
+				break;
+			}
+			auto front = currentSymbol.getFirstPartNamed(internString("front"));
+			if (front !is null)
+			{
+				currentSymbol = front.type;
+				break;
+			}
+			auto opApply = currentSymbol.getFirstPartNamed(internString("opApply"));
+			if (opApply !is null)
+			{
+				currentSymbol = opApply.type;
+				break;
+			}
+		}
+		else
+		{
+			typeSwap(currentSymbol);
+			if (currentSymbol is null)
+				return;
+			currentSymbol = currentSymbol.getFirstPartNamed(crumb);
+		}
+		++i;
+		if (currentSymbol is null)
+			return;
+	}
+	typeSwap(currentSymbol);
+	symbol.type = currentSymbol;
+	symbol.ownType = false;
+}
+
 private:
 
 void resolveInheritance(DSymbol* symbol, ref TypeLookups typeLookups,
@@ -423,97 +514,6 @@ void resolveType(DSymbol* symbol, ref TypeLookups typeLookups,
 		else
 			assert(false, "How did this happen?");
 		}
-}
-
-void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
-	Scope* moduleScope, ref ModuleCache cache)
-{
-	if (lookup.breadcrumbs.length == 0)
-		return;
-	DSymbol* currentSymbol = null;
-	size_t i = 0;
-
-	auto crumbs = lookup.breadcrumbs[];
-	foreach (crumb; crumbs)
-	{
-		if (i == 0)
-		{
-			currentSymbol = moduleScope.getFirstSymbolByNameAndCursor(
-				symbolNameToTypeName(crumb), symbol.location);
-
-			if (currentSymbol is null)
-				return;
-		}
-		else if (crumb == ARRAY_LITERAL_SYMBOL_NAME)
-		{
-			auto arr = GCAllocator.instance.make!(DSymbol)(ARRAY_LITERAL_SYMBOL_NAME, CompletionKind.dummy, currentSymbol);
-			arr.qualifier = SymbolQualifier.array;
-			currentSymbol = arr;
-		}
-		else if (crumb == ARRAY_SYMBOL_NAME)
-		{
-			typeSwap(currentSymbol);
-			if (currentSymbol is null)
-				return;
-
-			// Index expressions can be on a pointer, an array or an AA
-			if (currentSymbol.qualifier == SymbolQualifier.array
-				|| currentSymbol.qualifier == SymbolQualifier.assocArray
-				|| currentSymbol.qualifier == SymbolQualifier.pointer
-				|| currentSymbol.kind == CompletionKind.aliasName)
-			{
-				if (currentSymbol.type !is null)
-					currentSymbol = currentSymbol.type;
-				else
-					return;
-			}
-			else
-			{
-				auto opIndex = currentSymbol.getFirstPartNamed(internString("opIndex"));
-				if (opIndex !is null)
-					currentSymbol = opIndex.type;
-				else
-					return;
-			}
-		}
-		else if (crumb == "foreach")
-		{
-			typeSwap(currentSymbol);
-			if (currentSymbol is null)
-				return;
-			if (currentSymbol.qualifier == SymbolQualifier.array
-				|| currentSymbol.qualifier == SymbolQualifier.assocArray)
-			{
-				currentSymbol = currentSymbol.type;
-				break;
-			}
-			auto front = currentSymbol.getFirstPartNamed(internString("front"));
-			if (front !is null)
-			{
-				currentSymbol = front.type;
-				break;
-			}
-			auto opApply = currentSymbol.getFirstPartNamed(internString("opApply"));
-			if (opApply !is null)
-			{
-				currentSymbol = opApply.type;
-				break;
-			}
-		}
-		else
-		{
-			typeSwap(currentSymbol);
-			if (currentSymbol is null)
-				return;
-			currentSymbol = currentSymbol.getFirstPartNamed(crumb);
-		}
-		++i;
-		if (currentSymbol is null)
-			return;
-	}
-	typeSwap(currentSymbol);
-	symbol.type = currentSymbol;
-	symbol.ownType = false;
 }
 
 void typeSwap(ref DSymbol* currentSymbol)
