@@ -7,6 +7,8 @@ IMPORTS=$(pwd)/imports
 export IMPORTS
 SOCKETMODES="unix tcp"
 TIME_SERVER=0
+REUSE_SERVER=0
+EXTRA_ARGS=
 EXTRA_TESTCASES=
 
 # `--arguments` must come before test dirs!
@@ -17,6 +19,9 @@ while (( "$#" )); do
 	elif [[ "$1" == "--unix-only" ]]; then
 		# only test unix domain sockets
 		SOCKETMODES="unix"
+	elif [[ "$1" == "--reuse-server" ]]; then
+		# reuse existing dcd-server (for example when debugging it)
+		REUSE_SERVER=1
 	elif [[ "$1" == "--time-server" ]]; then
 		# --time-server runs dcd-server through /usr/bin/time, for statistics
 		# implies `--unix-only` (since we only want a single mode to time)
@@ -26,6 +31,9 @@ while (( "$#" )); do
 	elif [[ "$1" == "--extra" ]]; then
 		# also include tests in the "extra" directory that long to complete
 		EXTRA_TESTCASES="extra/*/"
+	elif [[ "$1" == "--verbose" ]]; then
+		# also include tests in the "extra" directory that long to complete
+		EXTRA_ARGS="--logLevel=trace"
 	elif [[ "$1" =~ ^-- ]]; then
 		echo "Unrecognized test argument: $1"
 		exit 1
@@ -52,11 +60,13 @@ server_pid=""
 
 function startServer()
 {
-	if [[ "$TIME_SERVER" == "1" ]]; then
-		/usr/bin/time -v "$server" "$tcp" --ignoreConfig -I $IMPORTS 2>stderr.txt > stdout.txt &
+	if [[ "$REUSE_SERVER" == "1" ]]; then
+		echo "Not starting server, since user wants to reuse existing server"
+	elif [[ "$TIME_SERVER" == "1" ]]; then
+		/usr/bin/time -v "$server" "$tcp" --ignoreConfig $EXTRA_ARGS -I $IMPORTS 2>stderr.txt > stdout.txt &
 		server_pid=$!
 	else
-		"$server" "$tcp" --ignoreConfig -I $IMPORTS 2>stderr.txt > stdout.txt &
+		"$server" "$tcp" --ignoreConfig $EXTRA_ARGS -I $IMPORTS 2>stderr.txt > stdout.txt &
 		server_pid=$!
 	fi
 	sleep 1
@@ -81,9 +91,13 @@ function waitShutdown()
 }
 
 # Make sure that the server is shut down
-echo "Shutting down currently-running server..."
-"$client" --shutdown 2>/dev/null > /dev/null
-"$client" --shutdown --tcp 2>/dev/null > /dev/null
+if [[ "$REUSE_SERVER" == "1" ]]; then
+	echo "Not shutting down existing server due to --reuse-server"
+else
+	echo "Shutting down currently-running server..."
+	"$client" --shutdown 2>/dev/null > /dev/null
+	"$client" --shutdown --tcp 2>/dev/null > /dev/null
+fi
 
 for socket in $SOCKETMODES; do # supported: unix tcp
 	# allow some time for server to shutdown
