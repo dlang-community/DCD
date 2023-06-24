@@ -271,7 +271,7 @@ final class FirstPass : ASTVisitor
 					part.identifier.text, CompletionKind.variableName,
 					symbolFile, part.identifier.index);
 				symbol.parent = currentSymbol;
-				populateInitializer(symbol, part.initializer);
+				populateInitializer(symbol.typeLookups, part.initializer);
 				symbol.acSymbol.protection = protection.current;
 				symbol.acSymbol.doc = makeDocumentation(dec.comment);
 				currentSymbol.addChild(symbol, true);
@@ -719,7 +719,7 @@ final class FirstPass : ASTVisitor
 			currentSymbol.addChild(symbol, true);
 			currentScope.addSymbol(symbol.acSymbol, true);
 			if (symbol.typeLookups.empty && feExpression !is null)
-				populateInitializer(symbol, feExpression, true);
+				populateInitializer(symbol.typeLookups, feExpression, true);
 		}
 	}
 
@@ -738,7 +738,7 @@ final class FirstPass : ASTVisitor
 			currentSymbol.addChild(symbol, true);
 			currentScope.addSymbol(symbol.acSymbol, true);
 			if (symbol.typeLookups.empty && ifs.condition !is null && ifs.condition.expression !is null)
-				populateInitializer(symbol, ifs.condition.expression, false);
+				populateInitializer(symbol.typeLookups, ifs.condition.expression, false);
 		}
 		ifs.accept(this);
 	}
@@ -756,7 +756,7 @@ final class FirstPass : ASTVisitor
 				currentScope.startLocation, null);
 			scope(exit) popSymbol();
 
-			populateInitializer(currentSymbol, withStatement.expression, false);
+			populateInitializer(currentSymbol.typeLookups, withStatement.expression, false);
 			withStatement.accept(this);
 
 		}
@@ -1127,12 +1127,19 @@ private:
 		return istring(app.data);
 	}
 
-	void populateInitializer(T)(SemanticSymbol* symbol, const T initializer,
-		bool appendForeach = false)
+	void populateInitializer(T)(ref TypeLookups lookups, const T initializer,
+		bool appendForeach = false, TypeLookup* l = null)
 	{
-		auto lookup = TypeLookupsAllocator.instance.make!TypeLookup(TypeLookupKind.initializer);
+		auto lookup = l ? l : TypeLookupsAllocator.instance.make!TypeLookup(TypeLookupKind.varOrFunType);
+
+		lookup.breadcrumbs.insert(TYPEOF_SYMBOL_NAME);
+		scope (exit)
+			lookup.breadcrumbs.insert(TYPEOF_END_SYMBOL_NAME);
 		scope visitor = new InitializerVisitor(lookup, appendForeach, this);
-		symbol.typeLookups.insert(lookup);
+
+		if (l is null)
+			lookups.insert(lookup);
+
 		static if (is(T == typeof(feExpression)))
 			visitor.dynamicDispatch(initializer);
 		else
@@ -1155,22 +1162,20 @@ private:
 		auto lookup = l !is null ? l : TypeLookupsAllocator.instance.make!TypeLookup(
 			TypeLookupKind.varOrFunType);
 		auto t2 = type.type2;
-		if (t2.type !is null)
-			addTypeToLookups(lookups, t2.type, lookup);
+		if (t2.typeofExpression !is null)
+			populateInitializer(lookups, t2.typeofExpression, false, lookup);
 		else if (t2.superOrThis is tok!"this")
 			lookup.breadcrumbs.insert(internString("this"));
 		else if (t2.superOrThis is tok!"super")
 			lookup.breadcrumbs.insert(internString("super"));
+
+		if (t2.type !is null)
+			addTypeToLookups(lookups, t2.type, lookup);
 		else if (t2.builtinType !is tok!"")
 			lookup.breadcrumbs.insert(getBuiltinTypeName(t2.builtinType));
 		else if (t2.typeIdentifierPart !is null)
 			writeIotcTo(t2.typeIdentifierPart, lookup.breadcrumbs);
-		else
-		{
-			// TODO: Add support for typeof expressions
-			// TODO: Add support for __vector
-//			warning("typeof() and __vector are not yet supported");
-		}
+		// TODO: support __vector, traits and mixin
 
 		foreach (suffix; type.typeSuffixes)
 		{

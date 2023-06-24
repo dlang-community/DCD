@@ -1,0 +1,8 @@
+identifiers
+alignof	k				
+init	k				
+mangleof	k				
+ok	v	bool ok	stdin 16		bool
+sizeof	k				
+stringof	k				
+tupleof	k				
