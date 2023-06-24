@@ -165,6 +165,20 @@ package istring[24] builtinTypeNames;
  * class. DSymbol child of the class type, with the baseClass as its child type.
  */
 @("super") istring SUPER_SYMBOL_NAME;
+/**
+ * This symbol name may appear at the start of breadcrumbs meaning the remaining
+ * breadcrumbs up until the matching $(LREF TYPEOF_END_SYMBOL_NAME) are an
+ * initializer or typeof expression. Pointer/Array suffixes are parsed
+ * beforehand, using popBack to remove them from the breadcrumbs.
+ *
+ * See_Also: $(LREF TYPEOF_END_SYMBOL_NAME)
+ */
+@("typeof(") istring TYPEOF_SYMBOL_NAME;
+/** 
+ * This symbol always appears in pairs with TYPEOF_SYMBOL_NAME, designates the
+ * end of the typeof expression in the breadcrumbs.
+ */
+@(")/*typeof*/") istring TYPEOF_END_SYMBOL_NAME;
 
 /**
  * Breadcrumb part in initializer type generation for literal values in the

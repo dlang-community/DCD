@@ -1,0 +1,2 @@
+identifiers
+test	v	Enum test	stdin 121		Enum

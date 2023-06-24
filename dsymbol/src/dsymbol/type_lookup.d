@@ -10,7 +10,6 @@ enum TypeLookupKind : ubyte
 {
 	inherit,
 	aliasThis,
-	initializer,
 	mixinTemplate,
 	varOrFunType,
 	selectiveImport,

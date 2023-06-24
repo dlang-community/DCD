@@ -1,0 +1,20 @@
+identifiers
+getMember	f	typeof(member) getMember()	stdin 78		Result
+identifiers
+staticMember	f	typeof(S.member) staticMember()	stdin 133		Result
+identifiers
+alignof	k				
+expected	v	int expected	stdin 21		int
+init	k				
+mangleof	k				
+sizeof	k				
+stringof	k				
+tupleof	k				
+identifiers
+alignof	k				
+expected	v	int expected	stdin 21		int
+init	k				
+mangleof	k				
+sizeof	k				
+stringof	k				
+tupleof	k				

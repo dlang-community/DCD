@@ -237,10 +237,27 @@ do
 	}
 
 	// Follow all the names and try to resolve them
-	size_t i = 0;
-	foreach (part; lookup.breadcrumbs[])
+	bool first = true;
+	auto breadcrumbs = lookup.breadcrumbs[];
+
+	while (!breadcrumbs.empty)
 	{
-		if (i == 0)
+		auto part = breadcrumbs.front;
+		breadcrumbs.popFront();
+		scope (exit)
+			first = false;
+
+		if (part == TYPEOF_SYMBOL_NAME)
+		{
+			if (currentSymbol !is null)
+			{
+				warning("Invalid breadcrumbs, found `Type.typeof(...)`");
+				return;
+			}
+			resolveTypeFromInitializer(symbol, lookup, moduleScope, cache,
+				breadcrumbs, currentSymbol);
+		}
+		else if (first)
 		{
 			if (moduleScope is null)
 				getSymbolFromImports(imports, part);
@@ -273,7 +290,6 @@ do
 				return;
 			currentSymbol = currentSymbol.getFirstPartNamed(part);
 		}
-		++i;
 		if (currentSymbol is null)
 			return;
 	}
@@ -311,19 +327,32 @@ do
 	}
 }
 
-void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
-	Scope* moduleScope, ref ModuleCache cache)
+private void resolveTypeFromInitializer(R)(DSymbol* symbol, TypeLookup* lookup,
+	Scope* moduleScope, ref ModuleCache cache,
+	ref R breadcrumbs, ref DSymbol* currentSymbol)
 {
-	if (lookup.breadcrumbs.length == 0)
+	if (breadcrumbs.empty)
 		return;
-	DSymbol* currentSymbol = null;
-	size_t i = 0;
 
-	auto crumbs = lookup.breadcrumbs[];
-	foreach (crumb; crumbs)
+	bool first = true;
+	while (!breadcrumbs.empty)
 	{
-		if (i == 0)
+		auto crumb = breadcrumbs.front;
+		breadcrumbs.popFront();
+		if (crumb == TYPEOF_SYMBOL_NAME)
 		{
+			resolveTypeFromInitializer(symbol, lookup, moduleScope, cache,
+				breadcrumbs, currentSymbol);
+			if (currentSymbol is null)
+				return;
+			continue;
+		}
+		if (crumb == TYPEOF_END_SYMBOL_NAME)
+			break;
+
+		if (first)
+		{
+			first = false;
 			currentSymbol = moduleScope.getFirstSymbolByNameAndCursor(
 				symbolNameToTypeName(crumb), symbol.location);
 
@@ -348,18 +377,21 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 				|| currentSymbol.qualifier == SymbolQualifier.pointer
 				|| currentSymbol.kind == CompletionKind.aliasName)
 			{
-				if (currentSymbol.type !is null)
-					currentSymbol = currentSymbol.type;
-				else
-					return;
+				// may become null, returns later
+				currentSymbol = currentSymbol.type;
 			}
 			else
 			{
 				auto opIndex = currentSymbol.getFirstPartNamed(internString("opIndex"));
 				if (opIndex !is null)
+				{
 					currentSymbol = opIndex.type;
+				}
 				else
+				{
+					currentSymbol = null;
 					return;
+				}
 			}
 		}
 		else if (crumb == "foreach")
@@ -371,19 +403,19 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 				|| currentSymbol.qualifier == SymbolQualifier.assocArray)
 			{
 				currentSymbol = currentSymbol.type;
-				break;
+				continue;
 			}
 			auto front = currentSymbol.getFirstPartNamed(internString("front"));
 			if (front !is null)
 			{
 				currentSymbol = front.type;
-				break;
+				continue;
 			}
 			auto opApply = currentSymbol.getFirstPartNamed(internString("opApply"));
 			if (opApply !is null)
 			{
 				currentSymbol = opApply.type;
-				break;
+				continue;
 			}
 		}
 		else
@@ -393,13 +425,10 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 				return;
 			currentSymbol = currentSymbol.getFirstPartNamed(crumb);
 		}
-		++i;
 		if (currentSymbol is null)
 			return;
 	}
 	typeSwap(currentSymbol);
-	symbol.type = currentSymbol;
-	symbol.ownType = false;
 }
 
 private:
@@ -506,8 +535,6 @@ void resolveType(DSymbol* symbol, ref TypeLookups typeLookups,
 	foreach(lookup; typeLookups) {
 		if (lookup.kind == TypeLookupKind.varOrFunType)
 			resolveTypeFromType(symbol, lookup, moduleScope, cache, null);
-		else if (lookup.kind == TypeLookupKind.initializer)
-			resolveTypeFromInitializer(symbol, lookup, moduleScope, cache);
 		// issue 94
 		else if (lookup.kind == TypeLookupKind.inherit)
 			resolveInheritance(symbol, typeLookups, moduleScope, cache);

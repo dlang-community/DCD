@@ -64,8 +64,6 @@ void checkMissingTypes(SemanticSymbol* currentSymbol, Scope* moduleScope, ref Mo
 			auto lookup = currentSymbol.typeLookups.front;
 			if (lookup.kind == TypeLookupKind.varOrFunType)
 				resolveTypeFromType(currentSymbol.acSymbol, lookup, moduleScope, cache, null);
-			else if (lookup.kind == TypeLookupKind.initializer)
-				resolveTypeFromInitializer(currentSymbol.acSymbol, lookup, moduleScope, cache);
 		}
 		break;
 		default:
