@@ -908,7 +908,6 @@ private:
 			CompletionKind.functionName, symbolFile, location);
 		symbol.parent = currentSymbol;
 		currentSymbol.addChild(symbol, true);
-		processParameters(symbol, null, THIS_SYMBOL_NAME, parameters, templateParameters);
 		symbol.acSymbol.protection = protection.current;
 		symbol.acSymbol.doc = makeDocumentation(doc);
 
@@ -921,7 +920,14 @@ private:
 			pushFunctionScope(functionBody, location + 4); // 4 == "this".length
 			scope(exit) popScope();
 			currentSymbol = symbol;
+			processParameters(symbol, null, THIS_SYMBOL_NAME, parameters, templateParameters);
 			functionBody.accept(this);
+			currentSymbol = currentSymbol.parent;
+		}
+		else
+		{
+			currentSymbol = symbol;
+			processParameters(symbol, null, THIS_SYMBOL_NAME, parameters, templateParameters);
 			currentSymbol = currentSymbol.parent;
 		}
 	}
