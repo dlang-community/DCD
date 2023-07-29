@@ -260,36 +260,39 @@ AutocompleteResponse getResponse(Socket socket)
  */
 bool serverIsRunning(bool useTCP, string socketFile, ushort port)
 {
-	scope (failure)
-		return false;
-	AutocompleteRequest request;
-	request.kind = RequestKind.query;
-	Socket socket;
-	scope (exit)
-	{
-		socket.shutdown(SocketShutdown.BOTH);
-		socket.close();
-	}
-	version(Windows) useTCP = true;
-	if (useTCP)
-	{
-		socket = new TcpSocket(AddressFamily.INET);
-		socket.connect(new InternetAddress("localhost", port));
-	}
-	else
-	{
-		version(Windows) {} else
+	try {		
+		AutocompleteRequest request;
+		request.kind = RequestKind.query;
+		Socket socket;
+		scope (exit)
 		{
-			socket = new Socket(AddressFamily.UNIX, SocketType.STREAM);
-			socket.connect(new UnixAddress(socketFile));
+			socket.shutdown(SocketShutdown.BOTH);
+			socket.close();
 		}
+		version(Windows) useTCP = true;
+		if (useTCP)
+		{
+			socket = new TcpSocket(AddressFamily.INET);
+			socket.connect(new InternetAddress("localhost", port));
+		}
+		else
+		{
+			version(Windows) {} else
+			{
+				socket = new Socket(AddressFamily.UNIX, SocketType.STREAM);
+				socket.connect(new UnixAddress(socketFile));
+			}
+		}
+		socket.setOption(SocketOptionLevel.SOCKET, SocketOption.RCVTIMEO, dur!"seconds"(5));
+		socket.blocking = true;
+		if (sendRequest(socket, request))
+			return getResponse(socket).completionType == "ack";
+		else
+			return false;
 	}
-	socket.setOption(SocketOptionLevel.SOCKET, SocketOption.RCVTIMEO, dur!"seconds"(5));
-	socket.blocking = true;
-	if (sendRequest(socket, request))
-		return getResponse(socket).completionType == "ack";
-	else
+	catch (Exception _) {
 		return false;
+	}
 }
 
 /// Escapes \n, \t and \ in the string. If `single` is true \t won't be escaped.
