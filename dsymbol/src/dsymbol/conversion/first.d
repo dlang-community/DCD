@@ -258,9 +258,9 @@ final class FirstPass : ASTVisitor
 
 	void processTemplateArguments(SemanticSymbol* symbol, TypeLookup* lookup, VariableContext* ctx, VariableContext.TypeInstance* current, TemplateArguments targs)
 	{
-		if (targs.templateArgumentList)
+		if (targs.namedTemplateArgumentList)
 		{
-			foreach(i, targ; targs.templateArgumentList.items)
+			foreach(i, targ; targs.namedTemplateArgumentList.items)
 			{
 				if (targ.type is null) continue;
 				if (targ.type.type2 is null) continue;
