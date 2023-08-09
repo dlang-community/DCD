@@ -48,8 +48,6 @@ struct VariableContext
 		string[] chain;
 		TypeInstance*[] args;
 		string name;
-		TypeInstance* parent;
 	}
 	TypeInstance* root;
-	int num;
 }

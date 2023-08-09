@@ -197,8 +197,7 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 					auto argName = crumb;
 					if (i == 0)
 					{
-						if (m)
-						if (key in m)
+						if (m && key in m)
 						{
 							argName = m[key].name;
 						}

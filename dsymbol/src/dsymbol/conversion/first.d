@@ -254,6 +254,8 @@ final class FirstPass : ASTVisitor
 
 		if (tip.typeIdentifierPart)
 			processTypeIdentifierPart(symbol, lookup, ctx, current, tip.typeIdentifierPart);
+
+		// TODO: handle `tip.dot` and `tip.indexer`
 	}
 
 	void processTemplateArguments(SemanticSymbol* symbol, TypeLookup* lookup, VariableContext* ctx, VariableContext.TypeInstance* current, TemplateArguments targs)
@@ -262,6 +264,7 @@ final class FirstPass : ASTVisitor
 		{
 			foreach(i, targ; targs.namedTemplateArgumentList.items)
 			{
+				// TODO: handle targ.assignExpression
 				if (targ.type is null) continue;
 				if (targ.type.type2 is null) continue;
 
@@ -271,14 +274,12 @@ final class FirstPass : ASTVisitor
 					if (targ.type.type2.builtinType == tok!"") continue;
 					auto builtInName = getBuiltinTypeName(targ.type.type2.builtinType);
 					auto newArg = GCAllocator.instance.make!(VariableContext.TypeInstance)();
-					newArg.parent = current;
 					newArg.chain ~= builtInName;
 					current.args ~= newArg;
 					continue;
 				}
 
 				auto newArg = GCAllocator.instance.make!(VariableContext.TypeInstance)();
-				newArg.parent = current;
 				current.args ~= newArg;
 
 				if (part.identifierOrTemplateInstance)
@@ -296,7 +297,6 @@ final class FirstPass : ASTVisitor
 		{
 			auto singleArg = targs.templateSingleArgument;
 			auto arg = GCAllocator.instance.make!(VariableContext.TypeInstance)();
-			arg.parent = current;
 			arg.name = singleArg.token.text;
 			arg.chain ~= arg.name;
 			current.args ~= arg;
@@ -318,6 +318,7 @@ final class FirstPass : ASTVisitor
 			buildChainTemplateOrIdentifier(symbol, lookup, ctx, tip.identifierOrTemplateInstance);
 		if (tip.typeIdentifierPart)
 			buildChain(symbol, lookup, ctx, tip.typeIdentifierPart);
+		// TODO: handle `tip.indexer`
 	}
 
 	void buildChainTemplateOrIdentifier(SemanticSymbol* symbol, TypeLookup* lookup, VariableContext* ctx, IdentifierOrTemplateInstance iot)
@@ -330,10 +331,12 @@ final class FirstPass : ASTVisitor
 		{
 			if (iot.templateInstance.identifier != tok!"")
 				lookup.breadcrumbs.insert(istring(iot.templateInstance.identifier.text));
+
+			// TODO: handle `iot.templateInstance.templateArguments`
 		}
 	}
 
-	void traverseUnaryExpression( SemanticSymbol* symbol, TypeLookup* lookup, VariableContext* ctx, UnaryExpression ue)
+	void traverseUnaryExpression(SemanticSymbol* symbol, TypeLookup* lookup, VariableContext* ctx, UnaryExpression ue)
 	{
 		if (PrimaryExpression pe = ue.primaryExpression)
 		{
