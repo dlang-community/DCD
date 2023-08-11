@@ -519,6 +519,7 @@ do
 	if (lastSuffix !is null)
 	{
 		assert(suffix !is null);
+		typeSwap(currentSymbol);
 		suffix.type = currentSymbol;
 		suffix.ownType = false;
 		symbol.type = lastSuffix;

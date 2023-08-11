@@ -12,6 +12,10 @@ function check () {
 }
 
 
+#echo "extra"
+check file4 165 actual_extra_1 expected_extra_1
+
+
 #echo "test1"
 check file1 280 actual_1_1 expected_1_1
 
