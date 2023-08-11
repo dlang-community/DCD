@@ -1,9 +1,9 @@
 identifiers
-alignof	k			
-init	k			
-inside_aganeone	v	int inside_aganeone	stdin 124	
-mangleof	k			
-sizeof	k			
-stringof	k			
-tupleof	k			
-yo	v	Other yo	stdin 0	
+alignof	k				
+init	k				
+inside_aganeone	v	int inside_aganeone	stdin 124		int
+mangleof	k				
+sizeof	k				
+stringof	k				
+tupleof	k				
+yo	v	Other yo	stdin 0		Other
