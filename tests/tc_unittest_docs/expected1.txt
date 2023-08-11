@@ -1,0 +1,1 @@
+Does foo stuff.\n\nExamples:\n\n---\n// usable with ints\nfoo(1);\n// and with strings!\nif (auto line = readln())\n    foo(line);\n\n// or here\nfoo( 1+2 );\n---\n\nExamples:\n\nsecond usage works too\n\n---\nfoo();\n---\n

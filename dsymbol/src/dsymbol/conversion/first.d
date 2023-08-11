@@ -85,6 +85,11 @@ final class FirstPass : ASTVisitor
 
 	override void visit(const Unittest u)
 	{
+		if (previousSymbol && previousSymbol.acSymbol)
+			makeExampleDocumentation(u, previousSymbol.acSymbol.doc);
+
+		auto associated = previousSymbol;
+		scope(exit) previousSymbol = associated;
 		// Create a dummy symbol because we don't want unit test symbols leaking
 		// into the symbol they're declared in.
 		pushSymbol(UNITTEST_SYMBOL_NAME,
@@ -130,7 +135,7 @@ final class FirstPass : ASTVisitor
 				dec.name.index, dec.returnType);
 		scope (exit) popSymbol();
 		currentSymbol.acSymbol.protection = protection.current;
-		currentSymbol.acSymbol.doc = makeDocumentation(dec.comment);
+		makeDocumentation(currentSymbol.acSymbol.doc, dec.comment);
 
 		istring lastComment = this.lastComment;
 		this.lastComment = istring.init;
@@ -250,7 +255,7 @@ final class FirstPass : ASTVisitor
 				addTypeToLookups(symbol.typeLookups, dec.type);
 			symbol.parent = currentSymbol;
 			symbol.acSymbol.protection = protection.current;
-			symbol.acSymbol.doc = makeDocumentation(declarator.comment);
+			makeDocumentation(symbol.acSymbol.doc, declarator.comment);
 			currentSymbol.addChild(symbol, true);
 			currentScope.addSymbol(symbol.acSymbol, false);
 
@@ -272,7 +277,7 @@ final class FirstPass : ASTVisitor
 				symbol.parent = currentSymbol;
 				populateInitializer(symbol, part.initializer);
 				symbol.acSymbol.protection = protection.current;
-				symbol.acSymbol.doc = makeDocumentation(dec.comment);
+				makeDocumentation(symbol.acSymbol.doc, dec.comment);
 				currentSymbol.addChild(symbol, true);
 				currentScope.addSymbol(symbol.acSymbol, false);
 
@@ -301,7 +306,7 @@ final class FirstPass : ASTVisitor
 				currentSymbol.addChild(symbol, true);
 				currentScope.addSymbol(symbol.acSymbol, false);
 				symbol.acSymbol.protection = protection.current;
-				symbol.acSymbol.doc = makeDocumentation(aliasDeclaration.comment);
+				makeDocumentation(symbol.acSymbol.doc, aliasDeclaration.comment);
 			}
 		}
 		else
@@ -317,7 +322,7 @@ final class FirstPass : ASTVisitor
 				currentSymbol.addChild(symbol, true);
 				currentScope.addSymbol(symbol.acSymbol, false);
 				symbol.acSymbol.protection = protection.current;
-				symbol.acSymbol.doc = makeDocumentation(aliasDeclaration.comment);
+				makeDocumentation(symbol.acSymbol.doc, aliasDeclaration.comment);
 			}
 		}
 	}
@@ -399,7 +404,7 @@ final class FirstPass : ASTVisitor
 		symbol.parent = currentSymbol;
 		currentSymbol.addChild(symbol, true);
 		currentScope.addSymbol(symbol.acSymbol, false);
-		symbol.acSymbol.doc = makeDocumentation(dec.comment);
+		makeDocumentation(symbol.acSymbol.doc, dec.comment);
 
 		istring lastComment = this.lastComment;
 		this.lastComment = istring.init;
@@ -415,6 +420,7 @@ final class FirstPass : ASTVisitor
 		}
 
 		currentSymbol = currentSymbol.parent;
+		previousSymbol = symbol;
 	}
 
 	mixin visitEnumMember!EnumMember;
@@ -847,11 +853,15 @@ private:
 		currentSymbol.addChild(symbol, true);
 		currentScope.addSymbol(symbol.acSymbol, false);
 		currentSymbol = symbol;
+		pushedSymbolsStack.assumeSafeAppend ~= symbol;
 	}
 
 	void popSymbol()
 	{
+		assert(pushedSymbolsStack.length, "called popSymbol without pushSymbol");
 		currentSymbol = currentSymbol.parent;
+		previousSymbol = pushedSymbolsStack[$ - 1];
+		pushedSymbolsStack.length--;
 	}
 
 	template visitEnumMember(T)
@@ -861,7 +871,7 @@ private:
 			pushSymbol(member.name.text, CompletionKind.enumMember, symbolFile,
 				member.name.index, member.type);
 			scope(exit) popSymbol();
-			currentSymbol.acSymbol.doc = makeDocumentation(member.comment);
+			makeDocumentation(currentSymbol.acSymbol.doc, member.comment);
 		}
 	}
 
@@ -881,7 +891,7 @@ private:
 		else
 			currentSymbol.acSymbol.addChildren(aggregateSymbols[], false);
 		currentSymbol.acSymbol.protection = protection.current;
-		currentSymbol.acSymbol.doc = makeDocumentation(dec.comment);
+		makeDocumentation(currentSymbol.acSymbol.doc, dec.comment);
 
 		istring lastComment = this.lastComment;
 		this.lastComment = istring.init;
@@ -910,7 +920,7 @@ private:
 		currentSymbol.addChild(symbol, true);
 		processParameters(symbol, null, THIS_SYMBOL_NAME, parameters, templateParameters);
 		symbol.acSymbol.protection = protection.current;
-		symbol.acSymbol.doc = makeDocumentation(doc);
+		makeDocumentation(symbol.acSymbol.doc, doc);
 
 		istring lastComment = this.lastComment;
 		this.lastComment = istring.init;
@@ -923,6 +933,7 @@ private:
 			currentSymbol = symbol;
 			functionBody.accept(this);
 			currentSymbol = currentSymbol.parent;
+			previousSymbol = symbol;
 		}
 	}
 
@@ -934,7 +945,7 @@ private:
 		currentSymbol.addChild(symbol, true);
 		symbol.acSymbol.callTip = internString("~this()");
 		symbol.acSymbol.protection = protection.current;
-		symbol.acSymbol.doc = makeDocumentation(doc);
+		makeDocumentation(symbol.acSymbol.doc, doc);
 
 		istring lastComment = this.lastComment;
 		this.lastComment = istring.init;
@@ -947,6 +958,7 @@ private:
 			currentSymbol = symbol;
 			functionBody.accept(this);
 			currentSymbol = currentSymbol.parent;
+			previousSymbol = symbol;
 		}
 	}
 
@@ -1189,14 +1201,85 @@ private:
 			lookups.insert(lookup);
 	}
 
-	DocString makeDocumentation(string documentation)
+	void makeDocumentation(ref DocString into, string documentation)
 	{
 		if (documentation.isDitto)
-			return DocString(lastComment, true);
+		{
+			into = DocString(lastComment, true);
+			into.dittoOf = lastDocStringInstance;
+			lastDocStringInstance = &into;
+		}
 		else
 		{
 			lastComment = internString(documentation);
-			return DocString(lastComment, false);
+			into = DocString(lastComment, false);
+			lastDocStringInstance = &into;
+		}
+	}
+
+	static makeExampleDocumentation(const Unittest block, ref DocString doc)
+	{
+		import dparse.trivia;
+		import std.algorithm;
+		import std.array;
+		import std.string;
+
+		auto tokens = block.tokens;
+		if (tokens.length)
+		{
+			if (block.comment !is null)
+			{
+				auto data = appender!string;
+				data ~= "Examples:\n\n";
+				if (block.comment.length)
+				{
+					data ~= block.comment;
+					data ~= "\n\n";
+				}
+				data ~= "---\n";
+				assert(tokens.length >= 3);
+				auto unittestTok = tokens.countUntil!(t => t.type == tok!"unittest");
+				assert(unittestTok != -1);
+				auto openingTok = tokens[unittestTok .. $].countUntil!(t => t.type == tok!"{");
+				assert(openingTok != -1);
+				openingTok += unittestTok;
+				assert(tokens[$ - 1].type == tok!"}");
+
+				auto codeData = appender!string;
+				foreach (trailingStart; tokens[openingTok].trailingTrivia)
+					codeData ~= trailingStart.text;
+
+				size_t currentLine = size_t.max;
+				foreach (token; tokens[openingTok + 1 .. $ - 1])
+				{
+					currentLine = token.line;
+
+					foreach (leading; token.leadingTrivia)
+						codeData ~= leading.text;
+
+					if (token.text.length)
+						codeData ~= token.text;
+					else
+						codeData ~= str(token.type);
+
+					foreach (trailing; token.trailingTrivia)
+						codeData ~= trailing.text;
+				}
+
+				foreach (leadingEnd; tokens[$ - 1].leadingTrivia)
+					codeData ~= leadingEnd.text;
+
+				data ~= codeData.data.outdent.chompPrefix("\n").chomp("\n");
+
+				data ~= "\n---\n";
+
+				DocString* s = &doc;
+				while (s)
+				{
+					s.examples ~= istring(data.data);
+					s = s.dittoOf;
+				}
+			}
 		}
 	}
 
@@ -1207,7 +1290,10 @@ private:
 	Scope* currentScope;
 
 	/// Current symbol
-	SemanticSymbol* currentSymbol;
+	SemanticSymbol* currentSymbol, previousSymbol;
+
+	/// Stack of semantic symbols, for referencing the previousSymbol from popSymbol
+	SemanticSymbol*[] pushedSymbolsStack;
 
 	/// Path to the file being converted
 	istring symbolFile;
@@ -1223,6 +1309,8 @@ private:
 
 	/// Last comment for ditto-ing
 	istring lastComment;
+
+	DocString* lastDocStringInstance;
 
 	const Module mod;
 
