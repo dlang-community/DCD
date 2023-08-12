@@ -234,7 +234,7 @@ struct DSymbol
 
 		// pointers are implicitly dereferenced on members (a single layer)
 		if (qualifier == SymbolQualifier.pointer
-			&& this.type.qualifier != SymbolQualifier.pointer)
+			&& (this.type && this.type.qualifier != SymbolQualifier.pointer))
 			return type.getParts!OR(name, app, visited, onlyOne);
 
 		if (name is null)
