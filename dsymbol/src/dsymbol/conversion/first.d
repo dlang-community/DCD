@@ -332,7 +332,19 @@ final class FirstPass : ASTVisitor
 			if (iot.templateInstance.identifier != tok!"")
 				lookup.breadcrumbs.insert(istring(iot.templateInstance.identifier.text));
 
-			// TODO: handle `iot.templateInstance.templateArguments`
+			// TODO: finish handling `iot.templateInstance.templateArguments`
+			if (iot.templateInstance.templateArguments) 
+			{
+				if (iot.templateInstance.templateArguments.templateSingleArgument)
+				{
+					auto tsaTok = iot.templateInstance.templateArguments.templateSingleArgument.token;
+					if (tsaTok.text == "")
+						lookup.breadcrumbs.insert(istring(str(tsaTok.type)));
+					// TODO: investigate why this break everything
+					// else
+					// 	lookup.breadcrumbs.insert(istring(tsaTok.text));
+				}
+			}
 		}
 	}
 
