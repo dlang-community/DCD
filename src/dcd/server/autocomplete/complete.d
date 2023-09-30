@@ -361,7 +361,12 @@ CalltipHint getCalltipHint(T)(T beforeTokens, out size_t parenIndex)
 	// evaluate at comma case
 	if (beforeTokens.isComma)
 	{
-		parenIndex = beforeTokens.goBackToOpenParen;
+		size_t tmp = beforeTokens.goBackToOpenParen;
+		if(tmp == size_t.max){
+			return CalltipHint.regularArguments;
+		}
+		parenIndex = tmp;
+
 		// check if we are actually a "!("
 		if (beforeTokens[0 .. parenIndex].isTemplateBangParen)
 		{
