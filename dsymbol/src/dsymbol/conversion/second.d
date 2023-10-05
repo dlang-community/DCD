@@ -35,6 +35,7 @@ import dparse.ast;
 import dparse.lexer;
 import std.algorithm : filter;
 import std.range;
+import std.stdio;
 
 void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCache cache)
 {
@@ -165,13 +166,12 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 {
 	assert(type);
 	DSymbol* newType = GCAllocator.instance.make!DSymbol("dummy", CompletionKind.dummy, null);
-	newType.name = type.name;
+	newType.name = ti ? istring(ti.calltip) : istring(lookup.ctx.calltip);
 	newType.kind = type.kind;
 	newType.qualifier = type.qualifier;
 	newType.protection = type.protection;
 	newType.symbolFile = type.symbolFile;
 	newType.doc = type.doc;
-	newType.callTip = type.callTip;
 	newType.type = type.type;
 	DSymbol*[string] mapping;
 
@@ -189,7 +189,6 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 					continue;
 				}
 				auto key = part.name;
-				
 				DSymbol* first;
 				bool isBuiltin;
 				foreach(i, crumb; ti.args[count].chain)
@@ -233,7 +232,6 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 			}
 		}
 	}
-	
 
 	// HACK: to support functions with template arguments that return a generic type
 	// first.d in processParameters only store the function's return type in the callTip
@@ -334,7 +332,7 @@ void resolveTemplate(DSymbol* variableSym, DSymbol* type, TypeLookup* lookup, Va
 	if (current.chain.length == 0) return; // TODO: should not be empty, happens for simple stuff Inner inner;
 
 	DSymbol* newType = createTypeWithTemplateArgs(type, lookup, current, cache, moduleScope, depth, mapping);
-	
+	//writeln(">>", variableSym.name, " > ", newType.name);
 	variableSym.type = newType;
 	variableSym.ownType = true;
 }
@@ -524,6 +522,7 @@ do
 		suffix.ownType = false;
 		symbol.type = lastSuffix;
 		symbol.ownType = true;
+
 		if (currentSymbol is null && !remainingImports.empty)
 		{
 			//			info("Deferring type resolution for ", symbol.name);

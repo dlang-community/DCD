@@ -48,6 +48,8 @@ struct VariableContext
 		string[] chain;
 		TypeInstance*[] args;
 		string name;
+		string calltip;
 	}
 	TypeInstance* root;
+	string calltip;
 }

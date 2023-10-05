@@ -250,10 +250,16 @@ final class FirstPass : ASTVisitor
 	void processTypeIdentifierPart(SemanticSymbol* symbol, TypeLookup* lookup, VariableContext* ctx, VariableContext.TypeInstance* current, TypeIdentifierPart tip)
 	{
 		if (tip.identifierOrTemplateInstance)
+		{
 			processIdentifierOrTemplate(symbol, lookup, ctx, current, tip.identifierOrTemplateInstance);
+			if (current)
+				current.calltip = buildCalltip(tip.identifierOrTemplateInstance.tokens);
+		}
 
 		if (tip.typeIdentifierPart)
+		{
 			processTypeIdentifierPart(symbol, lookup, ctx, current, tip.typeIdentifierPart);
+		}
 
 		// TODO: handle `tip.dot` and `tip.indexer`
 	}
@@ -346,6 +352,31 @@ final class FirstPass : ASTVisitor
 				}
 			}
 		}
+	}
+
+	string buildCalltip(const(Token)[] tokens)
+	{
+		string calltip;
+		foreach(tk; tokens)
+		{
+			if (tk == tok!"!")
+				calltip ~= "!";
+			else if (tk == tok!"(")
+				calltip ~= "(";
+			else if (tk == tok!")")
+				calltip ~= ")";
+			else if (tk == tok!"[")
+				calltip ~= "[";
+			else if (tk == tok!"]")
+				calltip ~= "]";
+			else if (tk == tok!",")
+				calltip ~= ",";
+			else if (tk == tok!"")
+				calltip ~= " ";
+			else
+				calltip ~= tk.text;
+		}
+		return calltip;
 	}
 
 	void traverseUnaryExpression(SemanticSymbol* symbol, TypeLookup* lookup, VariableContext* ctx, UnaryExpression ue)
@@ -449,8 +480,11 @@ final class FirstPass : ASTVisitor
 			if (dec.type && dec.type.type2 && dec.type.type2.typeIdentifierPart)
 			{
 				TypeIdentifierPart typeIdentifierPart = cast(TypeIdentifierPart) dec.type.type2.typeIdentifierPart;
-
 				lookup.ctx.root = GCAllocator.instance.make!(VariableContext.TypeInstance)();
+
+				if (typeIdentifierPart.identifierOrTemplateInstance)
+					lookup.ctx.calltip = buildCalltip(typeIdentifierPart.identifierOrTemplateInstance.tokens);
+
 				processTypeIdentifierPart(symbol, lookup, &lookup.ctx, lookup.ctx.root, typeIdentifierPart);
 			}
 		}
