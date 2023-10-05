@@ -463,7 +463,8 @@ final class FirstPass : ASTVisitor
 		if (IdentifierOrTemplateInstance iot = ue.identifierOrTemplateInstance)
 			buildChainTemplateOrIdentifier(symbol, lookup, ctx, iot);
 
-		if(ue.unaryExpression) traverseUnaryExpression(symbol, lookup, ctx, ue.unaryExpression);
+		if(ue.unaryExpression) 
+			traverseUnaryExpression(symbol, lookup, ctx, ue.unaryExpression);
 	}
 
 	override void visit(const VariableDeclaration dec)
@@ -580,6 +581,8 @@ final class FirstPass : ASTVisitor
 						foreach_reverse(c; result)
 							lookup.breadcrumbs.insert(c);
 
+						again:
+
 						// check template
 						if (IdentifierOrTemplateInstance iot = unary.identifierOrTemplateInstance)
 						{
@@ -624,6 +627,17 @@ final class FirstPass : ASTVisitor
 						else
 						{
 							writeln("something else final");
+							if (unary.unaryExpression)
+							{
+								unary = unary.unaryExpression;
+								goto again;
+							}
+							else
+							{
+								foreach(c; original)
+									lookup.breadcrumbs.insert(c);
+							}
+
 						}
 					}
 				}
