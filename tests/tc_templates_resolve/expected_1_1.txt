@@ -2,7 +2,7 @@ identifiers
 alignof	k				
 init	k				
 mangleof	k				
-one_t	v	One one_t	stdin 103		One
+one_t	v	One!T one_t	stdin 103		One!T
 sizeof	k				
 stringof	k				
 tupleof	k				

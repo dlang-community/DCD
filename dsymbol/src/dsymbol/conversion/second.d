@@ -63,9 +63,9 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 		{
 			foreach(lookup; currentSymbol.typeLookups[]) {
 
-				writeln("lookup: ", lookup.breadcrumbs[]);
+				writeln("lookup: ", lookup.breadcrumbs[], " ctx: ", lookup.ctx.root);
 				if (lookup.ctx.root)
-				{	
+				{
 					auto type = currentSymbol.acSymbol.type;
 					if (type.kind == structName || type.kind == className || type.kind == functionName || type.kind)
 					{
@@ -179,6 +179,7 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 		newType.name = type.name;
 
 	writeln("    >>", type.name, " > ", newType.name, " ::", ti );
+	writeln("    >> ct: ", ti.calltip);
 	writeln("    >> args: ", ti.args);
 
 	newType.kind = type.kind;
@@ -593,6 +594,9 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 	size_t i = 0;
 
 	auto crumbs = lookup.breadcrumbs[];
+
+	writeln(">> crumbs: ", crumbs);
+	writeln(">> name:   ", symbol.name);
 	foreach (crumb; crumbs)
 	{
 		if (i == 0)
@@ -601,7 +605,10 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 				symbolNameToTypeName(crumb), symbol.location);
 
 			if (currentSymbol is null)
+			{
+				writeln("return 0");
 				return;
+			}
 		}
 		else if (crumb == ARRAY_LITERAL_SYMBOL_NAME)
 		{
@@ -613,7 +620,10 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 		{
 			typeSwap(currentSymbol);
 			if (currentSymbol is null)
+			{
+				writeln("return");
 				return;
+			}
 
 			// Index expressions can be on a pointer, an array or an AA
 			if (currentSymbol.qualifier == SymbolQualifier.array
@@ -622,9 +632,15 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 				|| currentSymbol.kind == CompletionKind.aliasName)
 			{
 				if (currentSymbol.type !is null)
+				{
+					writeln("here! ", currentSymbol.type.name);
 					currentSymbol = currentSymbol.type;
+				}
 				else
+				{
+					writeln("nope!");
 					return;
+				}
 			}
 			else
 			{
@@ -632,7 +648,11 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 				if (opIndex !is null)
 					currentSymbol = opIndex.type;
 				else
-					return;
+				{
+					writeln("return weird");
+					writeln("s: ", currentSymbol.name, " ", currentSymbol.qualifier);
+					continue;
+				}
 			}
 		}
 		else if (crumb == "foreach")
@@ -661,18 +681,28 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 		}
 		else
 		{
+			writeln("here");
 			typeSwap(currentSymbol);
 			if (currentSymbol is null)
+			{
+
+				writeln("return", i);
 				return;
+			}
 			currentSymbol = currentSymbol.getFirstPartNamed(crumb);
 		}
 		++i;
 		if (currentSymbol is null)
+		{
+			writeln("return end", i);
 			return;
+		}
 	}
 	typeSwap(currentSymbol);
 	symbol.type = currentSymbol;
 	symbol.ownType = false;
+
+	writeln(">> type:   ", currentSymbol.name);
 }
 
 private:

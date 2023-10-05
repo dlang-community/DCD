@@ -39,6 +39,7 @@ import std.experimental.allocator.gc_allocator : GCAllocator;
 import std.experimental.logger;
 import std.meta : AliasSeq;
 import std.typecons : Rebindable;
+import std.stdio;
 
 /**
  * First Pass handles the following:
@@ -341,10 +342,6 @@ final class FirstPass : ASTVisitor
 
 	void buildChainTemplateOrIdentifier(SemanticSymbol* symbol, TypeLookup* lookup, VariableContext* ctx, IdentifierOrTemplateInstance iot)
 	{
-		auto crumb = iot.identifier;
-		if (crumb != tok!"")
-			lookup.breadcrumbs.insert(istring(crumb.text));
-
 		if (iot.templateInstance)
 		{
 			if (iot.templateInstance.identifier != tok!"")
@@ -363,6 +360,11 @@ final class FirstPass : ASTVisitor
 					// 	lookup.breadcrumbs.insert(istring(tsaTok.text));
 				}
 			}
+		}
+		else
+		{
+			auto crumb = iot.identifier;
+			lookup.breadcrumbs.insert(istring(crumb.text));
 		}
 	}
 
@@ -536,6 +538,12 @@ final class FirstPass : ASTVisitor
 
 				auto lookup = symbol.typeLookups.front;
 
+				istring[] original;
+				foreach(c; lookup.breadcrumbs[])
+					original ~= c;
+				writeln("## var: ", symbol.acSymbol.name);
+				writeln("## lookup breadcrumbs: ", lookup.breadcrumbs[]);
+
 				auto initializer = part.initializer.nonVoidInitializer;
 				if (initializer && initializer.assignExpression)
 				{
@@ -567,6 +575,7 @@ final class FirstPass : ASTVisitor
 						foreach(c; *crumbs)
 							result ~= c;
 
+						writeln("## result: ", result);
 						crumbs.clear();
 						foreach_reverse(c; result)
 							lookup.breadcrumbs.insert(c);
@@ -579,6 +588,19 @@ final class FirstPass : ASTVisitor
 								lookup.ctx.root = GCAllocator.instance.make!(VariableContext.TypeInstance)();
 								processTemplateInstance(symbol, lookup, &lookup.ctx, lookup.ctx.root, iot.templateInstance);
 							}
+							else
+							{
+								writeln("something else2; ", iot.identifier.text, " original: ", original);
+
+								if (original.length > 0 && original[$-1] == "*arr*")
+								{
+									lookup.breadcrumbs.clear();
+									foreach(c; original)
+										lookup.breadcrumbs.insert(c);
+									foreach_reverse(c; result)
+										lookup.breadcrumbs.insert(c);
+								}
+							}
 						}
 						else if (PrimaryExpression pe = unary.primaryExpression)
 						{
@@ -589,7 +611,19 @@ final class FirstPass : ASTVisitor
 									lookup.ctx.root = GCAllocator.instance.make!(VariableContext.TypeInstance)();
 									processTemplateInstance(symbol, lookup, &lookup.ctx, lookup.ctx.root, pe.identifierOrTemplateInstance.templateInstance);
 								}
+								else
+								{
+									writeln("something else2; ", pe.identifierOrTemplateInstance.identifier.text);
+								}
 							}
+							else
+							{
+								writeln("something else other");
+							}
+						}
+						else
+						{
+							writeln("something else final");
 						}
 					}
 				}

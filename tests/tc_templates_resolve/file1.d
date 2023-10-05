@@ -20,7 +20,7 @@ struct Two(T, U)
 
 void main()
 {
-    auto from_auto_one = One!A();
+    auto from_auto_one = One!(A)();
     auto from_auto_two = Two!(A, B)();
     {
         from_auto_one.

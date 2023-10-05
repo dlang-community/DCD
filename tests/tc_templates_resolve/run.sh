@@ -6,8 +6,8 @@ set -u
 MODE=$1
 
 function check () {
-    echo "$1 $2"
-    ../../bin/dcd-client $MODE $1.d --extended -c $2 > $3.txt
+    echo ":: :: check: $1 $2 $3"
+    ../../bin/dcd-client.exe $MODE $1.d --extended -c $2 > $3.txt
     diff $3.txt $4.txt --strip-trailing-cr
 }
 
@@ -17,11 +17,11 @@ check file4 165 actual_extra_1 expected_extra_1
 
 
 #echo "test1"
-check file1 280 actual_1_1 expected_1_1
+check file1 282 actual_1_1 expected_1_1
 
 
 #echo "test2"
-check file1 315 actual_1_2 expected_1_2
+check file1 317 actual_1_2 expected_1_2
 
 
 #echo "test3"
