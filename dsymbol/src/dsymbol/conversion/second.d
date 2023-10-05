@@ -61,16 +61,20 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 
 		if (currentSymbol.acSymbol.type && currentSymbol.typeLookups.length > 0)
 		{
-			TypeLookup* lookup = currentSymbol.typeLookups.front;
-			if (lookup.ctx.root)
-			{	
-				auto type = currentSymbol.acSymbol.type;
-				if (type.kind == structName || type.kind == className || type.kind == functionName)
-				if (lookup.ctx.root.args.length > 0)
-				{
-					DSymbol*[string] mapping;
-					int depth;
-					resolveTemplate(currentSymbol.acSymbol, type, lookup, lookup.ctx.root, moduleScope, cache, depth, mapping);
+			foreach(lookup; currentSymbol.typeLookups[]) {
+				if (lookup.ctx.root)
+				{	
+					auto type = currentSymbol.acSymbol.type;
+					if (type.kind == structName || type.kind == className || type.kind == functionName || type.kind)
+					{
+						if (lookup.ctx.root.args.length > 0)
+						{
+							DSymbol*[string] mapping;
+							int depth;
+							resolveTemplate(currentSymbol.acSymbol, type, lookup, lookup.ctx.root, moduleScope, cache, depth, mapping);
+							break;
+						}
+					}
 				}
 			}
 		}
@@ -327,12 +331,18 @@ void resolveTemplate(DSymbol* variableSym, DSymbol* type, TypeLookup* lookup, Va
 {
 	depth += 1;
 
-	if (variableSym is null || type is null) return;
+	if (variableSym is null || type is null){
+		writeln("fuck here");
+	 return;
+	}
 
-	if (current.chain.length == 0) return; // TODO: should not be empty, happens for simple stuff Inner inner;
+	if (current.chain.length == 0){
+		writeln("why empty ", variableSym.name, " ", current.calltip);
+	 return; // TODO: should not be empty, happens for simple stuff Inner inner;
+	}
 
 	DSymbol* newType = createTypeWithTemplateArgs(type, lookup, current, cache, moduleScope, depth, mapping);
-	//writeln(">>", variableSym.name, " > ", newType.name);
+	writeln(">>", variableSym.name, " > ", newType.name);
 	variableSym.type = newType;
 	variableSym.ownType = true;
 }
