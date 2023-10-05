@@ -62,6 +62,8 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 		if (currentSymbol.acSymbol.type && currentSymbol.typeLookups.length > 0)
 		{
 			foreach(lookup; currentSymbol.typeLookups[]) {
+
+				writeln("lookup: ", lookup.breadcrumbs[]);
 				if (lookup.ctx.root)
 				{	
 					auto type = currentSymbol.acSymbol.type;
@@ -171,6 +173,14 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 	assert(type);
 	DSymbol* newType = GCAllocator.instance.make!DSymbol("dummy", CompletionKind.dummy, null);
 	newType.name = ti ? istring(ti.calltip) : istring(lookup.ctx.calltip);
+
+	// TODO: need to set the name in first.d
+	if (newType.name.length == 0)
+		newType.name = type.name;
+
+	writeln("    >>", type.name, " > ", newType.name, " ::", ti );
+	writeln("    >> args: ", ti.args);
+
 	newType.kind = type.kind;
 	newType.qualifier = type.qualifier;
 	newType.protection = type.protection;
@@ -189,10 +199,12 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 				scope(exit) count++;
 				if (count >= ti.args.length)
 				{
-					// warning("too many T for args available, investigate");
+					writeln("too many T for args available, investigate");
 					continue;
 				}
 				auto key = part.name;
+
+				writeln("      check: ", key);
 				DSymbol* first;
 				bool isBuiltin;
 				foreach(i, crumb; ti.args[count].chain)
@@ -219,20 +231,34 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 						auto result = moduleScope.getSymbolsAtGlobalScope(istring(argName));
 						if (result.length == 0)
 						{
+							writeln("        modulescope: symbol not found: ", argName);
 							break;
 						}
 						first = result[0];
+						writeln("        modulescope: symbol found: ", argName, " -> ", first.name);
 					}
 					else
+					{
 						first = first.getFirstPartNamed(istring(argName));
+						if (first)
+							writeln("       symbol found: ", argName, " -> ", first.name);
+						else
+							writeln("		symbol not found: ", argName);
+					}
 				}
 
 				if (first is null)
 					continue;
 
+				writeln(">> ok");
 				auto ca = ti.args[count];
 				if (ca.chain.length > 0) 
-				mapping[key] = isBuiltin ? first : createTypeWithTemplateArgs(first, lookup, ca, cache, moduleScope, depth, null);
+				{
+					auto stomap = isBuiltin ? first : createTypeWithTemplateArgs(first, lookup, ca, cache, moduleScope, depth, null);
+					mapping[key] = stomap;
+
+					writeln("		mapping[",key,"] -> ", stomap.name);
+				}
 			}
 		}
 	}
@@ -336,6 +362,12 @@ void resolveTemplate(DSymbol* variableSym, DSymbol* type, TypeLookup* lookup, Va
 
 	DSymbol* newType = createTypeWithTemplateArgs(type, lookup, current, cache, moduleScope, depth, mapping);
 	writeln(">>", variableSym.name, " > ", newType.name);
+
+	if (depth == 1)
+	{
+		newType.name = istring(lookup.ctx.calltip);
+	}
+
 	variableSym.type = newType;
 	variableSym.ownType = true;
 }
@@ -517,7 +549,7 @@ do
 			return;
 	}
 
-	if (lastSuffix !is null)
+	if (lastSuffix !is null && lastSuffix.qualifier == SymbolQualifier.none)
 	{
 		assert(suffix !is null);
 		typeSwap(currentSymbol);

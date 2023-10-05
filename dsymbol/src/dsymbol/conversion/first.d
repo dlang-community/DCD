@@ -253,7 +253,9 @@ final class FirstPass : ASTVisitor
 		{
 			processIdentifierOrTemplate(symbol, lookup, ctx, current, tip.identifierOrTemplateInstance);
 			if (current)
+			{
 				current.calltip = buildCalltip(tip.identifierOrTemplateInstance.tokens);
+			}
 		}
 
 		if (tip.typeIdentifierPart)
@@ -296,6 +298,16 @@ final class FirstPass : ASTVisitor
 				{
 					if (part.typeIdentifierPart.identifierOrTemplateInstance)
 						processIdentifierOrTemplate(symbol, lookup, ctx, newArg, part.typeIdentifierPart.identifierOrTemplateInstance);
+				}
+
+				foreach(suffix; targ.type.typeSuffixes)
+				{
+					if (suffix.type)
+						current.calltip ~= "[.]";
+					else if (suffix.array)
+						current.calltip ~= "[]";
+					else if (suffix.star != tok!"")
+						current.calltip ~= "*";
 				}
 			}
 		}
@@ -371,6 +383,8 @@ final class FirstPass : ASTVisitor
 				calltip ~= "]";
 			else if (tk == tok!",")
 				calltip ~= ",";
+			else if (tk == tok!"*")
+				calltip ~= "*";
 			else if (tk == tok!"")
 				calltip ~= " ";
 			else
@@ -484,6 +498,16 @@ final class FirstPass : ASTVisitor
 
 				if (typeIdentifierPart.identifierOrTemplateInstance)
 					lookup.ctx.calltip = buildCalltip(typeIdentifierPart.identifierOrTemplateInstance.tokens);
+
+				foreach(suffix; dec.type.typeSuffixes)
+				{
+					if (suffix.type)
+						lookup.ctx.calltip ~= "[.]";
+					else if (suffix.array)
+						lookup.ctx.calltip ~= "[]";
+					else if (suffix.star != tok!"")
+						lookup.ctx.calltip ~= "*";
+				}
 
 				processTypeIdentifierPart(symbol, lookup, &lookup.ctx, lookup.ctx.root, typeIdentifierPart);
 			}
