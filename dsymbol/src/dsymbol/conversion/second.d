@@ -331,15 +331,8 @@ void resolveTemplate(DSymbol* variableSym, DSymbol* type, TypeLookup* lookup, Va
 {
 	depth += 1;
 
-	if (variableSym is null || type is null){
-		writeln("fuck here");
-	 return;
-	}
-
-	if (current.chain.length == 0){
-		writeln("why empty ", variableSym.name, " ", current.calltip);
-	 return; // TODO: should not be empty, happens for simple stuff Inner inner;
-	}
+	if (variableSym is null || type is null) return;
+	if (current.chain.length == 0) return; // TODO: should not be empty, happens for simple stuff Inner inner; TODO: i forgot why, add a test
 
 	DSymbol* newType = createTypeWithTemplateArgs(type, lookup, current, cache, moduleScope, depth, mapping);
 	writeln(">>", variableSym.name, " > ", newType.name);
