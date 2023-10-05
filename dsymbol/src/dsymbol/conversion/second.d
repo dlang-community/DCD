@@ -550,7 +550,7 @@ do
 			return;
 	}
 
-	if (lastSuffix !is null && lastSuffix.qualifier == SymbolQualifier.none)
+	if (lastSuffix !is null)
 	{
 		assert(suffix !is null);
 		typeSwap(currentSymbol);
@@ -702,7 +702,8 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 	symbol.type = currentSymbol;
 	symbol.ownType = false;
 
-	writeln(">> type:   ", currentSymbol.name);
+	if (currentSymbol)
+		writeln(">> type:   ", currentSymbol.name);
 }
 
 private:
