@@ -299,7 +299,7 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 		}
 	}
 
-	writeln("");
+	writeln("-");
 
 	assert(newType);
 	string[] T_names;
@@ -309,7 +309,8 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 		{
 			T_names ~= part.name;
 		}
-		else if (part.type && part.type.kind == CompletionKind.typeTmpParam)
+		else 
+		if (part.type && part.type.kind == CompletionKind.typeTmpParam)
 		{
 
 			print_tab(depth); writeln("part: ", part.name,": ", part.type.name);
@@ -342,18 +343,34 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 
 			print_tab(depth); writeln("array: ", part.name,": ", arrTypeTSymbol.name,"[]");
 
+
+			DSymbol* newPart = GCAllocator.instance.make!DSymbol(part.name, part.kind, null);
+			newPart.qualifier = part.qualifier;
+			newPart.protection = part.protection;
+			newPart.symbolFile = part.symbolFile;
+			newPart.doc = part.doc;
+			newPart.callTip = part.callTip;
+
+			// create new array shit
+
+
 			if (arrTypeTSymbol.name in mapping)
 			{
 				auto result = mapping[arrTypeTSymbol.name];
-				arrSymbol.type = result;
 				print_tab(depth); writeln(" ", arrTypeTSymbol.name, " =>: ", result.name);
+
+				auto newarr = GCAllocator.instance.make!DSymbol(arrSymbol.name , arrSymbol.kind, result);
+				newarr.ownType = false;
+				newPart.type = newarr;
+				newPart.ownType = true;
 			}
 
-			newType.addChild(part, false);
+			newType.addChild(newPart, false);
 		}
 		else
 		{
 
+			print_tab(depth); writeln("missing part: ", part.name,": ", part.type);
 			// BUG: doing it recursively messes with the mapping
 			// i need to debug this and figure out perhaps a better way to do this stuff
 			// maybe move the VariableContext to the symbol directly
