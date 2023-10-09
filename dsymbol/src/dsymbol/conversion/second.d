@@ -36,6 +36,7 @@ import dparse.lexer;
 import std.algorithm : filter;
 import std.range;
 import std.stdio;
+import io = std.stdio;
 
 void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCache cache)
 {
@@ -178,9 +179,8 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 	if (newType.name.length == 0)
 		newType.name = type.name;
 
-	writeln("    >>", type.name, " > ", newType.name, " ::", ti );
-	writeln("    >> ct: ", ti.calltip);
-	writeln("    >> args: ", ti.args);
+	print_tab(depth); io.write(">>", type.name, " > ", newType.name, " ::", ti," args: ", ti.args.length, " ct: ", ti.calltip);
+	writeln();
 
 	newType.kind = type.kind;
 	newType.qualifier = type.qualifier;
@@ -200,12 +200,19 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 				scope(exit) count++;
 				if (count >= ti.args.length)
 				{
-					writeln("too many T for args available, investigate");
+					print_tab(depth);writeln("too many T for args available, investigate");
 					continue;
 				}
 				auto key = part.name;
 
-				writeln("      check: ", key);
+				print_tab(depth);writeln("> check template arg: ", key);
+				print_tab(depth);io.write("chain: ");
+				foreach(i, crumb; ti.args[count].chain)
+				{
+					io.write(crumb, ", ");
+				}
+				writeln("");
+
 				DSymbol* first;
 				bool isBuiltin;
 				foreach(i, crumb; ti.args[count].chain)
@@ -232,34 +239,43 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 						auto result = moduleScope.getSymbolsAtGlobalScope(istring(argName));
 						if (result.length == 0)
 						{
-							writeln("        modulescope: symbol not found: ", argName);
+							print_tab(depth);writeln("modulescope: symbol not found: ", argName);
 							break;
 						}
 						first = result[0];
-						writeln("        modulescope: symbol found: ", argName, " -> ", first.name);
+						print_tab(depth);writeln("modulescope: symbol found: ", argName, " -> ", first.name);
 					}
 					else
 					{
 						first = first.getFirstPartNamed(istring(argName));
 						if (first)
-							writeln("       symbol found: ", argName, " -> ", first.name);
+						{
+							print_tab(depth);writeln("symbol found: ", argName, " -> ", first.name);
+						}
 						else
-							writeln("		symbol not found: ", argName);
+						{
+								print_tab(depth);writeln("symbol not found: ", argName);
+						}
 					}
 				}
 
 				if (first is null)
 					continue;
 
-				writeln(">> ok");
+				print_tab(depth);writeln(">> ok");
 				auto ca = ti.args[count];
 				if (ca.chain.length > 0) 
 				{
-					auto stomap = isBuiltin ? first : createTypeWithTemplateArgs(first, lookup, ca, cache, moduleScope, depth, null);
+					int indepth = depth + 1;
+					auto stomap = isBuiltin ? first : createTypeWithTemplateArgs(first, lookup, ca, cache, moduleScope, indepth, null);
 					mapping[key] = stomap;
 
-					writeln("		mapping[",key,"] -> ", stomap.name);
+					print_tab(depth);writeln("mapping[",key,"] -> ", stomap.name, " builtin: ", isBuiltin);
 				}
+			}
+			else
+			{
+				//writeln(">>>>>>>>>>>>>>> what: ", part.kind," ", part.name);
 			}
 		}
 	}
@@ -283,6 +299,8 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 		}
 	}
 
+	writeln("");
+
 	assert(newType);
 	string[] T_names;
 	foreach(part; type.opSlice())
@@ -293,6 +311,8 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 		}
 		else if (part.type && part.type.kind == CompletionKind.typeTmpParam)
 		{
+
+			print_tab(depth); writeln("part: ", part.name,": ", part.type.name);
 			DSymbol* newPart = GCAllocator.instance.make!DSymbol(part.name, part.kind, null);
 			newPart.qualifier = part.qualifier;
 			newPart.protection = part.protection;
@@ -315,8 +335,25 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 
 			newType.addChild(newPart, true);
 		}
+		else if (part.type && part.type.name == "*arr*" && part.type.type && part.type.type.kind == CompletionKind.typeTmpParam)
+		{
+			auto arrSymbol = part.type;
+			auto arrTypeTSymbol = arrSymbol.type;
+
+			print_tab(depth); writeln("array: ", part.name,": ", arrTypeTSymbol.name,"[]");
+
+			if (arrTypeTSymbol.name in mapping)
+			{
+				auto result = mapping[arrTypeTSymbol.name];
+				arrSymbol.type = result;
+				print_tab(depth); writeln(" ", arrTypeTSymbol.name, " =>: ", result.name);
+			}
+
+			newType.addChild(part, false);
+		}
 		else
 		{
+
 			// BUG: doing it recursively messes with the mapping
 			// i need to debug this and figure out perhaps a better way to do this stuff
 			// maybe move the VariableContext to the symbol directly
@@ -336,8 +373,9 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 			//            foreach(aa; arg.args)
 			//            	warning("    > ", aa.chain);
 			//        }
-			//        warning("go agane ".blue, part.name, " ", part.type.name, " with arg: ", ti.chain," Ts: ", T_names);
-			//        resolveTemplate(part, part.type, lookup, ti, moduleScope, cache, depth, mapping);
+			//		int indepth = depth;
+			//        warning("go agane ", part.name, " ", part.type.name, " with arg: ", ti.chain," Ts: ", T_names);
+			//        resolveTemplate(part, part.type, lookup, ti, moduleScope, cache, indepth, mapping);
 			//        break;
 			//    }
 			//    //else if (partPart.type && partPart.type.kind == CompletionKind.typeTmpParam)
@@ -351,6 +389,12 @@ DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableC
 	return newType;
 }
 
+void print_tab(int index)
+{
+	enum C = 4;
+	for(int i =0; i < index*4; i++) io.write(" "); 
+}
+
 /**
  * Resolve template arguments
  */
@@ -361,8 +405,30 @@ void resolveTemplate(DSymbol* variableSym, DSymbol* type, TypeLookup* lookup, Va
 	if (variableSym is null || type is null) return;
 	if (current.chain.length == 0) return; // TODO: should not be empty, happens for simple stuff Inner inner; TODO: i forgot why, add a test
 
+	writeln("> Resolve template for: ",variableSym.name, ": ", type.name);
+	writeln("ctx callTip: ", lookup.ctx.calltip);
+
+
+	void printti(VariableContext.TypeInstance* it, ref int index)
+	{
+		print_tab(index); io.write("chain:", it.chain, "name: ", it.name, " ct: ", it.calltip, " args: ", it.args.length, "\n");
+		index += 1;
+		foreach(itt; it.args)
+		{
+			int inindex = index;
+			printti(itt, inindex);
+		}
+	}
+	int index = 0;
+	printti(lookup.ctx.root, index);
+
+	writeln("");
+	writeln("");
 	DSymbol* newType = createTypeWithTemplateArgs(type, lookup, current, cache, moduleScope, depth, mapping);
-	writeln(">>", variableSym.name, " > ", newType.name);
+
+
+	writeln("");
+	writeln("resolved:", variableSym.name, " > ", newType.name);
 
 	if (depth == 1)
 	{
