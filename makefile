@@ -13,7 +13,7 @@ LDC := ldc2
 DPARSE_DIR := libdparse
 DSYMBOL_DIR := dsymbol
 
-SHELL:=/bin/bash
+SHELL:=/usr/bin/env bash
 
 githash:
 	@mkdir -p bin
