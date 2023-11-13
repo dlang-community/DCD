@@ -250,7 +250,7 @@ int runClient(string[] args)
 	else if (getIdentifier)
 		printIdentifierResponse(response);
 	else if (doc)
-		printDocResponse(response);
+		printDocResponse(response, fullOutput);
 	else if (search !is null)
 		printSearchResponse(response);
 	else if (localUse)
@@ -359,10 +359,14 @@ Socket createSocket(string socketFile, ushort port)
 	return socket;
 }
 
-void printDocResponse(ref const AutocompleteResponse response)
+void printDocResponse(ref const AutocompleteResponse response, bool extended)
 {
-	import std.algorithm : each;
-	response.completions.each!(a => a.documentation.escapeConsoleOutputString(true).writeln);
+	foreach (ref completion; response.completions)
+    {
+    	if (extended)
+            writeln(completion.definition);
+        writeln(completion.documentation.escapeConsoleOutputString(true));
+    }
 }
 
 void printIdentifierResponse(ref const AutocompleteResponse response)
