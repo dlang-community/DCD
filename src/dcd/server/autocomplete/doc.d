@@ -62,7 +62,7 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request,
 				continue;
 			firstSymbol = false;
 
-			AutocompleteResponse.Completion c;
+			AutocompleteResponse.Completion c = makeSymbolCompletionInfo(symbol, symbol.kind);
 			c.documentation = symbol.doc;
 			response.completions ~= c;
 		}
