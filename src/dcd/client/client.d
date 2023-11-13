@@ -362,11 +362,11 @@ Socket createSocket(string socketFile, ushort port)
 void printDocResponse(ref const AutocompleteResponse response, bool extended)
 {
 	foreach (ref completion; response.completions)
-    {
-    	if (extended)
-            writeln(completion.definition);
-        writeln(completion.documentation.escapeConsoleOutputString(true));
-    }
+	{
+		if (extended)
+			writeln(completion.definition);
+		writeln(completion.documentation.escapeConsoleOutputString(true));
+	}
 }
 
 void printIdentifierResponse(ref const AutocompleteResponse response)
