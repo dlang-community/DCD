@@ -131,6 +131,7 @@ final class FirstPass : ASTVisitor
 		scope (exit) popSymbol();
 		currentSymbol.acSymbol.protection = protection.current;
 		currentSymbol.acSymbol.doc = makeDocumentation(dec.comment);
+		currentSymbol.acSymbol.qualifier = SymbolQualifier.func;
 
 		istring lastComment = this.lastComment;
 		this.lastComment = istring.init;
