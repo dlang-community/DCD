@@ -115,7 +115,7 @@ class AutocompleteParser : Parser
 	{
 		if (!currentIs(tok!"{"))
 			return null;
-		if (current.index > cursorPosition)
+		if (cursorPosition != -1 && current.index > cursorPosition)
 		{
 			BlockStatement bs = allocator.make!(BlockStatement);
 			bs.startLocation = current.index;
@@ -126,7 +126,7 @@ class AutocompleteParser : Parser
 		immutable start = current.index;
 		auto b = setBookmark();
 		skipBraces();
-		if (tokens[index - 1].index < cursorPosition)
+		if (cursorPosition != -1 && tokens[index - 1].index < cursorPosition)
 		{
 			abandonBookmark(b);
 			BlockStatement bs = allocator.make!BlockStatement();
@@ -142,7 +142,7 @@ class AutocompleteParser : Parser
 	}
 
 private:
-	size_t cursorPosition;
+	long cursorPosition;
 }
 
 class SimpleParser : Parser
