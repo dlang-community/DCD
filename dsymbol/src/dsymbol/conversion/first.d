@@ -123,6 +123,53 @@ final class FirstPass : ASTVisitor
 		visitDestructor(des.location, des.functionBody, des.comment);
 	}
 
+	override void visit(const FunctionCallExpression fce)
+	{
+		assert(fce);
+
+		auto fnToken = fce.tokens[0];
+
+		pushSymbol(fnToken.text, CompletionKind.functionName, symbolFile, fnToken.index);
+		scope (exit) popSymbol();
+
+		if (fce.arguments && fce.arguments.namedArgumentList)
+		{
+			auto argsList = fce.arguments.namedArgumentList;
+
+			pushScope(argsList.startLocation, argsList.endLocation);
+			scope (exit) popScope();
+
+			currentSymbol.acSymbol.functionParameters.reserve(argsList.items.length);
+			foreach(arg; argsList.items)
+			{
+				auto argToken = arg.tokens[0];
+
+				// TODO: suport token chain: myfunc(SomeType.variable);
+				// perhaps it should be handled later during completion time
+				// but we need to store the tokens?
+
+				// strip named arguments  syntax
+				bool named = arg.tokens.length >= 3 && arg.tokens[1] == tok!(":");
+				auto firstTokenIndex = named ? 2 : 0;
+				auto tokens = arg.tokens[firstTokenIndex .. $];
+				auto firstToken = tokens[0];
+
+				// writeln(" arg: ", firstToken.text, " pos: ", firstToken.index, " named: ", named, " l: ", arg.tokens.length);
+
+				SemanticSymbol* parameter = allocateSemanticSymbol(
+					firstToken.text, CompletionKind.variableName, symbolFile,
+					firstToken.index);
+
+				parameter.parent = currentSymbol;
+
+				currentSymbol.acSymbol.functionParameters ~= parameter.acSymbol;
+
+				currentSymbol.addChild(parameter, true);
+				currentScope.addSymbol(parameter.acSymbol, false);
+			}
+		}
+	}
+
 	override void visit(const FunctionDeclaration dec)
 	{
 		assert(dec);
