@@ -347,6 +347,11 @@ int runServer(string[] args)
 				s.trySendResponse(symbolSearch(request, cache), "Could not perform symbol search");
 			else if (request.kind & RequestKind.localUse)
 				s.trySendResponse(findLocalUse(request, cache), "Couldnot find local usage");
+			else if (request.kind & RequestKind.inlayHints)
+			{
+				info("Getting inlay hints");
+				s.trySendResponse(getInlayHints(request, cache), "Could not get inlay hints");
+			}
 			else if (needResponse)
 				s.trySendResponse(AutocompleteResponse.ack, "Could not send ack");
 		}

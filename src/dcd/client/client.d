@@ -62,6 +62,7 @@ int runClient(string[] args)
 	bool clearCache;
 	bool symbolLocation;
 	bool doc;
+	bool inlayHints;
 	bool query;
 	bool printVersion;
 	bool listImports;
@@ -85,7 +86,7 @@ int runClient(string[] args)
 		getopt(args, "cursorPos|c", &cursorPos, "I", &addedImportPaths,
 			"R", &removedImportPaths, "port|p", &port, "help|h", &help,
 			"shutdown", &shutdown, "clearCache", &clearCache,
-			"symbolLocation|l", &symbolLocation, "doc|d", &doc,
+			"symbolLocation|l", &symbolLocation, "doc|d", &doc, "inlayHints", &inlayHints,
 			"query|status|q", &query, "search|s", &search,
 			"version", &printVersion, "listImports", &listImports,
 			"tcp", &useTCP, "socketFile", &socketFile,
@@ -234,6 +235,8 @@ int runClient(string[] args)
 		request.kind |= RequestKind.search;
 	else if(localUse)
 		request.kind |= RequestKind.localUse;
+    else if (inlayHints)
+		request.kind |= RequestKind.inlayHints;
 	else
 		request.kind |= RequestKind.autocomplete;
 
@@ -255,6 +258,8 @@ int runClient(string[] args)
 		printSearchResponse(response);
 	else if (localUse)
 		printLocalUse(response);
+	else if (inlayHints)
+		printInlayHintsResponse(response);
 	else
 		printCompletionResponse(response, fullOutput);
 
@@ -382,6 +387,17 @@ void printLocationResponse(ref const AutocompleteResponse response)
 		writeln("Not found");
 	else
 		writeln(makeTabSeparated(response.symbolFilePath, response.symbolLocation.to!string));
+}
+
+void printInlayHintsResponse(ref const AutocompleteResponse response)
+{
+	auto app = appender!(string[])();
+	foreach (ref completion; response.completions)
+    {
+        app.put(makeTabSeparated(completion.symbolLocation.to!string, completion.identifier));
+    }
+	foreach (line; app.data)
+		writeln(line);
 }
 
 void printCompletionResponse(ref const AutocompleteResponse response, bool extended)
