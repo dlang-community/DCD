@@ -35,6 +35,8 @@ import dparse.ast;
 import dparse.lexer;
 import std.algorithm : filter;
 import std.range;
+import std.stdio;
+import io = std.stdio;
 
 void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCache cache)
 {
@@ -56,6 +58,28 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 		{
 			resolveType(currentSymbol.acSymbol, currentSymbol.typeLookups,
 				moduleScope, cache);
+		}
+
+		if (currentSymbol.acSymbol.type && currentSymbol.typeLookups.length > 0)
+		{
+			foreach(lookup; currentSymbol.typeLookups[]) {
+
+				writeln("lookup: ", lookup.breadcrumbs[], " ctx: ", lookup.ctx.root);
+				if (lookup.ctx.root)
+				{
+					auto type = currentSymbol.acSymbol.type;
+					if (type.kind == structName || type.kind == className || type.kind == functionName || type.kind)
+					{
+						if (lookup.ctx.root.args.length > 0)
+						{
+							DSymbol*[string] mapping;
+							int depth;
+							resolveTemplate(currentSymbol.acSymbol, type, lookup, lookup.ctx.root, moduleScope, cache, depth, mapping);
+							break;
+						}
+					}
+				}
+			}
 		}
 		break;
 	case importSymbol:
@@ -81,8 +105,22 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 		break;
 	}
 
+	// let's be methodic about the way we traverse symbols
+	// so that childs have access to resolved symbols
+	// functions should be last, because inside, there might be symbols that references
+	// code from the parent not yet resolved (templates)
 	foreach (child; currentSymbol.children)
-		secondPass(child, moduleScope, cache);
+		if (child.acSymbol.kind != CompletionKind.variableName && child.acSymbol.kind != CompletionKind.functionName)
+			secondPass(child, moduleScope, cache);
+
+	foreach (child; currentSymbol.children)
+		if (child.acSymbol.kind == CompletionKind.variableName)
+			secondPass(child, moduleScope, cache);
+
+	foreach (child; currentSymbol.children)
+		if (child.acSymbol.kind == CompletionKind.functionName)
+			secondPass(child, moduleScope, cache);
+
 
 	// Alias this and mixin templates are resolved after child nodes are
 	// resolved so that the correct symbol information will be available.
@@ -99,6 +137,323 @@ void secondPass(SemanticSymbol* currentSymbol, Scope* moduleScope, ref ModuleCac
 	default:
 		break;
 	}
+}
+/**
+ * Extract the return type from the callTip of a function symbol
+ */
+string extractReturnType(string callTip)
+{
+	import std.string: indexOf;
+
+	auto spaceIndex = callTip.indexOf(" ");
+	if (spaceIndex <= 0) return "";
+
+	auto retPart = callTip[0 .. spaceIndex];
+	auto returnTypeConst = retPart.length > 6 ? retPart[0 .. 6] == "const(" : false;
+	auto returnTypeInout = retPart.length > 6 ? retPart[0 .. 6] == "inout(" : false;
+	if (returnTypeConst || returnTypeInout)
+	{
+		retPart = retPart[retPart.indexOf("(") + 1 .. $];
+		retPart = retPart[0 .. retPart.indexOf(")")];
+	}
+	auto returnTypePtr = retPart[$-1] == '*';
+	auto returnTypeArr = retPart[$-1] == ']';
+	if (returnTypePtr)
+	{
+		retPart = retPart[0 .. $-1];
+	}
+	return retPart;
+}
+
+/**
+ * Copy a Type symbol with templates arguments
+ * Returns: Copy of Type symbol
+ */
+DSymbol* createTypeWithTemplateArgs(DSymbol* type, TypeLookup* lookup, VariableContext.TypeInstance* ti, ref ModuleCache cache, Scope* moduleScope, ref int depth, DSymbol*[string] m)
+{
+	assert(type);
+	DSymbol* newType = GCAllocator.instance.make!DSymbol("dummy", CompletionKind.dummy, null);
+	newType.name = ti ? istring(ti.calltip) : istring(lookup.ctx.calltip);
+
+	// TODO: need to set the name in first.d
+	if (newType.name.length == 0)
+		newType.name = type.name;
+
+	print_tab(depth); io.write(">>", type.name, " > ", newType.name, " ::", ti," args: ", ti.args.length, " ct: ", ti.calltip);
+	writeln();
+
+	newType.kind = type.kind;
+	newType.qualifier = type.qualifier;
+	newType.protection = type.protection;
+	newType.symbolFile = type.symbolFile;
+	newType.doc = type.doc;
+	newType.type = type.type;
+	DSymbol*[string] mapping;
+
+	int count = 0;
+	if (ti.args.length > 0)
+	{
+		foreach(part; type.opSlice())
+		{
+			if (part.kind == CompletionKind.typeTmpParam)
+			{
+				scope(exit) count++;
+				if (count >= ti.args.length)
+				{
+					print_tab(depth);writeln("too many T for args available, investigate");
+					continue;
+				}
+				auto key = part.name;
+
+				print_tab(depth);writeln("> check template arg: ", key);
+				print_tab(depth);io.write("chain: ");
+				foreach(i, crumb; ti.args[count].chain)
+				{
+					io.write(crumb, ", ");
+				}
+				writeln("");
+
+				DSymbol* first;
+				bool isBuiltin;
+				foreach(i, crumb; ti.args[count].chain)
+				{
+					auto argName = crumb;
+					if (i == 0)
+					{
+						if (m && key in m)
+						{
+							argName = m[key].name;
+						}
+
+						// check if that's a built in type
+						// if it is, then use it and skip the type creation step
+						foreach(builtin; builtinSymbols)
+						{
+							if (builtin.name == crumb)
+							{
+								first = builtin;
+								isBuiltin = true;
+								break;
+							}
+						}
+						auto result = moduleScope.getSymbolsAtGlobalScope(istring(argName));
+						if (result.length == 0)
+						{
+							print_tab(depth);writeln("modulescope: symbol not found: ", argName);
+							break;
+						}
+						first = result[0];
+						print_tab(depth);writeln("modulescope: symbol found: ", argName, " -> ", first.name);
+					}
+					else
+					{
+						first = first.getFirstPartNamed(istring(argName));
+						if (first)
+						{
+							print_tab(depth);writeln("symbol found: ", argName, " -> ", first.name);
+						}
+						else
+						{
+								print_tab(depth);writeln("symbol not found: ", argName);
+						}
+					}
+				}
+
+				if (first is null)
+					continue;
+
+				print_tab(depth);writeln(">> ok");
+				auto ca = ti.args[count];
+				if (ca.chain.length > 0) 
+				{
+					int indepth = depth + 1;
+					auto stomap = isBuiltin ? first : createTypeWithTemplateArgs(first, lookup, ca, cache, moduleScope, indepth, null);
+					mapping[key] = stomap;
+
+					print_tab(depth);writeln("mapping[",key,"] -> ", stomap.name, " builtin: ", isBuiltin);
+				}
+			}
+			else
+			{
+				//writeln(">>>>>>>>>>>>>>> what: ", part.kind," ", part.name);
+			}
+		}
+	}
+
+	// HACK: to support functions with template arguments that return a generic type
+	// first.d in processParameters only store the function's return type in the callTip
+	// maybe it's time to properly handle it by creating a proper symbol, so we can have
+	// proper support for functions that return complex types such as templates
+	if (type.kind == CompletionKind.functionName)
+	{
+		auto callTip = type.callTip;
+		if (callTip && callTip.length > 1)
+		{
+			auto retType = extractReturnType(callTip);
+			if (retType in mapping)
+			{
+				auto result = mapping[retType];
+				newType.ownType = result.kind == CompletionKind.keyword ? false : true;
+				newType.type = result;
+			}
+		}
+	}
+
+	writeln("-");
+
+	assert(newType);
+	string[] T_names;
+	foreach(part; type.opSlice())
+	{
+		if (part.kind == CompletionKind.typeTmpParam)
+		{
+			T_names ~= part.name;
+		}
+		else 
+		if (part.type && part.type.kind == CompletionKind.typeTmpParam)
+		{
+
+			print_tab(depth); writeln("part: ", part.name,": ", part.type.name);
+			DSymbol* newPart = GCAllocator.instance.make!DSymbol(part.name, part.kind, null);
+			newPart.qualifier = part.qualifier;
+			newPart.protection = part.protection;
+			newPart.symbolFile = part.symbolFile;
+			newPart.doc = part.doc;
+			newPart.callTip = part.callTip;
+
+			if (part.type.name in mapping)
+			{
+				auto result = mapping[part.type.name];
+				newPart.ownType = result.kind == CompletionKind.keyword ? false : true;
+				newPart.type = result;
+			}
+			else if (m && part.type.name in m)
+			{
+				auto result =  m[part.type.name];
+				newPart.ownType = result.kind == CompletionKind.keyword ? false : true;
+				newPart.type = result;
+			}
+
+			newType.addChild(newPart, true);
+		}
+		else if (part.type && part.type.name == "*arr*" && part.type.type && part.type.type.kind == CompletionKind.typeTmpParam)
+		{
+			auto arrSymbol = part.type;
+			auto arrTypeTSymbol = arrSymbol.type;
+
+			print_tab(depth); writeln("array: ", part.name,": ", arrTypeTSymbol.name,"[]");
+
+
+			DSymbol* newPart = GCAllocator.instance.make!DSymbol(part.name, part.kind, null);
+			newPart.qualifier = part.qualifier;
+			newPart.protection = part.protection;
+			newPart.symbolFile = part.symbolFile;
+			newPart.doc = part.doc;
+			newPart.callTip = part.callTip;
+
+			// create new array shit
+
+
+			if (arrTypeTSymbol.name in mapping)
+			{
+				auto result = mapping[arrTypeTSymbol.name];
+				print_tab(depth); writeln(" ", arrTypeTSymbol.name, " =>: ", result.name);
+
+				auto newarr = GCAllocator.instance.make!DSymbol(arrSymbol.name , arrSymbol.kind, result);
+				newarr.ownType = false;
+				newPart.type = newarr;
+				newPart.ownType = true;
+			}
+
+			newType.addChild(newPart, false);
+		}
+		else
+		{
+
+			print_tab(depth); writeln("missing part: ", part.name,": ", part.type);
+			// BUG: doing it recursively messes with the mapping
+			// i need to debug this and figure out perhaps a better way to do this stuff
+			// maybe move the VariableContext to the symbol directly
+			// i'll need to experiemnt with it
+
+			//DSymbol* part_T;
+			//if (depth < 50)
+			//if (part.type && part.kind == CompletionKind.variableName)
+			//foreach(partPart; part.type.opSlice())
+			//{
+			//    if (partPart.kind == CompletionKind.typeTmpParam)
+			//    {
+			//    	part_T = part;
+			//        foreach(arg; ti.args)
+			//        {
+			//            warning(" > ", arg.chain);
+			//            foreach(aa; arg.args)
+			//            	warning("    > ", aa.chain);
+			//        }
+			//		int indepth = depth;
+			//        warning("go agane ", part.name, " ", part.type.name, " with arg: ", ti.chain," Ts: ", T_names);
+			//        resolveTemplate(part, part.type, lookup, ti, moduleScope, cache, indepth, mapping);
+			//        break;
+			//    }
+			//    //else if (partPart.type && partPart.type.kind == CompletionKind.typeTmpParam)
+			//    //{
+			//    //	warning("here!".red," ", partPart.name," ", partPart.type.name);
+			//    //}
+			//}
+			newType.addChild(part, false);
+		}
+	}
+	return newType;
+}
+
+void print_tab(int index)
+{
+	enum C = 4;
+	for(int i =0; i < index*4; i++) io.write(" "); 
+}
+
+/**
+ * Resolve template arguments
+ */
+void resolveTemplate(DSymbol* variableSym, DSymbol* type, TypeLookup* lookup, VariableContext.TypeInstance* current, Scope* moduleScope, ref ModuleCache cache, ref int depth, DSymbol*[string] mapping = null)
+{
+	depth += 1;
+
+	if (variableSym is null || type is null) return;
+	if (current.chain.length == 0) return; // TODO: should not be empty, happens for simple stuff Inner inner; TODO: i forgot why, add a test
+
+	writeln("> Resolve template for: ",variableSym.name, ": ", type.name);
+	writeln("ctx callTip: ", lookup.ctx.calltip);
+
+
+	void printti(VariableContext.TypeInstance* it, ref int index)
+	{
+		print_tab(index); io.write("chain:", it.chain, "name: ", it.name, " ct: ", it.calltip, " args: ", it.args.length, "\n");
+		index += 1;
+		foreach(itt; it.args)
+		{
+			int inindex = index;
+			printti(itt, inindex);
+		}
+	}
+	int index = 0;
+	printti(lookup.ctx.root, index);
+
+	writeln("");
+	writeln("");
+	DSymbol* newType = createTypeWithTemplateArgs(type, lookup, current, cache, moduleScope, depth, mapping);
+
+
+	writeln("");
+	writeln("resolved:", variableSym.name, " > ", newType.name);
+
+	if (depth == 1)
+	{
+		newType.name = istring(lookup.ctx.calltip);
+	}
+
+	variableSym.type = newType;
+	variableSym.ownType = true;
 }
 
 void resolveImport(DSymbol* acSymbol, ref TypeLookups typeLookups,
@@ -281,10 +636,12 @@ do
 	if (lastSuffix !is null)
 	{
 		assert(suffix !is null);
+		typeSwap(currentSymbol);
 		suffix.type = currentSymbol;
 		suffix.ownType = false;
 		symbol.type = lastSuffix;
 		symbol.ownType = true;
+
 		if (currentSymbol is null && !remainingImports.empty)
 		{
 			//			info("Deferring type resolution for ", symbol.name);
@@ -320,6 +677,9 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 	size_t i = 0;
 
 	auto crumbs = lookup.breadcrumbs[];
+
+	writeln(">> crumbs: ", crumbs);
+	writeln(">> name:   ", symbol.name);
 	foreach (crumb; crumbs)
 	{
 		if (i == 0)
@@ -328,7 +688,10 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 				symbolNameToTypeName(crumb), symbol.location);
 
 			if (currentSymbol is null)
+			{
+				writeln("return 0");
 				return;
+			}
 		}
 		else if (crumb == ARRAY_LITERAL_SYMBOL_NAME)
 		{
@@ -340,7 +703,10 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 		{
 			typeSwap(currentSymbol);
 			if (currentSymbol is null)
+			{
+				writeln("return");
 				return;
+			}
 
 			// Index expressions can be on a pointer, an array or an AA
 			if (currentSymbol.qualifier == SymbolQualifier.array
@@ -349,9 +715,15 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 				|| currentSymbol.kind == CompletionKind.aliasName)
 			{
 				if (currentSymbol.type !is null)
+				{
+					writeln("here! ", currentSymbol.type.name);
 					currentSymbol = currentSymbol.type;
+				}
 				else
+				{
+					writeln("nope!");
 					return;
+				}
 			}
 			else
 			{
@@ -359,7 +731,11 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 				if (opIndex !is null)
 					currentSymbol = opIndex.type;
 				else
-					return;
+				{
+					writeln("return weird");
+					writeln("s: ", currentSymbol.name, " ", currentSymbol.qualifier);
+					continue;
+				}
 			}
 		}
 		else if (crumb == "foreach")
@@ -388,18 +764,29 @@ void resolveTypeFromInitializer(DSymbol* symbol, TypeLookup* lookup,
 		}
 		else
 		{
+			writeln("here");
 			typeSwap(currentSymbol);
 			if (currentSymbol is null)
+			{
+
+				writeln("return", i);
 				return;
+			}
 			currentSymbol = currentSymbol.getFirstPartNamed(crumb);
 		}
 		++i;
 		if (currentSymbol is null)
+		{
+			writeln("return end", i);
 			return;
+		}
 	}
 	typeSwap(currentSymbol);
 	symbol.type = currentSymbol;
 	symbol.ownType = false;
+
+	if (currentSymbol)
+		writeln(">> type:   ", currentSymbol.name);
 }
 
 private:

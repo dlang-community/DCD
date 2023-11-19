@@ -1,0 +1,2 @@
+identifiers
+read_test	f	void read_test()	stdin 38		void

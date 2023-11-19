@@ -1,8 +1,8 @@
 identifiers
 alignof	k				
-i	v	int i	stdin 21		int
-init	k				
+init	k				int
 mangleof	k				
+max	k				int
+min	k				int
 sizeof	k				
 stringof	k				
-tupleof	k				

@@ -1,2 +1,2 @@
 identifiers
-bar	v	foo bar	stdin 92		
+bar	v		stdin 92		

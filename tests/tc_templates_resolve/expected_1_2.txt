@@ -1,8 +1,9 @@
 identifiers
 alignof	k				
-i	v	int i	stdin 21		int
 init	k				
 mangleof	k				
 sizeof	k				
 stringof	k				
 tupleof	k				
+value_t	v	A value_t	stdin 0		A
+value_u	v	B value_u	stdin 0		B

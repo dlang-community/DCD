@@ -199,7 +199,7 @@ unittest
 	};
 	ScopeSymbolPair pair = generateAutocompleteTrees(source, cache);
 	DSymbol* meaningOfLife = pair.symbol.getFirstPartNamed(istring("meaningOfLife"));
-	assert(meaningOfLife.type.name == "*arr*");
+	assert(meaningOfLife.type.name == "int[]");
 
 }
 

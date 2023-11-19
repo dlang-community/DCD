@@ -39,6 +39,7 @@ import std.experimental.allocator.gc_allocator : GCAllocator;
 import std.experimental.logger;
 import std.meta : AliasSeq;
 import std.typecons : Rebindable;
+import std.stdio;
 
 /**
  * First Pass handles the following:
@@ -238,10 +239,239 @@ final class FirstPass : ASTVisitor
 		currentSymbol.addChild(symbol, true);
 		symbol.acSymbol.protection = protection.current;
 	}
+	
+
+	void processIdentifierOrTemplate(SemanticSymbol* symbol, TypeLookup* lookup, VariableContext* ctx, VariableContext.TypeInstance* current, IdentifierOrTemplateInstance ioti)
+	{
+		if (ioti.identifier != tok!"")
+			current.chain ~= ioti.identifier.text;
+		else if (ioti.templateInstance)
+			processTemplateInstance(symbol, lookup, ctx, current, ioti.templateInstance);
+	}
+
+	void processTypeIdentifierPart(SemanticSymbol* symbol, TypeLookup* lookup, VariableContext* ctx, VariableContext.TypeInstance* current, TypeIdentifierPart tip)
+	{
+		if (tip.identifierOrTemplateInstance)
+		{
+			processIdentifierOrTemplate(symbol, lookup, ctx, current, tip.identifierOrTemplateInstance);
+			if (current)
+			{
+				current.calltip = buildCalltip(tip.identifierOrTemplateInstance.tokens);
+			}
+		}
+
+		if (tip.typeIdentifierPart)
+		{
+			processTypeIdentifierPart(symbol, lookup, ctx, current, tip.typeIdentifierPart);
+		}
+
+		// TODO: handle `tip.dot` and `tip.indexer`
+	}
+
+	void processTemplateArguments(SemanticSymbol* symbol, TypeLookup* lookup, VariableContext* ctx, VariableContext.TypeInstance* current, TemplateArguments targs)
+	{
+		if (targs.namedTemplateArgumentList)
+		{
+			foreach(i, targ; targs.namedTemplateArgumentList.items)
+			{
+				// TODO: handle targ.assignExpression
+				if (targ.type is null) continue;
+				if (targ.type.type2 is null) continue;
+
+				auto part = targ.type.type2.typeIdentifierPart;
+				if (part is null)
+				{
+					if (targ.type.type2.builtinType == tok!"") continue;
+					auto builtInName = getBuiltinTypeName(targ.type.type2.builtinType);
+					auto newArg = GCAllocator.instance.make!(VariableContext.TypeInstance)();
+					newArg.chain ~= builtInName;
+					current.args ~= newArg;
+					continue;
+				}
+
+				auto newArg = GCAllocator.instance.make!(VariableContext.TypeInstance)();
+				current.args ~= newArg;
+
+				if (part.identifierOrTemplateInstance)
+				{
+					processIdentifierOrTemplate(symbol, lookup, ctx, newArg, part.identifierOrTemplateInstance);
+				}
+				if (part.typeIdentifierPart)
+				{
+					if (part.typeIdentifierPart.identifierOrTemplateInstance)
+						processIdentifierOrTemplate(symbol, lookup, ctx, newArg, part.typeIdentifierPart.identifierOrTemplateInstance);
+				}
+
+				foreach(suffix; targ.type.typeSuffixes)
+				{
+					if (suffix.type)
+						current.calltip ~= "[.]";
+					else if (suffix.array)
+						current.calltip ~= "[]";
+					else if (suffix.star != tok!"")
+						current.calltip ~= "*";
+				}
+			}
+		}
+		else if (targs.templateSingleArgument)
+		{
+			auto singleArg = targs.templateSingleArgument;
+			auto arg = GCAllocator.instance.make!(VariableContext.TypeInstance)();
+			arg.name = singleArg.token.text;
+			arg.chain ~= arg.name;
+			current.args ~= arg;
+		}
+	}
+
+	void processTemplateInstance(SemanticSymbol* symbol, TypeLookup* lookup, VariableContext* ctx, VariableContext.TypeInstance* current, TemplateInstance ti)
+	{
+		if (ti.identifier != tok!"")
+			current.chain ~= ti.identifier.text;
+
+		if (ti.templateArguments)
+			processTemplateArguments(symbol, lookup, ctx, current, ti.templateArguments);
+	}
+
+	void buildChain(SemanticSymbol* symbol, TypeLookup* lookup, VariableContext* ctx, TypeIdentifierPart tip)
+	{
+		if (tip.identifierOrTemplateInstance)
+			buildChainTemplateOrIdentifier(symbol, lookup, ctx, tip.identifierOrTemplateInstance);
+		if (tip.typeIdentifierPart)
+			buildChain(symbol, lookup, ctx, tip.typeIdentifierPart);
+		// TODO: handle `tip.indexer`
+	}
+
+	void buildChainTemplateOrIdentifier(SemanticSymbol* symbol, TypeLookup* lookup, VariableContext* ctx, IdentifierOrTemplateInstance iot)
+	{
+		if (iot.templateInstance)
+		{
+			if (iot.templateInstance.identifier != tok!"")
+				lookup.breadcrumbs.insert(istring(iot.templateInstance.identifier.text));
+
+			// TODO: finish handling `iot.templateInstance.templateArguments`
+			if (iot.templateInstance.templateArguments) 
+			{
+				if (iot.templateInstance.templateArguments.templateSingleArgument)
+				{
+					auto tsaTok = iot.templateInstance.templateArguments.templateSingleArgument.token;
+					if (tsaTok.text == "")
+						lookup.breadcrumbs.insert(istring(str(tsaTok.type)));
+					// TODO: investigate why this break everything
+					// else
+					// 	lookup.breadcrumbs.insert(istring(tsaTok.text));
+				}
+			}
+		}
+		else
+		{
+			auto crumb = iot.identifier;
+			lookup.breadcrumbs.insert(istring(crumb.text));
+		}
+	}
+
+	string buildCalltip(const(Token)[] tokens)
+	{
+		string calltip;
+		foreach(tk; tokens)
+		{
+			if (tk == tok!"!")
+				calltip ~= "!";
+			else if (tk == tok!"(")
+				calltip ~= "(";
+			else if (tk == tok!")")
+				calltip ~= ")";
+			else if (tk == tok!"[")
+				calltip ~= "[";
+			else if (tk == tok!"]")
+				calltip ~= "]";
+			else if (tk == tok!",")
+				calltip ~= ",";
+			else if (tk == tok!"*")
+				calltip ~= "*";
+			else if (tk == tok!"")
+				calltip ~= " ";
+			else
+				calltip ~= tk.text;
+		}
+		return calltip;
+	}
+
+	void traverseUnaryExpression(SemanticSymbol* symbol, TypeLookup* lookup, VariableContext* ctx, UnaryExpression ue)
+	{
+		if (PrimaryExpression pe = ue.primaryExpression)
+		{
+			if (pe.identifierOrTemplateInstance)
+				buildChainTemplateOrIdentifier(symbol, lookup, ctx, pe.identifierOrTemplateInstance);
+
+			if (pe.basicType != tok!"")
+				lookup.breadcrumbs.insert(internString(str(pe.basicType.type)));
+			switch (pe.primary.type)
+			{
+			case tok!"identifier":
+				lookup.breadcrumbs.insert(internString(pe.primary.text));
+				break;
+			case tok!"doubleLiteral":
+				lookup.breadcrumbs.insert(DOUBLE_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"floatLiteral":
+				lookup.breadcrumbs.insert(FLOAT_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"idoubleLiteral":
+				lookup.breadcrumbs.insert(IDOUBLE_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"ifloatLiteral":
+				lookup.breadcrumbs.insert(IFLOAT_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"intLiteral":
+				lookup.breadcrumbs.insert(INT_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"longLiteral":
+				lookup.breadcrumbs.insert(LONG_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"realLiteral":
+				lookup.breadcrumbs.insert(REAL_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"irealLiteral":
+				lookup.breadcrumbs.insert(IREAL_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"uintLiteral":
+				lookup.breadcrumbs.insert(UINT_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"ulongLiteral":
+				lookup.breadcrumbs.insert(ULONG_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"characterLiteral":
+				lookup.breadcrumbs.insert(CHAR_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"dstringLiteral":
+				lookup.breadcrumbs.insert(DSTRING_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"stringLiteral":
+				lookup.breadcrumbs.insert(STRING_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"wstringLiteral":
+				lookup.breadcrumbs.insert(WSTRING_LITERAL_SYMBOL_NAME);
+				break;
+			case tok!"false":
+			case tok!"true":
+				lookup.breadcrumbs.insert(BOOL_VALUE_SYMBOL_NAME);
+				break;
+			default:
+				break;
+			}
+		}
+
+		if (IdentifierOrTemplateInstance iot = ue.identifierOrTemplateInstance)
+			buildChainTemplateOrIdentifier(symbol, lookup, ctx, iot);
+
+		if(ue.unaryExpression) 
+			traverseUnaryExpression(symbol, lookup, ctx, ue.unaryExpression);
+	}
 
 	override void visit(const VariableDeclaration dec)
 	{
 		assert (currentSymbol);
+
 		foreach (declarator; dec.declarators)
 		{
 			SemanticSymbol* symbol = allocateSemanticSymbol(
@@ -261,6 +491,29 @@ final class FirstPass : ASTVisitor
 				structFieldNames.insert(symbol.acSymbol.name);
 				// TODO: remove this cast. See the note on structFieldTypes
 				structFieldTypes.insert(cast() dec.type);
+			}
+
+			auto lookup = symbol.typeLookups.front;
+
+			if (dec.type && dec.type.type2 && dec.type.type2.typeIdentifierPart)
+			{
+				TypeIdentifierPart typeIdentifierPart = cast(TypeIdentifierPart) dec.type.type2.typeIdentifierPart;
+				lookup.ctx.root = GCAllocator.instance.make!(VariableContext.TypeInstance)();
+
+				if (typeIdentifierPart.identifierOrTemplateInstance)
+					lookup.ctx.calltip = buildCalltip(typeIdentifierPart.identifierOrTemplateInstance.tokens);
+
+				foreach(suffix; dec.type.typeSuffixes)
+				{
+					if (suffix.type)
+						lookup.ctx.calltip ~= "[.]";
+					else if (suffix.array)
+						lookup.ctx.calltip ~= "[]";
+					else if (suffix.star != tok!"")
+						lookup.ctx.calltip ~= "*";
+				}
+
+				processTypeIdentifierPart(symbol, lookup, &lookup.ctx, lookup.ctx.root, typeIdentifierPart);
 			}
 		}
 		if (dec.autoDeclaration !is null)
@@ -283,6 +536,111 @@ final class FirstPass : ASTVisitor
 					structFieldNames.insert(symbol.acSymbol.name);
 					// TODO: remove this cast. See the note on structFieldTypes
 					structFieldTypes.insert(null);
+				}
+
+				auto lookup = symbol.typeLookups.front;
+
+				istring[] original;
+				foreach(c; lookup.breadcrumbs[])
+					original ~= c;
+				writeln("## var: ", symbol.acSymbol.name);
+				writeln("## lookup breadcrumbs: ", lookup.breadcrumbs[]);
+
+				auto initializer = part.initializer.nonVoidInitializer;
+				if (initializer && initializer.assignExpression)
+				{
+					UnaryExpression unary = cast(UnaryExpression) initializer.assignExpression;
+
+					if (unary && (unary.newExpression || unary.indexExpression))
+						continue;
+
+					lookup.breadcrumbs.clear();
+					if (unary)
+					{
+						if (CastExpression castExpression = unary.castExpression)
+						{
+							if (castExpression.type && castExpression.type.type2)
+							{
+								Type2 t2 = castExpression.type.type2;
+								if (t2 && t2.typeIdentifierPart)
+									buildChain(symbol, lookup, &lookup.ctx, t2.typeIdentifierPart);
+							}
+							continue;
+						}
+						else if (FunctionCallExpression fc = unary.functionCallExpression)
+							unary = fc.unaryExpression;
+						// build chain
+						traverseUnaryExpression(symbol, lookup, &lookup.ctx, unary);
+						// needs to be reversed because it got added in order (right->left)
+						auto crumbs = &lookup.breadcrumbs;
+						istring[] result;
+						foreach(c; *crumbs)
+							result ~= c;
+
+						writeln("## result: ", result);
+						crumbs.clear();
+						foreach_reverse(c; result)
+							lookup.breadcrumbs.insert(c);
+
+						again:
+
+						// check template
+						if (IdentifierOrTemplateInstance iot = unary.identifierOrTemplateInstance)
+						{
+							if (iot.templateInstance)
+							{
+								lookup.ctx.root = GCAllocator.instance.make!(VariableContext.TypeInstance)();
+								processTemplateInstance(symbol, lookup, &lookup.ctx, lookup.ctx.root, iot.templateInstance);
+							}
+							else
+							{
+								writeln("something else2; ", iot.identifier.text, " original: ", original);
+
+								if (original.length > 0 && original[$-1] == "*arr*")
+								{
+									lookup.breadcrumbs.clear();
+									foreach(c; original)
+										lookup.breadcrumbs.insert(c);
+									foreach_reverse(c; result)
+										lookup.breadcrumbs.insert(c);
+								}
+							}
+						}
+						else if (PrimaryExpression pe = unary.primaryExpression)
+						{
+							if (pe.identifierOrTemplateInstance)
+							{
+								if (pe.identifierOrTemplateInstance.templateInstance)
+								{
+									lookup.ctx.root = GCAllocator.instance.make!(VariableContext.TypeInstance)();
+									processTemplateInstance(symbol, lookup, &lookup.ctx, lookup.ctx.root, pe.identifierOrTemplateInstance.templateInstance);
+								}
+								else
+								{
+									writeln("something else2; ", pe.identifierOrTemplateInstance.identifier.text);
+								}
+							}
+							else
+							{
+								writeln("something else other");
+							}
+						}
+						else
+						{
+							writeln("something else final");
+							if (unary.unaryExpression)
+							{
+								unary = unary.unaryExpression;
+								goto again;
+							}
+							else
+							{
+								foreach(c; original)
+									lookup.breadcrumbs.insert(c);
+							}
+
+						}
+					}
 				}
 			}
 		}

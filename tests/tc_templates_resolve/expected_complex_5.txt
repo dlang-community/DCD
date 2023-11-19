@@ -1,0 +1,10 @@
+identifiers
+alignof	k				
+init	k				
+inside_aganetwo	v	int inside_aganetwo	stdin 186		int
+mangleof	k				
+sizeof	k				
+stringof	k				
+tupleof	k				
+yo_T	v	A yo_T	stdin 0		A
+yo_U	v	B yo_U	stdin 0		B
