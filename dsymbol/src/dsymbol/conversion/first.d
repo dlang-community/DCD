@@ -1006,7 +1006,6 @@ private:
 						break;
 					}
 				}
-				currentSymbol.acSymbol.argNames.insert(parameter.acSymbol.name);
 
 				currentSymbol.acSymbol.functionParameters ~= parameter.acSymbol;
 
