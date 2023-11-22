@@ -386,11 +386,6 @@ struct DSymbol
 
 	// Is alias this symbols
 	DSymbol*[] aliasThisSymbols;
-	/**
-	 * Names of function arguments
-	 */
-	// TODO: remove since we have function arguments
-	UnrolledList!(istring) argNames;
 
 	/**
 	 * Function parameter symbols
