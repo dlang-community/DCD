@@ -1358,6 +1358,10 @@ void writeIotcTo(T)(const TypeIdentifierPart tip, ref T output) nothrow
 {
 	if (!tip.identifierOrTemplateInstance)
 		return;
+
+	if (tip.dot)
+		output.insert(MODULE_SYMBOL_NAME);
+
 	if (tip.identifierOrTemplateInstance.identifier != tok!"")
 		output.insert(internString(tip.identifierOrTemplateInstance.identifier.text));
 	else

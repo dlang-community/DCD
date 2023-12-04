@@ -24,3 +24,11 @@ unittest
 	auto from_cast = cast(A.B.C) nonExist;
 	from_cast.
 }
+
+unittest
+{
+	struct A {}
+
+	auto from_cast = cast(.A.B.C) nonExist;
+	from_cast.
+}

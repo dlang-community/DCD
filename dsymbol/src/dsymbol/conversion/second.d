@@ -263,7 +263,14 @@ do
 				getSymbolFromImports(imports, part);
 			else
 			{
-				auto symbols = moduleScope.getSymbolsByNameAndCursor(part, symbol.location);
+				auto symbols = part == MODULE_SYMBOL_NAME
+					? {
+						assert(!breadcrumbs.empty);
+						part = breadcrumbs.front;
+						breadcrumbs.popFront();
+						return moduleScope.getSymbolsByName(part);
+					}()
+					: moduleScope.getSymbolsByNameAndCursor(part, symbol.location);
 				if (symbols.length > 0)
 					currentSymbol = symbols[0];
 				else
