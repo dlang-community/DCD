@@ -314,6 +314,19 @@ Otherwise the client outputs _00000_ so that the length of the answer is guarant
     45
     133
 
+## Inlay Hints
+
+Build a list of extra annoations for your IDE to display.
+You must submit the content of the current file displayed in your editor.
+
+    dcd-client --inlayHints
+
+This is a W.I.P., currently it only provide annoatations about aliases for your variables,
+more is planned.
+
+#### Example output
+
+    l   ->MyAlias->MyType   42
 
 # Server
 

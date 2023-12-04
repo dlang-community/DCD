@@ -24,3 +24,4 @@ import dcd.server.autocomplete.complete;
 import dcd.server.autocomplete.doc;
 import dcd.server.autocomplete.localuse;
 import dcd.server.autocomplete.symbols;
+import dcd.server.autocomplete.inlayhints;

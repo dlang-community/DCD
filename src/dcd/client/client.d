@@ -62,6 +62,7 @@ int runClient(string[] args)
 	bool clearCache;
 	bool symbolLocation;
 	bool doc;
+	bool inlayHints;
 	bool query;
 	bool printVersion;
 	bool listImports;
@@ -86,6 +87,7 @@ int runClient(string[] args)
 			"R", &removedImportPaths, "port|p", &port, "help|h", &help,
 			"shutdown", &shutdown, "clearCache", &clearCache,
 			"symbolLocation|l", &symbolLocation, "doc|d", &doc,
+			"inlayHints", &inlayHints,
 			"query|status|q", &query, "search|s", &search,
 			"version", &printVersion, "listImports", &listImports,
 			"tcp", &useTCP, "socketFile", &socketFile,
@@ -181,7 +183,7 @@ int runClient(string[] args)
 		printImportList(response);
 		return 0;
 	}
-	else if (search == null && cursorPos == size_t.max)
+	else if (search == null && !inlayHints && cursorPos == size_t.max)
 	{
 		// cursor position is a required argument
 		printHelp(args[0]);
@@ -234,6 +236,8 @@ int runClient(string[] args)
 		request.kind |= RequestKind.search;
 	else if(localUse)
 		request.kind |= RequestKind.localUse;
+    else if (inlayHints)
+		request.kind |= RequestKind.inlayHints;
 	else
 		request.kind |= RequestKind.autocomplete;
 
@@ -255,6 +259,8 @@ int runClient(string[] args)
 		printSearchResponse(response);
 	else if (localUse)
 		printLocalUse(response);
+	else if (inlayHints)
+		printInlayHintsResponse(response);
 	else
 		printCompletionResponse(response, fullOutput);
 
@@ -294,6 +300,10 @@ Options:
     --doc | -d
         Gets documentation comments associated with the symbol at the cursor
         location.
+
+    --inlayHints
+        For all supported variable usages, show value types. Currently shows
+        alias definitions.
 
     --search | -s symbolName
         Searches for symbolName in both stdin / the given file name as well as
@@ -382,6 +392,21 @@ void printLocationResponse(ref const AutocompleteResponse response)
 		writeln("Not found");
 	else
 		writeln(makeTabSeparated(response.symbolFilePath, response.symbolLocation.to!string));
+}
+
+void printInlayHintsResponse(ref const AutocompleteResponse response)
+{
+	auto app = appender!(string[])();
+	foreach (ref completion; response.completions)
+	{
+		app.put(makeTabSeparated(
+			completion.kind == char.init ? "" : "" ~ completion.kind,
+			completion.identifier,
+			completion.symbolLocation.to!string
+		));
+	}
+	foreach (line; app.data)
+		writeln(line);
 }
 
 void printCompletionResponse(ref const AutocompleteResponse response, bool extended)

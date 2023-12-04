@@ -78,10 +78,12 @@ enum RequestKind : ushort
 	localUse =     	 0b00000010_00000000,
 	/// Remove import directory from server
 	removeImport =   0b00000100_00000000,
+    /// Get inlay hints
+	inlayHints =     0b00001000_00000000,
 
 	/// These request kinds require source code and won't be executed if there
 	/// is no source sent
-	requiresSourceCode = autocomplete | doc | symbolLocation | search | localUse,
+	requiresSourceCode = autocomplete | doc | symbolLocation | search | localUse | inlayHints,
 	// dfmt on
 }
 
