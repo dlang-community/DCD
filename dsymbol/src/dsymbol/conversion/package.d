@@ -115,6 +115,7 @@ class AutocompleteParser : Parser
 	{
 		if (!currentIs(tok!"{"))
 			return null;
+		if (cursorPosition == -1) return super.parseBlockStatement();
 		if (current.index > cursorPosition)
 		{
 			BlockStatement bs = allocator.make!(BlockStatement);
