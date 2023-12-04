@@ -1,0 +1,8 @@
+identifiers
+alignof	k
+init	k
+inside_c	v
+mangleof	k
+sizeof	k
+stringof	k
+tupleof	k
