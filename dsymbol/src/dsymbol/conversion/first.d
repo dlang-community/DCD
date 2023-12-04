@@ -1133,9 +1133,10 @@ private:
 		auto lookup = l ? l : TypeLookupsAllocator.instance.make!TypeLookup(TypeLookupKind.varOrFunType);
 
 		lookup.breadcrumbs.insert(TYPEOF_SYMBOL_NAME);
-		scope (exit)
-			lookup.breadcrumbs.insert(TYPEOF_END_SYMBOL_NAME);
 		scope visitor = new InitializerVisitor(lookup, appendForeach, this);
+		scope (exit)
+			if (!visitor.isCast)
+				lookup.breadcrumbs.insert(TYPEOF_END_SYMBOL_NAME);
 
 		if (l is null)
 			lookups.insert(lookup);
@@ -1586,6 +1587,25 @@ class InitializerVisitor : ASTVisitor
 		on = false;
 	}
 
+	override void visit(const CastExpression expression)
+	{
+		if (expression.type)
+		{
+			if (lookup.breadcrumbs.empty || lookup.breadcrumbs.back != TYPEOF_SYMBOL_NAME)
+				return;
+
+			isCast = true;
+			lookup.breadcrumbs.popBack();
+			TypeLookups none;
+			fp.addTypeToLookups(none, expression.type, lookup);
+		}
+		else
+		{
+			// we don't care about non-type casts (e.g. `cast()` or `cast(const)`) yet
+			expression.accept(this);
+		}
+	}
+
 	override void dynamicDispatch(const ExpressionNode expression)
 	{
 		on = true;
@@ -1599,6 +1619,7 @@ class InitializerVisitor : ASTVisitor
 	bool on = false;
 	const bool appendForeach;
 	FirstPass fp;
+	bool isCast;
 }
 
 class ArgumentListVisitor : ASTVisitor
