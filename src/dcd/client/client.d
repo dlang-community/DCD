@@ -86,7 +86,8 @@ int runClient(string[] args)
 		getopt(args, "cursorPos|c", &cursorPos, "I", &addedImportPaths,
 			"R", &removedImportPaths, "port|p", &port, "help|h", &help,
 			"shutdown", &shutdown, "clearCache", &clearCache,
-			"symbolLocation|l", &symbolLocation, "doc|d", &doc, "inlayHints", &inlayHints,
+			"symbolLocation|l", &symbolLocation, "doc|d", &doc,
+			"inlayHints", &inlayHints,
 			"query|status|q", &query, "search|s", &search,
 			"version", &printVersion, "listImports", &listImports,
 			"tcp", &useTCP, "socketFile", &socketFile,
@@ -182,7 +183,7 @@ int runClient(string[] args)
 		printImportList(response);
 		return 0;
 	}
-	else if (search == null && cursorPos == size_t.max)
+	else if (search == null && !inlayHints && cursorPos == size_t.max)
 	{
 		// cursor position is a required argument
 		printHelp(args[0]);
@@ -300,6 +301,10 @@ Options:
         Gets documentation comments associated with the symbol at the cursor
         location.
 
+    --inlayHints
+        For all supported variable usages, show value types. Currently shows
+        alias definitions.
+
     --search | -s symbolName
         Searches for symbolName in both stdin / the given file name as well as
         others files cached by the server.
@@ -393,9 +398,13 @@ void printInlayHintsResponse(ref const AutocompleteResponse response)
 {
 	auto app = appender!(string[])();
 	foreach (ref completion; response.completions)
-    {
-        app.put(makeTabSeparated(completion.symbolLocation.to!string, completion.identifier));
-    }
+	{
+		app.put(makeTabSeparated(
+			completion.kind == char.init ? "" : "" ~ completion.kind,
+			completion.identifier,
+			completion.symbolLocation.to!string
+		));
+	}
 	foreach (line; app.data)
 		writeln(line);
 }

@@ -326,7 +326,7 @@ more is planned.
 
 #### Example output
 
-    42    ->MyAlias->MyType
+    l   ->MyAlias->MyType   42
 
 # Server
 

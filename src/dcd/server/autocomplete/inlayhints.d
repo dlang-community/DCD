@@ -78,6 +78,7 @@ public AutocompleteResponse getInlayHints(const AutocompleteRequest request,
 		{
 			AutocompleteResponse.Completion c;
 			c.symbolLocation = it.location - 1;
+			c.kind = CompletionKind.aliasName;
 
 			DSymbol* type = it.type;
 
