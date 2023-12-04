@@ -28,6 +28,15 @@ package istring[24] builtinTypeNames;
  */
 @("*arr*") istring ARRAY_SYMBOL_NAME;
 /**
+ * In breadcrumbs this is a single entry meaning that the type following this
+ * started with a dot `.`, so module scope instead of local scope is to be used
+ * for type resolution.
+ *
+ * Note that auto-completion does not rely on this symbol, only type / symbol
+ * lookup relies on this.
+ */
+@("*arr*") istring MODULE_SYMBOL_NAME;
+/**
  * Type suffix, in breadcrumbs this is a single entry.
  *
  * To check a DSymbol type for this name, instead check `qualifier == SymbolQualifier.assocArray`
