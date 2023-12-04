@@ -104,5 +104,8 @@ public AutocompleteResponse getInlayHints(const AutocompleteRequest request,
 		foreach(part; symbol.opSlice())
 			check(part, visited);
 	}
+
+	response.completions.sort!"a.symbolLocation < b.symbolLocation";
+
 	return response;
 }
