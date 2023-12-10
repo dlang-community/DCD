@@ -57,12 +57,13 @@ public AutocompleteResponse findLocalUse(AutocompleteRequest request,
 	config.fileName = "";
 	const(Token)[] tokenArray = getTokensForParser(cast(ubyte[]) request.sourceCode,
 			config, &cache);
+	auto sortedTokens = assumeSorted(tokenArray);
+	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray,
+		&rba, request.cursorPosition, moduleCache);
+
 	SymbolStuff getSymbolsAtCursor(size_t cursorPosition)
 	{
-		auto sortedTokens = assumeSorted(tokenArray);
 		auto beforeTokens = sortedTokens.lowerBound(cursorPosition);
-		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray,
-			&rba, request.cursorPosition, moduleCache);
 		auto expression = getExpression(beforeTokens);
 		return SymbolStuff(getSymbolsByTokenChain(pair.scope_, expression,
 			cursorPosition, CompletionType.location), pair.symbol, pair.scope_);
