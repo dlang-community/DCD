@@ -60,6 +60,7 @@ public AutocompleteResponse findLocalUse(AutocompleteRequest request,
 	auto sortedTokens = assumeSorted(tokenArray);
 	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray,
 		&rba, request.cursorPosition, moduleCache);
+	scope(exit) pair.destroy();
 
 	SymbolStuff getSymbolsAtCursor(size_t cursorPosition)
 	{
@@ -71,7 +72,6 @@ public AutocompleteResponse findLocalUse(AutocompleteRequest request,
 
 	// gets the symbol matching to cursor pos
 	SymbolStuff stuff = getSymbolsAtCursor(cast(size_t)request.cursorPosition);
-	scope(exit) stuff.destroy();
 
 	// starts searching only if no ambiguity with the symbol
 	if (stuff.symbols.length == 1)
@@ -101,7 +101,6 @@ public AutocompleteResponse findLocalUse(AutocompleteRequest request,
 			{
 				size_t pos = cast(size_t) t.index + 1; // place cursor inside the token
 				SymbolStuff candidate = getSymbolsAtCursor(pos);
-				scope(exit) candidate.destroy();
 				if (candidate.symbols.length == 1 &&
 					candidate.symbols[0].location == sourceSymbol.location &&
 					candidate.symbols[0].symbolFile == sourceSymbol.symbolFile)
