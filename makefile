@@ -13,8 +13,6 @@ LDC := ldc2
 DPARSE_DIR := libdparse
 DSYMBOL_DIR := dsymbol
 
-SHELL:=/usr/bin/env bash
-
 githash:
 	@mkdir -p bin
 	git describe --tags > bin/githash.txt
@@ -37,7 +35,6 @@ CLIENT_SRC := \
 DMD_CLIENT_FLAGS := -Imsgpack-d/src\
 	-Imsgpack-d/src\
 	-Jbin\
-	-inline\
 	-O\
 	-wi\
 	-ofbin/dcd-client
@@ -55,6 +52,10 @@ LDC_CLIENT_FLAGS := -Imsgpack-d/src\
 	-O5\
 	-oq\
 	-of=bin/dcd-client
+
+ifneq ($(shell uname), OpenBSD)
+	override DMD_CLIENT_FLAGS += -inline
+endif
 
 override DMD_CLIENT_FLAGS += $(DFLAGS)
 override LDC_CLIENT_FLAGS += $(DFLAGS)
@@ -76,7 +77,6 @@ DMD_SERVER_FLAGS := -Icontainers/src\
 	-wi\
 	-O\
 	-release\
-	-inline\
 	-ofbin/dcd-server
 
 DEBUG_SERVER_FLAGS := -Icontainers/src\
@@ -105,6 +105,10 @@ LDC_SERVER_FLAGS := -Icontainers/src\
 	-J=bin\
 	-O5\
 	-release
+
+ifneq ($(shell uname), OpenBSD)
+	DMD_SERVER_FLAGS += -inline
+endif
 
 override DMD_SERVER_FLAGS += $(DFLAGS)
 override LDC_SERVER_FLAGS += $(DFLAGS)
