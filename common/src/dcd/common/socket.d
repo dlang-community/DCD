@@ -27,6 +27,9 @@ version (OSX) version = haveUnixSockets;
 version (linux) version = haveUnixSockets;
 version (BSD) version = haveUnixSockets;
 version (FreeBSD) version = haveUnixSockets;
+version (OpenBSD) version = haveUnixSockets;
+version (NetBSD) version = haveUnixSockets;
+version (DragonflyBSD) version = haveUnixSockets;
 
 enum DEFAULT_PORT_NUMBER = 9166;
 

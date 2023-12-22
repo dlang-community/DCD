@@ -35,6 +35,9 @@ enum CONFIG_FILE_NAME = "dcd.conf";
 version(linux) version = useXDG;
 version(BSD) version = useXDG;
 version(FreeBSD) version = useXDG;
+version(OpenBSD) version = useXDG;
+version(NetBSD) version = useXDG;
+version(DragonflyBSD) version = useXDG;
 version(OSX) version = useXDG;
 
 /**
