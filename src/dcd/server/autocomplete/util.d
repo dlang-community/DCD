@@ -539,6 +539,31 @@ AutocompleteResponse.Completion makeSymbolCompletionInfo(const DSymbol* symbol, 
 	}
 	else if (kind == CompletionKind.enumMember)
 		ret.definition = symbol.name; // TODO: add enum value to definition string
+	else if (kind == CompletionKind.structName || kind == CompletionKind.className)
+	{
+		string newName;
+		istring[] t_type;
+		foreach(part; symbol.opSlice())
+		{
+			if (part.kind == CompletionKind.typeTmpParam)
+				t_type ~= part.name;
+		}
+		auto tcount = t_type.length;
+		if (tcount > 0)
+		{
+			newName = symbol.name ~ "(";
+			foreach(i, part; t_type)
+			{
+				newName ~= part;
+				if (i < tcount - 1)
+					newName ~= ", ";
+			}
+			newName ~= ")";
+		}
+		else
+			newName = symbol.callTip;
+		ret.definition = newName;
+	}
 	else
 		ret.definition = symbol.callTip;
 
