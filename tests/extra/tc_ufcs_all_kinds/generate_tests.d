@@ -129,29 +129,28 @@ int main(string[] args)
 
 	fs.write("proc_test.d", code);
 
-	auto output = executeShell("$DC -verrors=0 -c proc_test.d").output;
+	// $DC and $ERROR_FLAGS are set up in run.sh
+	auto output = executeShell("$DC $ERROR_FLAGS -c proc_test.d").output;
 
 	size_t numErrors = 0;
 
 	string[][string] variableIncompatibilities;
 
+	// Example of a line we want to match: `proc_test.d:2568:22: error: [...]'
+	auto errRegex = regex(`proc_test\.d:([0-9]*):[0-9]*: error`, "i");
 	foreach (err; output.lineSplitter)
 	{
-		if (!err.startsWith("proc_test.d("))
-			continue;
-		err = err["proc_test.d(".length .. $];
-		auto lineNo = err.parse!int;
-		if (!err.startsWith("): Error: "))
-			continue;
-		err = err["): Error: ".length .. $];
-		string line = lines[lineNo - 1];
-		enforce(line.endsWith("();"), "Unexpected error in line " ~ lineNo.to!string);
-		line = line[0 .. $ - 3];
-		string varName = line.findSplit(".")[0];
-		string funcName = line.findSplit(".")[2];
-		// writeln("variable type ", varLookup[varName], " can't call ", funcLookup[funcName]);
-		variableIncompatibilities[varName] ~= funcName;
-		numErrors++;
+		if (auto m = matchFirst(err, errRegex)) {
+			auto lineNo = to!int(m[1]);
+			string line = lines[lineNo - 1];
+			enforce(line.endsWith("();"), "Unexpected error in line " ~ lineNo.to!string);
+			line = line[0 .. $ - 3];
+			string varName = line.findSplit(".")[0];
+			string funcName = line.findSplit(".")[2];
+			// writeln("variable type ", varLookup[varName], " can't call ", funcLookup[funcName]);
+			variableIncompatibilities[varName] ~= funcName;
+			numErrors++;
+		}
 	}
 
 	enforce(numErrors > 1_000, "compiler didn't error as expected, need to adjust tests!");
