@@ -149,6 +149,7 @@ struct ModuleCache
 	DSymbol* cacheModule(string location)
 	{
 		import std.stdio : File;
+		import core.memory: GC;
 
 		assert (location !is null);
 
@@ -159,6 +160,8 @@ struct ModuleCache
 
 		if (!needsReparsing(cachedLocation))
 			return getEntryFor(cachedLocation).symbol;
+
+		scope(exit) GC.collect();
 
 		recursionGuard.insert(&cachedLocation.data[0]);
 
