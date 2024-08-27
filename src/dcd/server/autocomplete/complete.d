@@ -65,6 +65,9 @@ enum CalltipHint {
 public AutocompleteResponse complete(const AutocompleteRequest request,
 	ref ModuleCache moduleCache)
 {
+	import core.memory: GC;
+	scope(exit) GC.collect();
+
 	const(Token)[] tokenArray;
 	auto stringCache = StringCache(request.sourceCode.length.optimalBucketCount);
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
