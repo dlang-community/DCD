@@ -594,7 +594,6 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				&& (p is null ? true : toUpper(sym.name.data).startsWith(toUpper(p)))
 				&& !r.completions.canFind!((a) {
 					// this filters out similar symbols
-					// this is needed because similar symbols can exist do to version conditionals
 					// fast check first, only compare full definition if it matches
 					bool same = a.identifier == sym.name && a.kind == sym.kind;
 					if (same) {
@@ -622,7 +621,6 @@ void setCompletions(T)(ref AutocompleteResponse response,
 				&& toUpper(a.name.data).startsWith(toUpper(partial))
 				&& !response.completions.canFind!((r) {
 					// this filters out similar symbols
-					// this is needed because similar symbols can exist do to version conditionals
 					// fast check first, only compare full definition if it matches
 					bool same = (r.identifier == a.name && r.kind == a.kind);
 					if (same) {
