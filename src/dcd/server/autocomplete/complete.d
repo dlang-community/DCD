@@ -592,7 +592,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		{
 			if (sym.name !is null && sym.name.length > 0 && isPublicCompletionKind(sym.kind)
 				&& (p is null ? true : toUpper(sym.name.data).startsWith(toUpper(p)))
-				&& !r.completions.canFind!(a => a.identifier == sym.name)
+				&& !r.completions.canFind!(a => a.identifier == sym.name && a.kind == sym.kind)
 				&& sym.name[0] != '*'
 				&& mightBeRelevantInCompletionScope(sym, completionScope))
 			{
@@ -610,6 +610,7 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		auto currentSymbols = completionScope.getSymbolsInCursorScope(cursorPosition);
 		foreach (s; currentSymbols.filter!(a => isPublicCompletionKind(a.kind)
 				&& toUpper(a.name.data).startsWith(toUpper(partial))
+				&& !response.completions.canFind!(r => r.identifier == a.name && r.kind == a.kind)
 				&& mightBeRelevantInCompletionScope(a, completionScope)))
 		{
 			response.completions ~= makeSymbolCompletionInfo(s, s.kind);
