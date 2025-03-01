@@ -592,7 +592,16 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		{
 			if (sym.name !is null && sym.name.length > 0 && isPublicCompletionKind(sym.kind)
 				&& (p is null ? true : toUpper(sym.name.data).startsWith(toUpper(p)))
-				&& !r.completions.canFind!(a => a.identifier == sym.name)
+				&& !r.completions.canFind!((a) {
+					// this filters out similar symbols
+					// fast check first, only compare full definition if it matches
+					bool same = a.identifier == sym.name && a.kind == sym.kind;
+					if (same) {
+						auto info = makeSymbolCompletionInfo(sym, sym.kind);
+						if (info.definition != a.definition) same = false;
+					}
+					return same;
+				})
 				&& sym.name[0] != '*'
 				&& mightBeRelevantInCompletionScope(sym, completionScope))
 			{
@@ -610,6 +619,16 @@ void setCompletions(T)(ref AutocompleteResponse response,
 		auto currentSymbols = completionScope.getSymbolsInCursorScope(cursorPosition);
 		foreach (s; currentSymbols.filter!(a => isPublicCompletionKind(a.kind)
 				&& toUpper(a.name.data).startsWith(toUpper(partial))
+				&& !response.completions.canFind!((r) {
+					// this filters out similar symbols
+					// fast check first, only compare full definition if it matches
+					bool same = (r.identifier == a.name && r.kind == a.kind);
+					if (same) {
+						auto info = makeSymbolCompletionInfo(a, a.kind);
+						if (info.definition != r.definition) same = false;
+					}
+					return same;
+				})
 				&& mightBeRelevantInCompletionScope(a, completionScope)))
 		{
 			response.completions ~= makeSymbolCompletionInfo(s, s.kind);
