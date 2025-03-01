@@ -905,12 +905,12 @@ private:
 		const TemplateParameters templateParameters,
 		const FunctionBody functionBody, string doc)
 	{
-		SemanticSymbol* symbol = allocateSemanticSymbol(CONSTRUCTOR_SYMBOL_NAME,
-			CompletionKind.functionName, symbolFile, location);
-		symbol.parent = currentSymbol;
-		currentSymbol.addChild(symbol, true);
-		symbol.acSymbol.protection = protection.current;
-		symbol.acSymbol.doc = makeDocumentation(doc);
+		pushSymbol(CONSTRUCTOR_SYMBOL_NAME, CompletionKind.functionName, symbolFile, location, null);
+		scope (exit) popSymbol();
+
+		currentSymbol.acSymbol.protection = protection.current;
+		currentSymbol.acSymbol.doc = makeDocumentation(doc);
+		currentSymbol.acSymbol.qualifier = SymbolQualifier.func;
 
 		istring lastComment = this.lastComment;
 		this.lastComment = istring.init;
@@ -918,18 +918,19 @@ private:
 
 		if (functionBody !is null)
 		{
-			pushFunctionScope(functionBody, location + 4); // 4 == "this".length
-			scope(exit) popScope();
-			currentSymbol = symbol;
-			processParameters(symbol, null, THIS_SYMBOL_NAME, parameters, templateParameters);
+			size_t start = location + 4; // 4 = ctor name length
+			currentSymbol.acSymbol.location = start;
+
+			pushFunctionScope(functionBody, start);
+			scope (exit) popScope();
+			processParameters(currentSymbol, null,
+					currentSymbol.acSymbol.name, parameters, templateParameters);
 			functionBody.accept(this);
-			currentSymbol = currentSymbol.parent;
 		}
 		else
 		{
-			currentSymbol = symbol;
-			processParameters(symbol, null, THIS_SYMBOL_NAME, parameters, templateParameters);
-			currentSymbol = currentSymbol.parent;
+			processParameters(currentSymbol, null,
+					currentSymbol.acSymbol.name, parameters, templateParameters);
 		}
 	}
 
