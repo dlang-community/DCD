@@ -52,7 +52,6 @@ jobs:
 
       - name: Build DSymbol
         env:
-          DC: ${{matrix.dc}}
           LIBDPARSE_VERSION: ${{ matrix.libdparse-version }}
         run: |
           cd dsymbol
@@ -60,7 +59,6 @@ jobs:
 
       - name: Test DSymbol
         env:
-          DC: ${{matrix.dc}}
           LIBDPARSE_VERSION: ${{ matrix.libdparse-version }}
         run: |
           cd dsymbol
@@ -86,3 +84,64 @@ jobs:
         working-directory: tests
         shell: bash
         continue-on-error: true
+
+  Build-gdc:
+    name: Build with gdc
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, dc: gdc-12, libdparse-version: min, build: debug, arch: x86_64 }
+          - { os: ubuntu-latest, dc: gdc-12, libdparse-version: max, build: debug, arch: x86_64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup D tools
+        # Pull in dmd-latest with dub & tools
+        uses: dlang-community/setup-dlang@v1
+        with:
+          compiler: dmd-latest
+
+      - name: Setup D
+        run: |
+          sudo apt update
+          sudo apt install -y gdc-12
+          gdc-12 --version
+          echo "DC=gdc-12" >> "${GITHUB_ENV}"
+
+      - name: Build
+        run: make gdc GDC=$DC
+
+      - name: Build DSymbol
+        env:
+          LIBDPARSE_VERSION: ${{ matrix.libdparse-version }}
+        run: |
+          cd dsymbol
+          rdmd ../d-test-utils/test_with_package.d $LIBDPARSE_VERSION libdparse -- dub build --build=${{ matrix.build }}
+
+      - name: Test DSymbol
+        env:
+          LIBDPARSE_VERSION: ${{ matrix.libdparse-version }}
+          # Get around linking errors in gdc
+          DFLAGS: '-fall-instantiations'
+        run: |
+          cd dsymbol
+          rdmd ../d-test-utils/test_with_package.d $LIBDPARSE_VERSION libdparse -- dub test
+
+      # test that both lowest supplied and highest available libdparse versions are compatible (for DUB users depending on DCD)
+      - name: Test dependency versions
+        env:
+          LIBDPARSE_VERSION: ${{ matrix.libdparse-version }}
+        run: |
+          rm -rf "${HOME}/.dub/packages/libdparse"
+          rdmd ./d-test-utils/test_with_package.d $LIBDPARSE_VERSION libdparse -- make gdc GDC=$DC DPARSE_DIR=~/.dub/packages/libdparse/*/libdparse
+
+      - name: Linux Tests
+        run: ./run_tests.sh --extra
+        working-directory: tests
+        shell: bash
