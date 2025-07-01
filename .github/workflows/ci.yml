@@ -30,16 +30,35 @@ jobs:
           # old compiler tests
           - { os: ubuntu-22.04, dc: dmd-2.095.1, libdparse-version: min, build: debug, arch: x86_64 }
           - { os: ubuntu-22.04, dc: ldc-1.25.0, libdparse-version: min, build: debug, arch: x86_64 }
+          # gdc
+          - { os: ubuntu-24.04, dc: gdc-14, libdparse-version: min, build: debug, arch: x86_64 }
+          - { os: ubuntu-24.04, dc: gdc-14, libdparse-version: max, build: debug, arch: x86_64 }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
 
+      - name: Setup D tools (gdc only)
+        if: ${{ startsWith(matrix.dc, 'gdc') }}
+        uses: dlang-community/setup-dlang@v2
+
       - name: Setup D
         uses: dlang-community/setup-dlang@v2
         with:
           compiler: ${{ matrix.dc }}
+
+      - name: Set gdc specific environment variables
+        if: ${{ startsWith(matrix.dc, 'gdc') }}
+        run: |
+          tee -a ${GITHUB_ENV} <<<"DC=${DMD}" # need gdmd for -run
+          # Linking errors without -allinst
+          # No other easy way to pass this to dub, using DFLAGS in the
+          # environment disables unittests
+          cat <<-EOF | sudo tee -a /etc/dmd.conf
+          [Environment]
+          DFLAGS=-allinst
+          EOF
 
       # Build
 
@@ -52,7 +71,6 @@ jobs:
 
       - name: Build DSymbol
         env:
-          DC: ${{matrix.dc}}
           LIBDPARSE_VERSION: ${{ matrix.libdparse-version }}
         run: |
           cd dsymbol
@@ -60,7 +78,6 @@ jobs:
 
       - name: Test DSymbol
         env:
-          DC: ${{matrix.dc}}
           LIBDPARSE_VERSION: ${{ matrix.libdparse-version }}
         run: |
           cd dsymbol
