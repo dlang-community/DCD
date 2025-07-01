@@ -31,6 +31,8 @@ stdout.txt
 # script-generated expected with absolute file paths
 tests/tc_locate_ufcs_function/expected.txt
 tests/tc_recursive_public_import/expected.txt
+# other script-generated files
+tests/extra/tc_ufcs_all_kinds/generate_tests
 
 # Dub files
 .dub
