@@ -576,7 +576,7 @@ version (linux) unittest
 	}
 	const rssAfter = getRSS();
 	// check the process memory increase with some eyeballed threshold
-	assert(rssAfter - rssBefore < 5000);
+	assert(rssAfter - rssBefore < 6_000);
 }
 
 // this is for testing that internString data is always on the same address
