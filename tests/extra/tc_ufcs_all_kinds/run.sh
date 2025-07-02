@@ -19,4 +19,6 @@ else
 fi
 
 export DC ERROR_STYLE
+# gdc uses language specific error message
+export LC_ALL=${LC_ALL:-"C.UTF-8"}
 ${DC} -run generate_tests.d "${1}"
