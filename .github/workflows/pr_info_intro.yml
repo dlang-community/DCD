@@ -10,7 +10,7 @@ on:
 jobs:
   intro_comment:
     name: Make intro comment
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
     - name: 'Prepare sticky comment'
       # commit of v2.5.0

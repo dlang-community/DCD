@@ -12,7 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         # use older ubuntu / linux version for glibc compatibility
-        os: [ubuntu-20.04, windows-latest, macos-latest]
+        os: [ubuntu-22.04, windows-latest, macos-latest]
         dc:
           - ldc-latest
           - dmd-latest
@@ -28,8 +28,8 @@ jobs:
             build: debug
             libdparse-version: min
           # old compiler tests
-          - { os: ubuntu-20.04, dc: dmd-2.095.1, libdparse-version: min, build: debug, arch: x86_64 }
-          - { os: ubuntu-20.04, dc: ldc-1.25.0, libdparse-version: min, build: debug, arch: x86_64 }
+          - { os: ubuntu-22.04, dc: dmd-2.095.1, libdparse-version: min, build: debug, arch: x86_64 }
+          - { os: ubuntu-22.04, dc: ldc-1.25.0, libdparse-version: min, build: debug, arch: x86_64 }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
