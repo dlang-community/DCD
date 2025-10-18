@@ -16,17 +16,15 @@ jobs:
     steps:
     # from https://securitylab.github.com/research/github-actions-preventing-pwn-requests/
     - name: 'Download artifact'
-      uses: actions/github-script@v3.1.0
+      uses: actions/github-script@v8
       with:
         script: |
-          var artifacts = await github.actions.listWorkflowRunArtifacts({
+          var { data: artifacts } = await github.actions.listWorkflowRunArtifacts({
             owner: context.repo.owner,
             repo: context.repo.repo,
             run_id: ${{github.event.workflow_run.id }},
           });
-          var matchArtifact = artifacts.data.artifacts.filter((artifact) => {
-            return artifact.name == "pr"
-          })[0];
+          var matchArtifact = artifacts.artifacts.filter((artifact) => artifact.name === "pr")[0];
           var download = await github.actions.downloadArtifact({
             owner: context.repo.owner,
             repo: context.repo.repo,
