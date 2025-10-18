@@ -12,7 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         # use older ubuntu / linux version for glibc compatibility
-        os: [ubuntu-22.04, windows-latest, macos-latest]
+        os: [ubuntu-22.04, windows-latest]
         dc:
           - ldc-latest
           - dmd-latest
@@ -27,6 +27,15 @@ jobs:
             dc: ldc-latest
             build: debug
             libdparse-version: min
+          # macos only with LDC
+          - { os: macos-latest, dc: ldc-latest, libdparse-version: min, build: debug, arch: x86_64 }
+          - { os: macos-latest, dc: ldc-latest, libdparse-version: min, build: release, arch: x86_64 }
+          - { os: macos-latest, dc: ldc-latest, libdparse-version: max, build: debug, arch: x86_64 }
+          - { os: macos-latest, dc: ldc-latest, libdparse-version: max, build: release, arch: x86_64 }
+          - { os: macos-latest, dc: ldc-latest, libdparse-version: min, build: debug, arch: aarch64 }
+          - { os: macos-latest, dc: ldc-latest, libdparse-version: min, build: release, arch: aarch64 }
+          - { os: macos-latest, dc: ldc-latest, libdparse-version: max, build: debug, arch: aarch64 }
+          - { os: macos-latest, dc: ldc-latest, libdparse-version: max, build: release, arch: aarch64 }
           # old compiler tests
           - { os: ubuntu-22.04, dc: dmd-2.095.1, libdparse-version: min, build: debug, arch: x86_64 }
           - { os: ubuntu-22.04, dc: ldc-1.25.0, libdparse-version: min, build: debug, arch: x86_64 }
