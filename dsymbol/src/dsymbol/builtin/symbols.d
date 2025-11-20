@@ -288,6 +288,28 @@ static this()
 			"__VERSION__", "__FUNCTION__", "__PRETTY_FUNCTION__", "__MODULE__",
 			"__FILE__", "__LINE__", "__FILE_FULL_PATH__"])
 		builtinSymbols.insert(makeSymbol(s, CompletionKind.keyword));
+
+	foreach (s; ["abstract", "alias", "align", "asm", "assert", "auto",
+			"body", "break",
+			"case", "cast", "catch", "class", "const", "continue",
+			"debug", "default", "delegate", "delete", "deprecated", "do",
+			"else", "enum", "export", "extern",
+			"false", "final", "finally", "for", "foreach", "foreach_reverse", "function",
+			"goto",
+			"if", "immutable", "import", "in", "inout", "interface", "invariant", "is",
+			"lazy",
+			"macro", "mixin", "module",
+			"new", "nothrow", "null",
+			"out", "override",
+			"package", "pragma", "private", "protected", "public", "pure",
+			"ref", "return",
+			"scope", "shared", "static", "struct", "super", "switch", "synchronized",
+			"template", "this", "throw", "true", "try", "typeid", "typeof",
+			"union", "unittest",
+			"version",
+			"while", "with",
+			"__gshared", "__parameters", "__rvalue", "__vector"])
+		builtinSymbols.insert(makeSymbol(s, CompletionKind.keyword));
 }
 
 static ~this()
