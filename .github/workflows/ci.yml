@@ -103,17 +103,8 @@ jobs:
           rdmd ./d-test-utils/test_with_package.d $LIBDPARSE_VERSION libdparse -- dub build --build=${{ matrix.build }} --config=client --arch=${{ matrix.arch }}
           rdmd ./d-test-utils/test_with_package.d $LIBDPARSE_VERSION libdparse -- dub build --build=${{ matrix.build }} --config=server --arch=${{ matrix.arch }}
 
-      - name: Linux Tests
-        if: contains(matrix.os, 'ubuntu')
+      - name: Tests
         run: |
           ./run_tests.sh --extra
         working-directory: tests
         shell: bash
-
-      - name: Windows and MacOS Tests
-        if: contains(matrix.os, 'windows') || contains(matrix.os, 'macos')
-        run: |
-          ./run_tests.sh --extra
-        working-directory: tests
-        shell: bash
-        continue-on-error: true

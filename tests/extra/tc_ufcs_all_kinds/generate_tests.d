@@ -3,8 +3,8 @@
 // Then it calls all functions with every type to see which ones are accepted by
 // the compiler, to automatically stay up-to-date.
 
-import std;
 import fs = std.file;
+import std;
 
 string[] testTypes = [
 	"bool",
@@ -129,7 +129,10 @@ int main(string[] args)
 
 	fs.write("proc_test.d", code);
 
-	auto output = executeShell("$DC -verrors=0 $ERROR_STYLE -c proc_test.d").output;
+	version (Windows)
+		auto output = executeShell("%DC% -verrors=0 %ERROR_STYLE% -c proc_test.d").output;
+	else
+		auto output = executeShell("$DC -verrors=0 $ERROR_STYLE -c proc_test.d").output;
 
 	size_t numErrors = 0;
 
@@ -152,7 +155,8 @@ int main(string[] args)
 		}
 	}
 
-	enforce(numErrors > 1_000, "compiler didn't error as expected, need to adjust tests!");
+	enforce(numErrors > 1_000, "compiler didn't error as expected, need to adjust tests!\n\nSample of compiler output:\n"
+		~ output[0..min($, 1000)]);
 
 	writeln("Total incompatible type combinations: ", numErrors);
 
@@ -164,8 +168,11 @@ int main(string[] args)
 			~ "\n"
 			~ varName ~ ".func_";
 
-		string[] dcdClient = ["../../../bin/dcd-client"];
-		if (args[1].length)
+		version (Windows)
+			string[] dcdClient = ["..\\..\\..\\bin\\dcd-client"];
+		else
+			string[] dcdClient = ["../../../bin/dcd-client"];
+		if (args.length > 1 && args[1].length)
 			dcdClient ~= args[1];
 
 		auto proc = pipeProcess(dcdClient ~ ["-c" ~ to!string(input.length)]);
@@ -178,9 +185,12 @@ int main(string[] args)
 		size_t i = 0;
 		foreach (line; proc.stdout.byLineCopy)
 		{
+			if (line.length && line[$ - 1] == '\r')
+				line = line[0 .. $ - 1];
+
 			if (i++ == 0)
 			{
-				enforce(line == "identifiers");
+				enforce(line == "identifiers", "Invalid DCD stdout first line: " ~ line);
 				continue;
 			}
 
