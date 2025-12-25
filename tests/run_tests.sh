@@ -90,6 +90,12 @@ function waitShutdown()
 	fi
 }
 
+if [ -n "$COMSPEC" ]; then
+	# Make sure all line endings are \n and not \crlf
+	shopt -s globstar
+	sed -i 's/\r$//' **/*.d
+fi
+
 # Make sure that the server is shut down
 if [[ "$REUSE_SERVER" == "1" ]]; then
 	echo "Not shutting down existing server due to --reuse-server"
@@ -129,7 +135,20 @@ for socket in $SOCKETMODES; do # supported: unix tcp
 	for testCase in $TESTCASES $EXTRA_TESTCASES; do
 		cd $testCase
 
-		./run.sh "$tcp"
+		TESTCWD="$(pwd)"
+		SLASH="/"
+		SLASHSLASH="/"
+		WINDOWS=0
+		if [ -n "$COMSPEC" ]; then
+			# is running on windows (transform /d/a/DCD/... to D:/a/DCD/...)
+			SLASH="\\\\"
+			SLASHSLASH="\\\\\\\\"
+			WINDOWS=1
+			DRIVE="${TESTCWD:1:1}"
+			TESTCWD="${DRIVE^^}:${TESTCWD:2}"
+		fi
+
+		env TESTCWD="$TESTCWD" SLASH="$SLASH" SLASHSLASH="$SLASHSLASH" WINDOWS="$WINDOWS" ./run.sh "$tcp"
 		if [[ $? -eq 0 ]]; then
 			echo -e "${YELLOW}$socket:$testCase:${NORMAL} ... ${GREEN}Pass${NORMAL}";
 			let pass_count=pass_count+1
