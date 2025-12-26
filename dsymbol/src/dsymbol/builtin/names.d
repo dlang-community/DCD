@@ -3,7 +3,7 @@ module dsymbol.builtin.names;
 import dparse.lexer;
 import dsymbol.string_interning;
 
-package istring[24] builtinTypeNames;
+package istring[25] builtinTypeNames;
 
 // Constants for buit-in or dummy symbol names
 
@@ -60,7 +60,7 @@ package istring[24] builtinTypeNames;
  */
 @("*") istring POINTER_SYMBOL_NAME;
 
-/** 
+/**
  * Allocated as semantic symbol & DSymbol with this name + generates a new scope.
  * Inserted for function literals. (e.g. delegates like `(foo) { ... }`)
  *
@@ -70,7 +70,7 @@ package istring[24] builtinTypeNames;
  * embedded inside the calltip.
  */
 @("*function-literal*") istring FUNCTION_LITERAL_SYMBOL_NAME;
-/** 
+/**
  * Generated from imports, where each full module/package import is a single
  * semantic symbol & DSymbol. DSymbol's `skipOver` is set to true if it's not a
  * public import. For each identifier inside the import identifier chain a
@@ -102,7 +102,7 @@ package istring[24] builtinTypeNames;
  * with CompletionKind.importSymbol as child.
  */
 @("import") istring IMPORT_SYMBOL_NAME;
-/** 
+/**
  * Breadcrumb type that is emitted for array literals and array initializers.
  *
  * Gets built into an array DSymbol with the element type as child type and
@@ -183,7 +183,7 @@ package istring[24] builtinTypeNames;
  * See_Also: $(LREF TYPEOF_END_SYMBOL_NAME)
  */
 @("typeof(") istring TYPEOF_SYMBOL_NAME;
-/** 
+/**
  * This symbol always appears in pairs with TYPEOF_SYMBOL_NAME, designates the
  * end of the typeof expression in the breadcrumbs.
  */
@@ -263,7 +263,8 @@ istring getBuiltinTypeName(IdType id) nothrow @nogc @safe
 	case tok!"cdouble": return builtinTypeNames[21];
 	case tok!"cfloat": return builtinTypeNames[22];
 	case tok!"creal": return builtinTypeNames[23];
-	default: assert (false);
+	case tok!"this": return builtinTypeNames[24];
+	default: assert (false, str(id));
 	}
 }
 
@@ -297,6 +298,7 @@ static this()
 	builtinTypeNames[21] = internString("cdouble");
 	builtinTypeNames[22] = internString("cfloat");
 	builtinTypeNames[23] = internString("creal");
+	builtinTypeNames[24] = internString("this");
 
 	static foreach (member; __traits(allMembers, dsymbol.builtin.names))
 	{
@@ -344,5 +346,7 @@ istring symbolNameToTypeName(istring name)
 		return builtinTypeNames[13];
 	if (name == VOID_SYMBOL_NAME)
 		return builtinTypeNames[14];
+	if (name == THIS_SYMBOL_NAME)
+		return builtinTypeNames[24];
 	return name;
 }
