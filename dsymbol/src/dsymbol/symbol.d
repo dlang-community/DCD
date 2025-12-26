@@ -20,17 +20,17 @@ module dsymbol.symbol;
 
 import std.array;
 
-import std.experimental.allocator.mallocator : Mallocator;
-import std.experimental.allocator.gc_allocator : GCAllocator;
+import containers.hashset;
+import containers.slist;
 import containers.ttree;
 import containers.unrolledlist;
-import containers.slist;
-import containers.hashset;
 import dparse.lexer;
 import std.bitmanip;
+import std.experimental.allocator.gc_allocator : GCAllocator;
+import std.experimental.allocator.mallocator : Mallocator;
 
-import dsymbol.builtin.names;
 public import dsymbol.string_interning;
+import dsymbol.builtin.names;
 
 import std.range : isOutputRange;
 
@@ -508,6 +508,17 @@ struct DSymbol
 			// TODO: include template parameters
 			return name ~ suffix;
 		}
+	}
+
+	/// Compatibility utility to get all argument names as strings - iterate
+	/// over functionParameters if you need more information like types.
+	istring[] argNames() const nothrow @property @safe
+	{
+		istring[] res;
+		foreach (sym; functionParameters)
+			if (sym)
+				(() @trusted => res.assumeSafeAppend ~= sym.name)();
+		return res;
 	}
 }
 
