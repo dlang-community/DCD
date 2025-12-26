@@ -23,26 +23,29 @@ the issue.)
 
 * Working:
 	* Autocompletion of properties of built-in types such as int, float, double, etc.
-	* Autocompletion of __traits, scope, and extern arguments
-	* Autocompletion of enums
+	* Autocompletion of __traits, scope, and extern arguments.
+	* Autocompletion of enums.
 	* Autocompletion of class, struct, and interface instances.
-	* Display of call tips for functions, constructors, and variables of function type
-	* alias declarations
-	* Public imports
-	* Finding the declaration location of a symbol at the cursor
-	* *import* statement completions
-	* Display of documentation comments in function call tips
-	* *alias this*
-	* *auto* declarations (Mostly)
-	* *with* statements
+	* Display of call tips for functions, constructors, and variables of function type.
+	* *alias* declarations.
+	* Public imports.
+	* Finding the declaration location of a symbol at the cursor.
+	* *import* statement completions.
+	* Display of documentation comments in function call tips.
+	* *alias this*.
+	* *auto* declarations (mostly).
+	* *with* statements.
 	* Simple UFCS suggestions for concrete types and fundamental types.
+	* ImportC modules (if the environment variable `DMD` or the `dmd` found in the
+	`PATH`, resolves to a dmd compiler/wrapper that supports `-Hf`).
 * Not working:
 	* UFCS completion for templates, literals, aliased types, UFCS function arguments, and '.' chaining with other UFCS functions.
-	* UFCS calltips
-	* Autocompletion of declarations with template arguments (This will work to some extent, but it won't do things like replace T with int)
-	* Determining the type of an enum member when no base type is specified, but the first member has an initializer
-	* auto functions (which can then propagate the failure to auto declarations)
-	* That one feature that you *REALLY* needed
+	* UFCS calltips.
+	* Autocompletion of declarations with template arguments (This will work to some extent, but it won't do things like replace T with int).
+	* Determining the type of an enum member when no base type is specified, but the first member has an initializer.
+	* *auto* functions (which can then propagate the failure to auto declarations).
+	* *import* statement completion with ImportC modules.
+	* That one feature that you *REALLY* needed.
 
 # Setup
 ### General

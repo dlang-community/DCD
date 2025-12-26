@@ -148,7 +148,10 @@ struct ModuleCache
 	 */
 	DSymbol* cacheModule(string location)
 	{
+		import std.file : tempDir;
+		import std.process : execute;
 		import std.stdio : File;
+		import std.uuid : randomUUID;
 
 		assert (location !is null);
 
@@ -162,7 +165,29 @@ struct ModuleCache
 
 		recursionGuard.insert(&cachedLocation.data[0]);
 
-		File f = File(cachedLocation);
+		string generatedHeaderFile;
+		scope (exit)
+		{
+			if (generatedHeaderFile.length && generatedHeaderFile.exists)
+				generatedHeaderFile.remove;
+		}
+
+		const bool isImportC = cachedLocation.extension.among(".c", ".h", ".i") > 0;
+		if (isImportC)
+		{
+			generatedHeaderFile = buildPath(tempDir, "dcd_" ~ randomUUID.toString ~ ".di");
+			const dmdResult = execute([dmd, "-o-", "-Hf" ~ generatedHeaderFile, cachedLocation]);
+			if (dmdResult.status != 0)
+			{
+				warningf(
+					"Generating .di file for ImportC file \"%s\" failed with status code %d: %s",
+					cachedLocation, dmdResult.status, dmdResult.output,
+				);
+				return null;
+			}
+		}
+
+		File f = File(isImportC ? generatedHeaderFile : cachedLocation);
 		immutable fileSize = cast(size_t) f.size;
 		if (fileSize == 0)
 			return null;
@@ -301,13 +326,18 @@ struct ModuleCache
 			// no exact matches and no .di/package.d matches either
 			else if (!alternative.length)
 			{
-				string dotDi = buildPath(path, moduleName) ~ ".di";
-				string dotD = dotDi[0 .. $ - 1];
-				string withoutSuffix = dotDi[0 .. $ - 3];
+				string withoutSuffix = buildPath(path, moduleName);
+				string dotD = withoutSuffix ~ ".d";
+				string dotDi = dotD ~ "i";
+				string dotC = withoutSuffix ~ ".c";
+				string dotH = withoutSuffix ~ ".h";
+				string dotI = withoutSuffix ~ ".i";
 				if (existsAnd!isFile(dotD))
 					return istring(dotD); // return early for exactly matching .d files
-				else if (existsAnd!isFile(dotDi))
-					alternative = dotDi;
+				else if (existsAnd!isFile(dotDi)) alternative = dotDi;
+				else if (existsAnd!isFile(dotC))  alternative = dotC;
+				else if (existsAnd!isFile(dotH))  alternative = dotH;
+				else if (existsAnd!isFile(dotI))  alternative = dotI;
 				else if (existsAnd!isDir(withoutSuffix))
 				{
 					string packagePath = buildPath(withoutSuffix, "package.di");
@@ -402,7 +432,7 @@ private:
 					{
 						if (f.name.existsAnd!isFile)
 						{
-							if (!f.name.extension.among(".d", ".di") || f.name.baseName.startsWith(".#"))
+							if (!f.name.extension.among(".d", ".di", ".c", ".h", ".i") || f.name.baseName.startsWith(".#"))
 								continue;
 							cacheModule(f.name);
 						}
@@ -521,4 +551,14 @@ else version (Posix)
 		assert(!existsAnd!isFile(`/nonexistant_dir/__nonexistant`));
 		assert(!existsAnd!isFile(`/bin`));
 	}
+}
+
+private @safe
+string dmd()
+{
+	import std.process : environment;
+
+	if ("DMD" in environment)
+		return environment["DMD"];
+	return "dmd";
 }
