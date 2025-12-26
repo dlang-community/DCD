@@ -565,13 +565,29 @@ alias UpdatePairCollection = TTree!(UpdatePair, UpdatePairCollectionAllocator, f
 void generateUpdatePairs(DSymbol* oldSymbol, DSymbol* newSymbol, ref UpdatePairCollection results)
 {
 	results.insert(UpdatePair(oldSymbol, newSymbol));
-	foreach (part; oldSymbol.parts[])
+	foreach (part; oldSymbol.opSlice())
 	{
-		auto temp = DSymbol(oldSymbol.name);
-		auto r = newSymbol.parts.equalRange(SymbolOwnership(&temp));
-		if (r.empty)
-			continue;
-		generateUpdatePairs(part, r.front, results);
+		bool has = false;
+		DSymbol* r = null;
+		foreach (newPart; newSymbol.opSlice())
+		{
+			if(part == newPart)
+			{
+				has = true;
+				r = newPart;
+				break;
+			}
+
+			if (part.name == newPart.name && part.location == newPart.location)
+			{
+				has = true;
+				r = newPart;
+				break;
+			}
+		}
+		if (!has) continue;
+
+		generateUpdatePairs(part, r, results);
 	}
 }
 
