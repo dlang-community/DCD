@@ -5,8 +5,11 @@ classInstanceAlignment	k
 classInstanceSize	k
 compiles	k
 derivedMembers	k
+fullyQualifiedName	k
 getAliasThis	k
 getAttributes	k
+getBitfieldOffset	k
+getBitfieldWidth	k
 getCppNamespaces	k
 getFunctionAttributes	k
 getFunctionVariadicStyle	k
@@ -25,6 +28,7 @@ getVirtualMethods	k
 getVisibility	k
 hasCopyConstructor	k
 hasMember	k
+hasMoveConstructor	k
 hasPostblit	k
 identifier	k
 initSymbol	k
@@ -32,6 +36,7 @@ isAbstractClass	k
 isAbstractFunction	k
 isArithmetic	k
 isAssociativeArray	k
+isCOMClass	k
 isCopyable	k
 isDeprecated	k
 isDisabled	k
