@@ -1175,7 +1175,17 @@ private:
 		else if (t2.builtinType !is tok!"")
 			lookup.breadcrumbs.insert(getBuiltinTypeName(t2.builtinType));
 		else if (t2.typeIdentifierPart !is null)
-			writeIotcTo(t2.typeIdentifierPart, lookup.breadcrumbs);
+		{
+			// Check if this is a template instantiation
+			if (t2.typeIdentifierPart.identifierOrTemplateInstance.templateInstance !is null)
+			{
+				writeIotcToForLookup(t2.typeIdentifierPart, *lookup);
+			}
+			else
+			{
+				writeIotcTo(t2.typeIdentifierPart, lookup.breadcrumbs);
+			}
+		}
 		// TODO: support __vector, traits and mixin
 
 		foreach (suffix; type.typeSuffixes)
@@ -1354,6 +1364,161 @@ bool isDitto(scope const(char)[] comment)
 	return comment.length == 5 && icmp(comment, "ditto") == 0;
 }
 
+void writeIotcTo(L)(const TypeIdentifierPart tip, ref TypeLookup lookup) nothrow
+{
+	if (!tip.identifierOrTemplateInstance)
+		return;
+
+	if (tip.dot)
+		lookup.breadcrumbs.insert(MODULE_SYMBOL_NAME);
+
+	if (tip.identifierOrTemplateInstance.identifier != tok!"")
+	{
+		lookup.breadcrumbs.insert(internString(tip.identifierOrTemplateInstance.identifier.text));
+	}
+	else
+	{
+		lookup.breadcrumbs.insert(internString(tip.identifierOrTemplateInstance.templateInstance.identifier.text));
+		// Extract template arguments
+		auto ta = tip.identifierOrTemplateInstance.templateInstance.templateArguments;
+		if (ta !is null && ta.templateSingleArgument !is null)
+		{
+			import dparse.ast : TemplateSingleArgument;
+			const TemplateSingleArgument tsArg = ta.templateSingleArgument;
+			if (tsArg.type !is null)
+			{
+				// Add the type argument to templateArguments
+				writeTypeToBreadcrumbs(tsArg.type, lookup.templateArguments);
+			}
+			else if (tsArg.token != tok!"")
+			{
+				lookup.templateArguments.insert(internString(tsArg.token.text));
+			}
+			// Mark as template instantiation
+			lookup.kind = TypeLookupKind.templateInstantiation;
+		}
+		else if (ta !is null && ta.templateArgumentList !is null)
+		{
+			import dparse.ast : TemplateArgumentList, TemplateArgument;
+			const TemplateArgumentList taList = ta.templateArgumentList;
+			if (taList.items !is null)
+			{
+				foreach (const taItem; taList.items)
+				{
+					if (taItem.type !is null)
+					{
+						writeTypeToBreadcrumbs(taItem.type, lookup.templateArguments);
+					}
+					else if (taItem.assignExpression !is null)
+					{
+						// For expressions, just use the identifier text if available
+						lookup.templateArguments.insert(internString(taItem.assignExpression.toString()));
+					}
+					else if (taItem.typeofExpression !is null)
+					{
+						lookup.templateArguments.insert(TYPEOF_SYMBOL_NAME);
+					}
+				}
+				// Mark as template instantiation
+				lookup.kind = TypeLookupKind.templateInstantiation;
+			}
+		}
+		else if (ta !is null && ta.namedTemplateArgumentList !is null)
+		{
+			import dparse.ast : NamedTemplateArgumentList, NamedTemplateArgument;
+			const NamedTemplateArgumentList ntList = ta.namedTemplateArgumentList;
+			if (ntList.items !is null)
+			{
+				foreach (const ntItem; ntList.items)
+				{
+					if (ntItem.type !is null)
+					{
+						writeTypeToBreadcrumbs(ntItem.type, lookup.templateArguments);
+					}
+					else if (ntItem.assignExpression !is null)
+					{
+						lookup.templateArguments.insert(internString(ntItem.assignExpression.toString()));
+					}
+				}
+				// Mark as template instantiation
+				lookup.kind = TypeLookupKind.templateInstantiation;
+			}
+		}
+	}
+
+	// the indexer of a TypeIdentifierPart means either that there's
+	// a static array dimension or that a type is selected in a type list.
+	// we can only handle the first case since dsymbol does not process templates yet.
+	if (tip.indexer)
+		lookup.breadcrumbs.insert(ARRAY_SYMBOL_NAME);
+
+	if (tip.typeIdentifierPart)
+		writeIotcTo(tip.typeIdentifierPart, lookup);
+}
+
+private void writeTypeToBreadcrumbsImpl(T)(ref const(Type) type, ref T output) nothrow
+{
+	auto t2 = type.type2;
+	if (t2.typeofExpression !is null)
+	{
+		output.insert(TYPEOF_SYMBOL_NAME);
+	}
+	else if (t2.superOrThis == tok!"this")
+	{
+		output.insert(internString("this"));
+	}
+	else if (t2.superOrThis == tok!"super")
+	{
+		output.insert(internString("super"));
+	}
+
+	if (t2.type !is null)
+	{
+		writeTypeToBreadcrumbsImpl(t2.type, output);
+	}
+	else if (t2.typeIdentifierPart !is null)
+	{
+		writeTypeIdentifierPartToBreadcrumbs(t2.typeIdentifierPart, output);
+	}
+	else if (t2.builtinType != tok!"")
+	{
+		output.insert(getBuiltinTypeName(t2.builtinType));
+	}
+
+	foreach (suffix; type.typeSuffixes)
+	{
+		if (suffix.type)
+			output.insert(ASSOC_ARRAY_SYMBOL_NAME);
+		else if (suffix.array)
+			output.insert(ARRAY_SYMBOL_NAME);
+		else if (suffix.star != tok!"")
+			output.insert(POINTER_SYMBOL_NAME);
+		else if (suffix.delegateOrFunction != tok!"")
+		{
+			output.insert(FUNCTION_SYMBOL_NAME);
+		}
+	}
+}
+
+private void writeTypeIdentifierPartToBreadcrumbs(T)(const TypeIdentifierPart tip, ref T output) nothrow
+{
+	if (tip.identifierOrTemplateInstance.identifier != tok!"")
+	{
+		output.insert(internString(tip.identifierOrTemplateInstance.identifier.text));
+	}
+	else
+	{
+		output.insert(internString(tip.identifierOrTemplateInstance.templateInstance.identifier.text));
+	}
+	if (tip.typeIdentifierPart)
+		writeTypeIdentifierPartToBreadcrumbs(tip.typeIdentifierPart, output);
+}
+
+private void writeTypeToBreadcrumbs(ref const(Type) type, ref UnrolledList!istring breadcrumbs) nothrow
+{
+	writeTypeToBreadcrumbsImpl(type, breadcrumbs);
+}
+
 void writeIotcTo(T)(const TypeIdentifierPart tip, ref T output) nothrow
 {
 	if (!tip.identifierOrTemplateInstance)
@@ -1375,6 +1540,73 @@ void writeIotcTo(T)(const TypeIdentifierPart tip, ref T output) nothrow
 
 	if (tip.typeIdentifierPart)
 		writeIotcTo(tip.typeIdentifierPart, output);
+}
+
+/// Writes a TypeIdentifierPart to a TypeLookup, handling template instantiations
+void writeIotcToForLookup(const TypeIdentifierPart tip, ref TypeLookup lookup) nothrow
+{
+	if (!tip.identifierOrTemplateInstance)
+		return;
+
+	if (tip.dot)
+		lookup.breadcrumbs.insert(MODULE_SYMBOL_NAME);
+
+	if (tip.identifierOrTemplateInstance.identifier != tok!"")
+	{
+		lookup.breadcrumbs.insert(internString(tip.identifierOrTemplateInstance.identifier.text));
+	}
+	else
+	{
+		lookup.breadcrumbs.insert(internString(tip.identifierOrTemplateInstance.templateInstance.identifier.text));
+		// Extract template arguments
+		auto ta = tip.identifierOrTemplateInstance.templateInstance.templateArguments;
+		if (ta !is null && ta.templateSingleArgument !is null)
+		{
+			import dparse.ast : TemplateSingleArgument;
+			const TemplateSingleArgument tsArg = ta.templateSingleArgument;
+			// For TemplateSingleArgument, we only have a token
+			if (tsArg.token != tok!"")
+			{
+				lookup.templateArguments.insert(internString(tsArg.token.text));
+			}
+			// Mark as template instantiation
+			lookup.kind = TypeLookupKind.templateInstantiation;
+		}
+		else if (ta !is null && ta.namedTemplateArgumentList !is null)
+		{
+			import dparse.ast : NamedTemplateArgumentList, NamedTemplateArgument;
+			const NamedTemplateArgumentList ntList = ta.namedTemplateArgumentList;
+			if (ntList.items !is null)
+			{
+				foreach (const ntItem; ntList.items)
+				{
+					if (ntItem.type !is null)
+					{
+						writeTypeToBreadcrumbs(ntItem.type, lookup.templateArguments);
+					}
+					else if (ntItem.assignExpression !is null)
+					{
+						// For the name of the argument (not the value)
+						if (ntItem.name != tok!"")
+						{
+							lookup.templateArguments.insert(internString(ntItem.name.text));
+						}
+					}
+				}
+				// Mark as template instantiation
+				lookup.kind = TypeLookupKind.templateInstantiation;
+			}
+		}
+	}
+
+	// the indexer of a TypeIdentifierPart means either that there's
+	// a static array dimension or that a type is selected in a type list.
+	// we can only handle the first case since dsymbol does not process templates yet.
+	if (tip.indexer)
+		lookup.breadcrumbs.insert(ARRAY_SYMBOL_NAME);
+
+	if (tip.typeIdentifierPart)
+		writeIotcToForLookup(tip.typeIdentifierPart, lookup);
 }
 
 auto byIdentifier(const IdentifierOrTemplateChain iotc) nothrow
