@@ -324,11 +324,17 @@ struct ModuleCache
 			// no exact matches and no .di/package.d matches either
 			else if (!alternative.length)
 			{
-				string dotDi = buildPath(path, moduleName) ~ ".di";
+				string filePath = buildPath(path, moduleName);
+				string dotDi = filePath ~ ".di";
+				string dotC = filePath ~ ".c";
 				string dotD = dotDi[0 .. $ - 1];
 				string withoutSuffix = dotDi[0 .. $ - 3];
 				if (existsAnd!isFile(dotD))
+				{
 					return istring(dotD); // return early for exactly matching .d files
+				}
+				else if (existsAnd!isFile(dotC))
+					return istring(dotC);
 				else if (existsAnd!isFile(dotDi))
 					alternative = dotDi;
 				else if (existsAnd!isDir(withoutSuffix))
