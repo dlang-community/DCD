@@ -195,7 +195,7 @@ struct ModuleCache
 		scope (exit) Mallocator.instance.deallocate(source);
 		
 		const(Token)[] tokens;
-		auto parseStringCache = StringCache(fileSize.optimalBucketCount);
+		auto parseStringCache = StringCache(sourceLength.optimalBucketCount);
 		{
 			LexerConfig config;
 			config.fileName = cachedLocation;
