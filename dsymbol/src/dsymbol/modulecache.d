@@ -192,12 +192,11 @@ struct ModuleCache
 			f.rawRead(source);
 		}
 
+		scope (exit) Mallocator.instance.deallocate(source);
+		
 		const(Token)[] tokens;
 		auto parseStringCache = StringCache(fileSize.optimalBucketCount);
 		{
-			ubyte[] source = cast(ubyte[]) Mallocator.instance.allocate(fileSize);
-			scope (exit) Mallocator.instance.deallocate(source);
-			f.rawRead(source);
 			LexerConfig config;
 			config.fileName = cachedLocation;
 
