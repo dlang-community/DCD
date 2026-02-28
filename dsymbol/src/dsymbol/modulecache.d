@@ -162,10 +162,33 @@ struct ModuleCache
 
 		recursionGuard.insert(&cachedLocation.data[0]);
 
-		File f = File(cachedLocation);
-		immutable fileSize = cast(size_t) f.size;
-		if (fileSize == 0)
-			return null;
+		ubyte[] source;
+		size_t sourceLength;
+		bool isCFile = cachedLocation.extension == ".c";
+
+		if (isCFile)
+		{
+			// -o-: do not generate anything 
+			// -Hf=-: print interface file to stdout
+			// -i: follow imports (druntime's importc module)
+			auto result = execute(["dmd", "-o-", "-Hf=-", "-i", cachedLocation]);
+			if (result.status != 0 || result.output.length == 0){
+				warning("(importc) failed to generate di for ", location);
+				return null;
+			}
+			sourceLength = result.output.length;
+			source = cast(ubyte[]) Mallocator.instance.allocate(sourceLength);
+			source[] = cast(ubyte[]) result.output[];
+		}
+		else
+		{
+			File f = File(cachedLocation);
+			sourceLength = cast(size_t) f.size;
+			if (sourceLength == 0)
+				return null;
+			source = cast(ubyte[]) Mallocator.instance.allocate(sourceLength);
+			f.rawRead(source);
+		}
 
 		const(Token)[] tokens;
 		auto parseStringCache = StringCache(fileSize.optimalBucketCount);
