@@ -149,6 +149,8 @@ struct ModuleCache
 	DSymbol* cacheModule(string location)
 	{
 		import std.stdio : File;
+		import std.path : extension;
+		import std.process : execute;
 
 		assert (location !is null);
 
