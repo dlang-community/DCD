@@ -879,7 +879,7 @@ private:
 		// generate a lot of them specially with ImportC
 		static if (!is(AggType == const(TemplateDeclaration)))
 		{
-			if (dec.structBody is null)
+			if (dec.structBody is null && (kind == CompletionKind.structName || kind == CompletionKind.unionName))
 				return;
 		}
 		pushSymbol(dec.name.text, kind, symbolFile, dec.name.index);
