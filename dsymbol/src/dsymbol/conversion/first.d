@@ -874,6 +874,14 @@ private:
 			dec.accept(this);
 			return;
 		}
+		// Skip forward declarations (struct Foo;) only process full definitions
+		// otherwise it'll overwrite the useful one, and dmd -H has the tendency to
+		// generate a lot of them specially with ImportC
+		static if (!is(AggType == const(TemplateDeclaration)))
+		{
+			if (dec.structBody is null)
+				return;
+		}
 		pushSymbol(dec.name.text, kind, symbolFile, dec.name.index);
 		scope(exit) popSymbol();
 
