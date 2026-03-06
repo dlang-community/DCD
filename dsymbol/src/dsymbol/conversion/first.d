@@ -255,8 +255,12 @@ final class FirstPass : ASTVisitor
 			currentSymbol.addChild(symbol, true);
 			currentScope.addSymbol(symbol.acSymbol, false);
 
-			if (currentSymbol.acSymbol.kind == CompletionKind.structName
-				|| currentSymbol.acSymbol.kind == CompletionKind.unionName)
+			// Skip static fields (not instance members)
+			import std.algorithm : any;
+			if (!dec.storageClasses.any!(sc =>
+				sc.token.type == tok!"static" ||
+				sc.token.type == tok!"enum" ||
+				sc.token.type == tok!"__gshared"))
 			{
 				structFieldNames.insert(symbol.acSymbol.name);
 				// TODO: remove this cast. See the note on structFieldTypes
@@ -280,9 +284,17 @@ final class FirstPass : ASTVisitor
 				if (currentSymbol.acSymbol.kind == CompletionKind.structName
 					|| currentSymbol.acSymbol.kind == CompletionKind.unionName)
 				{
-					structFieldNames.insert(symbol.acSymbol.name);
-					// TODO: remove this cast. See the note on structFieldTypes
-					structFieldTypes.insert(null);
+					// Skip static fields (not instance members)
+					import std.algorithm : any;
+					if (!dec.storageClasses.any!(sc =>
+						sc.token.type == tok!"static" ||
+						sc.token.type == tok!"enum" ||
+						sc.token.type == tok!"__gshared"))
+					{
+						structFieldNames.insert(symbol.acSymbol.name);
+						// TODO: remove this cast. See the note on structFieldTypes
+						structFieldTypes.insert(cast() dec.type);
+					}
 				}
 			}
 		}
