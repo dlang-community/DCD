@@ -4,15 +4,19 @@ import dsymbol.symbol;
 import dsymbol.scope_;
 import dsymbol.builtin.names;
 import dsymbol.utils;
-import dparse.lexer : tok, Token;
+import dparse.lexer : tok, Token, isStringLiteral, isNumberLiteral;
+import dparse.strings;
 import std.functional : unaryFun;
 import std.algorithm;
+import std.algorithm.searching : countUntil;
 import std.array;
 import std.range;
 import std.string;
 import std.regex;
 import containers.hashset : HashSet;
 import std.experimental.logger;
+
+alias SortedTokens = SortedRange!(const(Token)[], "a < b");
 
 enum CompletionContext
 {
@@ -21,48 +25,215 @@ enum CompletionContext
     ParenCompletion,
 }
 
-
 struct TokenCursorResult
 {
     CompletionContext completionContext;
     istring functionName;
-    Token significantToken;
+    const(Token)[] expressionTokens;
     string partialIdentifier;
 }
 
 // https://dlang.org/spec/type.html#implicit-conversions
 enum string[string] INTEGER_PROMOTIONS = [
-        "bool": "byte",
-        "byte": "int",
-        "ubyte": "int",
-        "short": "int",
-        "ushort": "int",
-        "char": "int",
-        "wchar": "int",
-        "dchar": "uint",
+    "bool": "byte",
+    "byte": "int",
+    "ubyte": "int",
+    "short": "int",
+    "ushort": "int",
+    "char": "int",
+    "wchar": "int",
+    "dchar": "uint",
 
-        // found in test case extra/tc_ufcs_all_kinds:
-        "int": "float",
-        "uint": "float",
-        "long": "float",
-        "ulong": "float",
+    // found in test case extra/tc_ufcs_all_kinds:
+    "int": "float",
+    "uint": "float",
+    "long": "float",
+    "ulong": "float",
 
-        "float": "double",
-        "double": "real",
-    ];
+    "float": "double",
+    "double": "real",
+];
 
 enum MAX_NUMBER_OF_MATCHING_RUNS = 50;
 
-private const(DSymbol)* deduceSymbolTypeByToken(Scope* completionScope, scope ref const(Token) significantToken, size_t cursorPosition)
+private const(Token)* findUFCSBaseToken( const(Token)[] tokens)
 {
-    //Literal type deduction
-    if (significantToken.type is tok!"stringLiteral"){
-        return completionScope.getFirstSymbolByNameAndCursor(symbolNameToTypeName(STRING_LITERAL_SYMBOL_NAME), cursorPosition);
+    if (tokens.empty)
+        return null;
+
+    int depth = 0;
+
+    // Walk backwards to skip nested parentheses/brackets/braces
+    for (long i = tokens.length - 1; i >= 0; i--)
+    {
+        auto t = tokens[i].type;
+
+        // Handle closing of nested scopes
+        if (t is tok!")" || t is tok!"]" || t is tok!"}")
+        {
+            depth++;
+            continue;
+        }
+
+        // Handle opening of nested scopes
+        if (t is tok!"(" || t is tok!"[" || t is tok!"{")
+        {
+            depth--;
+            continue;
+        }
+
+        if (depth != 0)
+            continue;
+
+        // If we hit a literal or identifier, that's likely our base
+        if (t is tok!"identifier" || isStringLiteral(t) || t is tok!"intLiteral" || t is tok!"floatLiteral")
+        {
+            return &tokens[i];
+        }
+
+        // Stop at anything else that breaks the expression (operators, keywords, etc.)
+        return &tokens[i + 1];
     }
 
-    const(DSymbol)* symbol = completionScope.getFirstSymbolByNameAndCursor(istring(significantToken.text), cursorPosition);
+    // If we never returned inside the loop, the first token is the base
+    return &tokens[0];
+}
 
-    if (symbol is null) {
+private const(Token)* findExpressionBase(const(Token)[] tokens)
+{
+    foreach (i, t; tokens)
+    {
+        // literals are always a base
+        if (isStringLiteral(t.type) || isNumberLiteral(t.type) || t.type is tok!"identifier")
+            return &tokens[i];
+    }
+    return tokens.ptr; // fallback
+}
+
+private const(DSymbol)* deduceExpressionType(
+    Scope* completionScope,
+    const(Token)[] exprTokens,
+    size_t cursorPosition)
+{
+
+    if (exprTokens.empty)
+    {
+        return null;
+    }
+
+    auto firstToken = findUFCSBaseToken(exprTokens);
+    if (isStringLiteral(firstToken.type))
+    {
+        return completionScope.getFirstSymbolByNameAndCursor(
+            symbolNameToTypeName(STRING_LITERAL_SYMBOL_NAME), cursorPosition);
+    }
+
+    auto currentType =
+        deduceSymbolTypeByToken(completionScope, *firstToken, cursorPosition);
+
+    if (currentType is null)
+        return null;
+
+    // 2. Walk through the expression left → right
+    for (size_t i = 1; i < exprTokens.length; i++)
+    {
+        auto t = exprTokens[i].type;
+
+        // ---- Handle function call: foo() ----
+        if (t is tok!"(")
+        {
+            // Skip to matching ')'
+            int depth = 1;
+            size_t j = i + 1;
+
+            while (j < exprTokens.length && depth > 0)
+            {
+                if (exprTokens[j].type is tok!"(")
+                    depth++;
+                else if (exprTokens[j].type is tok!")")
+                    depth--;
+
+                j++;
+            }
+
+            // Function call → move to return type
+            if (currentType !is null && currentType.type !is null)
+            {
+                currentType = currentType.type;
+            }
+
+            i = j - 1;
+            continue;
+        }
+
+        // ---- Handle dot call
+        if (t is tok!"." &&
+            i + 1 < exprTokens.length &&
+            exprTokens[i + 1].type is tok!"identifier")
+        {
+            auto name = istring(exprTokens[i + 1].text);
+
+            // Get UFCS candidates for current type
+            auto candidates = getUFCSSymbolsForDotCompletion(
+                currentType,
+                completionScope,
+                cursorPosition,
+                ""
+            );
+
+            const(DSymbol)* match = null;
+
+            foreach (c; candidates)
+            {
+                if (c.name == name)
+                {
+                    match = c;
+                    break;
+                }
+            }
+
+            // Invalid UFCS chain
+            if (match is null) {
+                return null;
+            }
+
+            // Update current type (this is the chain step)
+            currentType = match.type;
+
+            i++; // skip identifier
+            continue;
+        }
+    }
+    return currentType;
+}
+
+void printTokenType(const(Token)* token)
+{
+    if (token is null)
+    {
+        error("HMMM token is null why?");
+        return;
+    }
+    error("token type: ", token.type);
+    switch (token.type)
+    {
+    case tok!"":
+
+        break;
+
+    default:
+        break;
+    }
+}
+
+private const(DSymbol)* deduceSymbolTypeByToken(Scope* completionScope, scope ref const(Token) significantToken, size_t cursorPosition)
+{
+
+    const(DSymbol)* symbol = completionScope.getFirstSymbolByNameAndCursor(
+        istring(significantToken.text), cursorPosition);
+
+    if (symbol is null)
+    {
         return null;
     }
 
@@ -82,7 +253,6 @@ private const(DSymbol)* deduceSymbolTypeByToken(Scope* completionScope, scope re
         symbolType = symbolType.type;
     }
 
-
     return symbolType;
 
 }
@@ -96,36 +266,80 @@ private bool isInvalidForUFCSCompletion(const(DSymbol)* beforeDotSymbol)
                 tok!"void"));
 }
 
-private TokenCursorResult getCursorToken(const(Token)[] tokens, size_t cursorPosition)
+const(Token)* findUFCSExpressionStart(SortedTokens tokens)
 {
-    auto sortedTokens = assumeSorted(tokens);
-    auto sortedBeforeTokens = sortedTokens.lowerBound(cursorPosition);
+    int depth = 0;
+
+    for (long i = tokens.length - 1; i >= 0; i--)
+    {
+        auto t = tokens[i].type;
+
+        // Handle nesting
+        if (t is tok!")" || t is tok!"]" || t is tok!"}")
+        {
+            depth++;
+            continue;
+        }
+
+        if (t is tok!"(" || t is tok!"[" || t is tok!"{")
+        {
+            depth--;
+            continue;
+        }
+
+        if (depth != 0)
+            continue;
+
+        // Allow chaining: f.papa().x
+        if (t is tok!"." ||
+            t is tok!"identifier" ||
+            t is tok!"stringLiteral")
+        {
+            continue;
+        }
+
+        // Stop when hitting something that breaks expression
+        return &tokens[i + 1];
+    }
+
+    // Entire range is the expression
+    return &tokens[0];
+}
+
+private TokenCursorResult getCursorToken(Scope* completionScope, const(Token)[] tokens, size_t cursorPosition)
+{
+    SortedTokens sortedTokens = assumeSorted(tokens);
+    SortedTokens sortedBeforeTokens = sortedTokens.lowerBound(cursorPosition);
 
     TokenCursorResult tokenCursorResult;
 
-    if (sortedBeforeTokens.empty) {
+    if (sortedBeforeTokens.empty)
+    {
         return tokenCursorResult;
     }
 
-    // move before identifier for
+    // Handle partially completed
     if (sortedBeforeTokens[$ - 1].type is tok!"identifier")
     {
         tokenCursorResult.partialIdentifier = sortedBeforeTokens[$ - 1].text;
         sortedBeforeTokens = sortedBeforeTokens[0 .. $ - 1];
     }
 
-    if (sortedBeforeTokens.length >= 2
-        && sortedBeforeTokens[$ - 1].type is tok!"."
-        && (sortedBeforeTokens[$ - 2].type is tok!"identifier" || sortedBeforeTokens[$ - 2].type is tok!"stringLiteral"))
+    // Handle dot completion
+    if (!sortedBeforeTokens.empty &&
+        sortedBeforeTokens[$ - 1].type is tok!".")
     {
-        // Check if it's UFCS dot completion
-        auto expressionTokens = getExpression(sortedBeforeTokens);
-        if(expressionTokens[0] !is sortedBeforeTokens[$ - 2]){
-            // If the expression is invalid as a dot token we return
-            return tokenCursorResult;
-        }
+        const(Token)* exprStart = findUFCSExpressionStart(sortedBeforeTokens);
 
-        tokenCursorResult.significantToken = sortedBeforeTokens[$ - 2];
+        if (exprStart is null)
+            return tokenCursorResult;
+
+        size_t start = exprStart - tokens.ptr;
+        size_t end = (&sortedBeforeTokens[$ - 1]) - tokens.ptr;
+
+        auto exprTokens = tokens[start .. end];
+
+        tokenCursorResult.expressionTokens = exprTokens;
         tokenCursorResult.completionContext = CompletionContext.DotCompletion;
         return tokenCursorResult;
     }
@@ -146,8 +360,8 @@ private TokenCursorResult getCursorToken(const(Token)[] tokens, size_t cursorPos
             && slicedAtParen[$ - 2].type is tok!"identifier"
             && slicedAtParen[$ - 1].type is tok!"(")
         {
+            tokenCursorResult.expressionTokens = slicedAtParen[0 .. $ - 3].array;
             tokenCursorResult.completionContext = CompletionContext.ParenCompletion;
-            tokenCursorResult.significantToken = slicedAtParen[$ - 4];
             tokenCursorResult.functionName = istring(slicedAtParen[$ - 2].text);
             return tokenCursorResult;
         }
@@ -207,9 +421,46 @@ private void getUFCSSymbols(T, Y)(scope ref T localAppender, scope ref Y globalA
     }
 }
 
+void printToken(const(Token)* token)
+{
+    if (token is null)
+    {
+        error("HMMM token is null why?");
+        return;
+    }
+    error("token text: ", token.text);
+    error("token type: ", token.type);
+}
+
+void printDsymbol(const(DSymbol)* sym)
+{
+    if (sym is null)
+    {
+        error("HMMM is null why?");
+        return;
+    }
+    error("name: ", sym.name);
+    error("kind: ", sym.kind);
+    error("protection: ", sym.protection);
+    error("qualifier : ", sym.qualifier);
+    error("type: ", sym.type);
+}
+
+void printTokenCursorResult(TokenCursorResult result)
+{
+    error("completionContext: ", result.completionContext);
+    error("functionName: ", result.functionName);
+    error("partialIdentifier: ", result.partialIdentifier);
+    error("expressionTokens: ");
+    foreach (t; result.expressionTokens)
+    {
+        printToken(&t);
+    }
+}
+
 DSymbol*[] getUFCSSymbolsForCursor(Scope* completionScope, scope ref const(Token)[] tokens, size_t cursorPosition)
 {
-    TokenCursorResult tokenCursorResult = getCursorToken(tokens, cursorPosition);
+    TokenCursorResult tokenCursorResult = getCursorToken(completionScope, tokens, cursorPosition);
 
     if (tokenCursorResult.completionContext is CompletionContext.UnknownCompletion)
     {
@@ -217,7 +468,7 @@ DSymbol*[] getUFCSSymbolsForCursor(Scope* completionScope, scope ref const(Token
         return [];
     }
 
-    const(DSymbol)* deducedSymbolType = deduceSymbolTypeByToken(completionScope, tokenCursorResult.significantToken, cursorPosition);
+    const(DSymbol)* deducedSymbolType = deduceExpressionType(completionScope, tokenCursorResult.expressionTokens, cursorPosition);
 
     if (deducedSymbolType is null)
     {
@@ -236,7 +487,8 @@ DSymbol*[] getUFCSSymbolsForCursor(Scope* completionScope, scope ref const(Token
     }
     else
     {
-        return getUFCSSymbolsForDotCompletion(deducedSymbolType, completionScope, cursorPosition, tokenCursorResult.partialIdentifier);
+        return getUFCSSymbolsForDotCompletion(deducedSymbolType, completionScope, cursorPosition, tokenCursorResult
+                .partialIdentifier);
     }
 
 }
@@ -272,7 +524,8 @@ private DSymbol*[] getUFCSSymbolsForParenCompletion(const(DSymbol)* symbolType, 
 
 }
 
-private bool willImplicitBeUpcasted(scope ref const(DSymbol) incomingSymbolType, scope ref const(DSymbol) significantSymbolType)
+private bool willImplicitBeUpcasted(scope ref const(DSymbol) incomingSymbolType, scope ref const(
+        DSymbol) significantSymbolType)
 {
     string fromTypeName = significantSymbolType.name.data;
     string toTypeName = incomingSymbolType.name.data;
@@ -311,16 +564,24 @@ private int getIntegerTypeSize(string type)
 {
     switch (type)
     {
-    // ordered by subjective frequency of use, since the compiler may use that
-    // for optimization.
-    case "int", "uint": return 4;
-    case "long", "ulong": return 8;
-    case "byte", "ubyte": return 1;
-    case "short", "ushort": return 2;
-    case "dchar": return 4;
-    case "wchar": return 2;
-    case "char": return 1;
-    default: return 0;
+        // ordered by subjective frequency of use, since the compiler may use that
+        // for optimization.
+    case "int", "uint":
+        return 4;
+    case "long", "ulong":
+        return 8;
+    case "byte", "ubyte":
+        return 1;
+    case "short", "ushort":
+        return 2;
+    case "dchar":
+        return 4;
+    case "wchar":
+        return 2;
+    case "char":
+        return 1;
+    default:
+        return 0;
     }
 }
 
@@ -342,14 +603,16 @@ bool isNonConstrainedTemplate(scope ref const(DSymbol) symbolType)
     return symbolType.kind is CompletionKind.typeTmpParam;
 }
 
-private bool matchesWithTypeOfPointer(scope ref const(DSymbol) incomingSymbolType, scope ref const(DSymbol) significantSymbolType)
+private bool matchesWithTypeOfPointer(scope ref const(DSymbol) incomingSymbolType, scope ref const(
+        DSymbol) significantSymbolType)
 {
     return incomingSymbolType.qualifier == SymbolQualifier.pointer
         && significantSymbolType.qualifier == SymbolQualifier.pointer
         && incomingSymbolType.type is significantSymbolType.type;
 }
 
-private bool matchesWithTypeOfArray(scope ref const(DSymbol) incomingSymbolType, scope ref const(DSymbol) cursorSymbolType)
+private bool matchesWithTypeOfArray(scope ref const(DSymbol) incomingSymbolType, scope ref const(
+        DSymbol) cursorSymbolType)
 {
     return incomingSymbolType.qualifier == SymbolQualifier.array
         && cursorSymbolType.qualifier == SymbolQualifier.array
@@ -357,21 +620,38 @@ private bool matchesWithTypeOfArray(scope ref const(DSymbol) incomingSymbolType,
 
 }
 
-private bool typeMatchesWith(scope ref const(DSymbol) incomingSymbolType, scope ref const(DSymbol) significantSymbolType) {
-    return incomingSymbolType is significantSymbolType
-        || isNonConstrainedTemplate(incomingSymbolType)
-        || matchesWithTypeOfArray(incomingSymbolType, significantSymbolType)
-        || matchesWithTypeOfPointer(incomingSymbolType, significantSymbolType);
+private bool matchStringLikeTypes(scope ref const(DSymbol) incomingSymbolType, scope ref const(DSymbol) significantSymbolType)
+{
+    if ((incomingSymbolType.name.data == "string" || incomingSymbolType.name.data == "wstring"
+            || incomingSymbolType.name.data == "dstring") && (significantSymbolType.name.data == "string" || significantSymbolType.name.data == "wstring"
+            || significantSymbolType.name.data == "dstring"))
+    {
+        return true;
+    }
+    return false;
 }
 
-private bool matchSymbolType(const(DSymbol)* firstParameter, const(DSymbol)* significantSymbolType) {
+private bool typeMatchesWith(scope ref const(DSymbol) incomingSymbolType, scope ref const(DSymbol) significantSymbolType)
+{
+    return incomingSymbolType is significantSymbolType
+        || isNonConstrainedTemplate(
+            incomingSymbolType)
+        || matchesWithTypeOfArray(incomingSymbolType, significantSymbolType)
+        || matchesWithTypeOfPointer(incomingSymbolType, significantSymbolType)
+        || matchStringLikeTypes(incomingSymbolType, significantSymbolType);
+
+}
+
+private bool matchSymbolType(const(DSymbol)* firstParameter, const(DSymbol)* significantSymbolType)
+{
 
     auto currentSignificantSymbolType = significantSymbolType;
     uint numberOfRetries = 0;
 
     do
     {
-        if (typeMatchesWith(*firstParameter.type, *currentSignificantSymbolType)) {
+        if (typeMatchesWith(*firstParameter.type, *currentSignificantSymbolType))
+        {
             return true;
         }
 
@@ -379,7 +659,9 @@ private bool matchSymbolType(const(DSymbol)* firstParameter, const(DSymbol)* sig
             && willImplicitBeUpcasted(*firstParameter.type, *currentSignificantSymbolType))
             return true;
 
-        if (currentSignificantSymbolType.aliasThisSymbols.empty || currentSignificantSymbolType is currentSignificantSymbolType.aliasThisSymbols.front){
+        if (currentSignificantSymbolType.aliasThisSymbols.empty || currentSignificantSymbolType is currentSignificantSymbolType
+            .aliasThisSymbols.front)
+        {
             return false;
         }
 
@@ -388,7 +670,7 @@ private bool matchSymbolType(const(DSymbol)* firstParameter, const(DSymbol)* sig
         // when multiple alias this are supported, we can rethink another solution
         currentSignificantSymbolType = currentSignificantSymbolType.aliasThisSymbols.front.type;
     }
-    while(numberOfRetries <= MAX_NUMBER_OF_MATCHING_RUNS);
+    while (numberOfRetries <= MAX_NUMBER_OF_MATCHING_RUNS);
     return false;
 }
 
@@ -406,11 +688,12 @@ bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDot
     if (incomingSymbol is null
         || beforeDotType is null
         || isGlobalScope && incomingSymbol.protection is tok!"private") // don't show private functions if we are in global scope
-    {
+        {
         return false;
     }
 
-    if (incomingSymbol.kind is CompletionKind.functionName && !incomingSymbol.functionParameters.empty && incomingSymbol.functionParameters.front.type)
+    if (incomingSymbol.kind is CompletionKind.functionName && !incomingSymbol.functionParameters.empty && incomingSymbol
+        .functionParameters.front.type)
     {
         return matchSymbolType(incomingSymbol.functionParameters.front, beforeDotType);
     }
