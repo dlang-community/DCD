@@ -211,10 +211,8 @@ void printTokenType(const(Token)* token)
 {
     if (token is null)
     {
-        error("HMMM token is null why?");
         return;
     }
-    error("token type: ", token.type);
     switch (token.type)
     {
     case tok!"":
@@ -418,43 +416,6 @@ private void getUFCSSymbols(T, Y)(scope ref T localAppender, scope ref Y globalA
                 sym.type.getParts(istring(null), globalAppender, visited);
             }
         }
-    }
-}
-
-void printToken(const(Token)* token)
-{
-    if (token is null)
-    {
-        error("HMMM token is null why?");
-        return;
-    }
-    error("token text: ", token.text);
-    error("token type: ", token.type);
-}
-
-void printDsymbol(const(DSymbol)* sym)
-{
-    if (sym is null)
-    {
-        error("HMMM is null why?");
-        return;
-    }
-    error("name: ", sym.name);
-    error("kind: ", sym.kind);
-    error("protection: ", sym.protection);
-    error("qualifier : ", sym.qualifier);
-    error("type: ", sym.type);
-}
-
-void printTokenCursorResult(TokenCursorResult result)
-{
-    error("completionContext: ", result.completionContext);
-    error("functionName: ", result.functionName);
-    error("partialIdentifier: ", result.partialIdentifier);
-    error("expressionTokens: ");
-    foreach (t; result.expressionTokens)
-    {
-        printToken(&t);
     }
 }
 
