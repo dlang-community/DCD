@@ -11,9 +11,41 @@ Foo baz(Foo f) {
 	return f;
 }
 
+Foo qux(Foo f) {
+	return f;
+}
+
+ref refFoo(ref Foo f) {
+	return f;
+}
+
+ref refFoo2(ref Foo f) {
+	return f;
+}
 
 void main()
 {
 	Foo f;
 	Foo foo = baz(f.foo().bar()).
+}
+
+void another() {
+	Foo f;
+	Foo foo = f.foo().bar().baz().
+}
+
+void yetAnother() {
+	Foo f;
+	Foo foo = f.foo.bar().baz.qux.
+}
+
+void justAnother() {
+	Foo f;
+	Foo foo = f.foo().baz().qux()
+	.
+}
+
+void refTest() {
+	Foo f;
+	f.
 }
