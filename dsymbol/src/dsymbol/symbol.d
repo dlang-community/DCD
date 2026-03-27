@@ -443,7 +443,8 @@ struct DSymbol
 		bool, "_flag8", 1,
 		bool, "_flag9", 1,
 		bool, "_flag10", 1,
-		uint, "", 3,
+		bool, "_flag11", 1,
+		uint, "", 2,
 	));
 	// dfmt on
 
@@ -463,6 +464,8 @@ struct DSymbol
 	alias parameterIsOut = _flag9;
 	/// Only valid for parameters: the parameter has storage class `in`
 	alias parameterIsIn = _flag10;
+	/// If the return type is a ref
+	alias returnIsRef = _flag11;
 
 	deprecated bool isPointer()
 	{

@@ -15,8 +15,15 @@ import std.string;
 import std.regex;
 import containers.hashset : HashSet;
 import std.experimental.logger;
-
 alias SortedTokens = SortedRange!(const(Token)[], "a < b");
+
+struct ExpressionInfo
+{
+    const(DSymbol)* type;
+    bool assumingLvalue; // We only assume else we need to do life time analysis.
+    bool isFromFunction;
+    string name;
+}
 
 enum CompletionContext
 {
@@ -128,8 +135,8 @@ private const(DSymbol)* deduceExpressionType(
             symbolNameToTypeName(STRING_LITERAL_SYMBOL_NAME), cursorPosition);
     }
 
-    auto currentType =
-        deduceSymbolTypeByToken(completionScope, *firstToken, cursorPosition);
+    auto currentType = deduceSymbolTypeByToken(completionScope, *firstToken, cursorPosition);
+
 
     if (currentType is null)
         return null;
@@ -174,8 +181,18 @@ private const(DSymbol)* deduceExpressionType(
             auto name = istring(exprTokens[i + 1].text);
 
             // Get UFCS candidates for current type
+            ExpressionInfo beforeDotType;
+            beforeDotType.type = currentType;
+            beforeDotType.assumingLvalue = false;
+            // check if there it's from a function
+            auto functionSymbol = completionScope.getFirstSymbolByNameAndCursor(istring(firstToken.text), cursorPosition);
+            if (functionSymbol) {
+                beforeDotType.isFromFunction = functionSymbol.qualifier == SymbolQualifier.func;
+                beforeDotType.name = functionSymbol.name;
+            }
+
             auto candidates = getUFCSSymbolsForDotCompletion(
-                currentType,
+                beforeDotType,
                 completionScope,
                 cursorPosition,
                 ""
@@ -205,23 +222,6 @@ private const(DSymbol)* deduceExpressionType(
         }
     }
     return currentType;
-}
-
-void printTokenType(const(Token)* token)
-{
-    if (token is null)
-    {
-        return;
-    }
-    switch (token.type)
-    {
-    case tok!"":
-
-        break;
-
-    default:
-        break;
-    }
 }
 
 private const(DSymbol)* deduceSymbolTypeByToken(Scope* completionScope, scope ref const(Token) significantToken, size_t cursorPosition)
@@ -429,14 +429,15 @@ DSymbol*[] getUFCSSymbolsForCursor(Scope* completionScope, scope ref const(Token
         return [];
     }
 
-    const(DSymbol)* deducedSymbolType = deduceExpressionType(completionScope, tokenCursorResult.expressionTokens, cursorPosition);
+    ExpressionInfo deducedSymbolType;
+    deducedSymbolType.type = deduceExpressionType(completionScope, tokenCursorResult.expressionTokens, cursorPosition);
 
-    if (deducedSymbolType is null)
+    if (deducedSymbolType.type is null)
     {
         return [];
     }
 
-    if (deducedSymbolType.isInvalidForUFCSCompletion)
+    if (deducedSymbolType.type.isInvalidForUFCSCompletion)
     {
         trace("CursorSymbolType isn't valid for UFCS completion");
         return [];
@@ -454,7 +455,7 @@ DSymbol*[] getUFCSSymbolsForCursor(Scope* completionScope, scope ref const(Token
 
 }
 
-private DSymbol*[] getUFCSSymbolsForDotCompletion(const(DSymbol)* symbolType, Scope* completionScope, size_t cursorPosition, string partial)
+private DSymbol*[] getUFCSSymbolsForDotCompletion(ExpressionInfo symbolType, Scope* completionScope, size_t cursorPosition, string partial)
 {
     // local appender
     FilteredAppender!((DSymbol* a) =>
@@ -472,7 +473,7 @@ private DSymbol*[] getUFCSSymbolsForDotCompletion(const(DSymbol)* symbolType, Sc
     return localAppender.data ~ globalAppender.data;
 }
 
-private DSymbol*[] getUFCSSymbolsForParenCompletion(const(DSymbol)* symbolType, Scope* completionScope, istring searchWord, size_t cursorPosition)
+private DSymbol*[] getUFCSSymbolsForParenCompletion(ExpressionInfo symbolType, Scope* completionScope, istring searchWord, size_t cursorPosition)
 {
     // local appender
     FilteredAppender!(a => a.isCallableWithArg(symbolType) && a.name.among(searchWord), DSymbol*[]) localAppender;
@@ -644,10 +645,10 @@ private bool matchSymbolType(const(DSymbol)* firstParameter, const(DSymbol)* sig
  *     `true` if `incomingSymbols`' first parameter matches `beforeDotType`
  *     `false` otherwise
  */
-bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDotType, bool isGlobalScope = false)
+bool isCallableWithArg(const(DSymbol)* incomingSymbol, ExpressionInfo beforeDotType, bool isGlobalScope = false)
 {
     if (incomingSymbol is null
-        || beforeDotType is null
+        || beforeDotType.type is null
         || isGlobalScope && incomingSymbol.protection is tok!"private") // don't show private functions if we are in global scope
         {
         return false;
@@ -656,7 +657,8 @@ bool isCallableWithArg(const(DSymbol)* incomingSymbol, const(DSymbol)* beforeDot
     if (incomingSymbol.kind is CompletionKind.functionName && !incomingSymbol.functionParameters.empty && incomingSymbol
         .functionParameters.front.type)
     {
-        return matchSymbolType(incomingSymbol.functionParameters.front, beforeDotType);
+        auto firstParam = incomingSymbol.functionParameters.front;
+        return matchSymbolType(firstParam, beforeDotType.type);
     }
     return false;
 }
