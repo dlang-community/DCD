@@ -276,14 +276,6 @@ final class FirstPass : ASTVisitor
 				symbol.acSymbol.doc = makeDocumentation(dec.comment);
 				currentSymbol.addChild(symbol, true);
 				currentScope.addSymbol(symbol.acSymbol, false);
-
-				if (currentSymbol.acSymbol.kind == CompletionKind.structName
-					|| currentSymbol.acSymbol.kind == CompletionKind.unionName)
-				{
-					structFieldNames.insert(symbol.acSymbol.name);
-					// TODO: remove this cast. See the note on structFieldTypes
-					structFieldTypes.insert(null);
-				}
 			}
 		}
 	}
@@ -457,6 +449,8 @@ final class FirstPass : ASTVisitor
 				|| currentSymbol.acSymbol.kind == CompletionKind.unionName)
 				&& currentSymbol.acSymbol.getFirstPartNamed(CONSTRUCTOR_SYMBOL_NAME) is null)
 			createConstructor();
+
+		createCallTip();
 	}
 
 	override void visit(const ImportDeclaration importDeclaration)
@@ -811,6 +805,39 @@ private:
 			CompletionKind.functionName, symbolFile, currentSymbol.acSymbol.location);
 		symbol.acSymbol.callTip = istring(app.data);
 		currentSymbol.addChild(symbol, true);
+	}
+
+	void createCallTip()
+	{
+		import std.range : zip;
+
+		auto app = appender!string();
+
+		switch (currentSymbol.acSymbol.kind)
+		{
+			case CompletionKind.structName: app.put("struct "); break;
+			case CompletionKind.unionName: app.put("union "); break;
+
+			default: app.put("auto ");
+		}
+
+		app.put(currentSymbol.acSymbol.name.data);
+		app.put(" {\n");
+		foreach (field; zip(structFieldTypes[], structFieldNames[]))
+		{
+			if (field[0] is null)
+				app.put("    auto ");
+			else
+			{
+				app.put("    ");
+				app.formatNode(field[0]);
+				app.put(" ");
+			}
+			app.put(field[1].data);
+			app.put(";\n");
+		}
+		app.put("}");
+		currentSymbol.acSymbol.callTip = istring(app.data);
 	}
 
 	void pushScope(size_t startLocation, size_t endLocation)
