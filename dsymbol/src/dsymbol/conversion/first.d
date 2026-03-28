@@ -450,7 +450,9 @@ final class FirstPass : ASTVisitor
 				&& currentSymbol.acSymbol.getFirstPartNamed(CONSTRUCTOR_SYMBOL_NAME) is null)
 			createConstructor();
 
-		createCallTip();
+		if (currentSymbol.acSymbol.kind == CompletionKind.structName
+				|| currentSymbol.acSymbol.kind == CompletionKind.unionName)
+			createCallTip();
 	}
 
 	override void visit(const ImportDeclaration importDeclaration)
