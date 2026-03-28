@@ -261,6 +261,7 @@ final class FirstPass : ASTVisitor
 				structFieldNames.insert(symbol.acSymbol.name);
 				// TODO: remove this cast. See the note on structFieldTypes
 				structFieldTypes.insert(cast() dec.type);
+				structFieldStatic.insert(false);
 			}
 		}
 		if (dec.autoDeclaration !is null)
@@ -276,6 +277,15 @@ final class FirstPass : ASTVisitor
 				symbol.acSymbol.doc = makeDocumentation(dec.comment);
 				currentSymbol.addChild(symbol, true);
 				currentScope.addSymbol(symbol.acSymbol, false);
+
+				if (currentSymbol.acSymbol.kind == CompletionKind.structName
+					|| currentSymbol.acSymbol.kind == CompletionKind.unionName)
+				{
+					structFieldNames.insert(symbol.acSymbol.name);
+					// TODO: remove this cast. See the note on structFieldTypes
+					structFieldTypes.insert(null);
+					structFieldStatic.insert(true);
+				}
 			}
 		}
 	}
@@ -430,8 +440,10 @@ final class FirstPass : ASTVisitor
 
 		auto savedStructFieldNames = move(structFieldNames);
 		auto savedStructFieldTypes = move(structFieldTypes);
+		auto savedStructFieldStatic = move(structFieldStatic);
 		scope(exit) structFieldNames = move(savedStructFieldNames);
 		scope(exit) structFieldTypes = move(savedStructFieldTypes);
+		scope(exit) structFieldStatic = move(savedStructFieldStatic);
 
 		DSymbol* thisSymbol = GCAllocator.instance.make!DSymbol(THIS_SYMBOL_NAME,
 			CompletionKind.variableName, currentSymbol.acSymbol);
@@ -825,8 +837,10 @@ private:
 
 		app.put(currentSymbol.acSymbol.name.data);
 		app.put(" {\n");
-		foreach (field; zip(structFieldTypes[], structFieldNames[]))
+		foreach (field; zip(structFieldTypes[], structFieldNames[], structFieldStatic[]))
 		{
+			if (field[2] == true) continue;
+
 			if (field[0] is null)
 				app.put("    auto ");
 			else
@@ -838,6 +852,27 @@ private:
 			app.put(field[1].data);
 			app.put(";\n");
 		}
+
+		if (structFieldStatic.length > 0)
+		{
+			app.put("    // static fields\n");
+			foreach (field; zip(structFieldTypes[], structFieldNames[], structFieldStatic[]))
+			{
+				if (field[2] == false) continue;
+
+				if (field[0] is null)
+					app.put("    auto ");
+				else
+				{
+					app.put("    ");
+					app.formatNode(field[0]);
+					app.put(" ");
+				}
+				app.put(field[1].data);
+				app.put(";\n");
+			}
+		}
+
 		app.put("}");
 		currentSymbol.acSymbol.callTip = istring(app.data);
 	}
