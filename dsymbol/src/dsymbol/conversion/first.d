@@ -1297,6 +1297,9 @@ private:
 	/// Field names for struct constructor generation
 	UnrolledList!(istring) structFieldNames;
 
+	/// Wether they are static or not
+	UnrolledList!(bool) structFieldStatic;
+
 	/// Last comment for ditto-ing
 	istring lastComment;
 
