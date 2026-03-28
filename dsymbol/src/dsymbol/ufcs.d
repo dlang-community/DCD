@@ -71,7 +71,7 @@ private const(Token)* findUFCSBaseToken( const(Token)[] tokens)
     int depth = 0;
 
     // Walk backwards to skip nested parentheses/brackets/braces
-    for (long i = tokens.length - 1; i >= 0; i--)
+    for (size_t i = tokens.length; i-- > 0;)
     {
         auto t = tokens[i].type;
 
@@ -268,7 +268,7 @@ const(Token)* findUFCSExpressionStart(SortedTokens tokens)
 {
     int depth = 0;
 
-    for (long i = tokens.length - 1; i >= 0; i--)
+    for (size_t i = tokens.length; i-- > 0;)
     {
         auto t = tokens[i].type;
 
