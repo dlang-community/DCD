@@ -853,24 +853,26 @@ private:
 			app.put(";\n");
 		}
 
-		if (structFieldStatic.length > 0)
+		bool first = false;
+		foreach (field; zip(structFieldTypes[], structFieldNames[], structFieldStatic[]))
 		{
-			app.put("    // static fields\n");
-			foreach (field; zip(structFieldTypes[], structFieldNames[], structFieldStatic[]))
+			if (field[2] == false) continue;
+			if (!first)
 			{
-				if (field[2] == false) continue;
-
-				if (field[0] is null)
-					app.put("    auto ");
-				else
-				{
-					app.put("    ");
-					app.formatNode(field[0]);
-					app.put(" ");
-				}
-				app.put(field[1].data);
-				app.put(";\n");
+				app.put("    // static fields\n");
+				first = true;
 			}
+
+			if (field[0] is null)
+				app.put("    auto ");
+			else
+			{
+				app.put("    ");
+				app.formatNode(field[0]);
+				app.put(" ");
+			}
+			app.put(field[1].data);
+			app.put(";\n");
 		}
 
 		app.put("}");
