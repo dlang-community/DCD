@@ -352,8 +352,9 @@ private TokenCursorResult getCursorToken(Scope* completionScope, const(Token)[] 
         }
 
         auto slicedAtParen = sortedBeforeTokens[0 .. index];
-        if (slicedAtParen.length >= 4
-            && slicedAtParen[$ - 4].type is tok!"identifier"
+       
+        // Also allowing ) for ufcs function chaining
+        if (slicedAtParen.length >= 3
             && slicedAtParen[$ - 3].type is tok!"."
             && slicedAtParen[$ - 2].type is tok!"identifier"
             && slicedAtParen[$ - 1].type is tok!"(")
