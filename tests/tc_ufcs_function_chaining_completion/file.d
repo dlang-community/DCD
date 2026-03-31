@@ -49,3 +49,28 @@ void refTest() {
 	Foo f;
 	f.
 }
+
+Mama mamaFoo(Mama m) {
+	return m;
+}
+
+Mama mamaBar(Mama m, int y) {
+	return m;
+}
+
+Papa mamaToPapa(Mama m) {
+	return Papa.init;
+}
+
+Papa papaOnly(Papa p) {
+	return p;
+}
+
+struct Mama {
+}
+struct Papa {}
+
+void moreTesting() {
+	Mama m;
+	auto ms = m.mamaFoo.mamaToPapa.
+}

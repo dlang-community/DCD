@@ -15,3 +15,6 @@ diff actual_completion_test4.txt expected_completion_test4.txt --strip-trailing-
 
 ../../bin/dcd-client $1 -c486 file.d > actual_completion_test5.txt
 diff actual_completion_test5.txt expected_completion_test5.txt --strip-trailing-cr
+
+../../bin/dcd-client $1 -c751 file.d > actual_completion_test6.txt
+diff actual_completion_test6.txt expected_completion_test6.txt --strip-trailing-cr

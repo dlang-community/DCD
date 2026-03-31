@@ -117,6 +117,43 @@ private const(Token)* findExpressionBase(const(Token)[] tokens)
     return tokens.ptr; // fallback
 }
 
+/// Resolves a symbol in a UFCS chain during type deduction.
+/// This is intentionally permissive (name-based lookup)
+/// Used only for type deduction, completion filtering will be done in a later step
+private const(DSymbol)* resolveUFCSChainSymbol(
+    Scope* completionScope,
+    ExpressionInfo beforeDotType,
+    istring name,
+    size_t cursorPosition)
+{
+    Appender!(DSymbol*[]) local;
+    Appender!(DSymbol*[]) global;
+
+    getUFCSSymbols(local, global, completionScope, cursorPosition);
+
+    auto allSymbols = local.data ~ global.data;
+
+    const(DSymbol)* fallback = null;
+
+    foreach (sym; allSymbols)
+    {
+        if (sym.name != name)
+            continue;
+
+        // Prefer a symbol that actually matches the type
+        if (sym.isCallableWithArg(beforeDotType))
+        {
+            return sym;
+        }
+
+        // Otherwise remember a fallback (loose match)
+        if (fallback is null)
+            fallback = sym;
+    }
+
+    return fallback;
+}
+
 private const(DSymbol)* deduceExpressionType(
     Scope* completionScope,
     const(Token)[] exprTokens,
@@ -191,26 +228,15 @@ private const(DSymbol)* deduceExpressionType(
                 beforeDotType.name = functionSymbol.name;
             }
 
-            auto candidates = getUFCSSymbolsForDotCompletion(
-                beforeDotType,
+            auto match = resolveUFCSChainSymbol(
                 completionScope,
-                cursorPosition,
-                ""
+                beforeDotType,
+                name,
+                cursorPosition
             );
 
-            const(DSymbol)* match = null;
-
-            foreach (c; candidates)
+            if (match is null)
             {
-                if (c.name == name)
-                {
-                    match = c;
-                    break;
-                }
-            }
-
-            // Invalid UFCS chain
-            if (match is null) {
                 return null;
             }
 
