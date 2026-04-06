@@ -14,7 +14,7 @@ import std.range;
 import std.string;
 import std.regex;
 import containers.hashset : HashSet;
-import std.logger.core;
+import std.experimental.logger;
 import std.typecons : nullable, Nullable;
 
 alias SortedTokens = SortedRange!(const(Token)[], "a < b");
