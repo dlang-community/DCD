@@ -198,7 +198,7 @@ private const(Token)* findUFCSBaseToken(const(Token)[] tokens, out const(Token)[
         if (t is tok!"identifier")
         {
             // If this is a function call, then extract the arguments
-            if (tokens[i + 1] == tok!"(" && tokens[$ - 1] == tok!")")
+            if (i + 1 <= tokens.length && tokens[i + 1] == tok!"(" && tokens[$ - 1] == tok!")")
             {
                 auto argTokens = tokens[i + 2 .. $ - 1]; // get whats inside ( ... )
                 foreach (argToken; argTokens)
