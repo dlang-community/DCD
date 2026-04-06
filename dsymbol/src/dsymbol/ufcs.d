@@ -14,14 +14,112 @@ import std.range;
 import std.string;
 import std.regex;
 import containers.hashset : HashSet;
-import std.experimental.logger;
+import std.logger.core;
+import std.typecons : nullable, Nullable;
+
 alias SortedTokens = SortedRange!(const(Token)[], "a < b");
+struct ScopeLookupContext
+{
+    Scope* completionScope;
+    const(Token)[] exprTokens;
+    size_t cursorPosition;
+    const(DSymbol)* getSymbolByName(string name)
+    {
+        return completionScope.getFirstSymbolByNameAndCursor(istring(name), cursorPosition);
+    }
+}
+
+bool compatibleType(DSymbol* sym, ref const(Token) argToken, ScopeLookupContext scopeComplentionContext)
+{
+    if (!sym.type)
+    {
+        return false;
+    }
+
+    switch (argToken.type)
+    {
+        mixin(STRING_LITERAL_CASES);
+        return sym.type.name == "string";
+    case tok!"true":
+    case tok!"false":
+        return sym.type.name is getBuiltinTypeName(tok!"bool");
+
+    case tok!"intLiteral":
+    case tok!"longLiteral":
+    case tok!"uintLiteral":
+    case tok!"ulongLiteral":
+        // integer literals
+        return 
+            // integers
+            sym.type.name is getBuiltinTypeName(tok!"int") ||
+            sym.type.name is getBuiltinTypeName(tok!"uint") ||
+            sym.type.name is getBuiltinTypeName(tok!"long") ||
+            sym.type.name is getBuiltinTypeName(tok!"ulong") ||
+            sym.type.name is getBuiltinTypeName(tok!"byte") ||
+            sym.type.name is getBuiltinTypeName(tok!"ubyte") ||
+            sym.type.name is getBuiltinTypeName(tok!"short") ||
+            sym.type.name is getBuiltinTypeName(tok!"ushort") ||
+
+             // floats
+            sym.type.name is getBuiltinTypeName(tok!"float") ||
+            sym.type.name is getBuiltinTypeName(tok!"double") ||
+            sym.type.name is getBuiltinTypeName(tok!"real") ||
+
+             // complex
+            sym.type.name is getBuiltinTypeName(tok!"cfloat") ||
+            sym.type.name is getBuiltinTypeName(tok!"cdouble") ||
+            sym.type.name is getBuiltinTypeName(tok!"creal");
+
+    case tok!"floatLiteral":
+    case tok!"doubleLiteral":
+    case tok!"realLiteral":
+        return 
+            // floats
+            sym.type.name is getBuiltinTypeName(tok!"float") ||
+            sym.type.name is getBuiltinTypeName(tok!"double") ||
+            sym.type.name is getBuiltinTypeName(tok!"real") ||
+
+            sym.type.name is getBuiltinTypeName(tok!"cfloat") ||
+            sym.type.name is getBuiltinTypeName(tok!"cdouble") ||
+            sym.type.name is getBuiltinTypeName(tok!"creal");
+
+    case tok!"ifloatLiteral":
+    case tok!"idoubleLiteral":
+    case tok!"irealLiteral":
+        // imaginary literals
+        return 
+            // imaginary
+            sym.type.name is getBuiltinTypeName(tok!"ifloat") ||
+            sym.type.name is getBuiltinTypeName(tok!"idouble") ||
+            sym.type.name is getBuiltinTypeName(tok!"ireal") ||
+
+             // complex
+            sym.type.name is getBuiltinTypeName(tok!"cfloat") ||
+            sym.type.name is getBuiltinTypeName(tok!"cdouble") ||
+            sym.type.name is getBuiltinTypeName(tok!"creal");
+
+    default:
+        // Not a primitive type eg. Identifier
+        // Doing type looking up 
+        if (argToken.text)
+        {
+            auto found = scopeComplentionContext.getSymbolByName(argToken.text);
+            if (found)
+            {
+                return sym.type is found.type;
+            }
+        }
+        return false;
+    }
+}
 
 struct ExpressionInfo
 {
     const(DSymbol)* type;
+    const(Token)* significantToken;
     bool assumingLvalue; // We only assume else we need to do life time analysis.
     bool isFromFunction;
+    const(Token)[] arguments;
     string name;
 }
 
@@ -63,7 +161,7 @@ enum string[string] INTEGER_PROMOTIONS = [
 
 enum MAX_NUMBER_OF_MATCHING_RUNS = 50;
 
-private const(Token)* findUFCSBaseToken( const(Token)[] tokens)
+private const(Token)* findUFCSBaseToken(const(Token)[] tokens, out const(Token)[] arguments)
 {
     if (tokens.empty)
         return null;
@@ -93,8 +191,25 @@ private const(Token)* findUFCSBaseToken( const(Token)[] tokens)
             continue;
 
         // If we hit a literal or identifier, that's likely our base
-        if (t is tok!"identifier" || isStringLiteral(t) || t is tok!"intLiteral" || t is tok!"floatLiteral")
+        if (isStringLiteral(t) || t is tok!"intLiteral" || t is tok!"floatLiteral")
         {
+            return &tokens[i];
+        }
+        if (t is tok!"identifier")
+        {
+            // If this is a function call, then extract the arguments
+            if (tokens[i + 1] == tok!"(" && tokens[$ - 1] == tok!")")
+            {
+                auto argTokens = tokens[i + 2 .. $ - 1]; // get whats inside ( ... )
+                foreach (argToken; argTokens)
+                {
+                    if (argToken == tok!",")
+                    {
+                        continue;
+                    }
+                    arguments ~= argToken;
+                }
+            }
             return &tokens[i];
         }
 
@@ -138,8 +253,9 @@ private const(DSymbol)* resolveUFCSChainSymbol(
     foreach (sym; allSymbols)
     {
         if (sym.name != name)
+        {
             continue;
-
+        }
         // Prefer a symbol that actually matches the type
         if (sym.isCallableWithArg(beforeDotType))
         {
@@ -148,35 +264,41 @@ private const(DSymbol)* resolveUFCSChainSymbol(
 
         // Otherwise remember a fallback (loose match)
         if (fallback is null)
+        {
             fallback = sym;
+        }
     }
 
     return fallback;
 }
 
-private const(DSymbol)* deduceExpressionType(
+private Nullable!ExpressionInfo deduceExpressionType(
     Scope* completionScope,
     const(Token)[] exprTokens,
     size_t cursorPosition)
 {
+    ExpressionInfo info;
 
     if (exprTokens.empty)
     {
-        return null;
+        return Nullable!ExpressionInfo.init;
     }
 
-    auto firstToken = findUFCSBaseToken(exprTokens);
-    if (isStringLiteral(firstToken.type))
+    info.significantToken = findUFCSBaseToken(exprTokens, info.arguments);
+    if (isStringLiteral(info.significantToken.type))
     {
-        return completionScope.getFirstSymbolByNameAndCursor(
+        info.type = completionScope.getFirstSymbolByNameAndCursor(
             symbolNameToTypeName(STRING_LITERAL_SYMBOL_NAME), cursorPosition);
+        return nullable(info);
     }
 
-    auto currentType = deduceSymbolTypeByToken(completionScope, *firstToken, cursorPosition);
+    auto scopeLookupContext = ScopeLookupContext(completionScope, exprTokens, cursorPosition);
+    info.type = deduceSymbolTypeByToken(info, scopeLookupContext);
 
-
-    if (currentType is null)
-        return null;
+    if (info.type is null)
+    {
+        return Nullable!ExpressionInfo.init;
+    }
 
     // 2. Walk through the expression left → right
     for (size_t i = 1; i < exprTokens.length; i++)
@@ -201,9 +323,9 @@ private const(DSymbol)* deduceExpressionType(
             }
 
             // Function call → move to return type
-            if (currentType !is null && currentType.type !is null)
+            if (info.type !is null && info.type.type !is null)
             {
-                currentType = currentType.type;
+                info.type = info.type.type;
             }
 
             i = j - 1;
@@ -217,44 +339,79 @@ private const(DSymbol)* deduceExpressionType(
         {
             auto name = istring(exprTokens[i + 1].text);
 
-            // Get UFCS candidates for current type
-            ExpressionInfo beforeDotType;
-            beforeDotType.type = currentType;
-            beforeDotType.assumingLvalue = false;
-            // check if there it's from a function
-            auto functionSymbol = completionScope.getFirstSymbolByNameAndCursor(istring(firstToken.text), cursorPosition);
-            if (functionSymbol) {
-                beforeDotType.isFromFunction = functionSymbol.qualifier == SymbolQualifier.func;
-                beforeDotType.name = functionSymbol.name;
-            }
-
             auto match = resolveUFCSChainSymbol(
                 completionScope,
-                beforeDotType,
+                info,
                 name,
                 cursorPosition
             );
 
             if (match is null)
             {
-                return null;
+                return Nullable!ExpressionInfo.init;
             }
-
-            // Update current type (this is the chain step)
-            currentType = match.type;
 
             i++; // skip identifier
             continue;
         }
     }
-    return currentType;
+    return nullable(info);
 }
 
-private const(DSymbol)* deduceSymbolTypeByToken(Scope* completionScope, scope ref const(Token) significantToken, size_t cursorPosition)
+private const(DSymbol)* deduceSymbolTypeByToken(ref ExpressionInfo info, ScopeLookupContext scopeCompletionContext)
 {
+    const(DSymbol)* symbol = null;
+    auto found = scopeCompletionContext.completionScope.getSymbolsByNameAndCursor(
+        istring(info.significantToken.text), scopeCompletionContext.cursorPosition);
 
-    const(DSymbol)* symbol = completionScope.getFirstSymbolByNameAndCursor(
-        istring(significantToken.text), cursorPosition);
+    if (found.empty)
+    {
+        return null;
+    }
+
+    if (found.length == 1)
+    {
+        symbol = found.front;
+    }
+    else if (found.length > 1)
+    {
+        // If we have more functions then we must have overloaded function 
+        if (info.arguments.length > 0)
+        {
+            // we need to match with the arguments accordingly if any
+            // we assume that the first param matches since it's a UFCS call, hence why we - 1.
+            auto filtered = found.find!((i => max(i.functionParameters.length - 1, 0) == info
+                    .arguments.length));
+            if (filtered.length == 1)
+            {
+                // There is only 1 solution
+                symbol = filtered.front;
+            }
+            else if (filtered.length > 1)
+            {
+                bool allMatch = false;
+                foreach (DSymbol* sym; filtered)
+                {
+                    allMatch = false;
+                    foreach (idx, p; sym.functionParameters[1 .. $]) // we assume that the first param matches since it's a UFCS call, hence why we start with 1.
+                    {
+                        allMatch = compatibleType(p, info.arguments[idx], scopeCompletionContext);
+                        if (!allMatch)
+                        {
+                            trace(sym.name," doesn't match with the arguments");
+                            break;
+                        }
+                    }
+                    if (allMatch)
+                    {
+                        symbol = sym;
+                        trace("Found the right overloaded function ", sym.type.name);
+                        return sym.type;
+                    }
+                }
+            }
+        }
+    }
 
     if (symbol is null)
     {
@@ -268,9 +425,8 @@ private const(DSymbol)* deduceSymbolTypeByToken(Scope* completionScope, scope re
             || symbolType.kind == CompletionKind.aliasName))
     {
         if (symbolType.type is null
-            || symbolType.type is symbolType
-            || symbolType.name.data == "string") // special case for string
-        {
+            || symbolType.type is symbolType) // special case for string
+            {
             break;
         }
         //look at next type to deduce
@@ -378,7 +534,7 @@ private TokenCursorResult getCursorToken(Scope* completionScope, const(Token)[] 
         }
 
         auto slicedAtParen = sortedBeforeTokens[0 .. index];
-       
+
         // Also allowing ) for ufcs function chaining
         if (slicedAtParen.length >= 3
             && slicedAtParen[$ - 3].type is tok!"."
@@ -456,15 +612,15 @@ DSymbol*[] getUFCSSymbolsForCursor(Scope* completionScope, scope ref const(Token
         return [];
     }
 
-    ExpressionInfo deducedSymbolType;
-    deducedSymbolType.type = deduceExpressionType(completionScope, tokenCursorResult.expressionTokens, cursorPosition);
+    Nullable!ExpressionInfo deducedSymbolType = deduceExpressionType(completionScope, tokenCursorResult
+            .expressionTokens, cursorPosition);
 
-    if (deducedSymbolType.type is null)
+    if (deducedSymbolType.isNull)
     {
         return [];
     }
 
-    if (deducedSymbolType.type.isInvalidForUFCSCompletion)
+    if (deducedSymbolType.get().type.isInvalidForUFCSCompletion)
     {
         trace("CursorSymbolType isn't valid for UFCS completion");
         return [];
@@ -472,11 +628,12 @@ DSymbol*[] getUFCSSymbolsForCursor(Scope* completionScope, scope ref const(Token
 
     if (tokenCursorResult.completionContext == CompletionContext.ParenCompletion)
     {
-        return getUFCSSymbolsForParenCompletion(deducedSymbolType, completionScope, tokenCursorResult.functionName, cursorPosition);
+        return getUFCSSymbolsForParenCompletion(deducedSymbolType.get(), completionScope, tokenCursorResult
+                .functionName, cursorPosition);
     }
     else
     {
-        return getUFCSSymbolsForDotCompletion(deducedSymbolType, completionScope, cursorPosition, tokenCursorResult
+        return getUFCSSymbolsForDotCompletion(deducedSymbolType.get(), completionScope, cursorPosition, tokenCursorResult
                 .partialIdentifier);
     }
 
@@ -609,10 +766,12 @@ private bool matchesWithTypeOfArray(scope ref const(DSymbol) incomingSymbolType,
 
 }
 
-private bool matchStringLikeTypes(scope ref const(DSymbol) incomingSymbolType, scope ref const(DSymbol) significantSymbolType)
+private bool matchStringLikeTypes(scope ref const(DSymbol) incomingSymbolType, scope ref const(
+        DSymbol) significantSymbolType)
 {
     if ((incomingSymbolType.name.data == "string" || incomingSymbolType.name.data == "wstring"
-            || incomingSymbolType.name.data == "dstring") && (significantSymbolType.name.data == "string" || significantSymbolType.name.data == "wstring"
+            || incomingSymbolType.name.data == "dstring") && (significantSymbolType.name.data == "string" || significantSymbolType
+            .name.data == "wstring"
             || significantSymbolType.name.data == "dstring"))
     {
         return true;

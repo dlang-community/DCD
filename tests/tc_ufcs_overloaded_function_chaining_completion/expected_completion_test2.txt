@@ -1,0 +1,4 @@
+identifiers
+boo	F	Foo boo(Foo f, ulong id)	stdin 325		Foo
+boo	F	Foo boo(Foo f, ulong id, Bar b)	stdin 414		Foo
+boo	F	void boo(Foo f, ulong id, Bar b, float num)	stdin 367		void

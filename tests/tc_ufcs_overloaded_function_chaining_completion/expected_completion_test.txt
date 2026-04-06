@@ -1,0 +1,5 @@
+identifiers
+showSomething	F	int showSomething(int x, string message, bool ok, bool lol)	stdin 58		int
+showSomething	F	int showSomething(int x, string message, bool ok, float percentage)	stdin 130		int
+showSomething	F	void showSomething(int x, string message, bool ok)	stdin 5		void
+test	F	int test(int x)	stdin 211		int
