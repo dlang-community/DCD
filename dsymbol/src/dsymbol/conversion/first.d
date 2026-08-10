@@ -132,6 +132,14 @@ final class FirstPass : ASTVisitor
 		currentSymbol.acSymbol.protection = protection.current;
 		currentSymbol.acSymbol.doc = makeDocumentation(dec.comment);
 		currentSymbol.acSymbol.qualifier = SymbolQualifier.func;
+		foreach (sc; dec.storageClasses)
+		{
+			if (sc.token.type == tok!"ref")
+			{
+				currentSymbol.acSymbol.returnIsRef = true;
+				break;
+			}
+		}
 
 		istring lastComment = this.lastComment;
 		this.lastComment = istring.init;
@@ -171,6 +179,11 @@ final class FirstPass : ASTVisitor
 		pushSymbol(FUNCTION_LITERAL_SYMBOL_NAME, CompletionKind.dummy, symbolFile,
 			block.startLocation, null);
 		scope(exit) popSymbol();
+
+		if (exp.returnRefType == ReturnRefType.ref_)
+		{
+			currentSymbol.acSymbol.returnIsRef = true;
+		}
 
 		pushScope(block.startLocation, block.endLocation);
 		scope (exit) popScope();

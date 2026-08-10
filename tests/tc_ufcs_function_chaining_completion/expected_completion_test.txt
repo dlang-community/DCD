@@ -1,0 +1,13 @@
+identifiers
+alignof	k
+bar	F
+baz	F
+foo	F
+init	k
+mangleof	k
+qux	F
+refFoo	F
+refFoo2	F
+sizeof	k
+stringof	k
+tupleof	k

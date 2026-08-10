@@ -36,8 +36,9 @@ the issue.)
 	* *auto* declarations (Mostly)
 	* *with* statements
 	* Simple UFCS suggestions for concrete types and fundamental types.
+	* Dot chaining with other UFCS functions
 * Not working:
-	* UFCS completion for templates, literals, aliased types, UFCS function arguments, and '.' chaining with other UFCS functions.
+	* UFCS completion for templates, literals, aliased types, UFCS function arguments.
 	* UFCS calltips
 	* Autocompletion of declarations with template arguments (This will work to some extent, but it won't do things like replace T with int)
 	* Determining the type of an enum member when no base type is specified, but the first member has an initializer
