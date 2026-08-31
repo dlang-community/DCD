@@ -1,4 +1,4 @@
-<img src="dcd.png" alt="GameBoyd" width="200"/>
+<img src="dcd.png" alt="DCD" width="200"/>
 
 
 <!-- # DCD [![CI status](https://travis-ci.org/dlang-community/DCD.svg?branch=master)](https://travis-ci.org/dlang-community/DCD/) -->

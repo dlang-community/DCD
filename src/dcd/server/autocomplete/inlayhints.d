@@ -40,6 +40,39 @@ import dcd.common.messages;
 
 import containers.hashset;
 
+/**
+ * Renders a type chain into `c.identifier` as a readable D type name.
+ * dsymbol models arrays/pointers/AAs as dummy placeholder symbols named
+ * "*arr*" etc.; this turns those into D syntax ("[]", "[..]", "*")
+ * instead of leaking the placeholders into the hint label.
+ */
+private void appendType(ref AutocompleteResponse.Completion c, const(DSymbol)* t)
+{
+	if (t is null)
+		return;
+	if (t.qualifier == SymbolQualifier.array)
+	{
+		appendType(c, t.type);
+		c.identifier ~= "[]";
+	}
+	else if (t.qualifier == SymbolQualifier.assocArray)
+	{
+		// value type is the child; key is not exposed
+		appendType(c, t.type);
+		c.identifier ~= "[..]";
+	}
+	else if (t.qualifier == SymbolQualifier.pointer)
+	{
+		appendType(c, t.type);
+		c.identifier ~= "*";
+	}
+	else if (t.name !is null && t.name.length
+		&& !canFind(t.name[], '*'))
+	{
+		c.identifier ~= t.name;
+	}
+}
+
 public AutocompleteResponse getInlayHints(const AutocompleteRequest request,
 	ref ModuleCache moduleCache)
 {
@@ -89,42 +122,13 @@ public AutocompleteResponse getInlayHints(const AutocompleteRequest request,
 			c.symbolFilePath = "stdin";
 			c.kind = CompletionKind.aliasName;
 
-			// Render the resolved type, resolving placeholder symbols
-			// ("*arr*" etc.) into D syntax so the label is readable
-			// (e.g. ": immutable(char)[]" for string).
-			void appendType(const(DSymbol)* t)
-			{
-				if (t is null)
-					return;
-				if (t.qualifier == SymbolQualifier.array)
-				{
-					appendType(t.type);
-					c.identifier ~= "[]";
-				}
-				else if (t.qualifier == SymbolQualifier.assocArray)
-				{
-					appendType(t.type);
-					c.identifier ~= "[..]";
-				}
-				else if (t.qualifier == SymbolQualifier.pointer)
-				{
-					appendType(t.type);
-					c.identifier ~= "*";
-				}
-				else if (t.name !is null && t.name.length
-					&& !canFind(t.name[], '*'))
-				{
-					c.identifier ~= t.name;
-				}
-			}
-
 			// Resolve the alias chain to the underlying type and show that;
 			// e.g. for "alias P = Point; P p;" the hint is "p:Point".
 			c.identifier = ":";
 			DSymbol* type = it.type;
 			while (type.type && type.type.kind == CompletionKind.aliasName)
 				type = type.type;
-			appendType(type.type !is null ? type.type : type);
+			appendType(c, type.type !is null ? type.type : type);
 
 			// nothing renderable behind the alias — skip instead of
 			// emitting a bare ": " label
@@ -151,36 +155,7 @@ public AutocompleteResponse getInlayHints(const AutocompleteRequest request,
 			c.symbolFilePath = "stdin";
 			c.kind = CompletionKind.className;
 
-			// Render the type chain as a readable type name. dsymbol models
-			// arrays/pointers/AAs as dummy symbols named "*arr*" etc.; turn
-			// those into D syntax instead of leaking the placeholders.
-			void appendType(const(DSymbol)* t)
-			{
-				if (t is null)
-					return;
-				if (t.qualifier == SymbolQualifier.array)
-				{
-					appendType(t.type);
-					c.identifier ~= "[]";
-				}
-				else if (t.qualifier == SymbolQualifier.assocArray)
-				{
-					// value type is the child; key is not exposed
-					appendType(t.type);
-					c.identifier ~= "[..]";
-				}
-				else if (t.qualifier == SymbolQualifier.pointer)
-				{
-					appendType(t.type);
-					c.identifier ~= "*";
-				}
-				else if (t.name !is null && t.name.length
-					&& !canFind(t.name[], '*'))
-				{
-					c.identifier ~= t.name;
-				}
-			}
-			appendType(it.type);
+			appendType(c, it.type);
 
 			if (c.identifier.length)
 			{
