@@ -10,50 +10,6 @@ import {
 
 let client: LanguageClient | undefined;
 
-/**
- * Detects the Phobos import directory of an installed D compiler.
- * Checks DMD (dmd, ~/dlang/dmd-*) and LDC (ldc2, homebrew) install locations.
- */
-function detectPhobosPath(): string | undefined {
-  const candidates: string[] = [];
-
-  // Homebrew LDC
-  const brewPrefix = '/opt/homebrew/Cellar/ldc';
-  if (fs.existsSync(brewPrefix)) {
-    try {
-      const versions = fs.readdirSync(brewPrefix).sort().reverse();
-      for (const v of versions) {
-        candidates.push(path.join(brewPrefix, v, 'include', 'dlang', 'ldc'));
-      }
-    } catch { /* ignore */ }
-  }
-
-  // LDC via PATH (ldc2 --version would be needed; use common install dirs)
-  candidates.push('/usr/local/include/dlang/ldc');
-  candidates.push('/usr/include/dlang/ldc');
-
-  // DMD via install script (~/dlang/dmd-<version>/...)
-  const dlangDir = path.join(os.homedir(), 'dlang');
-  if (fs.existsSync(dlangDir)) {
-    try {
-      const entries = fs.readdirSync(dlangDir).filter(e => e.startsWith('dmd-')).sort().reverse();
-      for (const e of entries) {
-        candidates.push(path.join(dlangDir, e, 'src', 'phobos'));
-        candidates.push(path.join(dlangDir, e, 'src', 'druntime', 'import'));
-      }
-    } catch { /* ignore */ }
-  }
-
-  for (const c of candidates) {
-    try {
-      if (fs.existsSync(path.join(c, 'std'))) {
-        return c;
-      }
-    } catch { /* ignore */ }
-  }
-  return undefined;
-}
-
 export function activate(_context: vscode.ExtensionContext) {
   const config = vscode.workspace.getConfiguration('dcd');
   const outputChannel = vscode.window.createOutputChannel('DCD');
@@ -105,14 +61,9 @@ export function activate(_context: vscode.ExtensionContext) {
     path.isAbsolute(p) ? p : path.join(workspaceRoot ?? '', p)
   );
 
-  // Auto-detect Phobos so `import std.*` resolves out of the box
-  const phobos = detectPhobosPath();
-  if (phobos) {
-    resolvedImportPaths.push(phobos);
-    log(`auto-detected Phobos: ${phobos}`);
-  } else {
-    log('WARNING: no Phobos found — std.* imports will NOT resolve!');
-  }
+  // Import path detection (workspace source dirs, Phobos) happens on the
+  // SERVER during initialize, so any LSP client gets it — not just this
+  // extension. Here we only forward user-configured paths.
 
   log(`final importPaths sent to server: ${JSON.stringify(resolvedImportPaths)}`);
   log(`server command: ${serverPath} ${args.join(' ')}`);

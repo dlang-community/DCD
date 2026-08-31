@@ -65,7 +65,7 @@ send({"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {
 # 4. completion at "wl" -> should suggest writeln (needs std.stdio import path)
 send({"jsonrpc": "2.0", "id": 2, "method": "textDocument/completion", "params": {
     "textDocument": {"uri": "file:///tmp/test.d"},
-    "position": {"line": 2, "character": 22},
+    "position": {"line": 2, "character": 21},
 }})
 resp = recv()
 assert resp["id"] in (2, "2"), resp

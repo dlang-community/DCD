@@ -87,6 +87,22 @@ assert result["uri"] == "file:///tmp/semantic.d", result
 assert result["range"]["start"]["line"] == 9, result
 assert result["range"]["start"]["character"] == 10, result
 
+# definition with cursor on the FIRST character of the symbol:
+# "    Point p;" — "P" of Point at line 9, character 4. DCD's cursor
+# semantics count bytes *before* the cursor, so a cursor exactly on the
+# token's first byte used to exclude it from the token chain.
+send({"jsonrpc": "2.0", "id": 6, "method": "textDocument/definition", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 9, "character": 4},  # on "P" (first char of Point)
+}})
+resp = recv()
+result = resp["result"]
+print("definition of Point (first char):", result)
+assert result is not None, "definition not found on first character of symbol"
+assert result["uri"] == "file:///tmp/semantic.d", result
+assert result["range"]["start"]["line"] == 2, result  # struct Point decl
+assert result["range"]["start"]["character"] == 7, result
+
 # documentSymbol
 send({"jsonrpc": "2.0", "id": 4, "method": "textDocument/documentSymbol", "params": {
     "textDocument": {"uri": "file:///tmp/semantic.d"}}})
@@ -97,6 +113,79 @@ for s in symbols:
     print(f"  {s['name']} kind={s['kind']}")
 names = {s["name"] for s in symbols}
 assert "Point" in names and "main" in names, f"missing symbols: {names}"
+
+# --- module search: import completion against a real import path ---
+# The server is started with --ignoreConfig, so pass an import path via
+# initializationOptions like the VS Code extension does.
+send({"jsonrpc": "2.0", "id": 5, "method": "shutdown"})
+recv()
+proc.stdin.close()
+proc.wait(timeout=10)
+
+import os
+import tempfile
+
+# workspace with a module in the standard dub layout
+ws = tempfile.mkdtemp(prefix="dcd-lsp-mod-")
+os.makedirs(os.path.join(ws, "source", "hello"))
+with open(os.path.join(ws, "source", "hello", "package.d"), "w") as f:
+    f.write("module hello;\nvoid sayHello() {}\n")
+
+proc = subprocess.Popen(
+    ["./bin/dcd-server", "--lsp", "--ignoreConfig", "--logLevel=critical"],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.DEVNULL,
+)
+send({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+    "processId": None, "rootUri": None, "capabilities": {
+        "general": {"positionEncodings": ["utf-16"]}},
+    "initializationOptions": {"importPaths": [os.path.join(ws, "source")]}}})
+recv()
+send({"jsonrpc": "2.0", "method": "initialized", "params": {}})
+
+# "import he" (2 tokens) — module name completion
+send({"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {
+    "textDocument": {
+        "uri": "file:///tmp/semantic.d",
+        "languageId": "d",
+        "version": 1,
+        "text": "import he",
+    }}})
+send({"jsonrpc": "2.0", "id": 2, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 0, "character": 8},
+}})
+resp = recv()
+labels = {i["label"] for i in resp["result"]["items"]}
+print(f"import completion 'he': {sorted(labels)}")
+assert "hello" in labels, f"module 'hello' not offered: {labels}"
+
+# "import hello." — package contents
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 2},
+    "contentChanges": [{"text": "import hello."}]}})
+send({"jsonrpc": "2.0", "id": 3, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 0, "character": 13},
+}})
+resp = recv()
+labels = {i["label"] for i in resp["result"]["items"]}
+print(f"import completion 'hello.': {sorted(labels)}")
+assert "package" in labels, f"'package' not offered: {labels}"
+
+# member completion through the imported module
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 3},
+    "contentChanges": [{"text": "import hello;\nvoid main() { hello. }"}]}})
+send({"jsonrpc": "2.0", "id": 4, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 1, "character": 20},
+}})
+resp = recv()
+labels = {i["label"] for i in resp["result"]["items"]}
+print(f"member completion 'hello.': {sorted(labels)}")
+assert "sayHello" in labels, f"sayHello not offered: {labels}"
 
 send({"jsonrpc": "2.0", "id": 5, "method": "shutdown"})
 recv()

@@ -163,6 +163,15 @@ HandlerResult handleInitialize(ref ServerContext context, JSONValue params)
 		context.rootUri = params["rootUri"].str;
 	else if ("rootPath" in params && params["rootPath"].type == JSONType.string)
 		context.rootUri = params["rootPath"].str;
+	else if ("workspaceFolders" in params
+		&& params["workspaceFolders"].type == JSONType.array
+		&& params["workspaceFolders"].array.length > 0)
+	{
+		// Some clients only send workspaceFolders instead of rootUri
+		auto first = params["workspaceFolders"].array[0];
+		if ("uri" in first && first["uri"].type == JSONType.string)
+			context.rootUri = first["uri"].str;
+	}
 	if ("capabilities" in params)
 		context.clientCapabilities = params["capabilities"];
 
@@ -207,6 +216,19 @@ HandlerResult handleInitialize(ref ServerContext context, JSONValue params)
 	}
 	context.cache.addImportPaths(importPaths);
 
+	// Auto-detect import paths on the server so that any LSP client (not
+	// just the VS Code extension) gets module search out of the box: the
+	// workspace's own source directories and the local Phobos installation.
+	auto detected = detectWorkspaceImportPaths(context.rootUri);
+	auto phobos = detectPhobosImportPaths();
+	if (!phobos.empty)
+		detected ~= phobos;
+	if (!detected.empty)
+	{
+		infof("Auto-detected import paths:\n    %-(%s\n    %)", detected);
+		context.cache.addImportPaths(detected);
+	}
+
 	// Build the server capabilities response
 	JSONValue capabilities = parseJSON(`{}`);
 	capabilities["positionEncoding"] = JSONValue(clientSupportsUtf8 ? "utf-8" : "utf-16");
@@ -228,6 +250,85 @@ HandlerResult handleInitialize(ref ServerContext context, JSONValue params)
 	result["capabilities"] = capabilities;
 	result["serverInfo"] = serverInfo();
 	return HandlerResult(result);
+}
+
+/**
+ * Auto-detects the workspace's own import directories from the workspace
+ * root: the standard dub layouts (source/, src/, import/) plus the root
+ * itself. Runs on the server so that every LSP client — not just the VS
+ * Code extension — resolves the project's own modules out of the box.
+ */
+private string[] detectWorkspaceImportPaths(string rootUri)
+{
+	import std.file : exists, isDir;
+	import std.path : buildPath;
+
+	if (rootUri.empty)
+		return [];
+	string root = uriToPath(rootUri);
+	if (root.empty || !exists(root) || !isDir(root))
+		return [];
+
+	string[] result;
+	foreach (dir; ["source", "src", "import"])
+	{
+		string p = buildPath(root, dir);
+		if (exists(p) && isDir(p))
+			result ~= p;
+	}
+	// The root itself: modules may live at the top level.
+	result ~= root;
+	return result;
+}
+
+/**
+ * Auto-detects the import directory of a locally installed D compiler
+ * (Homebrew LDC, system LDC, or DMD via the install script) so that
+ * `import std.*` resolves without any client-side configuration.
+ */
+private string[] detectPhobosImportPaths()
+{
+	import std.algorithm : map, sort;
+	import std.array : array;
+	import std.file : dirEntries, exists, isDir, SpanMode;
+	import std.path : baseName, buildPath, expandTilde;
+
+	string[] candidates;
+
+	// Homebrew LDC: /opt/homebrew/Cellar/ldc/<version>/include/dlang/ldc
+	immutable ldcCellar = "/opt/homebrew/Cellar/ldc";
+	if (exists(ldcCellar) && isDir(ldcCellar))
+	{
+		auto versions = dirEntries(ldcCellar, SpanMode.shallow)
+			.map!(a => a.name).array;
+		sort!((a, b) => a > b)(versions); // newest first (lexicographic)
+		foreach (v; versions)
+			candidates ~= buildPath(v, "include", "dlang", "ldc");
+	}
+
+	// System-wide LDC
+	candidates ~= "/usr/local/include/dlang/ldc";
+	candidates ~= "/usr/include/dlang/ldc";
+
+	// DMD via the install script: ~/dlang/dmd-<version>/src/{phobos,druntime}
+	immutable dlangDir = expandTilde("~/dlang");
+	if (exists(dlangDir) && isDir(dlangDir))
+	{
+		auto dirs = dirEntries(dlangDir, SpanMode.shallow)
+			.map!(a => a.name).array;
+		sort!((a, b) => a > b)(dirs);
+		foreach (d; dirs)
+			if (baseName(d).startsWith("dmd-"))
+			{
+				candidates ~= buildPath(d, "src", "phobos");
+				candidates ~= buildPath(d, "src", "druntime", "import");
+			}
+	}
+
+	foreach (c; candidates)
+		if (exists(buildPath(c, "std")))
+			return [c];
+	return [];
 }
 
 /**
@@ -318,6 +419,40 @@ private void enforceDoc(TextDocument* doc, string uri)
 }
 
 /**
+ * Builds an `AutocompleteRequest` for a symbol query (definition, hover,
+ * references) at the given position.
+ *
+ * DCD's `cursorPosition` counts the bytes *before* the cursor, and tokens
+ * are collected with `token.index < cursorPosition`, where `token.index` is
+ * the offset of the token's FIRST byte. A cursor sitting on the first
+ * character of an identifier therefore excludes that identifier from the
+ * token chain and the lookup fails. For symbol queries (unlike completion,
+ * where the cursor is naturally after the typed text) the position is ON the
+ * symbol, so nudge the offset one byte into the token when needed.
+ */
+private AutocompleteRequest buildSymbolRequest(ref ServerContext context, JSONValue params)
+{
+	auto request = buildRequest(context, params);
+
+	// If the offset lands exactly on the first byte of an identifier token,
+	// advance by one so the token is included in the "before cursor" set.
+	if (request.cursorPosition < request.sourceCode.length)
+	{
+		immutable c = request.sourceCode[request.cursorPosition];
+		if (isIdentChar(c) && (request.cursorPosition == 0
+				|| !isIdentChar(request.sourceCode[request.cursorPosition - 1])))
+			request.cursorPosition++;
+	}
+	return request;
+}
+
+private bool isIdentChar(ubyte c)
+{
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+		|| (c >= '0' && c <= '9') || c == '_';
+}
+
+/**
  * Converts a file URI to a filesystem path.
  */
 string uriToPath(string uri)
@@ -403,7 +538,7 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
  */
 JSONValue handleHover(ref ServerContext context, JSONValue params)
 {
-	auto request = buildRequest(context, params);
+	auto request = buildSymbolRequest(context, params);
 	auto response = getDoc(request, *context.cache);
 
 	if (response.completions.empty)
@@ -423,7 +558,7 @@ JSONValue handleHover(ref ServerContext context, JSONValue params)
  */
 JSONValue handleDefinition(ref ServerContext context, JSONValue params)
 {
-	auto request = buildRequest(context, params);
+	auto request = buildSymbolRequest(context, params);
 	auto response = findDeclaration(request, *context.cache);
 
 	if (response.symbolFilePath.empty)
@@ -478,7 +613,7 @@ private Position positionInFile(ref ServerContext context, string filePath, size
  */
 JSONValue handleReferences(ref ServerContext context, JSONValue params)
 {
-	auto request = buildRequest(context, params);
+	auto request = buildSymbolRequest(context, params);
 	auto response = findLocalUse(request, *context.cache);
 
 	if (response.completions.empty)

@@ -414,7 +414,10 @@ in
 do
 {
 	AutocompleteResponse response;
-	if (beforeTokens.length <= 2)
+	// The selective-import branch below needs at least "import x:" to build a
+	// module path, but the normal branch only scans back to the "import"
+	// keyword, which is safe for any token count (e.g. "import h").
+	if (beforeTokens.length <= 2 && kind != ImportKind.normal)
 		return response;
 
 	size_t i = beforeTokens.length - 1;
