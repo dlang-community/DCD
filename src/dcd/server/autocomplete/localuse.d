@@ -47,7 +47,8 @@ public AutocompleteResponse findLocalUse(AutocompleteRequest request,
 {
 	AutocompleteResponse response;
 	RollbackAllocator rba;
-	auto cache = StringCache(request.sourceCode.length.optimalBucketCount);
+	// clampedBucketCount guards against the empty-document crash
+	auto cache = StringCache(clampedBucketCount(request.sourceCode.length));
 
 	// patchs the original request for the subsequent requests
 	request.kind = RequestKind.symbolLocation;

@@ -66,7 +66,9 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 	ref ModuleCache moduleCache)
 {
 	const(Token)[] tokenArray;
-	auto stringCache = StringCache(request.sourceCode.length.optimalBucketCount);
+	// clampedBucketCount guards against the empty-document crash
+	// (optimalBucketCount(0) == 0 is rejected by StringCache)
+	auto stringCache = StringCache(clampedBucketCount(request.sourceCode.length));
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
 		request.cursorPosition, stringCache, tokenArray);
 
@@ -412,7 +414,10 @@ in
 do
 {
 	AutocompleteResponse response;
-	if (beforeTokens.length <= 2)
+	// The selective-import branch below needs at least "import x:" to build a
+	// module path, but the normal branch only scans back to the "import"
+	// keyword, which is safe for any token count (e.g. "import h").
+	if (beforeTokens.length <= 2 && kind != ImportKind.normal)
 		return response;
 
 	size_t i = beforeTokens.length - 1;

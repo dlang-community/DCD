@@ -75,6 +75,7 @@ int runServer(string[] args)
 	bool help;
 	bool printVersion;
 	bool ignoreConfig;
+	bool lsp;
 	string[] importPaths;
 	LogLevel level = LogLevel.info;
 	version(Windows)
@@ -94,7 +95,8 @@ int runServer(string[] args)
 	{
 		getopt(args, "port|p", &port, "I", &importPaths, "help|h", &help,
 			"version", &printVersion, "ignoreConfig", &ignoreConfig,
-			"logLevel", &level, "tcp", &useTCP, "socketFile", &socketFile);
+			"logLevel", &level, "tcp", &useTCP, "socketFile", &socketFile,
+			"lsp", &lsp);
 	}
 	catch (ConvException e)
 	{
@@ -107,6 +109,12 @@ int runServer(string[] args)
 		(cast()sharedLog).logLevel = level;
 	else
 		globalLogLevel = level;
+
+	if (lsp)
+	{
+		import dcd.server.lsp_server : runLspServer;
+		return runLspServer(importPaths, ignoreConfig);
+	}
 
 	if (printVersion)
 	{

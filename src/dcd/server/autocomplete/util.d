@@ -111,6 +111,25 @@ istring stringToken()(auto ref const Token a)
 //}
 
 /**
+ * Computes the optimal `StringCache` bucket count for a source buffer,
+ * clamped to at least 1.
+ *
+ * `optimalBucketCount(0)` returns 0, which `StringCache` rejects (its bucket
+ * count must be a power of two >= 1), so an empty document would crash the
+ * server with an assertion failure. This wrapper makes the empty case safe.
+ *
+ * Params:
+ *     length = the length in bytes of the source buffer
+ * Returns:
+ *     a bucket count suitable for `StringCache`
+ */
+size_t clampedBucketCount(size_t length)
+{
+	import std.algorithm.comparison : max;
+	return max(length.optimalBucketCount, 1U);
+}
+
+/**
  * Params:
  *     sourceCode = the source code of the file being edited
  *     cursorPosition = the cursor position in bytes

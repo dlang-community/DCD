@@ -364,6 +364,14 @@ struct DSymbol
 	istring callTip;
 
 	/**
+	 * The source text of this symbol's template constraint, if any.
+	 * E.g. for `void destroy(bool initialize = true, T)(ref T obj)
+	 * if (is(T == struct))` this is `is(T == struct)`. Used to rank
+	 * template overloads whose parameter lists are otherwise identical.
+	 */
+	istring constraintText;
+
+	/**
 	 * Used for storing information for selective renamed imports
 	 */
 	alias altFile = callTip;

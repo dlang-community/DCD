@@ -1,9 +1,11 @@
-# DCD [![CI status](https://travis-ci.org/dlang-community/DCD.svg?branch=master)](https://travis-ci.org/dlang-community/DCD/)
+<img src="dcd.png" alt="DCD" width="200"/>
+
+
+<!-- # DCD [![CI status](https://travis-ci.org/dlang-community/DCD.svg?branch=master)](https://travis-ci.org/dlang-community/DCD/) -->
+----
 The D Completion Daemon is an auto-complete program for the D programming language.
 
-![Teaser](teaser.png "This is what the future looks like - Jayce, League of Legends")
-
-(The above is a screenshot of [Textadept](http://foicica.com/textadept/))
+<!-- ![Teaser](teaser.png "This is what the future looks like - Jayce, League of Legends") -->
 
 DCD is not an IDE. DCD is designed to provide autocompletion for your favorite
 text editor. If you are looking for an IDE, try [one of these](http://wiki.dlang.org/IDEs).
@@ -12,6 +14,82 @@ DCD consists of a client and a server. The client (dcd-client) is almost always
 used through a text editor script or plugin, though it can be used from the
 command line. The server (dcd-server) is responsible for caching imported files,
 calculating autocomplete information, and sending it back to the client.
+
+# Added LSP support
+
+> **Status.** The core feature set works and is covered by automated tests
+> (completion, hover, go-to-definition, references, signature help, document
+> symbols, inlay hints, automatic import-path detection). Not yet implemented:
+> incremental document sync, `workspace/symbol`, rename, formatting, and
+> `completionItem/resolve`. The semantic engine is shared with the classic
+> socket mode, so engine-level limitations are identical.
+
+The server now speaks the
+[Language Server Protocol](https://microsoft.github.io/language-server-protocol/)
+directly:
+
+	dcd-server --lsp
+
+Any LSP-capable editor — VS Code, Neovim, Emacs, Kate, Helix, and many more —
+gets DCD support with zero editor-specific code, instead of every editor
+needing its own plugin for DCD's custom socket protocol. It also removes a
+layer: the editor talks straight to the semantic engine over stdio, with no
+client process or socket hop in between, which lowers latency.
+
+See [editors/code/INSTALL.md](editors/code/INSTALL.md) for the full
+installation guide (building the server, the VS Code extension, and wiring up
+Neovim, Helix, Emacs, Kate, and other editors).
+
+
+# Development
+
+## Building
+
+The LSP server is part of the regular `dcd-server` binary:
+
+	dub build --config=server
+
+This produces `bin/dcd-server` (add `--build=release` for an optimized build).
+The client builds the same way with `--config=client`.
+
+## Testing
+
+Two Python scripts drive the LSP server over stdio and exercise the full
+protocol (lifecycle, completion, hover, definition, references, document
+symbols, inlay hints):
+
+	python3 lsp_smoke_test.py     # protocol lifecycle + basic requests
+	python3 lsp_semantic_test.py  # semantic correctness (real symbols, positions)
+
+Both must pass before committing changes to `src/dcd/server/lsp/`.
+
+The classic socket mode has its own suite: `tests/run_tests.sh`.
+
+## VS Code extension
+
+A reference extension lives in [`editors/code/`](editors/code). It is a thin
+TypeScript client around `vscode-languageclient` — the interesting logic is
+all in the server.
+
+	./editors/code/install.sh
+
+rebuilds the server (`dub`), compiles the extension (`tsc`), packages a
+`.vsix`, and installs it into VS Code in one step. Useful flags:
+
+* `--fast` — skip the dub rebuild, reuse the existing `bin/dcd-server`
+* `--tests` — also run the LSP test suites
+
+`editors/code/test_extension.sh` runs a deeper end-to-end check (build →
+package → install → live completion against Phobos).
+
+## Source layout
+
+* `src/dcd/server/lsp/` — the LSP server: `jsonrpc.d` (framing),
+  `protocol.d` (types), `document.d` (sync + position conversion),
+  `handlers.d` (request handlers), `lsp_server.d` (lifecycle state machine)
+* `src/dcd/server/autocomplete/` — the semantic engine shared by both the
+  socket and LSP modes
+* `editors/code/` — the VS Code extension
 
 # Status
 
@@ -50,7 +128,9 @@ the issue.)
 
 1. Install a recent D compiler. DCD is tested with DMD 2.068.2, DMD 2.069.0-rc2, and LDC 0.16 (Do not use DMD 2.068.1)
 1. Follow the directions listed below for Homebrew, Git + Make, or Dub, depending on how you would like to build DCD.
-1. Configure your text editor to call the dcd-client program. See the [wiki](https://github.com/dlang-community/DCD/wiki/IDEs-and-Editors-with-DCD-support) for information on configuring your specific editor.
+1. Configure your text editor:
+	* **If your editor supports LSP** (VS Code, Neovim, Emacs, Kate, Helix, ...), point it at `dcd-server --lsp`. See the [installation guide](editors/code/INSTALL.md) for editor-specific instructions, and [editors/code/](editors/code) for a working VS Code extension you can use as a reference.
+	* Otherwise, configure it to call the dcd-client program. See the [wiki](https://github.com/dlang-community/DCD/wiki/IDEs-and-Editors-with-DCD-support) for information on configuring your specific editor.
 1. Start the dcd-server program before editing code. (Unless, of course, your editor's plugin handles this for you)
 
 ### Git + Make

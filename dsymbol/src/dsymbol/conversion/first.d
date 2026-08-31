@@ -95,7 +95,7 @@ final class FirstPass : ASTVisitor
 
 	override void visit(const Constructor con)
 	{
-		visitConstructor(con.location, con.parameters, con.templateParameters, con.functionBody, con.comment);
+		visitConstructor(con.location, con.parameters, con.templateParameters, con.functionBody, con.comment, con.constraint);
 	}
 
 	override void visit(const SharedStaticConstructor con)
@@ -151,13 +151,15 @@ final class FirstPass : ASTVisitor
 					dec.name.index + dec.name.text.length);
 			scope (exit) popScope();
 			processParameters(currentSymbol, dec.returnType,
-					currentSymbol.acSymbol.name, dec.parameters, dec.templateParameters);
+				currentSymbol.acSymbol.name, dec.parameters, dec.templateParameters,
+				dec.constraint);
 			dec.functionBody.accept(this);
 		}
 		else
 		{
 			processParameters(currentSymbol, dec.returnType,
-					currentSymbol.acSymbol.name, dec.parameters, dec.templateParameters);
+				currentSymbol.acSymbol.name, dec.parameters, dec.templateParameters,
+				dec.constraint);
 		}
 
 		if (dec.returnType !is null){
@@ -916,7 +918,8 @@ private:
 
 	void visitConstructor(size_t location, const Parameters parameters,
 		const TemplateParameters templateParameters,
-		const FunctionBody functionBody, string doc)
+		const FunctionBody functionBody, string doc,
+		const Constraint constraint = null)
 	{
 		SemanticSymbol* symbol = allocateSemanticSymbol(CONSTRUCTOR_SYMBOL_NAME,
 			CompletionKind.functionName, symbolFile, location);
@@ -934,14 +937,16 @@ private:
 			pushFunctionScope(functionBody, location + 4); // 4 == "this".length
 			scope(exit) popScope();
 			currentSymbol = symbol;
-			processParameters(symbol, null, THIS_SYMBOL_NAME, parameters, templateParameters);
+			processParameters(symbol, null, THIS_SYMBOL_NAME, parameters,
+				templateParameters, constraint);
 			functionBody.accept(this);
 			currentSymbol = currentSymbol.parent;
 		}
 		else
 		{
 			currentSymbol = symbol;
-			processParameters(symbol, null, THIS_SYMBOL_NAME, parameters, templateParameters);
+			processParameters(symbol, null, THIS_SYMBOL_NAME, parameters,
+				templateParameters, constraint);
 			currentSymbol = currentSymbol.parent;
 		}
 	}
@@ -972,9 +977,12 @@ private:
 
 	void processParameters(SemanticSymbol* symbol, const Type returnType,
 		string functionName, const Parameters parameters,
-		const TemplateParameters templateParameters)
+		const TemplateParameters templateParameters,
+		const Constraint constraint = null)
 	{
 		processTemplateParameters(symbol, templateParameters);
+		if (constraint !is null)
+			symbol.acSymbol.constraintText = formatConstraint(constraint);
 		if (parameters !is null)
 		{
 			currentSymbol.acSymbol.functionParameters.reserve(parameters.parameters.length);
@@ -1356,6 +1364,21 @@ void formatNode(A, T)(ref A appender, const T node)
 		return;
 	scope f = new Formatter!(A*)(&appender);
 	f.format(node);
+}
+
+/**
+ * Renders a template constraint to its source text (without the surrounding
+ * `if (...)`), e.g. `is(T == struct)`. The formatter's own `Constraint`
+ * overload emits indentation and newlines, so the expression is formatted
+ * directly instead.
+ */
+private istring formatConstraint(const Constraint constraint)
+{
+	if (constraint is null || constraint.expression is null)
+		return istring(null);
+	auto app = appender!string();
+	formatNode(app, constraint.expression);
+	return internString(app.data);
 }
 
 private:
