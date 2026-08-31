@@ -22,9 +22,15 @@ class DcdContext implements vscode.Disposable {
       outputChannel.appendLine(`[${new Date().toLocaleTimeString()}] ${msg}`);
 
     const serverPathSetting = config.get<string>('serverPath', 'dcd-server');
+    // A bare command name (no directory component) is looked up on the
+    // PATH by the OS. Anything else is resolved as a path, relative to the
+    // workspace root when not absolute.
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath ?? '';
     const serverPath = path.isAbsolute(serverPathSetting)
       ? serverPathSetting
-      : path.join(vscode.workspace.workspaceFolders?.[0].uri.fsPath ?? '', serverPathSetting);
+      : serverPathSetting.includes(path.sep)
+        ? path.join(workspaceRoot, serverPathSetting)
+        : serverPathSetting;
 
     log(`serverPath setting: ${serverPathSetting}`);
     log(`resolved serverPath: ${serverPath}`);
@@ -41,9 +47,8 @@ class DcdContext implements vscode.Disposable {
     }
 
     const importPaths = config.get<string[]>('importPaths', []);
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
     const resolvedImportPaths = (importPaths ?? []).map(p =>
-      path.isAbsolute(p) ? p : path.join(workspaceRoot ?? '', p)
+      path.isAbsolute(p) ? p : path.join(workspaceRoot, p)
     );
 
     // Import path detection (workspace source dirs, Phobos) happens on the

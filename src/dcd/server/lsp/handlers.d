@@ -823,8 +823,9 @@ JSONValue handleDefinition(ref ServerContext context, JSONValue params)
 		// THAT file, so it must be converted against that file's content,
 		// not the requesting document's (which would be out of bounds).
 		location.uri = pathToUri(response.symbolFilePath);
-		location.range = Range(positionInFile(context,
-			response.symbolFilePath, response.symbolLocation));
+		Position pos = positionInFile(context,
+			response.symbolFilePath, response.symbolLocation);
+		location.range = Range(pos, pos);
 	}
 	return location.toJson();
 }
@@ -1128,10 +1129,12 @@ JSONValue handleInlayHint(ref ServerContext context, JSONValue params)
 		// A stale or bogus offset (e.g. from an incomplete parse while the
 		// user is typing) must not fail the whole request — skip the hint.
 		try
+		{
 			hint.position = completion.symbolFilePath == "stdin"
 				? context.converter.toPosition(*doc, completion.symbolLocation)
 				: positionInFile(context, completion.symbolFilePath,
 					completion.symbolLocation);
+		}
 		catch (Exception e)
 		{
 			warningf("Skipping inlay hint with bad offset %s: %s",
