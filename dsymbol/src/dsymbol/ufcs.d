@@ -488,6 +488,47 @@ const(Token)* findUFCSExpressionStart(SortedTokens tokens)
 
 private TokenCursorResult getCursorToken(Scope* completionScope, const(Token)[] tokens, size_t cursorPosition)
 {
+{
+    int depth = 0;
+
+    for (size_t i = tokens.length; i-- > 0;)
+    {
+        auto t = tokens[i].type;
+
+        // Handle nesting
+        if (t is tok!")" || t is tok!"]" || t is tok!"}")
+        {
+            depth++;
+            continue;
+        }
+
+        if (t is tok!"(" || t is tok!"[" || t is tok!"{")
+        {
+            depth--;
+            continue;
+        }
+
+        if (depth != 0)
+            continue;
+
+        // Allow chaining: f.papa().x
+        if (t is tok!"." ||
+            t is tok!"identifier" ||
+            t is tok!"stringLiteral")
+        {
+            continue;
+        }
+
+        // Stop when hitting something that breaks expression
+        return &tokens[i + 1];
+    }
+
+    // Entire range is the expression
+    return &tokens[0];
+}
+
+private TokenCursorResult getCursorToken(Scope* completionScope, const(Token)[] tokens, size_t cursorPosition)
+{
     SortedTokens sortedTokens = assumeSorted(tokens);
     SortedTokens sortedBeforeTokens = sortedTokens.lowerBound(cursorPosition);
 
