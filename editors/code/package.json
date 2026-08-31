@@ -1,10 +1,10 @@
 {
   "name": "dcd-lsp",
-  "displayName": "D (DCD LSP)",
+  "displayName": "DCD",
   "description": "D language support via DCD's built-in LSP server",
   "version": "0.1.0",
-  "publisher": "dcd",
-  "license": "GPL-3.0",
+  "publisher": "DCD",
+  "license": "MIT",
   "engines": {
     "vscode": "^1.75.0"
   },
