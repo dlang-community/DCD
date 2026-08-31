@@ -1,0 +1,75 @@
+{
+  "name": "dcd-lsp",
+  "displayName": "D (DCD LSP)",
+  "description": "D language support via DCD's built-in LSP server",
+  "version": "0.1.0",
+  "publisher": "dcd",
+  "license": "GPL-3.0",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/*.d"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "d",
+        "extensions": [".d", ".di"],
+        "aliases": ["D", "d"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "d",
+        "scopeName": "source.d",
+        "path": "./syntaxes/d.tmLanguage"
+      }
+    ],
+    "configuration": {
+      "title": "DCD",
+      "properties": {
+        "dcd.serverPath": {
+          "type": "string",
+          "default": "dcd-server",
+          "description": "Path to the dcd-server executable. When set to 'dcd-server' it is looked up on the PATH."
+        },
+        "dcd.importPaths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Import paths passed to the server (in addition to dcd.conf). Relative paths are resolved against the workspace root."
+        },
+        "dcd.ignoreConfig": {
+          "type": "boolean",
+          "default": false,
+          "description": "Skip loading the DCD configuration file (dcd.conf)."
+        },
+        "dcd.logLevel": {
+          "type": "string",
+          "default": "info",
+          "enum": ["all", "trace", "info", "warning", "error", "critical", "fatal", "off"],
+          "description": "Log level passed to dcd-server (verbose server logs go to the D (DCD) output channel)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.75.0",
+    "@types/node": "^18.0.0",
+    "typescript": "^5.0.0"
+  }
+}

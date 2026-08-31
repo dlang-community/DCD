@@ -27,6 +27,7 @@ import std.string;
 
 import dcd.common.messages;
 import dcd.server.autocomplete;
+import dcd.server.autocomplete.util : clampedBucketCount;
 import dcd.server.lsp.document;
 import dcd.server.lsp.protocol;
 import dcd.server.lsp.jsonrpc;
@@ -165,6 +166,31 @@ HandlerResult handleInitialize(ref ServerContext context, JSONValue params)
 	if ("capabilities" in params)
 		context.clientCapabilities = params["capabilities"];
 
+	// Negotiate position encoding: prefer UTF-8 (byte offsets, what DCD
+	// uses internally), fall back to UTF-16 (the LSP default) if the client
+	// doesn't support it.
+	bool clientSupportsUtf8;
+	if (context.clientCapabilities.type == JSONType.object
+		&& "general" in context.clientCapabilities
+		&& context.clientCapabilities["general"].type == JSONType.object
+		&& "positionEncodings" in context.clientCapabilities["general"]
+		&& context.clientCapabilities["general"]["positionEncodings"].type == JSONType.array)
+	{
+		foreach (enc; context.clientCapabilities["general"]["positionEncodings"].array)
+			if (enc.type == JSONType.string && enc.str == "utf-8")
+				clientSupportsUtf8 = true;
+	}
+	if (clientSupportsUtf8)
+	{
+		context.documents = new DocumentStore(PositionEncoding.utf8);
+		context.converter = PositionConverter(PositionEncoding.utf8);
+	}
+	else
+	{
+		context.documents = new DocumentStore(PositionEncoding.utf16);
+		context.converter = PositionConverter(PositionEncoding.utf16);
+	}
+
 	// Read import paths from initializationOptions
 	string[] importPaths;
 	if ("initializationOptions" in params)
@@ -183,7 +209,7 @@ HandlerResult handleInitialize(ref ServerContext context, JSONValue params)
 
 	// Build the server capabilities response
 	JSONValue capabilities = parseJSON(`{}`);
-	capabilities["positionEncoding"] = JSONValue("utf-8");
+	capabilities["positionEncoding"] = JSONValue(clientSupportsUtf8 ? "utf-8" : "utf-16");
 	capabilities["textDocumentSync"] = JSONValue(cast(int) TextDocumentSyncKind.full);
 	JSONValue completionProvider = parseJSON(`{}`);
 	completionProvider["resolveProvider"] = JSONValue(false);
@@ -335,6 +361,11 @@ string pathToUri(string path)
 	string encoded = encodedSegments.join("/");
 	if (path.startsWith("/"))
 		encoded = "/" ~ encoded;
+	// "file://" + "/opt/..." would give "file:////opt/..." (empty leading
+	// segment from splitter); collapse duplicate slashes so the URI is
+	// exactly "file:///opt/..."
+	while (encoded.startsWith("//"))
+		encoded = encoded[1 .. $];
 	return "file://" ~ encoded;
 }
 
@@ -398,19 +429,48 @@ JSONValue handleDefinition(ref ServerContext context, JSONValue params)
 	if (response.symbolFilePath.empty)
 		return JSONValue(null);
 
-	auto doc = context.documents.get(params["textDocument"]["uri"].str);
-	Position start = doc !is null
-		? context.converter.toPosition(*doc, response.symbolLocation)
-		: Position(0, 0);
-
 	Location location;
 	// DCD reports the analyzed (in-memory) document as "stdin"; map it back
 	// to the requesting document's URI.
-	location.uri = response.symbolFilePath == "stdin"
-		? params["textDocument"]["uri"].str
-		: pathToUri(response.symbolFilePath);
-	location.range = Range(start, start);
+	if (response.symbolFilePath == "stdin")
+	{
+		auto doc = context.documents.get(params["textDocument"]["uri"].str);
+		Position start = doc !is null
+			? context.converter.toPosition(*doc, response.symbolLocation)
+			: Position(0, 0);
+		location.uri = params["textDocument"]["uri"].str;
+		location.range = Range(start, start);
+	}
+	else
+	{
+		// The symbol lives in another file: symbolLocation is an offset into
+		// THAT file, so it must be converted against that file's content,
+		// not the requesting document's (which would be out of bounds).
+		location.uri = pathToUri(response.symbolFilePath);
+		location.range = Range(positionInFile(context,
+			response.symbolFilePath, response.symbolLocation));
+	}
 	return location.toJson();
+}
+
+/**
+ * Converts a byte offset in an on-disk file to an LSP position.
+ *
+ * The file is read and indexed on demand; if it cannot be read the offset
+ * degrades to line 0.
+ */
+private Position positionInFile(ref ServerContext context, string filePath, size_t offset)
+{
+	import std.file : exists, readText;
+
+	if (!exists(filePath))
+		return Position(0, 0);
+	TextDocument fileDoc;
+	fileDoc.text = readText(filePath);
+	fileDoc.reindex();
+	if (offset > fileDoc.text.length)
+		return Position(0, 0);
+	return context.converter.toPosition(fileDoc, offset);
 }
 
 /**
@@ -428,9 +488,19 @@ JSONValue handleReferences(ref ServerContext context, JSONValue params)
 	JSONValue[] locations;
 	foreach (completion; response.completions)
 	{
-		Position pos = doc !is null
-			? context.converter.toPosition(*doc, completion.symbolLocation)
-			: Position(0, 0);
+		Position pos;
+		if (completion.symbolFilePath == "stdin")
+		{
+			pos = doc !is null
+				? context.converter.toPosition(*doc, completion.symbolLocation)
+				: Position(0, 0);
+		}
+		else
+		{
+			// offset refers to another file; convert against that file
+			pos = positionInFile(context, completion.symbolFilePath,
+				completion.symbolLocation);
+		}
 		Location location;
 		location.uri = completion.symbolFilePath == "stdin"
 			? params["textDocument"]["uri"].str
@@ -477,21 +547,38 @@ private SignatureHelp signatureHelpFromResponse(AutocompleteResponse response)
  */
 JSONValue handleInlayHint(ref ServerContext context, JSONValue params)
 {
-	auto request = buildRequest(context, params);
+	// inlayHint params carry a `range`, not a `position`, so build the
+	// request manually instead of via buildRequest (which requires position)
+	auto textDocument = params["textDocument"];
+	string uri = textDocument["uri"].str;
+	auto doc = context.documents.get(uri);
+	enforceDoc(doc, uri);
+
+	AutocompleteRequest request;
+	request.fileName = uriToPath(uri);
+	request.sourceCode = cast(ubyte[]) doc.text.dup;
 	// inlay hints are computed for the whole document; the range is ignored
+	request.cursorPosition = 0;
 	auto response = getInlayHints(request, *context.cache);
 
 	if (response.completions.empty)
 		return JSONValue(null);
 
-	auto doc = context.documents.get(params["textDocument"]["uri"].str);
 	JSONValue[] hints;
 	foreach (completion; response.completions)
 	{
 		InlayHint hint;
-		hint.position = doc !is null
+		hint.position = completion.symbolFilePath == "stdin"
 			? context.converter.toPosition(*doc, completion.symbolLocation)
-			: Position(0, 0);
+			: positionInFile(context, completion.symbolFilePath,
+				completion.symbolLocation);
+		// Skip internal placeholder names (e.g. "*arr*" for int[]) that
+		// dsymbol uses to model arrays, pointers and associative arrays.
+		// They appear embedded in labels like "->*arr*". Also skip empty
+		// labels.
+		if (!completion.identifier.length
+			|| completion.identifier.canFind('*'))
+			continue;
 		hint.label = completion.identifier;
 		hint.kind = 1; // Type
 		hints ~= hint.toJson();
@@ -517,7 +604,8 @@ JSONValue handleDocumentSymbol(ref ServerContext context, JSONValue params)
 
 	LexerConfig config;
 	config.fileName = "";
-	auto cache = StringCache(doc.text.length.optimalBucketCount);
+	// clampedBucketCount guards against the empty-document crash
+	auto cache = StringCache(clampedBucketCount(doc.text.length));
 	auto tokenArray = getTokensForParser(cast(ubyte[]) doc.text, config, &cache);
 	RollbackAllocator rba;
 	auto pair = generateAutocompleteTrees(tokenArray, &rba, -1, *context.cache);

@@ -48,7 +48,8 @@ public AutocompleteResponse findDeclaration(const AutocompleteRequest request,
 {
 	AutocompleteResponse response;
 	RollbackAllocator rba;
-	auto cache = StringCache(request.sourceCode.length.optimalBucketCount);
+	// clampedBucketCount guards against the empty-document crash
+	auto cache = StringCache(clampedBucketCount(request.sourceCode.length));
 	SymbolStuff stuff = getSymbolsForCompletion(request, CompletionType.location,
 		&rba, cache, moduleCache);
 	scope(exit) stuff.destroy();
@@ -72,7 +73,8 @@ public AutocompleteResponse symbolSearch(const AutocompleteRequest request,
 
 	LexerConfig config;
 	config.fileName = "";
-	auto cache = StringCache(request.sourceCode.length.optimalBucketCount);
+	// clampedBucketCount guards against the empty-document crash
+	auto cache = StringCache(clampedBucketCount(request.sourceCode.length));
 	const(Token)[] tokenArray = getTokensForParser(cast(ubyte[]) request.sourceCode,
 		config, &cache);
 	RollbackAllocator rba;

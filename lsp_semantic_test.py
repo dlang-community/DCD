@@ -31,8 +31,11 @@ def recv():
 
 
 send({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
-    "processId": None, "rootUri": None, "capabilities": {}}})
-recv()
+    "processId": None, "rootUri": None, "capabilities": {
+        "general": {"positionEncodings": ["utf-16"]}}}})
+resp = recv()
+# server should fall back to utf-16 when client doesn't offer utf-8
+assert resp["result"]["capabilities"]["positionEncoding"] == "utf-16", resp["result"]["capabilities"]
 send({"jsonrpc": "2.0", "method": "initialized", "params": {}})
 
 source = (

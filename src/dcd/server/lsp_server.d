@@ -82,76 +82,76 @@ int runLspServer(string[] importPaths, bool ignoreConfig)
 			if (message.method == "initialize")
 			{
 				auto result = handleRequest(context, message.method, message.params);
-				sendHandlerResult(message.id, result);
-				state = LifecycleState.initializing;
-			}
-			else if (message.method == "exit")
-			{
-				info("Exit before initialize");
-				return 1;
-			}
-			else if (message.isRequest)
-			{
-				// Per spec: requests before initialize are rejected
-				sendJson(makeErrorResponse(message.id,
-					JsonRpcErrorCode.serverNotInitialized,
-					"Server not initialized"));
-			}
-			// notifications before initialize (except exit) are dropped
-			continue;
+			sendHandlerResult(message.rawId, result);
+			state = LifecycleState.initializing;
+		}
+		else if (message.method == "exit")
+		{
+			info("Exit before initialize");
+			return 1;
+		}
+		else if (message.isRequest)
+		{
+			// Per spec: requests before initialize are rejected
+			sendJson(makeErrorResponse(message.rawId,
+				JsonRpcErrorCode.serverNotInitialized,
+				"Server not initialized"));
+		}
+		// notifications before initialize (except exit) are dropped
+		continue;
 
-		case LifecycleState.initializing:
-		case LifecycleState.running:
-			if (message.method == "exit")
-			{
-				info("Exit received");
-				return state == LifecycleState.shutdownReceived ? 0 : 1;
-			}
-			if (message.method == "initialize")
-			{
-				// duplicate initialize is a protocol error
-				sendJson(makeErrorResponse(message.id,
-					JsonRpcErrorCode.invalidRequest,
-					"Server already initialized"));
-				continue;
-			}
-			{
-				auto result = handleRequest(context, message.method, message.params);
-				if (message.isRequest)
-					sendHandlerResult(message.id, result);
-				if (message.method == "shutdown")
-					state = LifecycleState.shutdownReceived;
-				else if (message.method == "initialized")
-					state = LifecycleState.running;
-			}
+	case LifecycleState.initializing:
+	case LifecycleState.running:
+		if (message.method == "exit")
+		{
+			info("Exit received");
+			return state == LifecycleState.shutdownReceived ? 0 : 1;
+		}
+		if (message.method == "initialize")
+		{
+			// duplicate initialize is a protocol error
+			sendJson(makeErrorResponse(message.rawId,
+				JsonRpcErrorCode.invalidRequest,
+				"Server already initialized"));
 			continue;
-
-		case LifecycleState.shutdownReceived:
-			if (message.method == "exit")
-			{
-				info("Exit received");
-				return 0;
-			}
+		}
+		{
+			auto result = handleRequest(context, message.method, message.params);
 			if (message.isRequest)
-			{
-				// Per spec: requests after shutdown are rejected with InvalidRequest
-				sendJson(makeErrorResponse(message.id,
-					JsonRpcErrorCode.invalidRequest,
-					"Server is shutting down"));
-			}
-			// notifications are dropped
-			continue;
+				sendHandlerResult(message.rawId, result);
+			if (message.method == "shutdown")
+				state = LifecycleState.shutdownReceived;
+			else if (message.method == "initialized")
+				state = LifecycleState.running;
+		}
+		continue;
 
-		case LifecycleState.exited:
+	case LifecycleState.shutdownReceived:
+		if (message.method == "exit")
+		{
+			info("Exit received");
 			return 0;
 		}
+		if (message.isRequest)
+		{
+			// Per spec: requests after shutdown are rejected with InvalidRequest
+			sendJson(makeErrorResponse(message.rawId,
+				JsonRpcErrorCode.invalidRequest,
+				"Server is shutting down"));
+		}
+		// notifications are dropped
+		continue;
+
+	case LifecycleState.exited:
+		return 0;
+	}
 	}
 }
 
 /**
  * Sends a handler result as a JSON-RPC response.
  */
-private void sendHandlerResult(string id, HandlerResult result)
+private void sendHandlerResult(JSONValue id, HandlerResult result)
 {
 	if (result.errorCode != 0)
 		sendJson(makeErrorResponse(id, result.errorCode, result.errorMessage));

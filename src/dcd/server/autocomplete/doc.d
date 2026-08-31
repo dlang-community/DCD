@@ -46,7 +46,8 @@ public AutocompleteResponse getDoc(const AutocompleteRequest request,
 //	trace("Getting doc comments");
 	AutocompleteResponse response;
 	RollbackAllocator rba;
-	auto cache = StringCache(request.sourceCode.length.optimalBucketCount);
+	// clampedBucketCount guards against the empty-document crash
+	auto cache = StringCache(clampedBucketCount(request.sourceCode.length));
 	SymbolStuff stuff = getSymbolsForCompletion(request, CompletionType.ddoc, &rba, cache, moduleCache);
 	if (stuff.symbols.length == 0)
 		warning("Could not find symbol");

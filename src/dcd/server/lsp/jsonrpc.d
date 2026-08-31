@@ -41,6 +41,16 @@ struct JsonRpcMessage
 	/// The request id as a string, `null` if absent (notification or response).
 	string id;
 
+	/// The raw JSON id value, preserved with its original type (number or
+	/// string) so responses echo it back exactly as the client sent it.
+	/// JSON-RPC 2.0 requires the response id to match the request id including
+	/// its type; converting a numeric id to a string makes clients like
+	/// vscode-jsonrpc unable to match responses to pending requests.
+	JSONValue rawId;
+
+	/// True if the message carries an id (request or response).
+	bool hasId;
+
 	/// The params object.
 	JSONValue params;
 
@@ -147,6 +157,8 @@ JsonRpcMessage parseMessage(JSONValue json)
 			message.id = id.str;
 		else if (id.type == JSONType.null_)
 			message.id = null;
+		message.rawId = id;
+		message.hasId = true;
 	}
 	if ("params" in json)
 	{
@@ -167,22 +179,28 @@ void writeMessageRaw(string jsonText)
 
 /**
  * Builds a JSON-RPC response object.
+ *
+ * The id is echoed back with its original type (number or string) as required
+ * by JSON-RPC 2.0. Passing a message's `rawId` preserves the client's type.
  */
-JSONValue makeResponse(string id, JSONValue result)
+JSONValue makeResponse(JSONValue id, JSONValue result)
 {
 	JSONValue response = parseJSON(`{"jsonrpc":"2.0"}`);
-	response["id"] = id.length ? JSONValue(id) : JSONValue(null);
+	response["id"] = id.type == JSONType.null_ ? JSONValue(null) : id;
 	response["result"] = result;
 	return response;
 }
 
 /**
  * Builds a JSON-RPC error response object.
+ *
+ * The id is echoed back with its original type (number or string) as required
+ * by JSON-RPC 2.0.
  */
-JSONValue makeErrorResponse(string id, int code, string message)
+JSONValue makeErrorResponse(JSONValue id, int code, string message)
 {
 	JSONValue response = parseJSON(`{"jsonrpc":"2.0"}`);
-	response["id"] = id.length ? JSONValue(id) : JSONValue(null);
+	response["id"] = id.type == JSONType.null_ ? JSONValue(null) : id;
 	JSONValue error = parseJSON(`{}`);
 	error["code"] = JSONValue(code);
 	error["message"] = JSONValue(message);
@@ -235,6 +253,24 @@ unittest
 	assert(!notifMessage.isRequest);
 
 	// Test response building
-	auto response = makeResponse("1", JSONValue(null));
+	auto response = makeResponse(JSONValue(1), JSONValue(null));
 	assert(response["result"].type == JSONType.null_);
+	assert(response["id"].type == JSONType.integer);
+	assert(response["id"].integer == 1);
+
+	// Test that numeric ids keep their type (JSON-RPC 2.0 requirement)
+	auto numericIdJson = parseJSON(`{"jsonrpc":"2.0","id":42,"method":"m"}`);
+	auto numericMessage = parseMessage(numericIdJson);
+	assert(numericMessage.rawId.type == JSONType.integer);
+	assert(numericMessage.rawId.integer == 42);
+	auto numericResponse = makeResponse(numericMessage.rawId, JSONValue(null));
+	assert(numericResponse["id"].type == JSONType.integer);
+	assert(numericResponse["id"].integer == 42);
+
+	// String ids stay strings
+	auto stringIdJson = parseJSON(`{"jsonrpc":"2.0","id":"abc","method":"m"}`);
+	auto stringMessage = parseMessage(stringIdJson);
+	auto stringResponse = makeResponse(stringMessage.rawId, JSONValue(null));
+	assert(stringResponse["id"].type == JSONType.string);
+	assert(stringResponse["id"].str == "abc");
 }

@@ -66,7 +66,9 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 	ref ModuleCache moduleCache)
 {
 	const(Token)[] tokenArray;
-	auto stringCache = StringCache(request.sourceCode.length.optimalBucketCount);
+	// clampedBucketCount guards against the empty-document crash
+	// (optimalBucketCount(0) == 0 is rejected by StringCache)
+	auto stringCache = StringCache(clampedBucketCount(request.sourceCode.length));
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
 		request.cursorPosition, stringCache, tokenArray);
 

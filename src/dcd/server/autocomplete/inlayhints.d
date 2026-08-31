@@ -48,7 +48,8 @@ public AutocompleteResponse getInlayHints(const AutocompleteRequest request,
 
 	LexerConfig config;
 	config.fileName = "";
-	auto cache = StringCache(request.sourceCode.length.optimalBucketCount);
+	// clampedBucketCount guards against the empty-document crash
+	auto cache = StringCache(clampedBucketCount(request.sourceCode.length));
 	auto tokenArray = getTokensForParser(cast(ubyte[]) request.sourceCode, config, &cache);
 	RollbackAllocator rba;
 	auto pair = generateAutocompleteTrees(tokenArray, &rba, -1, moduleCache);
@@ -78,6 +79,7 @@ public AutocompleteResponse getInlayHints(const AutocompleteRequest request,
 		{
 			AutocompleteResponse.Completion c;
 			c.symbolLocation = it.location - 1;
+			c.symbolFilePath = "stdin";
 			c.kind = CompletionKind.aliasName;
 
 			DSymbol* type = it.type;
