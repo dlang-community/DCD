@@ -302,8 +302,10 @@ Options:
         location.
 
     --inlayHints
-        For all supported variable usages, show value types. Currently shows
-        alias definitions.
+        For all supported variable usages, show value types. Shows the
+        resolved type for variables whose type is inferred (auto, const,
+        immutable, enum) and for variables declared with an alias type,
+        rendered as "name: type" after the declaration name.
 
     --search | -s symbolName
         Searches for symbolName in both stdin / the given file name as well as

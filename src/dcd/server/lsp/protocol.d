@@ -258,16 +258,24 @@ struct Hover
 
 /**
  * A parameter of a callable signature.
+ *
+ * The label is expressed as `[labelStart, labelEnd)` offsets into the
+ * enclosing signature's label (LSP `labelOffsetSupport`), so the client can
+ * highlight the active parameter inside the signature string.
  */
 struct ParameterInformation
 {
-	string label;
+	size_t labelStart;
+	size_t labelEnd;
 	string documentation;
 
 	JSONValue toJson() const
 	{
 		JSONValue obj = parseJSON(`{}`);
-		obj["label"] = JSONValue(label);
+		JSONValue[] offsets;
+		offsets ~= JSONValue(cast(long) labelStart);
+		offsets ~= JSONValue(cast(long) labelEnd);
+		obj["label"] = JSONValue(offsets);
 		if (documentation.length)
 			obj["documentation"] = JSONValue(documentation);
 		return obj;

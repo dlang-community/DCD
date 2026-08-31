@@ -15,7 +15,20 @@
     "workspaceContains:**/*.d"
   ],
   "main": "./out/extension.js",
+  "icon": "images/icon.png",
   "contributes": {
+    "commands": [
+      {
+        "command": "dcd.restart",
+        "title": "DCD: Restart Language Server",
+        "category": "DCD"
+      },
+      {
+        "command": "dcd.shutdown",
+        "title": "DCD: Shutdown Language Server",
+        "category": "DCD"
+      }
+    ],
     "languages": [
       {
         "id": "d",

@@ -1,148 +1,139 @@
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import {
   LanguageClient,
   LanguageClientOptions,
   ServerOptions,
+  State,
 } from 'vscode-languageclient/node';
 
-let client: LanguageClient | undefined;
+/**
+ * Owns the language client lifecycle, following the clangd extension model:
+ * a Disposable context pushed into `context.subscriptions`, so VS Code
+ * disposes it (stopping the server) on window close, reload, and uninstall.
+ */
+class DcdContext implements vscode.Disposable {
+  private constructor(readonly client: LanguageClient) {}
 
-export function activate(_context: vscode.ExtensionContext) {
-  const config = vscode.workspace.getConfiguration('dcd');
-  const outputChannel = vscode.window.createOutputChannel('DCD');
-  const log = (msg: string) => {
-    const line = `[${new Date().toLocaleTimeString()}] ${msg}`;
-    outputChannel.appendLine(line);
-    console.log(`[dcd-lsp] ${msg}`);
-  };
+  static create(outputChannel: vscode.OutputChannel): DcdContext {
+    const config = vscode.workspace.getConfiguration('dcd');
+    const log = (msg: string) =>
+      outputChannel.appendLine(`[${new Date().toLocaleTimeString()}] ${msg}`);
 
-  // Log the currently open file whenever the active editor changes
-  vscode.window.onDidChangeActiveTextEditor(editor => {
-    if (editor) {
-      log(`ACTIVE FILE: ${editor.document.uri.toString()} (language=${editor.document.languageId})`);
-    } else {
-      log('ACTIVE FILE: (no editor)');
+    const serverPathSetting = config.get<string>('serverPath', 'dcd-server');
+    const serverPath = path.isAbsolute(serverPathSetting)
+      ? serverPathSetting
+      : path.join(vscode.workspace.workspaceFolders?.[0].uri.fsPath ?? '', serverPathSetting);
+
+    log(`serverPath setting: ${serverPathSetting}`);
+    log(`resolved serverPath: ${serverPath}`);
+    log(`serverPath exists: ${fs.existsSync(serverPath)}`);
+
+    const args: string[] = ['--lsp'];
+    if (config.get<boolean>('ignoreConfig', false)) {
+      args.push('--ignoreConfig');
     }
-  });
-  // Log whatever is open right at activation
-  if (vscode.window.activeTextEditor) {
-    log(`ACTIVE FILE: ${vscode.window.activeTextEditor.document.uri.toString()} (language=${vscode.window.activeTextEditor.document.languageId})`);
+    const logLevel = config.get<string>('logLevel', 'info');
+    if (logLevel && logLevel !== 'info') {
+      args.push(`--logLevel=${logLevel}`);
+      log(`server logLevel: ${logLevel}`);
+    }
+
+    const importPaths = config.get<string[]>('importPaths', []);
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+    const resolvedImportPaths = (importPaths ?? []).map(p =>
+      path.isAbsolute(p) ? p : path.join(workspaceRoot ?? '', p)
+    );
+
+    // Import path detection (workspace source dirs, Phobos) happens on the
+    // SERVER during initialize, so any LSP client gets it — not just this
+    // extension. Here we only forward user-configured paths.
+
+    log(`importPaths sent to server: ${JSON.stringify(resolvedImportPaths)}`);
+    log(`server command: ${serverPath} ${args.join(' ')}`);
+
+    const serverOptions: ServerOptions = {
+      command: serverPath,
+      args,
+    };
+
+    const clientOptions: LanguageClientOptions = {
+      documentSelector: [{ scheme: 'file', language: 'd' }],
+      outputChannel,
+      initializationOptions: {
+        importPaths: resolvedImportPaths,
+      },
+    };
+
+    const client = new LanguageClient(
+      'dcd-lsp',
+      'D (DCD)',
+      serverOptions,
+      clientOptions
+    );
+
+    const context = new DcdContext(client);
+    client.start().then(
+      () => log('client.start() resolved — server is running'),
+      (err) => log(`client.start() FAILED: ${err}`)
+    );
+    return context;
   }
 
-  log('=== Extension activating ===');
-
-  const serverPathSetting = config.get<string>('serverPath', 'dcd-server');
-  const serverPath = path.isAbsolute(serverPathSetting)
-    ? serverPathSetting
-    : path.join(vscode.workspace.workspaceFolders?.[0].uri.fsPath ?? '', serverPathSetting);
-
-  log(`serverPath setting: ${serverPathSetting}`);
-  log(`resolved serverPath: ${serverPath}`);
-  log(`serverPath exists: ${fs.existsSync(serverPath)}`);
-
-  const args: string[] = ['--lsp'];
-  if (config.get<boolean>('ignoreConfig', false)) {
-    args.push('--ignoreConfig');
-  }
-  const logLevel = config.get<string>('logLevel', 'info');
-  if (logLevel && logLevel !== 'info') {
-    args.push(`--logLevel=${logLevel}`);
-    log(`server logLevel: ${logLevel}`);
+  clientIsStarting(): boolean {
+    return this.client.state === State.Starting;
   }
 
-  const importPaths = config.get<string[]>('importPaths', []);
-  const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
-  log(`workspaceRoot: ${workspaceRoot ?? '(none)'}`);
-  log(`importPaths setting: ${JSON.stringify(importPaths)}`);
-  const resolvedImportPaths = (importPaths ?? []).map(p =>
-    path.isAbsolute(p) ? p : path.join(workspaceRoot ?? '', p)
+  dispose(): void {
+    void this.client.stop();
+  }
+}
+
+let dcdContext: DcdContext | undefined;
+
+export function activate(context: vscode.ExtensionContext) {
+  const outputChannel = vscode.window.createOutputChannel('DCD');
+  context.subscriptions.push(outputChannel);
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('dcd.restart', async () => {
+      // Restarting while the client is still starting doesn't work (the
+      // client can't be stopped from the Starting state) — bail out.
+      if (dcdContext?.clientIsStarting()) {
+        return;
+      }
+      if (dcdContext) {
+        dcdContext.dispose();
+        dcdContext = undefined;
+      }
+      dcdContext = DcdContext.create(outputChannel);
+      context.subscriptions.push(dcdContext);
+    })
   );
 
-  // Import path detection (workspace source dirs, Phobos) happens on the
-  // SERVER during initialize, so any LSP client gets it — not just this
-  // extension. Here we only forward user-configured paths.
-
-  log(`final importPaths sent to server: ${JSON.stringify(resolvedImportPaths)}`);
-  log(`server command: ${serverPath} ${args.join(' ')}`);
-
-  const serverOptions: ServerOptions = {
-    command: serverPath,
-    args,
-  };
-
-  const clientOptions: LanguageClientOptions = {
-    documentSelector: [{ scheme: 'file', language: 'd' }],
-    outputChannel,
-    initializationOptions: {
-      importPaths: resolvedImportPaths,
-    },
-    middleware: {
-      // Log every document event VS Code sends us
-      didOpen: (doc: vscode.TextDocument, next: (d: vscode.TextDocument) => Promise<void>) => {
-        log(`didOpen: ${doc.uri.toString()} (language=${doc.languageId})`);
-        return next(doc);
-      },
-      didChange: (event: vscode.TextDocumentChangeEvent,
-        next: (e: vscode.TextDocumentChangeEvent) => Promise<void>) => {
-        for (const change of event.contentChanges) {
-          const text = change.text.replace(/\n/g, '\\n');
-          log(`INPUT: "${text}" at line ${change.range.start.line}, char ${change.range.start.character} (len ${change.text.length})`);
-        }
-        return next(event);
-      },
-      didClose: (doc: vscode.TextDocument, next: (d: vscode.TextDocument) => Promise<void>) => {
-        log(`didClose: ${doc.uri.toString()}`);
-        return next(doc);
-      },
-      // Log every completion request VS Code sends us, and what the server returned
-      provideCompletionItem: (doc: vscode.TextDocument, position: vscode.Position,
-        context: vscode.CompletionContext, token: vscode.CancellationToken,
-        next: (d: vscode.TextDocument, p: vscode.Position, c: vscode.CompletionContext,
-          t: vscode.CancellationToken) =>
-          vscode.ProviderResult<vscode.CompletionList | vscode.CompletionItem[]>) => {
-        log(`completion REQUESTED: ${doc.uri.toString()} at line ${position.line}, char ${position.character} (trigger=${context.triggerKind})`);
-        const result = next(doc, position, context, token);
-        // Handle both sync (CompletionList) and async (Thenable) results
-        if (result && typeof (result as PromiseLike<unknown>).then === 'function') {
-          return (result as PromiseLike<
-            vscode.CompletionList | vscode.CompletionItem[]
-          >).then(items => {
-            const count = Array.isArray(items) ? items.length : items?.items?.length ?? 0;
-            log(`completion RESULT: ${count} item(s)`);
-            return items;
-          }, err => {
-            log(`completion FAILED: ${err}`);
-            return [] as vscode.CompletionItem[];
-          });
-        }
-        const items = result as vscode.CompletionList | vscode.CompletionItem[] | undefined;
-        const count = Array.isArray(items) ? items.length : items?.items?.length ?? 0;
-        log(`completion RESULT: ${count} item(s)`);
-        return result;
-      },
-    },
-  };
-
-  client = new LanguageClient(
-    'dcd-lsp',
-    'D (DCD)',
-    serverOptions,
-    clientOptions
+  context.subscriptions.push(
+    vscode.commands.registerCommand('dcd.shutdown', async () => {
+      if (dcdContext?.clientIsStarting()) {
+        return;
+      }
+      if (dcdContext) {
+        dcdContext.dispose();
+        dcdContext = undefined;
+      }
+    })
   );
 
-  client.start().then(
-    () => log('client.start() resolved — server is running'),
-    (err) => log(`client.start() FAILED: ${err}`)
-  );
-  log('client.start() called (async)');
+  dcdContext = DcdContext.create(outputChannel);
+  context.subscriptions.push(dcdContext);
 }
 
 export function deactivate(): Thenable<void> | undefined {
-  if (!client) {
+  // Normal teardown happens via context.subscriptions (VS Code disposes the
+  // DcdContext, which stops the client). This is a safety net for hosts
+  // that call deactivate() without disposing subscriptions.
+  if (!dcdContext) {
     return undefined;
   }
-  return client.stop();
+  return dcdContext.client.stop();
 }

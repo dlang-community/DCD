@@ -35,7 +35,8 @@ import dcd.server.lsp.jsonrpc;
 import containers.hashset;
 import dsymbol.modulecache;
 import dsymbol.builtin.names : IMPORT_SYMBOL_NAME, CONSTRUCTOR_SYMBOL_NAME,
-	DESTRUCTOR_SYMBOL_NAME, UNITTEST_SYMBOL_NAME;
+	DESTRUCTOR_SYMBOL_NAME, UNITTEST_SYMBOL_NAME, ARGPTR_SYMBOL_NAME,
+	ARGUMENTS_SYMBOL_NAME;
 import dsymbol.symbol : CompletionKind, DSymbol, isPublicCompletionKind;
 
 /**
@@ -218,8 +219,12 @@ HandlerResult handleInitialize(ref ServerContext context, JSONValue params)
 
 	// Auto-detect import paths on the server so that any LSP client (not
 	// just the VS Code extension) gets module search out of the box: the
-	// workspace's own source directories and the local Phobos installation.
+	// workspace's own source directories, dub dependencies from the local
+	// package cache, and the local Phobos installation.
 	auto detected = detectWorkspaceImportPaths(context.rootUri);
+	auto dub = detectDubPackageImportPaths(context.rootUri);
+	if (!dub.empty)
+		detected ~= dub;
 	auto phobos = detectPhobosImportPaths();
 	if (!phobos.empty)
 		detected ~= phobos;
@@ -278,6 +283,207 @@ private string[] detectWorkspaceImportPaths(string rootUri)
 	}
 	// The root itself: modules may live at the top level.
 	result ~= root;
+	return result;
+}
+
+/**
+ * Resolves the dub dependencies of the workspace project and returns the
+ * import directories of each dependency, following transitive
+ * dependencies. This is what makes `import erupted;` or `import sdl;`
+ * resolve without any client-side configuration.
+ *
+ * The dependency set is read from dub.selections.json (written by
+ * `dub build`/`dub upgrade`) when present, falling back to the
+ * dependencies listed in dub.json/dub.sdl. Path dependencies
+ * (`"dep": {"path": "..."}`) resolve to directories inside the workspace;
+ * registry dependencies resolve into the local package cache
+ * (~/.dub/packages).
+ */
+private string[] detectDubPackageImportPaths(string rootUri)
+{
+	import std.algorithm : map;
+	import std.array : array;
+	import std.file : dirEntries, exists, isDir, readText, SpanMode;
+	import std.json : parseJSON, JSONType;
+	import std.path : baseName, buildPath, expandTilde;
+
+	if (rootUri.empty)
+		return [];
+	string root = uriToPath(rootUri);
+	if (root.empty || !exists(root) || !isDir(root))
+		return [];
+
+	// Direct dependencies of the workspace project: name -> path
+	// dependency directory (empty for registry dependencies).
+	string[string] direct;
+	foreach (manifest; ["dub.selections.json", "dub.json", "dub.sdl"])
+	{
+		string m = buildPath(root, manifest);
+		if (!exists(m))
+			continue;
+		if (manifest.endsWith(".json"))
+		{
+			auto json = parseJSON(readText(m));
+			JSONValue deps;
+			if ("versions" in json)
+				deps = json["versions"]; // dub.selections.json
+			else if ("dependencies" in json)
+				deps = json["dependencies"]; // dub.json
+			if (deps.type == JSONType.object)
+			{
+				foreach (name, ref version_; deps.object)
+				{
+					string pathDep;
+					if (version_.type == JSONType.object
+						&& "path" in version_
+						&& version_["path"].type == JSONType.string)
+						pathDep = buildPath(root, version_["path"].str);
+					direct[name] = pathDep;
+				}
+				break;
+			}
+		}
+		else
+		{
+			// dub.sdl: dependency lines look like
+			//   dependency "name" optional="true" ...
+			foreach (line; readText(m).splitter('\n'))
+			{
+				auto trimmed = line.strip;
+				if (!trimmed.startsWith("dependency"))
+					continue;
+				auto fields = trimmed.splitter('"').array;
+				if (fields.length >= 2)
+					direct[fields[1]] = "";
+			}
+			break;
+		}
+	}
+	if (direct.empty)
+		return [];
+
+	// Walk the dependency graph. Registry packages are looked up in the
+	// package cache; path packages are directories in the workspace.
+	immutable cacheDir = expandTilde("~/.dub/packages");
+	immutable cacheExists = exists(cacheDir) && isDir(cacheDir);
+
+	string[] result;
+	bool[string] visited;
+	string[] queue = direct.keys;
+	while (!queue.empty)
+	{
+		string name = queue[0];
+		queue = queue[1 .. $];
+		if (name in visited)
+			continue;
+		visited[name] = true;
+
+		// Resolve the package root: a path dependency, or a cached
+		// registry package (~/.dub/packages/<name>/<version>/<name>/).
+		string pkgRoot;
+		if (auto p = name in direct)
+			if (!(*p).empty && exists(*p) && isDir(*p))
+				pkgRoot = *p;
+		if (pkgRoot.empty && cacheExists)
+		{
+			string pkgDir = buildPath(cacheDir, name);
+			if (exists(pkgDir) && isDir(pkgDir))
+			{
+				string[] versions = dirEntries(pkgDir, SpanMode.shallow)
+					.filter!(a => a.isDir).map!(a => a.name).array;
+				if (!versions.empty)
+				{
+					// Prefer the version dub selected, if recorded;
+					// otherwise the newest (lexicographically greatest).
+					string chosen;
+					if (auto v = name in direct)
+						foreach (ver; versions)
+							if (baseName(ver) == *v)
+								chosen = ver;
+					if (chosen.empty)
+					{
+						sort!((a, b) => a > b)(versions);
+						chosen = versions[0];
+					}
+					pkgRoot = buildPath(chosen, name);
+					if (!exists(pkgRoot) || !isDir(pkgRoot))
+						pkgRoot = chosen;
+				}
+			}
+		}
+		if (pkgRoot.empty)
+			continue;
+
+		// Import directories: manifest importPaths, else the standard
+		// source/ src/ layout.
+		string[] importDirs;
+		foreach (manifest; ["dub.json", "dub.sdl"])
+		{
+			string m = buildPath(pkgRoot, manifest);
+			if (!exists(m) || !manifest.endsWith(".json"))
+				continue;
+			auto json = parseJSON(readText(m));
+			if ("importPaths" in json
+				&& json["importPaths"].type == JSONType.array)
+			{
+				foreach (p; json["importPaths"].array)
+					if (p.type == JSONType.string)
+						importDirs ~= buildPath(pkgRoot, p.str);
+			}
+			break;
+		}
+		if (importDirs.empty)
+		{
+			foreach (dir; ["source", "src", "import"])
+			{
+				string p = buildPath(pkgRoot, dir);
+				if (exists(p) && isDir(p))
+					importDirs ~= p;
+			}
+		}
+		foreach (d; importDirs)
+			if (exists(d) && isDir(d) && !result.canFind(d))
+				result ~= d;
+
+		// Follow transitive dependencies from the package's own manifest.
+		foreach (manifest; ["dub.json", "dub.sdl"])
+		{
+			string m = buildPath(pkgRoot, manifest);
+			if (!exists(m))
+				continue;
+			if (manifest.endsWith(".json"))
+			{
+				auto json = parseJSON(readText(m));
+				if ("dependencies" in json
+					&& json["dependencies"].type == JSONType.object)
+				{
+					foreach (dep, ref spec; json["dependencies"].object)
+					{
+						if (dep in visited)
+							continue;
+						if (spec.type == JSONType.object
+							&& "path" in spec
+							&& spec["path"].type == JSONType.string)
+							direct[dep] = buildPath(pkgRoot, spec["path"].str);
+						queue ~= dep;
+					}
+				}
+			}
+			else
+			{
+				foreach (line; readText(m).splitter('\n'))
+				{
+					auto trimmed = line.strip;
+					if (!trimmed.startsWith("dependency"))
+						continue;
+					auto fields = trimmed.splitter('"').array;
+					if (fields.length >= 2 && fields[1] !in visited)
+						queue ~= fields[1];
+				}
+			}
+			break;
+		}
+	}
 	return result;
 }
 
@@ -516,11 +722,22 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 	{
 		// A calltip response to a completion request means the client typed
 		// "(", send signature help instead
-		return signatureHelpFromResponse(response).toJson();
+		size_t activeParameter = countParametersBeforeCursor(
+			cast(char[]) request.sourceCode[0 .. request.cursorPosition]);
+		return signatureHelpFromResponse(response, 0, activeParameter).toJson();
 	}
 
 	CompletionList list;
 	list.isIncomplete = false;
+	// Bundle overloads of the same name into a single item (like clangd
+	// does for C++ template overloads): "destroy" with 5 template
+	// constraints shows once, with the overload count in the detail.
+	// The completion engine ranks constraint-matching overloads first, so
+	// the first overload seen per name is the most plausible one and its
+	// signature is used as the detail.
+	CompletionItem[] bundled;
+	string[] bundledNames;
+	size_t[] bundledCounts;
 	foreach (completion; response.completions)
 	{
 		CompletionItem item;
@@ -528,6 +745,30 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 		item.kind = toCompletionItemKind(cast(CompletionKind) completion.kind);
 		item.detail = completion.typeOf;
 		item.documentation = completion.documentation;
+
+		bool merged = false;
+		foreach (i, ref existing; bundled)
+		{
+			if (existing.label == item.label && existing.kind == item.kind)
+			{
+				bundledCounts[i]++;
+				merged = true;
+				break;
+			}
+		}
+		if (!merged)
+		{
+			bundled ~= item;
+			bundledNames ~= item.label;
+			bundledCounts ~= 1;
+		}
+	}
+	foreach (i, ref item; bundled)
+	{
+		if (bundledCounts[i] > 1)
+			item.detail = item.detail.length
+				? item.detail ~ " (+" ~ bundledCounts[i].to!string ~ " overloads)"
+				: bundledCounts[i].to!string ~ " overloads";
 		list.items ~= item;
 	}
 	return list.toJson();
@@ -657,24 +898,198 @@ JSONValue handleSignatureHelp(ref ServerContext context, JSONValue params)
 	if (response.completionType != CompletionType.calltips)
 		return JSONValue(null);
 
-	return signatureHelpFromResponse(response).toJson();
+	// The parameter the cursor is currently in, counted from the source text
+	// (commas at paren depth 0 relative to the call's opening paren).
+	size_t activeParameter = countParametersBeforeCursor(
+		cast(char[]) request.sourceCode[0 .. request.cursorPosition]);
+
+	// On a retrigger the client passes back the previously active signature
+	// help (e.g. after the user cycled overloads with up/down keys). Keep the
+	// user's selection instead of resetting to the first overload.
+	size_t activeSignature = preferredSignature(response, activeParameter);
+	if (params.type == JSONType.object && "context" in params
+		&& params["context"].type == JSONType.object
+		&& "activeSignatureHelp" in params["context"]
+		&& params["context"]["activeSignatureHelp"].type == JSONType.object)
+	{
+		auto previous = params["context"]["activeSignatureHelp"];
+		if ("activeSignature" in previous
+			&& previous["activeSignature"].type == JSONType.integer)
+		{
+			immutable selected = cast(size_t) previous["activeSignature"].integer;
+			if (selected < response.completions.length)
+				activeSignature = selected;
+		}
+	}
+
+	return signatureHelpFromResponse(response, activeSignature, activeParameter)
+		.toJson();
+}
+
+/**
+ * Picks the initially shown overload: the first one that actually has a
+ * parameter at the cursor's index (e.g. with the cursor in the 2nd argument,
+ * a 2-parameter overload is preferred over a 1-parameter one). Falls back
+ * to the first overload when none matches.
+ */
+private size_t preferredSignature(AutocompleteResponse response,
+	size_t activeParameter)
+{
+	// The completion engine already ranks constraint-matching overloads
+	// first, so the first overload with a parameter at the cursor's index is
+	// both arity- and constraint-plausible.
+	foreach (i, completion; response.completions)
+	{
+		auto ranges = parameterLabelRanges(completion.definition);
+		if (ranges.length > activeParameter)
+			return i;
+	}
+	return 0;
+}
+
+/**
+ * Counts how many call arguments the cursor has passed: the number of
+ * top-level commas between the innermost unclosed `(` (or `[`) before the
+ * cursor and the cursor itself.
+ */
+private size_t countParametersBeforeCursor(in char[] source)
+{
+	if (source.empty)
+		return 0;
+
+	// Scan backwards for the innermost unclosed open paren/bracket.
+	int depth = 0;
+	size_t open = size_t.max;
+	for (size_t i = source.length; i-- > 0;)
+	{
+		immutable c = source[i];
+		if (c == ')')
+			depth++;
+		else if (c == '(')
+		{
+			if (depth == 0)
+			{
+				open = i;
+				break;
+			}
+			depth--;
+		}
+		else if (c == ']')
+			depth++;
+		else if (c == '[')
+		{
+			if (depth == 0)
+			{
+				open = i;
+				break;
+			}
+			depth--;
+		}
+	}
+	if (open == size_t.max)
+		return 0;
+
+	// Count commas at depth 0 relative to that paren. Comments and string
+	// literals must not contribute commas.
+	size_t commas = 0;
+	int inner = 0;
+	for (size_t i = open + 1; i < source.length; i++)
+	{
+		immutable c = source[i];
+		if (c == '(' || c == '[' || c == '{')
+			inner++;
+		else if (c == ')' || c == ']' || c == '}')
+			inner--;
+		else if (c == ',' && inner == 0)
+			commas++;
+	}
+	return commas;
 }
 
 /**
  * Converts a calltip response to a `SignatureHelp`.
+ *
+ * Params:
+ *     response = the calltip response from the autocompletion engine
+ *     activeSignature = the initially selected overload
+ *     activeParameter = the parameter the cursor is in
  */
-private SignatureHelp signatureHelpFromResponse(AutocompleteResponse response)
+private SignatureHelp signatureHelpFromResponse(AutocompleteResponse response,
+	size_t activeSignature, size_t activeParameter)
 {
 	SignatureHelp help;
 	foreach (completion; response.completions)
 	{
 		SignatureInformation sig;
 		sig.label = completion.definition;
+		// Parameter labels with offsets into `label` let the client highlight
+		// the active argument; without them the widget can't show which
+		// parameter is being typed.
+		foreach (range; parameterLabelRanges(sig.label))
+		{
+			ParameterInformation param;
+			param.labelStart = range[0];
+			param.labelEnd = range[1];
+			sig.parameters ~= param;
+		}
 		help.signatures ~= sig;
 	}
-	help.activeSignature = 0;
-	help.activeParameter = 0;
+	help.activeSignature = activeSignature;
+	help.activeParameter = activeParameter;
 	return help;
+}
+
+/**
+ * Splits a calltip label like `void foo(int a, string s)` into the
+ * `[start, end)` offsets of each parameter inside the outermost parentheses.
+ * Template parameter lists (`foo!(T)(T a)`) contribute only the function
+ * parameter list.
+ */
+private size_t[][] parameterLabelRanges(string label)
+{
+	size_t[][] ranges;
+	if (label.empty)
+		return ranges;
+
+	// Find the last top-level paren pair: skips template parens `!(...)`.
+	size_t open = label.lastIndexOf('(');
+	if (open == size_t.max || open + 1 >= label.length)
+		return ranges;
+	size_t close = label.lastIndexOf(')');
+	if (close == size_t.max || close <= open)
+		return ranges;
+
+	size_t start = open + 1;
+	size_t depth = 0;
+	for (size_t i = open + 1; i < close; i++)
+	{
+		immutable c = label[i];
+		if (c == '(' || c == '[' || c == '{')
+			depth++;
+		else if (c == ')' || c == ']' || c == '}')
+			depth--;
+		else if (c == ',' && depth == 0)
+		{
+			ranges ~= trimRange(label, start, i);
+			start = i + 1;
+		}
+	}
+	// trailing parameter (or the only one) if the parens aren't empty
+	if (start < close)
+		ranges ~= trimRange(label, start, close);
+	return ranges;
+}
+
+/**
+ * Shrinks a `[start, end)` range to exclude surrounding whitespace.
+ */
+private size_t[] trimRange(string label, size_t start, size_t end)
+{
+	while (start < end && (label[start] == ' ' || label[start] == '\t'))
+		start++;
+	while (end > start && (label[end - 1] == ' ' || label[end - 1] == '\t'))
+		end--;
+	return [start, end];
 }
 
 /**
@@ -703,10 +1118,6 @@ JSONValue handleInlayHint(ref ServerContext context, JSONValue params)
 	foreach (completion; response.completions)
 	{
 		InlayHint hint;
-		hint.position = completion.symbolFilePath == "stdin"
-			? context.converter.toPosition(*doc, completion.symbolLocation)
-			: positionInFile(context, completion.symbolFilePath,
-				completion.symbolLocation);
 		// Skip internal placeholder names (e.g. "*arr*" for int[]) that
 		// dsymbol uses to model arrays, pointers and associative arrays.
 		// They appear embedded in labels like "->*arr*". Also skip empty
@@ -714,6 +1125,19 @@ JSONValue handleInlayHint(ref ServerContext context, JSONValue params)
 		if (!completion.identifier.length
 			|| completion.identifier.canFind('*'))
 			continue;
+		// A stale or bogus offset (e.g. from an incomplete parse while the
+		// user is typing) must not fail the whole request — skip the hint.
+		try
+			hint.position = completion.symbolFilePath == "stdin"
+				? context.converter.toPosition(*doc, completion.symbolLocation)
+				: positionInFile(context, completion.symbolFilePath,
+					completion.symbolLocation);
+		catch (Exception e)
+		{
+			warningf("Skipping inlay hint with bad offset %s: %s",
+				completion.symbolLocation, e.msg);
+			continue;
+		}
 		hint.label = completion.identifier;
 		hint.kind = 1; // Type
 		hints ~= hint.toJson();
@@ -770,7 +1194,18 @@ private DocumentSymbol documentSymbolFor(ref ServerContext context,
 	result.name = symbol.name.idup;
 	result.kind = toCompletionItemKind(symbol.kind);
 	result.detail = symbol.formatType;
-	Position pos = context.converter.toPosition(doc, symbol.location);
+	// A bogus offset (e.g. size_t.max on synthetic varargs symbols, or a
+	// stale location from an incomplete parse) must not fail the whole
+	// request — clamp it to the document end.
+	Position pos;
+	try
+		pos = context.converter.toPosition(doc, symbol.location);
+	catch (Exception e)
+	{
+		warningf("Skipping document symbol '%s' with bad offset %s: %s",
+			symbol.name, symbol.location, e.msg);
+		return result;
+	}
 	result.range = Range(pos, pos);
 	result.selectionRange = Range(pos, pos);
 
@@ -781,7 +1216,13 @@ private DocumentSymbol documentSymbolFor(ref ServerContext context,
 	foreach (part; symbol.opSlice())
 	{
 		if (part.name == IMPORT_SYMBOL_NAME || part.name == CONSTRUCTOR_SYMBOL_NAME
-			|| part.name == DESTRUCTOR_SYMBOL_NAME || part.name == UNITTEST_SYMBOL_NAME)
+			|| part.name == DESTRUCTOR_SYMBOL_NAME || part.name == UNITTEST_SYMBOL_NAME
+			|| part.name == ARGPTR_SYMBOL_NAME || part.name == ARGUMENTS_SYMBOL_NAME)
+			continue;
+		// Unnamed symbols (e.g. anonymous function parameters like
+		// `void f(in void*)`) have no name to show in an outline; VS Code
+		// rejects them with "name must not be falsy".
+		if (part.name is null || !part.name.length)
 			continue;
 		if (!isPublicCompletionKind(part.kind))
 			continue;

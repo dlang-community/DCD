@@ -1,9 +1,11 @@
-# DCD [![CI status](https://travis-ci.org/dlang-community/DCD.svg?branch=master)](https://travis-ci.org/dlang-community/DCD/)
+<img src="dcd.png" alt="GameBoyd" width="200"/>
+
+
+<!-- # DCD [![CI status](https://travis-ci.org/dlang-community/DCD.svg?branch=master)](https://travis-ci.org/dlang-community/DCD/) -->
+----
 The D Completion Daemon is an auto-complete program for the D programming language.
 
-![Teaser](teaser.png "This is what the future looks like - Jayce, League of Legends")
-
-(The above is a screenshot of [Textadept](http://foicica.com/textadept/))
+<!-- ![Teaser](teaser.png "This is what the future looks like - Jayce, League of Legends") -->
 
 DCD is not an IDE. DCD is designed to provide autocompletion for your favorite
 text editor. If you are looking for an IDE, try [one of these](http://wiki.dlang.org/IDEs).
@@ -13,7 +15,7 @@ used through a text editor script or plugin, though it can be used from the
 command line. The server (dcd-server) is responsible for caching imported files,
 calculating autocomplete information, and sending it back to the client.
 
-# Why dcd-lsp?
+# Added LSP support
 
 > **⚠️ Work in progress.** The LSP mode is functional (completion, hover,
 > go-to-definition, references, signature help, document symbols, and inlay
@@ -32,12 +34,6 @@ needing its own plugin for DCD's custom socket protocol. It also removes a
 layer: the editor talks straight to the semantic engine over stdio, with no
 client process or socket hop in between, which lowers latency.
 
-A reference VS Code extension lives in [`editors/code/`](editors/code) — it's
-~100 lines of TypeScript, mostly configuration, which is exactly the point: the
-editor side is now trivial.
-
-The classic socket mode (`dcd-client` + `dcd-server`) is unchanged and still
-supported for existing plugins.
 
 # Development
 

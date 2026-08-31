@@ -654,7 +654,7 @@ private DSymbol*[] getUFCSSymbolsForDotCompletion(ExpressionInfo symbolType, Sco
 
     getUFCSSymbols(localAppender, globalAppender, completionScope, cursorPosition);
 
-    return localAppender.data ~ globalAppender.data;
+    return rankByConstraint(localAppender.data ~ globalAppender.data, symbolType.type);
 }
 
 private DSymbol*[] getUFCSSymbolsForParenCompletion(ExpressionInfo symbolType, Scope* completionScope, istring searchWord, size_t cursorPosition)
@@ -666,8 +666,60 @@ private DSymbol*[] getUFCSSymbolsForParenCompletion(ExpressionInfo symbolType, S
 
     getUFCSSymbols(localAppender, globalAppender, completionScope, cursorPosition);
 
-    return localAppender.data ~ globalAppender.data;
+    return rankByConstraint(localAppender.data ~ globalAppender.data, symbolType.type);
 
+}
+
+/**
+ * Ranks same-named template overloads by their constraint: overloads whose
+ * `is(T == X)` constraint matches the receiver's kind come first, ones that
+ * provably don't match go last. Overloads without (recognizable)
+ * constraints keep their relative order in between. This is a reordering
+ * only — nothing is removed, so a wrong guess can't hide the right answer.
+ */
+private DSymbol*[] rankByConstraint(DSymbol*[] symbols, const(DSymbol)* receiverType)
+{
+    import dsymbol.utils : matchConstraint, ConstraintMatch;
+
+    if (receiverType is null || symbols.length < 2)
+        return symbols;
+
+    // Only worth ranking when several symbols share a name.
+    bool hasOverloads;
+    outer: foreach (i, sym; symbols[0 .. $ - 1])
+    {
+        foreach (other; symbols[i + 1 .. $])
+        {
+            if (sym.name is other.name)
+            {
+                hasOverloads = true;
+                break outer;
+            }
+        }
+    }
+    if (!hasOverloads)
+        return symbols;
+
+    // Stable three-way partition: match > unknown > noMatch.
+    DSymbol*[] matched;
+    DSymbol*[] unknown;
+    DSymbol*[] rejected;
+    foreach (sym; symbols)
+    {
+        final switch (matchConstraint(sym, receiverType))
+        {
+        case ConstraintMatch.match:
+            matched ~= sym;
+            break;
+        case ConstraintMatch.unknown:
+            unknown ~= sym;
+            break;
+        case ConstraintMatch.noMatch:
+            rejected ~= sym;
+            break;
+        }
+    }
+    return matched ~ unknown ~ rejected;
 }
 
 private bool willImplicitBeUpcasted(scope ref const(DSymbol) incomingSymbolType, scope ref const(
