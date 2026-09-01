@@ -43,6 +43,11 @@ struct TextDocument
 	/// The version number of the document.
 	long docVersion;
 
+	/// Module paths ("a/b/c", DCD's internal slash-separated form) whose
+	/// imports have already been warmed into the server's module cache, so
+	/// that didChange only warms new ones.
+	string[] warmedImports;
+
 	/// Byte offsets of the start of each line.
 	size_t[] lineStarts;
 
