@@ -1335,36 +1335,41 @@ private void findWorkspaceUses(ref ServerContext context,
 	import std.file : dirEntries, isFile, readText, SpanMode;
 	import std.path : extension;
 
-	// Collect the workspace's .d/.di files from the import paths.
+	// Collect the workspace's .d/.di files. Only the workspace root is
+	// scanned — NOT the import paths: they include auto-detected Phobos
+	// and dub dependencies (read-only library sources, thousands of files;
+	// scanning them makes rename take minutes and edits there could never
+	// be applied anyway).
 	string[] files;
 	void addFile(string path)
 	{
-		// Import paths can overlap (e.g. the workspace root and its
-		// source/ directory are both registered), so deduplicate.
+		// Paths can overlap (e.g. the workspace root and its source/
+		// directory), so deduplicate.
 		if (!files.canFind(path))
 			files ~= path;
 	}
-	foreach (importPath; context.cache.getImportPaths())
+	string root = context.rootUri.empty ? string.init : uriToPath(context.rootUri);
+	if (!root.empty)
 	{
-		if (importPath.empty)
-			continue;
-		if (isFile(importPath))
+		if (isFile(root))
 		{
-			addFile(importPath);
-			continue;
+			addFile(root);
 		}
-		try foreach (entry; dirEntries(importPath, SpanMode.depth))
+		else
 		{
-			if (!isFile(entry.name))
-				continue;
-			immutable ext = extension(entry.name);
-			if (ext != ".d" && ext != ".di")
-				continue;
-			addFile(entry.name);
-		}
-		catch (Exception e)
-		{
-			warningf("Rename scan failed for %s: %s", importPath, e.msg);
+			try foreach (entry; dirEntries(root, SpanMode.depth))
+			{
+				if (!isFile(entry.name))
+					continue;
+				immutable ext = extension(entry.name);
+				if (ext != ".d" && ext != ".di")
+					continue;
+				addFile(entry.name);
+			}
+			catch (Exception e)
+			{
+				warningf("Rename scan failed for %s: %s", root, e.msg);
+			}
 		}
 	}
 
