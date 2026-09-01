@@ -562,6 +562,52 @@ void handleDidOpen(ref ServerContext context, JSONValue params)
 	long docVersion = textDocument["version"].integer;
 	string text = textDocument["text"].str;
 	context.documents.didOpen(uri, languageId, docVersion, text);
+
+	// Warm the module cache for this document's imports right away. DCD
+	// resolves imports lazily inside whichever request first needs them,
+	// which stalls that request by the parse time of the whole import
+	// closure (std.stdio plus its Phobos dependencies costs ~800ms). Doing
+	// it here moves that cost to document-open time, while the editor is
+	// still settling, instead of the user's first completion or hover.
+	// This is single-threaded on purpose: messages arriving during the
+	// warmup simply queue in the pipe and are handled in order afterwards.
+	if (languageId.empty || languageId == "d")
+	{
+		try
+			warmupDocument(context, text);
+		catch (Exception e)
+			warningf("Warmup failed for %s: %s", uri, e.msg);
+	}
+}
+
+/**
+ * Pre-parses a document and resolves its import closure into the module
+ * cache.
+ *
+ * This is the same work the first semantic request would otherwise do
+ * lazily (`generateAutocompleteTrees` → second pass →
+ * `ModuleCache.cacheModule`), so every subsequent request starts with a
+ * warm cache. Already-cached modules are skipped by modification time, so
+ * repeated didOpens are cheap.
+ */
+private void warmupDocument(ref ServerContext context, string text)
+{
+	import dparse.lexer : LexerConfig, StringCache, getTokensForParser;
+	import dparse.rollback_allocator : RollbackAllocator;
+	import dsymbol.conversion : generateAutocompleteTrees;
+	import std.datetime.stopwatch : StopWatch, AutoStart;
+
+	auto sw = StopWatch(AutoStart.yes);
+	LexerConfig config;
+	config.fileName = "";
+	// clampedBucketCount guards against the empty-document crash
+	auto stringCache = StringCache(clampedBucketCount(text.length));
+	auto tokens = getTokensForParser(cast(ubyte[]) text, config, &stringCache);
+	RollbackAllocator rba;
+	auto pair = generateAutocompleteTrees(tokens, &rba, -1, *context.cache);
+	scope (exit) pair.destroy();
+	infof("Warmup: indexed document and imports in %s ms",
+		sw.peek().total!"msecs");
 }
 
 /**
