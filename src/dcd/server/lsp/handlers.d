@@ -132,6 +132,10 @@ HandlerResult handleRequest(ref ServerContext context, string method, JSONValue 
 			return HandlerResult(handleDefinition(context, params));
 		case "textDocument/references":
 			return HandlerResult(handleReferences(context, params));
+		case "textDocument/prepareRename":
+			return HandlerResult(handlePrepareRename(context, params));
+		case "textDocument/rename":
+			return HandlerResult(handleRename(context, params));
 		case "textDocument/signatureHelp":
 			return HandlerResult(handleSignatureHelp(context, params));
 		case "textDocument/inlayHint":
@@ -245,6 +249,7 @@ HandlerResult handleInitialize(ref ServerContext context, JSONValue params)
 	capabilities["hoverProvider"] = JSONValue(true);
 	capabilities["definitionProvider"] = JSONValue(true);
 	capabilities["referencesProvider"] = JSONValue(true);
+	capabilities["renameProvider"] = parseJSON(`{"prepareProvider": true}`);
 	capabilities["documentSymbolProvider"] = JSONValue(true);
 	capabilities["inlayHintProvider"] = JSONValue(true);
 	JSONValue signatureHelpProvider = parseJSON(`{}`);
@@ -1150,6 +1155,464 @@ JSONValue handleReferences(ref ServerContext context, JSONValue params)
 	if (locations.empty)
 		return JSONValue(null);
 	return JSONValue(locations);
+}
+
+/**
+ * Shared result of a rename lookup: the identifier range at the request
+ * position plus every use of the symbol within the workspace.
+ */
+private struct RenameLookup
+{
+	/// The identifier token at the request position, if any.
+	Range identifierRange;
+
+	/// The identifier's text (needed to compute each edit's end position).
+	string identifier;
+
+	/// The file the symbol is declared in (DCD-internal path; "stdin" for
+	/// the requesting document).
+	string declarationFile;
+
+	/// The byte offset of the declaration in its file.
+	size_t declarationOffset;
+
+	/// Uses grouped by file path: (file path, byte offsets). The
+	/// requesting document is keyed by its URI; other files by path.
+	private string[] _files;
+	private size_t[][] _offsets;
+
+	/// True when the fields above are valid.
+	bool valid;
+
+	/// Records a use at the given offset in the given file.
+	void addUse(string file, size_t offset)
+	{
+		foreach (i, f; _files)
+		{
+			if (f == file)
+			{
+				_offsets[i] ~= offset;
+				return;
+			}
+		}
+		_files ~= file;
+		_offsets ~= [offset];
+	}
+
+	/// The files that contain uses of the symbol.
+	auto files() return
+	{
+		return _files[];
+	}
+
+	/// The use offsets recorded for the given file.
+	auto offsetsIn(string file)
+	{
+		foreach (i, f; _files)
+			if (f == file)
+				return _offsets[i][];
+		return (size_t[]).init[0 .. 0];
+	}
+}
+
+/**
+ * Performs the rename lookup shared by prepareRename and rename.
+ *
+ * The symbol at the request position is identified with `findLocalUse`,
+ * which yields the declaration's file and offset. Uses are then searched
+ * across the whole workspace: every .d/.di file under the server's import
+ * paths is lexed and each same-named identifier is resolved to its symbol
+ * to check whether it denotes the same declaration. The identifier range
+ * is computed by lexing the requesting document and finding the identifier
+ * token containing the request position — this also validates that the
+ * cursor is on a renameable identifier and not a keyword, literal or
+ * comment.
+ */
+private RenameLookup lookupRename(ref ServerContext context, JSONValue params)
+{
+	import dparse.lexer : LexerConfig, StringCache, getTokensForParser, Token, tok;
+
+	RenameLookup result;
+
+	auto request = buildSymbolRequest(context, params);
+	auto response = findLocalUse(request, *context.cache);
+
+	if (response.completions.empty)
+		return result;
+
+	auto doc = context.documents.get(params["textDocument"]["uri"].str);
+	if (doc is null)
+		return result;
+
+	// Lex the document to find the identifier token at the request
+	// position. buildSymbolRequest already nudged the cursor one byte
+	// into a first-character token, so the token containing the (nudged)
+	// offset is the one the user clicked on.
+	LexerConfig config;
+	config.fileName = "";
+	// clampedBucketCount guards against the empty-document crash
+	auto stringCache = StringCache(clampedBucketCount(doc.text.length));
+	auto tokens = getTokensForParser(cast(ubyte[]) doc.text, config, &stringCache);
+
+	Position position = Position.fromJson(params["position"]);
+	size_t offset = context.converter.toOffset(*doc, position);
+
+	const(Token)* found;
+	foreach (ref t; tokens)
+	{
+		if (t.type == tok!"identifier"
+			&& offset >= t.index && offset < t.index + t.text.length)
+		{
+			found = &t;
+			break;
+		}
+	}
+	if (found is null)
+		return result;
+
+	result.identifier = found.text.idup;
+	result.identifierRange = Range(
+		context.converter.toPosition(*doc, found.index),
+		context.converter.toPosition(*doc, found.index + found.text.length));
+
+	// The declaration identifies the symbol across files. For symbols
+	// declared in the requesting document findLocalUse reports "stdin";
+	// normalize it to the document's path so that uses in OTHER files
+	// (which resolve through the cached on-disk module) compare equal.
+	string requestUri = params["textDocument"]["uri"].str;
+	result.declarationFile = response.symbolFilePath == "stdin"
+		? uriToPath(requestUri)
+		: response.symbolFilePath;
+	result.declarationOffset = response.symbolLocation;
+
+	// Uses within the requesting document (the declaration is part of the
+	// uses list when the symbol is declared here).
+	foreach (completion; response.completions)
+		result.addUse(requestUri, completion.symbolLocation);
+
+	// Uses in other workspace files. Only symbols declared in the
+	// requesting document or in a cached module can be tracked; symbols
+	// from unresolved modules keep the document-local behavior.
+	if (result.declarationFile.length)
+		findWorkspaceUses(context, result, requestUri);
+
+	result.valid = true;
+	return result;
+}
+
+/**
+ * A use of the renamed symbol in a workspace file.
+ */
+private struct WorkspaceUse
+{
+	/// Absolute path of the file containing the use.
+	string path;
+
+	/// Byte offset of the identifier within that file.
+	size_t offset;
+}
+
+/**
+ * Searches all workspace .d/.di files for uses of the symbol declared at
+ * `lookup.declarationFile`/`declarationOffset`.
+ *
+ * Every file under the server's import paths is lexed and each identifier
+ * matching the renamed symbol's name is resolved through DCD's symbol
+ * machinery (parse + scope lookup); a match counts when it resolves to a
+ * symbol declared at the target declaration. This is the same resolution
+ * strategy `findLocalUse` applies within a document, extended to the
+ * workspace. Files that fail to parse are skipped.
+ */
+private void findWorkspaceUses(ref ServerContext context,
+	ref RenameLookup lookup, string requestUri)
+{
+	import dparse.lexer : LexerConfig, StringCache, getTokensForParser, Token, tok;
+	import dparse.rollback_allocator : RollbackAllocator;
+	import dsymbol.conversion : generateAutocompleteTrees, ScopeSymbolPair;
+	import dsymbol.utils : getExpression;
+	import dcd.server.autocomplete.util : getSymbolsByTokenChain;
+	import std.range : assumeSorted;
+	import std.file : dirEntries, isFile, readText, SpanMode;
+	import std.path : extension;
+
+	// Collect the workspace's .d/.di files. Only the workspace root is
+	// scanned — NOT the import paths: they include auto-detected Phobos
+	// and dub dependencies (read-only library sources, thousands of files;
+	// scanning them makes rename take minutes and edits there could never
+	// be applied anyway).
+	string[] files;
+	void addFile(string path)
+	{
+		// Paths can overlap (e.g. the workspace root and its source/
+		// directory), so deduplicate.
+		if (!files.canFind(path))
+			files ~= path;
+	}
+	string root = context.rootUri.empty ? string.init : uriToPath(context.rootUri);
+	if (!root.empty)
+	{
+		if (isFile(root))
+		{
+			addFile(root);
+		}
+		else
+		{
+			try foreach (entry; dirEntries(root, SpanMode.depth))
+			{
+				if (!isFile(entry.name))
+					continue;
+				immutable ext = extension(entry.name);
+				if (ext != ".d" && ext != ".di")
+					continue;
+				addFile(entry.name);
+			}
+			catch (Exception e)
+			{
+				warningf("Rename scan failed for %s: %s", root, e.msg);
+			}
+		}
+	}
+
+	// The declaration's identity: file + offset. Symbols declared in the
+	// requesting document carry the "stdin" marker internally.
+	immutable targetFile = lookup.declarationFile;
+	immutable targetOffset = lookup.declarationOffset;
+
+	foreach (file; files)
+	{
+		// The requesting document is handled from its in-memory state.
+		if (pathToUri(file) == requestUri)
+			continue;
+
+		string source;
+		try source = readText(file);
+		catch (Exception e)
+		{
+			warningf("Rename scan failed to read %s: %s", file, e.msg);
+			continue;
+		}
+		if (!source.canFind(lookup.identifier))
+			continue;
+
+		LexerConfig config;
+		config.fileName = file;
+		auto stringCache = StringCache(clampedBucketCount(source.length));
+		auto tokens = getTokensForParser(cast(ubyte[]) source, config, &stringCache);
+
+		// Candidate offsets: identifier tokens with the target name.
+		size_t[] candidates;
+		foreach (ref t; tokens)
+		{
+			if (t.type == tok!"identifier" && t.text == lookup.identifier)
+				candidates ~= t.index;
+		}
+		if (candidates.empty)
+			continue;
+
+		// Resolve each candidate against the file's symbol table.
+		// generateAutocompleteTrees hardcodes the module name "stdin", so
+		// symbols DECLARED in this scanned file carry symbolFile == "stdin"
+		// while the same declaration seen from other files carries the
+		// real path. Normalize both sides of the identity check: a symbol
+		// from this file's own tree matches the target when the target is
+		// either this file's path or "stdin" (the requesting document).
+		immutable bool targetIsThisFile = targetFile == file;
+		immutable bool targetIsRequestDoc = targetFile == "stdin";
+		RollbackAllocator rba;
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokens,
+			&rba, -1, *context.cache);
+		scope(exit) pair.destroy();
+
+		foreach (candidate; candidates)
+		{
+			// Position the cursor inside the token (DCD's cursor counts
+			// bytes before the cursor, so +1 lands inside the identifier).
+			auto beforeTokens = assumeSorted(tokens)
+				.lowerBound(cast(size_t) (candidate + 1));
+			auto expression = getExpression(beforeTokens);
+			auto symbols = getSymbolsByTokenChain(pair.scope_, expression,
+				candidate + 1, CompletionType.location);
+			foreach (symbol; symbols)
+			{
+				immutable bool symbolFromThisFile = symbol.symbolFile == "stdin";
+				immutable bool matches = symbolFromThisFile
+					? (targetIsThisFile || targetIsRequestDoc)
+					: (symbol.symbolFile == targetFile);
+				if (matches && symbol.location == targetOffset)
+				{
+					lookup.addUse(file, candidate);
+					break;
+				}
+			}
+		}
+	}
+}
+
+/**
+ * Handles `textDocument/prepareRename`.
+ *
+ * Returns the range of the identifier at the given position so the client
+ * can highlight it, or null when the element cannot be renamed (cursor not
+ * on an identifier, or no symbol found for it).
+ */
+JSONValue handlePrepareRename(ref ServerContext context, JSONValue params)
+{
+	auto lookup = lookupRename(context, params);
+	if (!lookup.valid)
+		return JSONValue(null);
+
+	JSONValue result = parseJSON(`{}`);
+	result["range"] = lookup.identifierRange.toJson();
+	result["placeholder"] = JSONValue(lookup.identifier);
+	return result;
+}
+
+/**
+ * Handles `textDocument/rename`.
+ *
+ * Renames the symbol at the given position and returns the edits for every
+ * file in the workspace that uses it, grouped into one TextDocumentEdit
+ * per file. The client applies the edits with a workspace-wide rename UI.
+ */
+JSONValue handleRename(ref ServerContext context, JSONValue params)
+{
+	auto lookup = lookupRename(context, params);
+	if (!lookup.valid)
+		throw new Exception("The element can't be renamed");
+
+	string newName;
+	if (params.type == JSONType.object && "newName" in params
+		&& params["newName"].type == JSONType.string)
+	{
+		newName = params["newName"].str;
+	}
+	if (newName.empty)
+		throw new Exception("Missing newName parameter");
+
+	// Reject names that are not valid D identifiers or that collide with
+	// keywords — the client would otherwise apply edits that break the code.
+	if (!isValidDIdentifier(newName))
+		throw new Exception("Invalid identifier: " ~ newName);
+
+	// Build one TextDocumentEdit per file containing uses. The requesting
+	// document is keyed by its URI (the client resolves it to the open
+	// buffer); other files are keyed by their file URI.
+	JSONValue[] documentChanges;
+	foreach (file; lookup.files)
+	{
+		// The requesting document's edits are computed against the
+		// in-memory document; other files against their on-disk content.
+		TextDocument* doc = context.documents.get(file);
+		if (doc is null)
+		{
+			// file is a path here; convert offsets against the file text
+			auto fileDoc = documentForFile(context, file);
+			if (fileDoc is null)
+				continue;
+			JSONValue[] edits;
+			foreach (offset; lookup.offsetsIn(file))
+			{
+				TextEdit edit;
+				edit.range = Range(
+					context.converter.toPosition(*fileDoc, offset),
+					context.converter.toPosition(*fileDoc,
+						offset + lookup.identifier.length));
+				edit.newText = newName;
+				edits ~= edit.toJson();
+			}
+			documentChanges ~= textDocumentEdit(pathToUri(file), edits);
+		}
+		else
+		{
+			JSONValue[] edits;
+			foreach (offset; lookup.offsetsIn(file))
+			{
+				TextEdit edit;
+				edit.range = Range(
+					context.converter.toPosition(*doc, offset),
+					context.converter.toPosition(*doc,
+						offset + lookup.identifier.length));
+				edit.newText = newName;
+				edits ~= edit.toJson();
+			}
+			documentChanges ~= textDocumentEdit(file, edits);
+		}
+	}
+
+	JSONValue result = parseJSON(`{}`);
+	result["documentChanges"] = JSONValue(documentChanges);
+	return result;
+}
+
+/**
+ * Builds a TextDocumentEdit JSON value.
+ *
+ * The textDocument identifier is an OptionalVersionedTextDocumentIdentifier:
+ * the client libraries (vscode-languageserver-protocol) require `version`
+ * to be null or an integer — echoing a request's {uri} without a version
+ * field makes TextDocumentEdit.is() fail and the edit gets rejected with
+ * "Unknown workspace edit change received".
+ */
+private JSONValue textDocumentEdit(string uri, JSONValue[] edits)
+{
+	JSONValue documentChange = parseJSON(`{}`);
+	JSONValue textDocument = parseJSON(`{}`);
+	textDocument["uri"] = JSONValue(uri);
+	textDocument["version"] = JSONValue(null);
+	documentChange["textDocument"] = textDocument;
+	documentChange["edits"] = JSONValue(edits);
+	return documentChange;
+}
+
+/**
+ * Reads a file from disk into a temporary TextDocument for offset/position
+ * conversion. Returns null when the file cannot be read.
+ */
+private TextDocument* documentForFile(ref ServerContext context, string path)
+{
+	import std.file : readText;
+
+	TextDocument* doc = new TextDocument;
+	try doc.text = readText(path);
+	catch (Exception e)
+	{
+		warningf("Rename failed to read %s: %s", path, e.msg);
+		return null;
+	}
+	doc.reindex();
+	return doc;
+}
+
+/**
+ * Returns true when the given string is a valid D identifier: non-empty,
+ * starting with a letter or underscore, containing only identifier
+ * characters, and not a D keyword.
+ */
+private bool isValidDIdentifier(string name)
+{
+	import dparse.lexer : LexerConfig, StringCache, getTokensForParser, tok;
+
+	if (name.empty)
+		return false;
+	if (!isIdentChar(cast(ubyte) name[0])
+		|| (name[0] >= '0' && name[0] <= '9'))
+		return false;
+	foreach (c; name)
+	{
+		if (!isIdentChar(cast(ubyte) c))
+			return false;
+	}
+
+	// Lex the name: if it comes back as a single identifier token it is not
+	// a keyword; keywords lex to their keyword token type instead.
+	LexerConfig config;
+	config.fileName = "";
+	// clampedBucketCount guards against the empty-document crash
+	auto stringCache = StringCache(clampedBucketCount(name.length));
+	auto tokens = getTokensForParser(cast(ubyte[]) name, config, &stringCache);
+	if (tokens.length != 1 || tokens[0].type != tok!"identifier")
+		return false;
+	return true;
 }
 
 /**
