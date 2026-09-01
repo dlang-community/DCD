@@ -17,11 +17,17 @@ calculating autocomplete information, and sending it back to the client.
 
 # Added LSP support
 
+DCD's LSP server is deliberately **lean**: it is a thin protocol layer over
+the same semantic engine that powers the classic socket mode — no separate
+client process, no socket hop, no editor-specific plugins. The editor talks
+straight to the engine over stdio, which keeps startup fast, latency low, and
+the feature set focused on what DCD does well.
+
 > **Status.** The core feature set works and is covered by automated tests
-> (completion, hover, go-to-definition, references, signature help, document
-> symbols, inlay hints, automatic import-path detection). Not yet implemented:
-> incremental document sync, `workspace/symbol`, rename, formatting, and
-> `completionItem/resolve`. The semantic engine is shared with the classic
+> (completion, hover, go-to-definition, references, rename, signature help,
+> document symbols, inlay hints, automatic import-path detection). Not yet
+> implemented: incremental document sync, `workspace/symbol`, formatting,
+> and `completionItem/resolve`. The semantic engine is shared with the classic
 > socket mode, so engine-level limitations are identical.
 
 The server now speaks the
@@ -32,9 +38,10 @@ directly:
 
 Any LSP-capable editor — VS Code, Neovim, Emacs, Kate, Helix, and many more —
 gets DCD support with zero editor-specific code, instead of every editor
-needing its own plugin for DCD's custom socket protocol. It also removes a
-layer: the editor talks straight to the semantic engine over stdio, with no
-client process or socket hop in between, which lowers latency.
+needing its own plugin for DCD's custom socket protocol. Being lean also
+removes a layer: the editor talks straight to the semantic engine over
+stdio, with no client process or socket hop in between, which lowers
+latency.
 
 See [editors/code/INSTALL.md](editors/code/INSTALL.md) for the full
 installation guide (building the server, the VS Code extension, and wiring up
@@ -67,9 +74,9 @@ The classic socket mode has its own suite: `tests/run_tests.sh`.
 
 ## VS Code extension
 
-A reference extension lives in [`editors/code/`](editors/code). It is a thin
-TypeScript client around `vscode-languageclient` — the interesting logic is
-all in the server.
+A fully working extension lives in [`editors/code/`](editors/code). It is a
+thin TypeScript client around `vscode-languageclient` — the interesting
+logic is all in the server, so the extension stays small and easy to audit.
 
 	./editors/code/install.sh
 
@@ -129,7 +136,7 @@ the issue.)
 1. Install a recent D compiler. DCD is tested with DMD 2.068.2, DMD 2.069.0-rc2, and LDC 0.16 (Do not use DMD 2.068.1)
 1. Follow the directions listed below for Homebrew, Git + Make, or Dub, depending on how you would like to build DCD.
 1. Configure your text editor:
-	* **If your editor supports LSP** (VS Code, Neovim, Emacs, Kate, Helix, ...), point it at `dcd-server --lsp`. See the [installation guide](editors/code/INSTALL.md) for editor-specific instructions, and [editors/code/](editors/code) for a working VS Code extension you can use as a reference.
+	* **If your editor supports LSP** (VS Code, Neovim, Emacs, Kate, Helix, ...), point it at `dcd-server --lsp`. See the [installation guide](editors/code/INSTALL.md) for editor-specific instructions, and [editors/code/](editors/code) for the VS Code extension.
 	* Otherwise, configure it to call the dcd-client program. See the [wiki](https://github.com/dlang-community/DCD/wiki/IDEs-and-Editors-with-DCD-support) for information on configuring your specific editor.
 1. Start the dcd-server program before editing code. (Unless, of course, your editor's plugin handles this for you)
 
