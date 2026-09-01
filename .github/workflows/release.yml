@@ -81,3 +81,34 @@ jobs:
           file: dcd.zip
           name: dcd-${TAG_RAW}-${OS}-${{ matrix.arch }}.zip
           mime: application/zip
+
+  VSIX:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # The extension is platform-independent TypeScript, so a single
+      # build covers all platforms (the server binary is not bundled;
+      # users point dcd.serverPath at their own dcd-server).
+
+      - name: Install dependencies
+        working-directory: editors/code
+        run: npm ci
+
+      - name: Package .vsix
+        working-directory: editors/code
+        run: npx @vscode/vsce package --allow-missing-repository -o dcd-lsp.vsix
+
+      - name: Release VSIX
+        uses: WebFreak001/upload-asset@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          file: editors/code/dcd-lsp.vsix
+          name: dcd-lsp-${TAG_RAW}.vsix
+          mime: application/octet-stream

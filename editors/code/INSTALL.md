@@ -9,16 +9,18 @@ dcd-server --lsp
 ```
 
 Any LSP-capable editor — VS Code, Neovim, Emacs, Kate, Helix, and many more —
-can use it. This guide covers building the server, installing the reference
-VS Code extension, and wiring up other editors.
+can use it. The server is a lean LSP: a thin protocol layer over DCD's
+semantic engine, with no client process or socket hop in between. This guide
+covers building the server, installing the VS Code extension, and wiring up
+other editors.
 
 > **Status.** The core feature set works and is covered by automated tests:
-> completion, hover, go-to-definition, references, signature help (with
-> overload cycling), document symbols, and inlay hints, plus automatic
+> completion, hover, go-to-definition, references, rename, signature help
+> (with overload cycling), document symbols, and inlay hints, plus automatic
 > import-path detection (workspace sources, dub dependencies, Phobos).
 >
 > Not yet implemented: incremental document sync (full sync only),
-> `workspace/symbol`, rename, formatting, `completionItem/resolve`, and
+> `workspace/symbol`, formatting, `completionItem/resolve`, and
 > request cancellation. Compared to the classic socket mode the semantic
 > engine is shared, so engine-level limitations are identical.
 
@@ -49,9 +51,9 @@ Alternatively, install a released DCD via [Homebrew](https://formulae.brew.sh/fo
 
 ## 2. Install the VS Code extension
 
-A reference extension lives in [`editors/code/`](.). It is a thin TypeScript
-client around `vscode-languageclient` — the interesting logic is all in the
-server.
+The extension lives in [`editors/code/`](.). It is a thin TypeScript client
+around `vscode-languageclient` — the interesting logic is all in the server,
+so the extension stays small and easy to audit.
 
 ### From a checkout (recommended)
 
