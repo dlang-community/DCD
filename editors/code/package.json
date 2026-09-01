@@ -3,8 +3,13 @@
   "displayName": "DCD",
   "description": "D language support via DCD's built-in LSP server",
   "version": "0.1.0",
-  "publisher": "The D Community",
+  "publisher": "dlang-community",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dlang-community/DCD.git",
+    "directory": "editors/code"
+  },
   "engines": {
     "vscode": "^1.75.0"
   },
