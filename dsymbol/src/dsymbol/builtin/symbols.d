@@ -1,14 +1,17 @@
 module dsymbol.builtin.symbols;
 
-import containers.hashset;
 import containers.ttree;
-import dparse.rollback_allocator;
 import dsymbol.builtin.names;
 import dsymbol.string_interning;
 import dsymbol.symbol;
-import std.experimental.allocator.mallocator : Mallocator;
+import std.experimental.allocator.gc_allocator : GCAllocator;
 
-private alias SymbolsAllocator = Mallocator;
+// The trees must be GC-backed: they are the only GC-visible reference to
+// some builtin symbols, so a Mallocator-backed tree would let the GC free
+// symbols that are still referenced from it. (Same reasoning as
+// DSymbol.parts and Scope._symbols, which are GC-backed for the same
+// reason.)
+private alias SymbolsAllocator = GCAllocator;
 
 /**
  * Symbols for the built in types
@@ -290,37 +293,10 @@ static this()
 		builtinSymbols.insert(makeSymbol(s, CompletionKind.keyword));
 }
 
-static ~this()
+/// Symbols are GC-allocated and live for the whole process, so there is
+/// nothing to clean up: the GC does not run finalizers for globally
+/// reachable objects at process exit.
+private DSymbol* makeSymbol(S)(S s, CompletionKind kind, DSymbol* type = null)
 {
-	destroy(builtinSymbols);
-	destroy(arraySymbols);
-	destroy(assocArraySymbols);
-	destroy(aggregateSymbols);
-	destroy(classSymbols);
-	destroy(enumSymbols);
-	destroy(pointerSymbols);
-
-	foreach (sym; symbolsMadeHere[])
-		destroy(*sym);
-
-	destroy(symbolsMadeHere);
-	destroy(rba);
-}
-
-private RollbackAllocator rba;
-private HashSet!(DSymbol*) symbolsMadeHere;
-
-private DSymbol* makeSymbol(string s, CompletionKind kind, DSymbol* type = null)
-{
-	auto sym = rba.make!DSymbol(istring(s), kind, type);
-	sym.ownType = false;
-	symbolsMadeHere.insert(sym);
-	return sym;
-}
-private DSymbol* makeSymbol(istring s, CompletionKind kind, DSymbol* type = null)
-{
-	auto sym = rba.make!DSymbol(s, kind, type);
-	sym.ownType = false;
-	symbolsMadeHere.insert(sym);
-	return sym;
+	return new DSymbol(istring(s), kind, type);
 }
