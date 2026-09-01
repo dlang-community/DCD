@@ -114,6 +114,38 @@ for s in symbols:
 names = {s["name"] for s in symbols}
 assert "Point" in names and "main" in names, f"missing symbols: {names}"
 
+# --- references: all uses of "p" within the document ---
+# "p" is declared at line 9 char 10 ("Point p;") and used at line 10
+# char 4 ("p.").
+send({"jsonrpc": "2.0", "id": 7, "method": "textDocument/references", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 10, "character": 4},  # on "p" in "p."
+    "context": {"includeDeclaration": True},
+}})
+resp = recv()
+locs = resp["result"]
+print(f"references of p: {len(locs)} refs")
+for l in locs:
+    s = l["range"]["start"]
+    print(f"  {l['uri']}:{s['line']}:{s['character']}")
+assert locs is not None, "references not found"
+assert len(locs) == 2, f"expected decl + 1 use, got {len(locs)}"
+assert all(l["uri"] == "file:///tmp/semantic.d" for l in locs), locs
+ref_lines = sorted(l["range"]["start"]["line"] for l in locs)
+assert ref_lines == [9, 10], f"unexpected reference lines: {ref_lines}"
+
+# references with includeDeclaration: false — only the use remains
+send({"jsonrpc": "2.0", "id": 8, "method": "textDocument/references", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 10, "character": 4},
+    "context": {"includeDeclaration": False},
+}})
+resp = recv()
+locs = resp["result"]
+print(f"references of p (no decl): {len(locs)} refs")
+assert len(locs) == 1, f"expected 1 use without declaration, got {len(locs)}"
+assert locs[0]["range"]["start"]["line"] == 10, locs
+
 # --- module search: import completion against a real import path ---
 # The server is started with --ignoreConfig, so pass an import path via
 # initializationOptions like the VS Code extension does.

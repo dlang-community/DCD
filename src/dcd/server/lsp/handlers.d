@@ -1093,33 +1093,62 @@ JSONValue handleReferences(ref ServerContext context, JSONValue params)
 	auto request = buildSymbolRequest(context, params);
 	auto response = findLocalUse(request, *context.cache);
 
-	if (response.completions.empty)
-		return JSONValue(null);
-
+	// findLocalUse only reports uses within the requesting document: the
+	// per-completion symbolFilePath is left empty (only the top-level
+	// response carries the declaration's file), so the uses must be
+	// converted against the requesting document, never treated as
+	// external-file offsets.
 	auto doc = context.documents.get(params["textDocument"]["uri"].str);
-	JSONValue[] locations;
-	foreach (completion; response.completions)
+
+	// LSP: "Include the declaration of the current symbol." VS Code's
+	// "Find All References" sends true by default.
+	bool includeDeclaration = true;
+	if (params.type == JSONType.object && "context" in params
+		&& params["context"].type == JSONType.object
+		&& "includeDeclaration" in params["context"]
+		&& params["context"]["includeDeclaration"].type == JSONType.false_)
 	{
-		Position pos;
-		if (completion.symbolFilePath == "stdin")
-		{
-			pos = doc !is null
-				? context.converter.toPosition(*doc, completion.symbolLocation)
-				: Position(0, 0);
-		}
-		else
-		{
-			// offset refers to another file; convert against that file
-			pos = positionInFile(context, completion.symbolFilePath,
-				completion.symbolLocation);
-		}
+		includeDeclaration = false;
+	}
+
+	JSONValue[] locations;
+
+	// The declaration itself. For symbols declared in the requesting
+	// document it is already part of the uses list below (the declaration
+	// identifier resolves to the same symbol), so only add it separately
+	// when it lives in another file.
+	if (includeDeclaration && response.symbolFilePath.length
+		&& response.symbolFilePath != "stdin")
+	{
 		Location location;
-		location.uri = completion.symbolFilePath == "stdin"
-			? params["textDocument"]["uri"].str
-			: pathToUri(completion.symbolFilePath);
+		location.uri = pathToUri(response.symbolFilePath);
+		Position pos = positionInFile(context, response.symbolFilePath,
+			response.symbolLocation);
 		location.range = Range(pos, pos);
 		locations ~= location.toJson();
 	}
+
+	foreach (completion; response.completions)
+	{
+		// Skip the declaration itself when the client asked for uses only.
+		// The declaration's offset (in the requesting document) is
+		// response.symbolLocation.
+		if (!includeDeclaration && response.symbolFilePath == "stdin"
+			&& completion.symbolLocation == response.symbolLocation)
+		{
+			continue;
+		}
+		Position pos = doc !is null
+			? context.converter.toPosition(*doc, completion.symbolLocation)
+			: Position(0, 0);
+		Location location;
+		location.uri = params["textDocument"]["uri"].str;
+		location.range = Range(pos, pos);
+		locations ~= location.toJson();
+	}
+
+	if (locations.empty)
+		return JSONValue(null);
 	return JSONValue(locations);
 }
 
