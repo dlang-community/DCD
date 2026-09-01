@@ -146,6 +146,75 @@ print(f"references of p (no decl): {len(locs)} refs")
 assert len(locs) == 1, f"expected 1 use without declaration, got {len(locs)}"
 assert locs[0]["range"]["start"]["line"] == 10, locs
 
+# --- rename: prepareRename + rename on the local variable "p" ---
+# "p" is declared at line 9 char 10 ("Point p;") and used at line 10
+# char 4 ("p.").
+send({"jsonrpc": "2.0", "id": 9, "method": "textDocument/prepareRename", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 9, "character": 10},
+}})
+resp = recv()
+result = resp["result"]
+print("prepareRename on decl:", result)
+assert result is not None, "prepareRename returned null on declaration"
+assert result["placeholder"] == "p", result
+assert result["range"]["start"]["line"] == 9, result
+assert result["range"]["start"]["character"] == 10, result
+assert result["range"]["end"]["character"] == 11, result
+
+# prepareRename on a keyword ("struct", line 2) is not renameable
+send({"jsonrpc": "2.0", "id": 10, "method": "textDocument/prepareRename", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 2, "character": 2},
+}})
+resp = recv()
+assert resp["result"] is None, f"keyword should not be renameable: {resp['result']}"
+print("prepareRename on keyword: null (correct)")
+
+# rename "p" -> "point" from the declaration
+send({"jsonrpc": "2.0", "id": 11, "method": "textDocument/rename", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 9, "character": 10},
+    "newName": "point",
+}})
+resp = recv()
+result = resp["result"]
+print(f"rename p -> point: {len(result['documentChanges'][0]['edits'])} edits")
+assert result is not None, "rename returned null"
+changes = result["documentChanges"]
+assert len(changes) == 1, changes
+assert changes[0]["textDocument"]["uri"] == "file:///tmp/semantic.d", changes
+# OptionalVersionedTextDocumentIdentifier requires version to be null or an
+# integer — without it vscode-languageserver-protocol rejects the edit with
+# "Unknown workspace edit change received"
+assert changes[0]["textDocument"]["version"] is None, changes
+edits = changes[0]["edits"]
+assert len(edits) == 2, f"expected decl + 1 use, got {len(edits)}"
+assert all(e["newText"] == "point" for e in edits), edits
+edit_lines = sorted(e["range"]["start"]["line"] for e in edits)
+assert edit_lines == [9, 10], f"unexpected rename edit lines: {edit_lines}"
+
+# rename with a keyword as the new name is rejected
+send({"jsonrpc": "2.0", "id": 12, "method": "textDocument/rename", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 9, "character": 10},
+    "newName": "struct",
+}})
+resp = recv()
+assert "error" in resp, f"keyword rename should fail: {resp}"
+print("rename to keyword rejected:", resp["error"]["message"])
+
+# rename with an invalid identifier is rejected
+send({"jsonrpc": "2.0", "id": 13, "method": "textDocument/rename", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 9, "character": 10},
+    "newName": "1bad",
+}})
+resp = recv()
+assert "error" in resp, f"invalid identifier rename should fail: {resp}"
+print("rename to invalid identifier rejected:", resp["error"]["message"])
+
+
 # --- module search: import completion against a real import path ---
 # The server is started with --ignoreConfig, so pass an import path via
 # initializationOptions like the VS Code extension does.

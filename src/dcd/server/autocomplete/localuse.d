@@ -59,8 +59,14 @@ public AutocompleteResponse findLocalUse(AutocompleteRequest request,
 	const(Token)[] tokenArray = getTokensForParser(cast(ubyte[]) request.sourceCode,
 			config, &cache);
 	auto sortedTokens = assumeSorted(tokenArray);
+	// Parse the WHOLE document: generateAutocompleteTrees' autocomplete
+	// parser skips block statements that start after the cursor position
+	// (a completion optimization), which would leave uses later in the
+	// file unresolved when the cursor is on a declaration. Uses are
+	// identified below by resolving each same-named identifier with the
+	// real cursor position, so the tree itself must be complete.
 	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray,
-		&rba, request.cursorPosition, moduleCache);
+		&rba, -1, moduleCache);
 	scope(exit) pair.destroy();
 
 	SymbolStuff getSymbolsAtCursor(size_t cursorPosition)
