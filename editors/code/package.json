@@ -3,7 +3,7 @@
   "displayName": "DCD",
   "description": "D language support via DCD's built-in LSP server",
   "version": "0.1.0",
-  "publisher": "DCD",
+  "publisher": "The D Community",
   "license": "MIT",
   "engines": {
     "vscode": "^1.75.0"
