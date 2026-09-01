@@ -112,7 +112,13 @@ public AutocompleteResponse getInlayHints(const AutocompleteRequest request,
 		// 		struct Data {}
 		// 		alias Alias1 = Data;
 		// 		Alias1 var;				renders:  var: Data
-		if (!isParam && it.kind == CompletionKind.variableName && it.type && it.type.kind == CompletionKind.aliasName)
+		// Builtin aliases (string/wstring/dstring) are skipped: they are
+		// idiomatic D, so resolving them is noise — and the resolved label
+		// would be wrong anyway (string is immutable(char)[], but the
+		// placeholder-symbol type chain cannot express the immutable).
+		if (!isParam && it.kind == CompletionKind.variableName && it.type
+			&& it.type.kind == CompletionKind.aliasName
+			&& !isBuiltinAlias(it.type.name))
 		{
 			AutocompleteResponse.Completion c;
 			// Position the hint right after the variable name so editors
@@ -230,6 +236,19 @@ private bool isWhitespace(ubyte c) pure nothrow @safe @nogc
 {
 	return c == ' ' || c == '\t' || c == '\n' || c == '\r'
 		|| c == '\v' || c == '\f';
+}
+
+/**
+ * Returns: true if `name` is one of the builtin alias types (string,
+ * wstring, dstring) that D programmers read as-is. Resolving these in a
+ * hint is noise, and the placeholder-symbol type chain cannot express the
+ * immutable element type anyway (string is immutable(char)[]).
+ */
+private bool isBuiltinAlias(istring name)
+{
+	if (name is null)
+		return false;
+	return name == "string" || name == "wstring" || name == "dstring";
 }
 
 /**
