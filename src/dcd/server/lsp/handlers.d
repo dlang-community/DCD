@@ -577,6 +577,9 @@ void handleDidOpen(ref ServerContext context, JSONValue params)
 			warmupDocument(context, text);
 		catch (Exception e)
 			warningf("Warmup failed for %s: %s", uri, e.msg);
+		// Record the document's current imports as warmed so that later
+		// didChanges only warm imports added while editing.
+		warmNewImports(context, uri);
 	}
 }
 
@@ -611,6 +614,187 @@ private void warmupDocument(ref ServerContext context, string text)
 }
 
 /**
+ * Scans tokenized source for import declarations and returns the imported
+ * module paths in DCD's internal "a/b/c" form (dirSeparator-joined, the
+ * format `resolveImportLocation` expects — NOT dot-separated).
+ *
+ * This is a cheap token-level scan (no parsing) used to detect imports
+ * added while editing. It covers the forms that affect module resolution:
+ * plain chains (`import a.b;`), import lists (`import a, b;`), renamed
+ * imports (`import io = a.b;` — the chain is what resolves) and selective
+ * imports (`import a.b : x;` — the module, not the binds, needs caching).
+ * Import expressions (`import("file")`) are not declarations and are
+ * skipped. A chain is only reported once it is grammatically finished
+ * (`;`, `:` or `,` follows): a partial `import std.` typed mid-statement
+ * must not resolve to the std package module and warm half of Phobos. A
+ * form the scan misses simply falls back to DCD's normal lazy resolution,
+ * so it costs the old first-request stall, never correctness.
+ */
+private string[] scanImportPaths(T)(T tokens)
+{
+	import dparse.lexer : tok;
+	import std.path : dirSeparator;
+
+	string[] result;
+	size_t i = 0;
+	while (i < tokens.length)
+	{
+		if (tokens[i].type != tok!"import")
+		{
+			i++;
+			continue;
+		}
+		// import("expr") is an import expression, not a declaration
+		if (i + 1 < tokens.length && tokens[i + 1].type == tok!"(")
+		{
+			i++;
+			continue;
+		}
+		i++;
+		// ImportList: SingleImport ("," SingleImport)* (":" ImportBinds)?
+		while (true)
+		{
+			// renamed import: Identifier "=" IdentifierChain
+			if (i + 1 < tokens.length && tokens[i].type == tok!"identifier"
+				&& tokens[i + 1].type == tok!"=")
+				i += 2;
+			string[] chain;
+			while (i < tokens.length && tokens[i].type == tok!"identifier")
+			{
+				chain ~= tokens[i].text;
+				i++;
+				if (i < tokens.length && tokens[i].type == tok!".")
+				{
+					i++;
+					continue;
+				}
+				break;
+			}
+			if (!chain.empty && i < tokens.length
+				&& (tokens[i].type == tok!";" || tokens[i].type == tok!":"
+					|| tokens[i].type == tok!","))
+				result ~= chain.join(dirSeparator);
+			// a comma starts the next SingleImport of the list
+			if (i < tokens.length && tokens[i].type == tok!",")
+			{
+				i++;
+				continue;
+			}
+			break; // ";" / ":" / malformed: done with this declaration
+		}
+	}
+	return result;
+}
+
+unittest
+{
+	import dparse.lexer : LexerConfig, StringCache, getTokensForParser;
+	import std.path : dirSeparator;
+
+	string[] importsOf(string text)
+	{
+		LexerConfig config;
+		auto cache = StringCache(clampedBucketCount(text.length));
+		auto tokens = getTokensForParser(cast(ubyte[]) text, config, &cache);
+		return scanImportPaths(tokens);
+	}
+
+	assert(importsOf("import std.stdio;") == ["std" ~ dirSeparator ~ "stdio"]);
+	assert(importsOf("import std.stdio, std.conv;")
+		== ["std" ~ dirSeparator ~ "stdio", "std" ~ dirSeparator ~ "conv"]);
+	assert(importsOf("import io = std.stdio;")
+		== ["std" ~ dirSeparator ~ "stdio"]);
+	assert(importsOf("import std.stdio : writeln, writef;")
+		== ["std" ~ dirSeparator ~ "stdio"]);
+	assert(importsOf("static import std.stdio;")
+		== ["std" ~ dirSeparator ~ "stdio"]);
+	assert(importsOf("void main() { import std.regex; }")
+		== ["std" ~ dirSeparator ~ "regex"]);
+	// strings, comments and import expressions are not declarations
+	assert(importsOf(`auto s = "import foo.bar;";`) == []);
+	assert(importsOf("// import foo.bar;\nint x;") == []);
+	assert(importsOf(`auto m = import("config.txt");`) == []);
+	// incomplete while typing: no warm until the chain is finished
+	assert(importsOf("import std.") == []);
+	assert(importsOf("import std.stdio") == []);
+	assert(importsOf("import std.stdio :")
+		== ["std" ~ dirSeparator ~ "stdio"]);
+	assert(importsOf("import") == []);
+	assert(importsOf("") == []);
+}
+
+/**
+ * Warms the module cache for imports that appeared since the last check.
+ *
+ * `handleDidOpen` warms a newly opened document's whole import closure
+ * with a full parse; this covers imports ADDED while editing, which would
+ * otherwise stall the first request that needs them by the parse time of
+ * the new module's dependency closure. Only the delta is warmed: imports
+ * already recorded on the document are skipped, and only imports that
+ * resolve are recorded, so an import that is still being typed (or whose
+ * module does not exist yet) is retried on the next change. Like the
+ * didOpen warmup this is single-threaded on purpose.
+ */
+private void warmNewImports(ref ServerContext context, string uri)
+{
+	import dparse.lexer : LexerConfig, StringCache, getTokensForParser;
+	import std.datetime.stopwatch : StopWatch, AutoStart;
+
+	auto doc = context.documents.get(uri);
+	if (doc is null)
+		return;
+	// Only D documents (same check as handleDidOpen's warmup)
+	if (!doc.languageId.empty && doc.languageId != "d")
+		return;
+	// Cheap pre-check: no "import" substring means no import declarations.
+	if (!doc.text.canFind("import"))
+		return;
+
+	LexerConfig config;
+	config.fileName = "";
+	// clampedBucketCount guards against the empty-document crash
+	auto stringCache = StringCache(clampedBucketCount(doc.text.length));
+	auto tokens = getTokensForParser(cast(ubyte[]) doc.text, config, &stringCache);
+
+	string[] fresh;
+	foreach (modulePath; scanImportPaths(tokens))
+		if (!doc.warmedImports.canFind(modulePath))
+			fresh ~= modulePath;
+	if (fresh.empty)
+		return;
+
+	auto sw = StopWatch(AutoStart.yes);
+	size_t warmed;
+	foreach (modulePath; fresh)
+	{
+		// The same resolution the first pass applies to import symbols.
+		// cacheModule recursively caches the module's own imports, so the
+		// whole dependency closure is warmed; already-cached modules are
+		// skipped by modification time.
+		string location = context.cache.resolveImportLocation(modulePath);
+		if (location is null)
+			continue;
+		try
+		{
+			if (context.cache.cacheModule(location) !is null)
+			{
+				doc.warmedImports ~= modulePath;
+				warmed++;
+			}
+		}
+		catch (Exception e)
+		{
+			// One bad module must not abort the rest; it is retried on
+			// the next change since it was not recorded.
+			warningf("Warmup failed for import %s: %s", modulePath, e.msg);
+		}
+	}
+	if (warmed)
+		infof("Warmup: indexed %s new import(s) for %s in %s ms",
+			warmed, uri, sw.peek().total!"msecs");
+}
+
+/**
  * Handles `textDocument/didChange` (full document sync).
  */
 void handleDidChange(ref ServerContext context, JSONValue params)
@@ -633,6 +817,11 @@ void handleDidChange(ref ServerContext context, JSONValue params)
 		return;
 	}
 	context.documents.didChange(uri, docVersion, last["text"].str);
+
+	// Warm imports added by this change (see handleDidOpen): a newly typed
+	// `import std.regex;` would otherwise stall the first request that
+	// needs it by the parse time of its whole dependency closure.
+	warmNewImports(context, uri);
 }
 
 /**
