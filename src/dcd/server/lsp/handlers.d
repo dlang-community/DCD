@@ -142,6 +142,8 @@ HandlerResult handleRequest(ref ServerContext context, string method, JSONValue 
 			return HandlerResult(handleInlayHint(context, params));
 		case "textDocument/documentSymbol":
 			return HandlerResult(handleDocumentSymbol(context, params));
+		case "workspace/willRenameFiles":
+			return HandlerResult(handleWillRenameFiles(context, params));
 		case "$/cancelRequest":
 			return HandlerResult(); // no-op, we don't support cancellation
 		default:
@@ -252,6 +254,23 @@ HandlerResult handleInitialize(ref ServerContext context, JSONValue params)
 	capabilities["renameProvider"] = parseJSON(`{"prepareProvider": true}`);
 	capabilities["documentSymbolProvider"] = JSONValue(true);
 	capabilities["inlayHintProvider"] = JSONValue(true);
+	// File rename support: when the user moves/renames a file in the editor,
+	// the client asks (before the rename happens) for edits that update the
+	// file's module declaration and every import of the old module name.
+	// The filters select which operations the client forwards: .d/.di files
+	// and directories (a directory move changes the module names of every
+	// file inside it).
+	capabilities["workspace"] = parseJSON(`{
+		"fileOperations": {
+			"willRename": {
+				"filters": [
+					{"pattern": {"glob": "**/*.d"}},
+					{"pattern": {"glob": "**/*.di"}},
+					{"pattern": {"glob": "**", "matches": "folder"}}
+				]
+			}
+		}
+	}`);
 	JSONValue signatureHelpProvider = parseJSON(`{}`);
 	signatureHelpProvider["triggerCharacters"] = JSONValue(["(", ","]);
 	capabilities["signatureHelpProvider"] = signatureHelpProvider;
@@ -1958,5 +1977,385 @@ private DocumentSymbol documentSymbolFor(ref ServerContext context,
 			continue;
 		result.children ~= documentSymbolFor(context, doc, part, visited);
 	}
+	return result;
+}
+
+/**
+ * A use of a module name: the identifier chain of a `module` declaration or
+ * of an import declaration, with the byte range it occupies.
+ */
+private struct ModuleNameUse
+{
+	/// The dotted segments of the module name, e.g. ["std", "stdio"].
+	string[] segments;
+
+	/// Byte offset of the first identifier.
+	size_t start;
+
+	/// Byte offset one past the last identifier. Equal to `start` when no
+	/// identifier chain follows (invalid use).
+	size_t end;
+}
+
+/**
+ * Scans tokenized source for module name uses: the identifier chains of
+ * `module` declarations and of import declarations (plain, renamed and
+ * selective imports, and import lists). Import expressions
+ * (`import("file")`) are not declarations and are skipped. Import chains
+ * are only reported once they are grammatically finished (`;`, `:` or `,`
+ * follows), so a partial `import std.` typed mid-statement is not mistaken
+ * for a module reference.
+ */
+private ModuleNameUse[] scanModuleNameUses(T)(T tokens)
+{
+	import dparse.lexer : tok;
+
+	ModuleNameUse[] result;
+	size_t i = 0;
+	while (i < tokens.length)
+	{
+		immutable isModuleDecl = tokens[i].type == tok!"module";
+		immutable isImportDecl = tokens[i].type == tok!"import";
+		if (!isModuleDecl && !isImportDecl)
+		{
+			i++;
+			continue;
+		}
+		// import("expr") is an import expression, not a declaration
+		if (isImportDecl && i + 1 < tokens.length && tokens[i + 1].type == tok!"(")
+		{
+			i++;
+			continue;
+		}
+		i++;
+		if (isModuleDecl)
+		{
+			auto use = scanIdentifierChain(tokens, i);
+			if (use.start != use.end)
+				result ~= use;
+			continue;
+		}
+		// ImportList: SingleImport ("," SingleImport)* (":" ImportBinds)?
+		while (true)
+		{
+			// renamed import: Identifier "=" IdentifierChain — the chain
+			// after the "=" is what resolves
+			if (i + 1 < tokens.length && tokens[i].type == tok!"identifier"
+				&& tokens[i + 1].type == tok!"=")
+				i += 2;
+			auto use = scanIdentifierChain(tokens, i);
+			if (use.start != use.end && i < tokens.length
+				&& (tokens[i].type == tok!";" || tokens[i].type == tok!":"
+					|| tokens[i].type == tok!","))
+			{
+				result ~= use;
+			}
+			// a comma starts the next SingleImport of the list
+			if (i < tokens.length && tokens[i].type == tok!",")
+			{
+				i++;
+				continue;
+			}
+			break; // ";" / ":" / malformed: done with this declaration
+		}
+	}
+	return result;
+}
+
+/**
+ * Scans a dotted identifier chain starting at token index `i`, advancing
+ * `i` past it. Returns the chain with its byte range; `start == end` when
+ * no identifier follows.
+ */
+private ModuleNameUse scanIdentifierChain(T)(T tokens, ref size_t i)
+{
+	import dparse.lexer : tok;
+
+	ModuleNameUse use;
+	if (i >= tokens.length || tokens[i].type != tok!"identifier")
+		return use;
+	use.start = tokens[i].index;
+	while (i < tokens.length && tokens[i].type == tok!"identifier")
+	{
+		use.segments ~= tokens[i].text.idup;
+		use.end = tokens[i].index + tokens[i].text.length;
+		i++;
+		if (i < tokens.length && tokens[i].type == tok!".")
+		{
+			i++;
+			continue;
+		}
+		break;
+	}
+	return use;
+}
+
+unittest
+{
+	import dparse.lexer : LexerConfig, StringCache, getTokensForParser;
+
+	ModuleNameUse[] usesOf(string text)
+	{
+		LexerConfig config;
+		auto cache = StringCache(clampedBucketCount(text.length));
+		auto tokens = getTokensForParser(cast(ubyte[]) text, config, &cache);
+		return scanModuleNameUses(tokens);
+	}
+
+	// module declarations and plain/renamed/selective imports, lists,
+	// static imports
+	auto uses = usesOf("module a.b;\nimport a.b;\nimport io = a.b;\n"
+		~ "import a.b : x;\nimport a.b, c.d;\nstatic import a.b;\nvoid f(){}");
+	assert(uses.length == 7);
+	foreach (use; uses)
+		assert(use.segments == ["a", "b"] || use.segments == ["c", "d"],
+			"unexpected segments: " ~ use.segments.join("."));
+	// "module a.b;" — the chain a.b spans bytes 7..10
+	assert(uses[0].start == 7 && uses[0].end == 10);
+
+	// strings, comments and import expressions are not declarations
+	assert(usesOf(`auto s = "import foo.bar;";`).length == 0);
+	assert(usesOf("// import foo.bar;\nint x;").length == 0);
+	assert(usesOf(`auto m = import("config.txt");`).length == 0);
+
+	// incomplete while typing: no match until the chain is finished
+	assert(usesOf("import std.").length == 0);
+	assert(usesOf("import std.stdio").length == 0);
+	assert(usesOf("import std.stdio :").length == 1);
+	assert(usesOf("import").length == 0);
+	assert(usesOf("").length == 0);
+}
+
+/**
+ * Collects every .d/.di file under the workspace root, deduplicated.
+ *
+ * Only the workspace root is scanned — NOT the import paths: they include
+ * auto-detected Phobos and dub dependencies (read-only library sources,
+ * thousands of files; scanning them makes rename take minutes and edits
+ * there could never be applied anyway).
+ */
+private string[] collectWorkspaceDFiles(ref ServerContext context)
+{
+	import std.file : dirEntries, isFile, SpanMode;
+	import std.path : extension;
+
+	string[] files;
+	void addFile(string path)
+	{
+		// Paths can overlap (e.g. the workspace root and its source/
+		// directory), so deduplicate.
+		if (!files.canFind(path))
+			files ~= path;
+	}
+	string root = context.rootUri.empty ? string.init : uriToPath(context.rootUri);
+	if (root.empty)
+		return files;
+	if (isFile(root))
+	{
+		addFile(root);
+		return files;
+	}
+	try foreach (entry; dirEntries(root, SpanMode.depth))
+	{
+		if (!isFile(entry.name))
+			continue;
+		immutable ext = extension(entry.name);
+		if (ext != ".d" && ext != ".di")
+			continue;
+		addFile(entry.name);
+	}
+	catch (Exception e)
+	{
+		warningf("Workspace scan failed for %s: %s", root, e.msg);
+	}
+	return files;
+}
+
+/**
+ * Computes the module name a file at the given path would have: its path
+ * relative to the most specific (deepest) import path containing it, in
+ * dotted form. `package.d` files map to their directory's name. Returns an
+ * empty string when the path lies outside every import path, in which case
+ * its module name cannot be derived.
+ */
+private string moduleNameForPath(string path, ref ServerContext context)
+{
+	import std.path : baseName, dirName, stripExtension;
+
+	string best;
+	foreach (importPath; context.cache.getImportPaths())
+	{
+		string imp = importPath;
+		while (imp.endsWith("/"))
+			imp = imp[0 .. $ - 1];
+		if (!path.startsWith(imp))
+			continue;
+		string rest = path[imp.length .. $];
+		if (rest.empty || rest[0] != '/')
+			continue; // the path itself, or a partial segment match
+		rest = rest[1 .. $];
+		// The most specific import path wins: source/helper.d is module
+		// "helper" when both the workspace root and source/ are import
+		// paths, not "source.helper".
+		if (best.empty || rest.length < best.length)
+			best = rest;
+	}
+	if (best.empty)
+		return null;
+	best = best.stripExtension;
+	if (baseName(best) == "package")
+	{
+		best = dirName(best);
+		if (best == "." || best.empty)
+			return null; // a package.d directly in an import path root
+	}
+	return best.replace("/", ".");
+}
+
+/**
+ * Whether a module name use refers to the renamed module: an exact match,
+ * or — when a folder was renamed, moving every file inside it — a
+ * submodule of the renamed package. A file rename only changes that one
+ * module.
+ */
+private bool moduleNameMatches(string[] segments, string[] oldSegments, bool folder)
+{
+	if (segments.length < oldSegments.length)
+		return false;
+	foreach (i, segment; oldSegments)
+		if (segments[i] != segment)
+			return false;
+	return folder || segments.length == oldSegments.length;
+}
+
+/**
+ * Handles `workspace/willRenameFiles`.
+ *
+ * The client sends this request before files or folders are renamed from
+ * within the editor (explorer rename/move, or applying a workspace edit).
+ * For every renamed path whose module name changes, the handler returns
+ * text edits that
+ *
+ * - rewrite the `module` declaration of the renamed file(s) to the new
+ *   module name, and
+ * - rewrite every import of the old module name (including submodules,
+ *   when a folder was renamed) across the workspace's D files.
+ *
+ * The edits are anchored to the OLD URIs because the client applies them
+ * BEFORE performing the rename (LSP file operations). Library sources on
+ * the import paths are never edited: they are read-only.
+ *
+ * Like serve-d's module renaming, only module declarations and import
+ * chains are rewritten; qualified usages of the module name in expressions
+ * (e.g. `helper.cheer()` after `import helper;` became `import greeter;`)
+ * are left to the user — telling them apart from same-named variables
+ * requires full semantic resolution.
+ */
+JSONValue handleWillRenameFiles(ref ServerContext context, JSONValue params)
+{
+	import std.file : isDir;
+	import dparse.lexer : LexerConfig, StringCache, getTokensForParser;
+
+	// (old module, new module, folder rename?) for each renamed path
+	static struct ModuleRename
+	{
+		string[] oldSegments;
+		string[] newSegments;
+		bool folder;
+	}
+
+	if (params.type != JSONType.object
+		|| "files" !in params || params["files"].type != JSONType.array)
+		return JSONValue(null);
+
+	ModuleRename[] renames;
+	foreach (file; params["files"].array)
+	{
+		if (file.type != JSONType.object
+			|| "oldUri" !in file || file["oldUri"].type != JSONType.string
+			|| "newUri" !in file || file["newUri"].type != JSONType.string)
+			continue;
+		string oldPath = uriToPath(file["oldUri"].str);
+		string newPath = uriToPath(file["newUri"].str);
+		string oldModule = moduleNameForPath(oldPath, context);
+		string newModule = moduleNameForPath(newPath, context);
+		if (oldModule.empty || newModule.empty || oldModule == newModule)
+			continue;
+		ModuleRename rename;
+		rename.oldSegments = oldModule.split('.');
+		rename.newSegments = newModule.split('.');
+		// The rename has not happened yet, so the old path still exists and
+		// its type tells file renames (exact module match) apart from
+		// folder renames (submodules move too).
+		rename.folder = isDir(oldPath);
+		renames ~= rename;
+	}
+	if (renames.empty)
+		return JSONValue(null);
+
+	// Scan the workspace's D files: the renamed files themselves plus
+	// every potential importer.
+	string[] files = collectWorkspaceDFiles(context);
+	if (files.empty)
+		return JSONValue(null);
+
+	// Cheap pre-filter: a file can only contain a matching chain if it
+	// contains the first segment of one of the old module names.
+	string[] needles;
+	foreach (rename; renames)
+		if (!needles.canFind(rename.oldSegments[0]))
+			needles ~= rename.oldSegments[0];
+
+	JSONValue[] documentChanges;
+	foreach (file; files)
+	{
+		string uri = pathToUri(file);
+		// Prefer the in-memory text of open documents: the client applies
+		// the edits to the open buffer, so offsets must match it.
+		TextDocument* doc = context.documents.get(uri);
+		if (doc is null)
+			doc = documentForFile(context, file);
+		if (doc is null)
+			continue;
+		if (!needles.any!(n => doc.text.canFind(n)))
+			continue;
+
+		LexerConfig config;
+		config.fileName = file;
+		// clampedBucketCount guards against the empty-document crash
+		auto stringCache = StringCache(clampedBucketCount(doc.text.length));
+		auto tokens = getTokensForParser(cast(ubyte[]) doc.text, config, &stringCache);
+
+		JSONValue[] edits;
+		foreach (use; scanModuleNameUses(tokens))
+		{
+			foreach (ref rename; renames)
+			{
+				if (!moduleNameMatches(use.segments, rename.oldSegments,
+						rename.folder))
+					continue;
+				// The new name: the new module plus the use's segments
+				// below the renamed package (empty for exact matches).
+				string newText = rename.newSegments.join(".");
+				if (use.segments.length > rename.oldSegments.length)
+					newText ~= "." ~ use.segments[rename.oldSegments.length .. $]
+						.join(".");
+				TextEdit edit;
+				edit.range = Range(
+					context.converter.toPosition(*doc, use.start),
+					context.converter.toPosition(*doc, use.end));
+				edit.newText = newText;
+				edits ~= edit.toJson();
+				break; // a use matches at most one rename
+			}
+		}
+		if (!edits.empty)
+			documentChanges ~= textDocumentEdit(uri, edits);
+	}
+
+	if (documentChanges.empty)
+		return JSONValue(null);
+	JSONValue result = parseJSON(`{}`);
+	result["documentChanges"] = JSONValue(documentChanges);
 	return result;
 }
