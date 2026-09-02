@@ -159,7 +159,11 @@ CompletionItemKind toCompletionItemKind(CompletionKind kind)
 		case CompletionKind.functionName:
 			return CompletionItemKind.function_;
 		case CompletionKind.ufcsName:
-			return CompletionItemKind.function_;
+		// Extension-method style: VS Code has no dedicated "extension"
+		// icon, but the method cube (vs the plain ƒ) plus a labelDetails
+		// marker gives UFCS functions a distinct look, like C# extension
+		// methods in VS Code.
+		return CompletionItemKind.method;
 		case CompletionKind.enumName:
 			return CompletionItemKind.enum_;
 		case CompletionKind.enumMember:
@@ -200,6 +204,9 @@ struct CompletionItem
 	string detail;
 	string documentation;
 	CompletionItemKind kind;
+	/// LSP 3.17 `labelDetails`: rendered right after the label (grayed in
+	/// VS Code). Used to mark UFCS functions as extension methods.
+	string labelDetail;
 
 	JSONValue toJson() const
 	{
@@ -210,6 +217,12 @@ struct CompletionItem
 			obj["detail"] = JSONValue(detail);
 		if (documentation.length)
 			obj["documentation"] = JSONValue(documentation);
+		if (labelDetail.length)
+		{
+			JSONValue labelDetails = parseJSON(`{}`);
+			labelDetails["detail"] = JSONValue(labelDetail);
+			obj["labelDetails"] = labelDetails;
+		}
 		return obj;
 	}
 }
