@@ -1004,6 +1004,10 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 		item.kind = toCompletionItemKind(cast(CompletionKind) completion.kind);
 		item.detail = completion.typeOf;
 		item.documentation = completion.documentation;
+		// Mark UFCS functions as extension methods (C#-style), rendered
+		// grayed-out after the label by VS Code.
+		if (completion.kind == cast(ubyte) CompletionKind.ufcsName)
+			item.labelDetail = " (ufcs)";
 
 		bool merged = false;
 		foreach (i, ref existing; bundled)
@@ -1687,11 +1691,41 @@ private size_t preferredSignature(AutocompleteResponse response,
 	// both arity- and constraint-plausible.
 	foreach (i, completion; response.completions)
 	{
-		auto ranges = parameterLabelRanges(completion.definition);
+		auto ranges = parameterLabelRanges(signatureLabel(completion));
 		if (ranges.length > activeParameter)
 			return i;
 	}
 	return 0;
+}
+
+/**
+ * The signature string to show for a calltip completion. For a UFCS call
+ * (`ma.dostuff(...)`) the first parameter is the receiver, which the user
+ * has already typed before the dot, so it is stripped from the label — the
+ * widget then shows (and highlights) only the arguments that are actually
+ * typed inside the parentheses.
+ */
+private string signatureLabel(AutocompleteResponse.Completion completion)
+{
+	if (completion.kind != cast(ubyte) CompletionKind.ufcsName)
+		return completion.definition;
+	return stripFirstParameter(completion.definition);
+}
+
+/**
+ * Removes the first parameter from a calltip label like
+ * `void dostuff(ref Mama ma, string name)` -> `void dostuff(string name)`.
+ * A single-parameter signature becomes an empty parameter list.
+ */
+private string stripFirstParameter(string label)
+{
+	auto ranges = parameterLabelRanges(label);
+	if (ranges.length == 0)
+		return label;
+	if (ranges.length == 1)
+		return label[0 .. ranges[0][0]] ~ label[ranges[0][1] .. $];
+	// Drop the receiver and the separator (", ") that follows it.
+	return label[0 .. ranges[0][0]] ~ label[ranges[1][0] .. $];
 }
 
 /**
@@ -1768,7 +1802,7 @@ private SignatureHelp signatureHelpFromResponse(AutocompleteResponse response,
 	foreach (completion; response.completions)
 	{
 		SignatureInformation sig;
-		sig.label = completion.definition;
+		sig.label = signatureLabel(completion);
 		// Parameter labels with offsets into `label` let the client highlight
 		// the active argument; without them the widget can't show which
 		// parameter is being typed.

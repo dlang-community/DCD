@@ -463,8 +463,17 @@ const(Token)* findUFCSExpressionStart(SortedTokens tokens)
 
         if (t is tok!"(" || t is tok!"[" || t is tok!"{")
         {
-            depth--;
-            continue;
+            if (depth > 0)
+            {
+                // Matches a closing token we skipped over earlier.
+                depth--;
+                continue;
+            }
+            // An unmatched opener (e.g. the `{` of the enclosing function
+            // body): the expression cannot extend past it. Without this,
+            // depth goes negative and every remaining token is skipped as
+            // "nested", swallowing the whole file prefix.
+            return &tokens[i + 1];
         }
 
         if (depth != 0)
@@ -541,7 +550,18 @@ private TokenCursorResult getCursorToken(Scope* completionScope, const(Token)[] 
             && slicedAtParen[$ - 2].type is tok!"identifier"
             && slicedAtParen[$ - 1].type is tok!"(")
         {
-            tokenCursorResult.expressionTokens = slicedAtParen[0 .. $ - 3].array;
+            // Trim the receiver down to the actual expression, the same way
+            // dot completion does. Otherwise the raw prefix (which can
+            // include earlier statements or even the module's `import`
+            // declarations) is treated as one long UFCS chain, and the type
+            // deduction aborts as soon as one link (e.g. the `.` of
+            // `import std.stdio;`) can't be resolved.
+            const(Token)* exprStart = findUFCSExpressionStart(slicedAtParen[0 .. $ - 3]);
+
+            if (exprStart is null)
+                return tokenCursorResult;
+
+            tokenCursorResult.expressionTokens = exprStart[0 .. &slicedAtParen[$ - 3] - exprStart];
             tokenCursorResult.completionContext = CompletionContext.ParenCompletion;
             tokenCursorResult.functionName = istring(slicedAtParen[$ - 2].text);
             return tokenCursorResult;
