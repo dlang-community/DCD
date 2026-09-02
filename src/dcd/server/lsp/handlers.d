@@ -1181,15 +1181,15 @@ private Position positionInFile(ref ServerContext context, string filePath, size
  */
 JSONValue handleReferences(ref ServerContext context, JSONValue params)
 {
-	auto request = buildSymbolRequest(context, params);
-	auto response = findLocalUse(request, *context.cache);
+	// References use the same workspace-wide lookup as rename: every
+	// .d/.di file under the workspace root is scanned for uses of the
+	// symbol, not just the requesting document.
+	auto lookup = lookupSymbol(context, params);
+	if (!lookup.valid)
+		return JSONValue(null);
 
-	// findLocalUse only reports uses within the requesting document: the
-	// per-completion symbolFilePath is left empty (only the top-level
-	// response carries the declaration's file), so the uses must be
-	// converted against the requesting document, never treated as
-	// external-file offsets.
-	auto doc = context.documents.get(params["textDocument"]["uri"].str);
+	auto requestUri = params["textDocument"]["uri"].str;
+	auto requestPath = uriToPath(requestUri);
 
 	// LSP: "Include the declaration of the current symbol." VS Code's
 	// "Find All References" sends true by default.
@@ -1204,36 +1204,50 @@ JSONValue handleReferences(ref ServerContext context, JSONValue params)
 
 	JSONValue[] locations;
 
-	// The declaration itself. For symbols declared in the requesting
-	// document it is already part of the uses list below (the declaration
-	// identifier resolves to the same symbol), so only add it separately
-	// when it lives in another file.
-	if (includeDeclaration && response.symbolFilePath.length
-		&& response.symbolFilePath != "stdin")
+	foreach (file; lookup.files)
 	{
-		Location location;
-		location.uri = pathToUri(response.symbolFilePath);
-		Position pos = positionInFile(context, response.symbolFilePath,
-			response.symbolLocation);
-		location.range = Range(pos, pos);
-		locations ~= location.toJson();
+		// The requesting document's uses are converted against its
+		// in-memory buffer; every other file against its on-disk content
+		// (the workspace scan reads files from disk).
+		TextDocument* doc = context.documents.get(file);
+		if (doc is null)
+		{
+			doc = documentForFile(context, file);
+			if (doc is null)
+				continue;
+		}
+
+		foreach (offset; lookup.offsetsIn(file))
+		{
+			// Skip the declaration itself when the client asked for uses
+			// only: the declaration identifier resolves to the same symbol,
+			// so it appears among the uses of its own file.
+			if (!includeDeclaration && offset == lookup.declarationOffset
+				&& (file == requestUri
+					? lookup.declarationFile == requestPath
+					: file == lookup.declarationFile))
+			{
+				continue;
+			}
+			Position pos = context.converter.toPosition(*doc, offset);
+			Location location;
+			location.uri = file == requestUri ? requestUri : pathToUri(file);
+			location.range = Range(pos, pos);
+			locations ~= location.toJson();
+		}
 	}
 
-	foreach (completion; response.completions)
+	// Symbols declared OUTSIDE the workspace (Phobos, dub dependencies)
+	// are never scanned, so their declaration is not among the uses
+	// above — add it separately.
+	if (includeDeclaration && lookup.declarationFile.length
+		&& lookup.declarationFile != requestPath
+		&& !lookup.files.canFind(lookup.declarationFile))
 	{
-		// Skip the declaration itself when the client asked for uses only.
-		// The declaration's offset (in the requesting document) is
-		// response.symbolLocation.
-		if (!includeDeclaration && response.symbolFilePath == "stdin"
-			&& completion.symbolLocation == response.symbolLocation)
-		{
-			continue;
-		}
-		Position pos = doc !is null
-			? context.converter.toPosition(*doc, completion.symbolLocation)
-			: Position(0, 0);
 		Location location;
-		location.uri = params["textDocument"]["uri"].str;
+		location.uri = pathToUri(lookup.declarationFile);
+		Position pos = positionInFile(context, lookup.declarationFile,
+			lookup.declarationOffset);
 		location.range = Range(pos, pos);
 		locations ~= location.toJson();
 	}
@@ -1244,10 +1258,11 @@ JSONValue handleReferences(ref ServerContext context, JSONValue params)
 }
 
 /**
- * Shared result of a rename lookup: the identifier range at the request
- * position plus every use of the symbol within the workspace.
+ * Shared result of a symbol lookup (references, rename): the identifier
+ * range at the request position plus every use of the symbol within the
+ * workspace.
  */
-private struct RenameLookup
+private struct SymbolLookup
 {
 	/// The identifier token at the request position, if any.
 	Range identifierRange;
@@ -1302,23 +1317,23 @@ private struct RenameLookup
 }
 
 /**
- * Performs the rename lookup shared by prepareRename and rename.
+ * Performs the symbol lookup shared by references, prepareRename and
+ * rename.
  *
  * The symbol at the request position is identified with `findLocalUse`,
  * which yields the declaration's file and offset. Uses are then searched
- * across the whole workspace: every .d/.di file under the server's import
- * paths is lexed and each same-named identifier is resolved to its symbol
+ * across the whole workspace: every .d/.di file under the workspace root
+ * is lexed and each same-named identifier is resolved to its symbol
  * to check whether it denotes the same declaration. The identifier range
  * is computed by lexing the requesting document and finding the identifier
  * token containing the request position — this also validates that the
- * cursor is on a renameable identifier and not a keyword, literal or
- * comment.
+ * cursor is on an identifier and not a keyword, literal or comment.
  */
-private RenameLookup lookupRename(ref ServerContext context, JSONValue params)
+private SymbolLookup lookupSymbol(ref ServerContext context, JSONValue params)
 {
 	import dparse.lexer : LexerConfig, StringCache, getTokensForParser, Token, tok;
 
-	RenameLookup result;
+	SymbolLookup result;
 
 	auto request = buildSymbolRequest(context, params);
 	auto response = findLocalUse(request, *context.cache);
@@ -1346,8 +1361,12 @@ private RenameLookup lookupRename(ref ServerContext context, JSONValue params)
 	const(Token)* found;
 	foreach (ref t; tokens)
 	{
+		// The position may also sit immediately AFTER the identifier (e.g.
+		// between the name and a following "." or "("); findLocalUse treats
+		// that as being on the token too, so the inclusive end keeps
+		// references/rename consistent with it.
 		if (t.type == tok!"identifier"
-			&& offset >= t.index && offset < t.index + t.text.length)
+			&& offset >= t.index && offset <= t.index + t.text.length)
 		{
 			found = &t;
 			break;
@@ -1403,14 +1422,14 @@ private struct WorkspaceUse
  * `lookup.declarationFile`/`declarationOffset`.
  *
  * Every file under the server's import paths is lexed and each identifier
- * matching the renamed symbol's name is resolved through DCD's symbol
+ * matching the symbol's name is resolved through DCD's symbol
  * machinery (parse + scope lookup); a match counts when it resolves to a
  * symbol declared at the target declaration. This is the same resolution
  * strategy `findLocalUse` applies within a document, extended to the
  * workspace. Files that fail to parse are skipped.
  */
 private void findWorkspaceUses(ref ServerContext context,
-	ref RenameLookup lookup, string requestUri)
+	ref SymbolLookup lookup, string requestUri)
 {
 	import dparse.lexer : LexerConfig, StringCache, getTokensForParser, Token, tok;
 	import dparse.rollback_allocator : RollbackAllocator;
@@ -1543,7 +1562,7 @@ private void findWorkspaceUses(ref ServerContext context,
  */
 JSONValue handlePrepareRename(ref ServerContext context, JSONValue params)
 {
-	auto lookup = lookupRename(context, params);
+	auto lookup = lookupSymbol(context, params);
 	if (!lookup.valid)
 		return JSONValue(null);
 
@@ -1562,7 +1581,7 @@ JSONValue handlePrepareRename(ref ServerContext context, JSONValue params)
  */
 JSONValue handleRename(ref ServerContext context, JSONValue params)
 {
-	auto lookup = lookupRename(context, params);
+	auto lookup = lookupSymbol(context, params);
 	if (!lookup.valid)
 		throw new Exception("The element can't be renamed");
 
