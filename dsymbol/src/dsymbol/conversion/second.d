@@ -470,6 +470,7 @@ void resolveInheritance(DSymbol* symbol, ref TypeLookups typeLookups,
 
 		DSymbol* imp = GCAllocator.instance.make!DSymbol(IMPORT_SYMBOL_NAME,
 			CompletionKind.importSymbol, baseClass);
+		imp.protection = tok!"public";
 		symbol.addChild(imp, true);
 		symbolScope.addSymbol(imp, false);
 		if (baseClass.kind == CompletionKind.className)
@@ -495,6 +496,7 @@ void resolveAliasThis(DSymbol* symbol,
 
 		DSymbol* s = GCAllocator.instance.make!DSymbol(IMPORT_SYMBOL_NAME,
 			CompletionKind.importSymbol, parts[0].type);
+		s.protection = tok!"public";
 		symbol.addChild(s, true);
 		auto symbolScope = moduleScope.getScopeByCursor(s.location);
 		if (symbolScope !is null)
@@ -530,6 +532,7 @@ void resolveMixinTemplates(DSymbol* symbol,
 			auto i = GCAllocator.instance.make!DSymbol(IMPORT_SYMBOL_NAME,
 				CompletionKind.importSymbol, currentSymbol);
 			i.ownType = false;
+			i.protection = tok!"public";
 			symbol.addChild(i, true);
 		}
 	}
