@@ -990,10 +990,9 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 	list.isIncomplete = false;
 	// Bundle overloads of the same name into a single item (like clangd
 	// does for C++ template overloads): "destroy" with 5 template
-	// constraints shows once, with the overload count in the detail.
-	// The completion engine ranks constraint-matching overloads first, so
-	// the first overload seen per name is the most plausible one and its
-	// signature is used as the detail.
+	// constraints shows once. The completion engine ranks constraint-matching
+	// overloads first, so the first overload seen per name is the most
+	// plausible one and its signature is used as the label details.
 	CompletionItem[] bundled;
 	string[] bundledNames;
 	size_t[] bundledCounts;
@@ -1002,12 +1001,8 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 		CompletionItem item;
 		item.label = completion.identifier;
 		item.kind = toCompletionItemKind(cast(CompletionKind) completion.kind);
-		item.detail = completion.typeOf;
 		item.documentation = completion.documentation;
-		// Mark UFCS functions as extension methods (C#-style), rendered
-		// grayed-out after the label by VS Code.
-		if (completion.kind == cast(ubyte) CompletionKind.ufcsName)
-			item.labelDetail = " (ufcs)";
+		fillLabelDetails(item, completion);
 
 		bool merged = false;
 		foreach (i, ref existing; bundled)
@@ -1029,12 +1024,80 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 	foreach (i, ref item; bundled)
 	{
 		if (bundledCounts[i] > 1)
-			item.detail = item.detail.length
-				? item.detail ~ " (+" ~ bundledCounts[i].to!string ~ " overloads)"
-				: bundledCounts[i].to!string ~ " overloads";
+		{
+			// clangd keeps the first overload's parameter list inline and
+			// replaces the return type in `detail` with the overload count
+			// (shown on the focused row).
+			item.detail = "[" ~ bundledCounts[i].to!string ~ " overloads]";
+		}
 		list.items ~= item;
 	}
 	return list.toJson();
+}
+
+/**
+ * Fills the clangd-style label details on a completion item:
+ * `labelDetails.detail` is rendered right after the label on every row and
+ * carries the parameter list of functions, `detail` is rendered on the
+ * focused row (and in the details pane) and carries the return type of
+ * functions or the resolved type of variables.
+ */
+private void fillLabelDetails(ref CompletionItem item,
+	AutocompleteResponse.Completion completion)
+{
+	item.detail = completion.typeOf;
+
+	immutable bool functionLike =
+		completion.kind == cast(ubyte) CompletionKind.functionName
+		|| completion.kind == cast(ubyte) CompletionKind.ufcsName;
+	if (!functionLike)
+		return;
+
+	// UFCS functions: the receiver parameter is already typed before the
+	// dot, so only the remaining arguments are shown (matching the
+	// signature help behavior). The right-side label marks them as
+	// extension-style calls, like C# extension methods.
+	string definition = completion.definition;
+	if (completion.kind == cast(ubyte) CompletionKind.ufcsName)
+	{
+		definition = stripFirstParameter(definition);
+		item.labelDescription = "ufcs";
+	}
+
+	// The parameter part starts at the first '(' and includes template
+	// parameter lists: "name!(T)(T a)".
+	size_t paren = size_t.max;
+	foreach (i, c; definition)
+	{
+		if (c == '(')
+		{
+			paren = i;
+			break;
+		}
+	}
+	if (paren == size_t.max)
+		return;
+	item.labelDetail = " " ~ definition[paren .. $];
+	if (!item.detail.length)
+		item.detail = returnTypeFromDefinition(definition, paren);
+}
+
+/**
+ * Extracts the return type from a calltip definition like
+ * `int add(int a, int b)` -> `int`, where `paren` is the offset of the
+ * first '('. Definitions of auto functions have no return type prefix,
+ * so the empty string is returned for them (like clangd).
+ */
+private string returnTypeFromDefinition(string definition, size_t paren)
+{
+	if (paren == 0)
+		return "";
+	string prefix = definition[0 .. paren].strip();
+	// The function name is the last word before the parameter list.
+	size_t space = prefix.lastIndexOf(' ');
+	if (space == size_t.max || space == 0)
+		return "";
+	return prefix[0 .. space].strip();
 }
 
 /**
