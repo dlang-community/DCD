@@ -18,6 +18,8 @@
 
 module dcd.server.autocomplete.localuse;
 
+import std.algorithm.comparison : equal;
+import std.algorithm.sorting : sort;
 import std.experimental.allocator;
 import std.experimental.logger;
 import std.range;
@@ -80,12 +82,22 @@ public AutocompleteResponse findLocalUse(AutocompleteRequest request,
 	// gets the symbol matching to cursor pos
 	SymbolStuff stuff = getSymbolsAtCursor(cast(size_t)request.cursorPosition);
 
-	// starts searching only if no ambiguity with the symbol
-	if (stuff.symbols.length == 1)
+	// starts searching only if the identifier resolves to at least one
+	// symbol. Overloaded declarations resolve to the whole overload SET
+	// (DCD's name-based lookup cannot distinguish them at use sites), so
+	// the set as a whole is treated as the symbol: a use matches when it
+	// resolves to the same set of declarations (same file + same offsets).
+	if (stuff.symbols.length > 0)
 	{
-		const(DSymbol*) sourceSymbol = stuff.symbols[0];
-		response.symbolLocation = sourceSymbol.location;
-		response.symbolFilePath = sourceSymbol.symbolFile.idup;
+		// The declaration identity of the symbol set: the file plus the
+		// sorted list of declaration offsets. Uses of ANY overload resolve
+		// to the same set, so set equality identifies them all.
+		size_t[] declarationOffsets;
+		foreach (sym; stuff.symbols)
+			declarationOffsets ~= sym.location;
+		declarationOffsets.sort();
+		response.symbolLocation = declarationOffsets[0];
+		response.symbolFilePath = stuff.symbols[0].symbolFile.idup;
 
 		// gets the source token to avoid too much getSymbolsAtCursor()
 		const(Token)* sourceToken;
@@ -108,9 +120,9 @@ public AutocompleteResponse findLocalUse(AutocompleteRequest request,
 			{
 				size_t pos = cast(size_t) t.index + 1; // place cursor inside the token
 				SymbolStuff candidate = getSymbolsAtCursor(pos);
-				if (candidate.symbols.length == 1 &&
-					candidate.symbols[0].location == sourceSymbol.location &&
-					candidate.symbols[0].symbolFile == sourceSymbol.symbolFile)
+				if (candidate.symbols.length == stuff.symbols.length &&
+					candidate.symbols[0].symbolFile == stuff.symbols[0].symbolFile &&
+					sameDeclarationSet(candidate.symbols, declarationOffsets))
 				{
 					AutocompleteResponse.Completion c;
 					c.symbolLocation = t.index;
@@ -125,7 +137,25 @@ public AutocompleteResponse findLocalUse(AutocompleteRequest request,
 	}
 	else
 	{
-		warning("No or ambiguous symbol for the identifier at cursor");
+		warning("No symbol for the identifier at cursor");
 	}
 	return response;
+}
+
+/**
+ * Checks that `symbols` is exactly the set of declarations declared at
+ * `declarationOffsets` (in the same file). Used to match uses of
+ * overloaded symbols: every use of any overload resolves to the whole
+ * overload set, so the sets must be equal.
+ */
+private bool sameDeclarationSet(const(DSymbol*)[] symbols,
+	const size_t[] declarationOffsets)
+{
+	if (symbols.length != declarationOffsets.length)
+		return false;
+	size_t[] offsets;
+	foreach (sym; symbols)
+		offsets ~= sym.location;
+	offsets.sort();
+	return offsets.equal(declarationOffsets);
 }
