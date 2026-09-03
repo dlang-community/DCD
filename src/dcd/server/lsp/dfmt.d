@@ -132,10 +132,8 @@ string formatWithDfmt(ref DfmtConfig config, string uri, string source)
 		// the user's document.
 		if (status != 0 || output.canFind("[error]:"))
 		{
-			immutable preview = output.length > 200
-				? output[0 .. 200] ~ "..." : output;
 			warningf("dfmt: failed to format %s (exit %s): %s",
-				uri, status, preview);
+				uri, status, dfmtDiagnostics(output));
 			return null;
 		}
 	}
@@ -145,6 +143,31 @@ string formatWithDfmt(ref DfmtConfig config, string uri, string source)
 		return null;
 	}
 	return output;
+}
+
+/**
+ * Extracts dfmt's diagnostic lines from its output.
+ *
+ * On syntax errors dfmt prints lines like `stdin(16:9)[error]: no
+ * identifier for declarator` BEFORE the (mangled) formatted text. Only
+ * the diagnostics are useful in the log — echoing the formatted source
+ * is noise. Caps at three diagnostics; falls back to a short raw preview
+ * when no recognizable diagnostic lines exist (e.g. dfmt crashed).
+ */
+private string dfmtDiagnostics(string output)
+{
+	import std.string : splitLines;
+
+	auto lines = output.splitLines()
+		.filter!(l => l.canFind("[error]:") || l.canFind("[warn]:"))
+		.array;
+	if (lines.empty)
+		return output.length > 120 ? output[0 .. 120] ~ "..." : output;
+	immutable count = lines.length > 3 ? 3 : lines.length;
+	auto summary = lines[0 .. count].join("; ");
+	if (lines.length > count)
+		summary ~= "; ...";
+	return summary;
 }
 
 /**
