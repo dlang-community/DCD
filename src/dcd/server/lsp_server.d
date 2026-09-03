@@ -105,6 +105,8 @@ int runLspServer(string[] importPaths, bool ignoreConfig)
 		if (message.method == "exit")
 		{
 			info("Exit received");
+			if (context.linter !is null)
+				context.linter.stop();
 			return state == LifecycleState.shutdownReceived ? 0 : 1;
 		}
 		if (message.method == "initialize")
@@ -120,7 +122,16 @@ int runLspServer(string[] importPaths, bool ignoreConfig)
 			if (message.isRequest)
 				sendHandlerResult(message.rawId, result);
 			if (message.method == "shutdown")
+			{
+				// Stop the external linter thread before tearing anything
+				// else down; an in-flight dscanner run is abandoned.
+				if (context.linter !is null)
+				{
+					context.linter.stop();
+					context.linter = null;
+				}
 				state = LifecycleState.shutdownReceived;
+			}
 			else if (message.method == "initialized")
 				state = LifecycleState.running;
 		}

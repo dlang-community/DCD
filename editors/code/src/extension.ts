@@ -63,11 +63,54 @@ class DcdContext implements vscode.Disposable {
       args,
     };
 
+    // External D-Scanner linting: the server shells out to dscanner (it is
+    // NOT a dub dependency of DCD — both vendor their own libdparse). A bare
+    // 'dscanner' name lets the server resolve it from PATH; an absolute or
+    // relative path is passed through; empty string disables linting.
+    const dscannerPathSetting = config.get<string>('dscannerPath', 'dscanner');
+    const dscannerPath = path.isAbsolute(dscannerPathSetting)
+      ? dscannerPathSetting
+      : dscannerPathSetting.includes(path.sep)
+        ? path.join(workspaceRoot, dscannerPathSetting)
+        : dscannerPathSetting;
+    if (dscannerPathSetting) {
+      log(`dscanner path: ${dscannerPath}`);
+    }
+
+    // Optional dscanner.ini to control which checks run (e.g. disable the
+    // undocumented-declaration noise). Empty = dscanner auto-discovers a
+    // dscanner.ini at the project root.
+    const dscannerConfigSetting = config.get<string>('dscannerConfig', '');
+    const dscannerConfig = dscannerConfigSetting
+      ? (path.isAbsolute(dscannerConfigSetting)
+          ? dscannerConfigSetting
+          : path.join(workspaceRoot, dscannerConfigSetting))
+      : '';
+    if (dscannerConfig) {
+      log(`dscanner config: ${dscannerConfig}`);
+    }
+
+    // External dfmt formatting (Shift+Alt+F). Same external-tool model as
+    // dscanner: bare name = PATH lookup, empty string = disabled.
+    const dfmtPathSetting = config.get<string>('dfmtPath', 'dfmt');
+    const dfmtPath = path.isAbsolute(dfmtPathSetting)
+      ? dfmtPathSetting
+      : dfmtPathSetting.includes(path.sep)
+        ? path.join(workspaceRoot, dfmtPathSetting)
+        : dfmtPathSetting;
+    if (dfmtPathSetting) {
+      log(`dfmt path: ${dfmtPath}`);
+    }
+
     const clientOptions: LanguageClientOptions = {
       documentSelector: [{ scheme: 'file', language: 'd' }],
       outputChannel,
       initializationOptions: {
         importPaths: resolvedImportPaths,
+        ...(dscannerPathSetting
+          ? { dscanner: { executable: dscannerPath, ...(dscannerConfig ? { configFile: dscannerConfig } : {}) } }
+          : {}),
+        ...(dfmtPathSetting ? { dfmt: { executable: dfmtPath } } : {}),
       },
     };
 

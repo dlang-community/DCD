@@ -73,7 +73,15 @@
           "default": "info",
           "enum": ["all", "trace", "info", "warning", "error", "critical", "fatal", "off"],
           "description": "Log level passed to dcd-server (verbose server logs go to the D (DCD) output channel)."
-        }
+        },
+        "dcd.dscannerPath": {
+          "type": "string",
+          "default": "dscanner",
+          "description": "Path to the D-Scanner executable for lint diagnostics. When set to 'dscanner' it is looked up on the PATH; set to an empty string to disable linting."        },
+        "dcd.dscannerConfig": {
+          "type": "string",
+          "default": "",
+          "description": "Path to a dscanner.ini configuration file to control which checks are enabled. Empty = dscanner discovers a dscanner.ini at the project root automatically."        }
       }
     }
   },

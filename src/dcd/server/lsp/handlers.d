@@ -31,6 +31,8 @@ import dcd.server.autocomplete.util : clampedBucketCount;
 import dcd.server.lsp.document;
 import dcd.server.lsp.protocol;
 import dcd.server.lsp.jsonrpc;
+import dcd.server.lsp.dscanner : DScannerConfig, DScannerLinter;
+import dcd.server.lsp.dfmt : DfmtConfig, formatWithDfmt;
 
 import containers.hashset;
 import dsymbol.modulecache;
@@ -58,6 +60,15 @@ struct ServerContext
 
 	/// The server's capabilities, set after `initialize`.
 	JSONValue clientCapabilities;
+
+	/// The external D-Scanner linter, `null` when linting is disabled
+	/// (not configured or dscanner not found on the PATH).
+	DScannerLinter linter;
+
+	/// The external dfmt formatter configuration. Formatting is available
+	/// when the executable resolves; the config is kept even when it is
+	/// missing so a later install is picked up on restart.
+	DfmtConfig dfmtConfig;
 }
 
 /**
@@ -142,6 +153,8 @@ HandlerResult handleRequest(ref ServerContext context, string method, JSONValue 
 			return HandlerResult(handleInlayHint(context, params));
 		case "textDocument/documentSymbol":
 			return HandlerResult(handleDocumentSymbol(context, params));
+		case "textDocument/formatting":
+			return HandlerResult(handleFormatting(context, params));
 		case "workspace/willRenameFiles":
 			return HandlerResult(handleWillRenameFiles(context, params));
 		case "$/cancelRequest":
@@ -223,6 +236,27 @@ HandlerResult handleInitialize(ref ServerContext context, JSONValue params)
 	}
 	context.cache.addImportPaths(importPaths);
 
+	// External D-Scanner linting: dscanner is NOT a dub dependency (both
+	// projects vendor their own libdparse/dsymbol); the server shells out
+	// to the executable like clangd shells out to external tools. The
+	// linter runs on a background thread so the request path never pays
+	// for it. Inactive (no-op) when dscanner is not installed.
+	if ("initializationOptions" in params)
+	{
+		auto options = params["initializationOptions"];
+		if (options.type == JSONType.object && "dscanner" in options)
+		{
+			auto linterConfig = DScannerConfig.fromOptions(options["dscanner"]);
+			context.linter = new DScannerLinter(linterConfig);
+			if (context.linter.active)
+				infof("dscanner linting enabled (%s)", linterConfig.executable);
+		}
+		// External dfmt formatting: same external-tool model as dscanner.
+		// The executable is resolved lazily on the first formatting request.
+		if (options.type == JSONType.object && "dfmt" in options)
+			context.dfmtConfig = DfmtConfig.fromOptions(options["dfmt"]);
+	}
+
 	// Auto-detect import paths on the server so that any LSP client (not
 	// just the VS Code extension) gets module search out of the box: the
 	// workspace's own source directories, dub dependencies from the local
@@ -253,6 +287,7 @@ HandlerResult handleInitialize(ref ServerContext context, JSONValue params)
 	capabilities["referencesProvider"] = JSONValue(true);
 	capabilities["renameProvider"] = parseJSON(`{"prepareProvider": true}`);
 	capabilities["documentSymbolProvider"] = JSONValue(true);
+	capabilities["documentFormattingProvider"] = JSONValue(true);
 	capabilities["inlayHintProvider"] = JSONValue(true);
 	// File rename support: when the user moves/renames a file in the editor,
 	// the client asks (before the rename happens) for edits that update the
@@ -587,6 +622,11 @@ void handleDidOpen(ref ServerContext context, JSONValue params)
 	string text = textDocument["text"].str;
 	context.documents.didOpen(uri, languageId, docVersion, text);
 
+	// Queue the document for external linting. Cheap (mutex + append);
+	// the dscanner process runs on the linter's background thread.
+	if (context.linter !is null && (languageId.empty || languageId == "d"))
+		context.linter.submit(uri, text, docVersion);
+
 	// Warm the module cache for this document's imports right away. DCD
 	// resolves imports lazily inside whichever request first needs them,
 	// which stalls that request by the parse time of the whole import
@@ -842,10 +882,44 @@ void handleDidChange(ref ServerContext context, JSONValue params)
 	}
 	context.documents.didChange(uri, docVersion, last["text"].str);
 
+	// Queue the changed text for linting (coalesced by the linter).
+	if (context.linter !is null)
+		context.linter.submit(uri, last["text"].str, docVersion);
+
 	// Warm imports added by this change (see handleDidOpen): a newly typed
 	// `import std.regex;` would otherwise stall the first request that
 	// needs it by the parse time of its whole dependency closure.
 	warmNewImports(context, uri);
+}
+
+/**
+ * Handles `textDocument/formatting` by shelling out to the external dfmt
+ * tool.
+ *
+ * Returns a single whole-document TextEdit (the standard way to return
+ * fully formatted text), or null when formatting is unavailable (dfmt not
+ * installed) or failed (syntax errors in the document — the client shows
+ * nothing and the user's text is untouched).
+ */
+JSONValue handleFormatting(ref ServerContext context, JSONValue params)
+{
+	auto textDocument = params["textDocument"];
+	string uri = textDocument["uri"].str;
+	auto doc = context.documents.get(uri);
+	enforceDoc(doc, uri);
+
+	string formatted = formatWithDfmt(context.dfmtConfig, uri, doc.text);
+	if (formatted is null || formatted == doc.text)
+		return JSONValue(null);
+
+	// Whole-document replace: one edit spanning the entire text.
+	JSONValue edit = parseJSON(`{}`);
+	edit["range"] = Range(
+		Position(0, 0),
+		context.converter.toPosition(*doc, doc.text.length)).toJson();
+	edit["newText"] = JSONValue(formatted);
+	JSONValue[] edits = [edit];
+	return JSONValue(edits);
 }
 
 /**
@@ -855,6 +929,10 @@ void handleDidClose(ref ServerContext context, JSONValue params)
 {
 	string uri = params["textDocument"]["uri"].str;
 	context.documents.didClose(uri);
+	// Drop queued lint snapshots; the client clears diagnostics itself
+	// on close, so no empty publishDiagnostics is needed.
+	if (context.linter !is null)
+		context.linter.forget(uri);
 }
 
 /**
