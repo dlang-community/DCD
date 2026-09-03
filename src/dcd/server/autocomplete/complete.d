@@ -533,8 +533,8 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
 
 			found = true;
 
-			auto n = importPath.baseName(".d").baseName(".di");
-			if (isFile(importPath) && (importPath.endsWith(".d") || importPath.endsWith(".di"))
+			auto n = importPath.baseName(".d").baseName(".di").baseName(".c");
+			if (isFile(importPath) && (importPath.endsWith(".d") || importPath.endsWith(".di") || importPath.endsWith(".c"))
 					&& (partial is null || n.startsWith(partial)))
 				response.completions ~= AutocompleteResponse.Completion(n, CompletionKind.moduleName, null, importPath, 0);
 		}
@@ -552,8 +552,8 @@ void setImportCompletions(T)(T tokens, ref AutocompleteResponse response,
 				if (name.baseName.startsWith(".#"))
 					continue;
 
-				auto n = name.baseName(".d").baseName(".di");
-				if (isFile(name) && (name.endsWith(".d") || name.endsWith(".di"))
+				auto n = name.baseName(".d").baseName(".di").baseName(".c");
+				if (isFile(name) && (name.endsWith(".d") || name.endsWith(".di") || name.endsWith(".c"))
 					&& (partial is null || n.startsWith(partial)))
 					response.completions ~= AutocompleteResponse.Completion(n, CompletionKind.moduleName, null, name, 0);
 				else if (isDir(name))
