@@ -50,6 +50,12 @@ struct DfmtConfig
 	/// Whether formatting is enabled at all.
 	bool enabled = true;
 
+	/// Brace style used when no `.editorconfig` is discovered: one of
+	/// "allman", "otbs", "stroustrup", "knr", or "default" (dfmt's own
+	/// stock behavior, which is Allman). A project `.editorconfig` always
+	/// wins over this. Set via `initializationOptions.dfmt.braceStyle`.
+	string braceStyle = "default";
+
 	/// Parses the formatter settings from `initializationOptions.dfmt`.
 	static DfmtConfig fromOptions(JSONValue options)
 	{
@@ -62,6 +68,12 @@ struct DfmtConfig
 			config.enabled = false;
 		if ("executable" in options && options["executable"].type == JSONType.string)
 			config.executable = options["executable"].str;
+		if ("braceStyle" in options && options["braceStyle"].type == JSONType.string)
+		{
+			immutable style = options["braceStyle"].str;
+			if (style.among!("allman", "otbs", "stroustrup", "knr", "default"))
+				config.braceStyle = style;
+		}
 		return config;
 	}
 }
@@ -93,7 +105,17 @@ string formatWithDfmt(ref DfmtConfig config, string uri, string source)
 		// Pass the document's directory so dfmt picks up the project's
 		// .editorconfig (indent style/size, brace style, ...).
 		string workDir = uriToPath(uri).dirName;
-		string[] args = [config.executable, "--config", workDir];
+		string configDir = workDir;
+		if (config.braceStyle != "default" && !editorconfigDiscovered(workDir))
+		{
+			// No .editorconfig anywhere: pass a generated default that
+			// pins the configured brace style (see DfmtConfig.braceStyle).
+			// A discovered project .editorconfig always wins.
+			string generated = defaultEditorconfig(config.braceStyle);
+			if (generated.length)
+				configDir = generated;
+		}
+		string[] args = [config.executable, "--config", configDir];
 		auto pipes = pipeProcess(args,
 			Redirect.stdin | Redirect.stdout | Redirect.stderrToStdout,
 			null, Config.none, workDir);
@@ -159,6 +181,60 @@ private bool resolveExecutable(ref DfmtConfig config)
 	warningf("dfmt: configured executable '%s' does not exist, "
 		~ "formatting unavailable", config.executable);
 	return false;
+}
+
+/**
+ * Whether an `.editorconfig` would be discovered for the given directory:
+ * dfmt (via editorconfig-d) searches the directory itself and every
+ * ancestor for a file with exactly that name.
+ */
+private bool editorconfigDiscovered(string workDir)
+{
+	import std.file : exists;
+
+	for (string dir = workDir; ; dir = dir.dirName)
+	{
+		if (exists(buildPath(dir, ".editorconfig")))
+			return true;
+		// dirName("/") == "/": stop once the path stops shrinking.
+		if (dir == dir.dirName)
+			break;
+	}
+	return false;
+}
+
+/**
+ * Writes a minimal `.editorconfig` that pins the given brace style into a
+ * per-server temp directory and returns the DIRECTORY path (dfmt's
+ * `--config` takes a directory, not a file). The file is shared by all
+ * format requests of this server process; it is never cleaned up (a few
+ * bytes in the temp dir). Returns an empty string when it cannot be
+ * written — formatting then just uses dfmt's stock defaults.
+ */
+private string defaultEditorconfig(string braceStyle)
+{
+	import std.file : mkdirRecurse, tempDir, write;
+
+	static string cachedPath;
+	static string cachedStyle;
+	if (cachedPath.length && cachedStyle == braceStyle)
+		return cachedPath;
+
+	try
+	{
+		auto dir = buildPath(tempDir, "dcd-lsp");
+		mkdirRecurse(dir);
+		write(buildPath(dir, ".editorconfig"),
+			"root = true\n\n[*.d]\ndfmt_brace_style = " ~ braceStyle ~ "\n");
+		cachedPath = dir;
+		cachedStyle = braceStyle;
+	}
+	catch (Exception e)
+	{
+		warningf("dfmt: could not write default editorconfig: %s", e.msg);
+		cachedPath = "";
+	}
+	return cachedPath;
 }
 
 version (unittest)

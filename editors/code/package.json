@@ -81,7 +81,25 @@
         "dcd.dscannerConfig": {
           "type": "string",
           "default": "",
-          "description": "Path to a dscanner.ini configuration file to control which checks are enabled. Empty = dscanner discovers a dscanner.ini at the project root automatically."        }
+          "description": "Path to a dscanner.ini configuration file to control which checks are enabled. Empty = dscanner discovers a dscanner.ini at the project root automatically."        },
+        "dcd.dfmtPath": {
+          "type": "string",
+          "default": "dfmt",
+          "description": "Path to the dfmt executable for code formatting. When set to 'dfmt' it is looked up on the PATH; set to an empty string to disable formatting."
+        },
+        "dcd.dfmtBraceStyle": {
+          "type": "string",
+          "default": "default",
+          "enum": ["otbs", "allman", "stroustrup", "knr", "default"],
+          "enumDescriptions": [
+            "One True Brace Style — braces on the same line: void foo() {",
+            "Braces on their own line: void foo() then { on the next line",
+            "Like OTBS, but else on its own line",
+            "Function braces on their own line, control-flow braces on the same line",
+            "dfmt's built-in default (Allman)"
+          ],
+          "markdownDescription": "Brace style used by dfmt when the project has no `.editorconfig`. A project `.editorconfig` (with `dfmt_brace_style`) always takes precedence. 'default' uses dfmt's built-in behavior."
+        }
       }
     }
   },

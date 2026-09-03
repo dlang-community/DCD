@@ -88,6 +88,7 @@ code --install-extension dcd-lsp-0.1.0.vsix
 | `dcd.dscannerPath` | `"dscanner"` | Path to the [D-Scanner](https://github.com/dlang-community/D-Scanner) executable for lint diagnostics. A bare name is looked up on `PATH`; set to an empty string to disable linting. |
 
 | `dcd.dfmtPath` | `"dfmt"` | Path to the [dfmt](https://github.com/dlang-community/dfmt) executable for code formatting (Shift+Alt+F). A bare name is looked up on `PATH`; an empty string disables formatting. |
+| `dcd.dfmtBraceStyle` | `"default"` | Brace style used by dfmt when the project has no `.editorconfig`: `otbs`, `allman`, `stroustrup`, `knr`, or `default` (dfmt's built-in behavior). A project `.editorconfig` always takes precedence. |
 
 Commands: `DCD: Restart Language Server` and `DCD: Shutdown Language Server`.
 
@@ -125,6 +126,12 @@ executed as an external tool, not a dependency. Formatting style is configured
 with an [`.editorconfig`](https://editorconfig.org) file at the project root —
 the server passes the document's directory so dfmt discovers it
 automatically.
+
+When no `.editorconfig` is found, the server applies the configured brace
+style via a generated config (`default` = dfmt's built-in Allman). In VS Code
+this is the `dcd.dfmtBraceStyle` dropdown (`otbs`, `allman`, `stroustrup`,
+`knr`, or `default`); other clients set
+`initializationOptions.dfmt.braceStyle`.
 
 ## 3. Other editors
 

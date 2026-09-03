@@ -63,6 +63,7 @@ setup for other editors (Neovim, Helix, Emacs, Kate).
 | `dcd.dscannerConfig` | `""` | Path to a `dscanner.ini` controlling which lint checks run. Empty = dscanner discovers a `dscanner.ini` at the project root automatically. |
 
 | `dcd.dfmtPath` | `"dfmt"` | Path to the [dfmt](https://github.com/dlang-community/dfmt) executable for code formatting (Shift+Alt+F). A bare name is looked up on `PATH`; an empty string disables formatting. |
+| `dcd.dfmtBraceStyle` | `"default"` | Brace style used by dfmt when the project has no `.editorconfig`: `otbs`, `allman`, `stroustrup`, `knr`, or `default` (dfmt's built-in behavior). A project `.editorconfig` always takes precedence. |
 
 ## Commands
 

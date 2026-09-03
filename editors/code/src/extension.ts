@@ -102,6 +102,14 @@ class DcdContext implements vscode.Disposable {
       log(`dfmt path: ${dfmtPath}`);
     }
 
+    // Brace style for dfmt when the project has no .editorconfig. The
+    // server pins it via a generated default config; a project
+    // .editorconfig always wins. 'default' = dfmt's built-in behavior.
+    const dfmtBraceStyle = config.get<string>('dfmtBraceStyle', 'default');
+    if (dfmtBraceStyle !== 'default') {
+      log(`dfmt brace style: ${dfmtBraceStyle}`);
+    }
+
     const clientOptions: LanguageClientOptions = {
       documentSelector: [{ scheme: 'file', language: 'd' }],
       outputChannel,
@@ -110,7 +118,9 @@ class DcdContext implements vscode.Disposable {
         ...(dscannerPathSetting
           ? { dscanner: { executable: dscannerPath, ...(dscannerConfig ? { configFile: dscannerConfig } : {}) } }
           : {}),
-        ...(dfmtPathSetting ? { dfmt: { executable: dfmtPath } } : {}),
+        ...(dfmtPathSetting
+          ? { dfmt: { executable: dfmtPath, braceStyle: dfmtBraceStyle } }
+          : {}),
       },
     };
 
