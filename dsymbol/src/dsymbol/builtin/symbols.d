@@ -1,5 +1,19 @@
 module dsymbol.builtin.symbols;
 
+/*
+ * The documentation strings passed to makeSymbol() are condensed from the
+ * D language specification at dlang.org:
+ *   - .mangleof, .stringof, .init, .sizeof, .alignof, .min, .max and the
+ *     floating point properties (.dig, .epsilon, .infinity, .mant_dig,
+ *     .max_10_exp, .max_exp, .min_exp, .min_10_exp, .min_normal, .nan,
+ *     .re, .im): spec/property.html
+ *   - .length, .ptr, .dup, .idup: spec/arrays.html#array-properties
+ *   - byKey, byValue, clear, get, keys, values, rehash: spec/hash-map.html#properties
+ *   - .offsetof, .tupleof: spec/struct.html#struct_properties
+ *   - .classinfo, __vptr, __monitor: spec/class.html#class_properties
+ *   - enum .init, .min, .max: spec/enum.html#enum_properties
+ */
+
 import containers.hashset;
 import containers.ttree;
 import dparse.rollback_allocator;
@@ -83,18 +97,29 @@ static this()
 	auto ushort_ = makeSymbol(builtinTypeNames[7], CompletionKind.keyword);
 	auto wchar_ = makeSymbol(builtinTypeNames[11], CompletionKind.keyword);
 
-	auto alignof_ = makeSymbol("alignof", CompletionKind.keyword);
-	auto mangleof_ = makeSymbol("mangleof", CompletionKind.keyword);
-	auto sizeof_ = makeSymbol("sizeof", CompletionKind.keyword);
-	auto stringof_ = makeSymbol("stringof", CompletionKind.keyword);
-	auto init = makeSymbol("init", CompletionKind.keyword);
-	auto min = makeSymbol("min", CompletionKind.keyword);
-	auto max = makeSymbol("max", CompletionKind.keyword);
-	auto dup = makeSymbol("dup", CompletionKind.keyword);
-	auto length = makeSymbol("length", CompletionKind.keyword, ulong_);
-	auto tupleof = makeSymbol("tupleof", CompletionKind.keyword);
+	auto alignof_ = makeSymbol("alignof", CompletionKind.keyword, null,
+		"Size boundary the type needs to be aligned on.");
+	auto mangleof_ = makeSymbol("mangleof", CompletionKind.keyword, null,
+		"String representing the mangled representation of the type or symbol.");
+	auto sizeof_ = makeSymbol("sizeof", CompletionKind.keyword, null,
+		"Size of the type or expression in bytes.");
+	auto stringof_ = makeSymbol("stringof", CompletionKind.keyword, null,
+		"String representing the source representation of the type or expression; the expression is not evaluated.");
+	auto init = makeSymbol("init", CompletionKind.keyword, null,
+		"Default initializer value of the type.");
+	auto min = makeSymbol("min", CompletionKind.keyword, null,
+		"Smallest value of the enum members.");
+	auto max = makeSymbol("max", CompletionKind.keyword, null,
+		"Largest value of the enum members.");
+	auto dup = makeSymbol("dup", CompletionKind.keyword, null,
+		"Returns a newly allocated copy of the contents.");
+	auto length = makeSymbol("length", CompletionKind.keyword, ulong_,
+		"Number of elements (size_t). Can be set to resize a dynamic array; read-only for associative arrays.");
+	auto tupleof = makeSymbol("tupleof", CompletionKind.keyword, null,
+		"Symbol sequence of all the non-static fields, in declaration order.");
 
-	offsetofSymbol = makeSymbol("offsetof", CompletionKind.keyword);
+	offsetofSymbol = makeSymbol("offsetof", CompletionKind.keyword, null,
+		"Offset in bytes of the field from the beginning of the struct, union, or class.");
 
 	variadicTmpParamSymbol = makeSymbol("variadicTmpParam", CompletionKind.keyword);
 	variadicTmpParamSymbol.addChild(init, false);
@@ -110,29 +135,38 @@ static this()
 
 	arraySymbols.insert(alignof_);
 	arraySymbols.insert(dup);
-	arraySymbols.insert(makeSymbol("idup", CompletionKind.keyword));
+	arraySymbols.insert(makeSymbol("idup", CompletionKind.keyword, null,
+		"Returns a new array that is an immutable copy of the contents."));
 	arraySymbols.insert(init);
 	arraySymbols.insert(length);
 	arraySymbols.insert(mangleof_);
-	arraySymbols.insert(makeSymbol("ptr", CompletionKind.keyword));
+	arraySymbols.insert(makeSymbol("ptr", CompletionKind.keyword, null,
+		"Pointer to the first element of the array. Not accessible in @safe code."));
 	arraySymbols.insert(sizeof_);
 	arraySymbols.insert(stringof_);
 
 	assocArraySymbols.insert(alignof_);
-	assocArraySymbols.insert(makeSymbol("byKey", CompletionKind.keyword));
-	assocArraySymbols.insert(makeSymbol("byValue", CompletionKind.keyword));
-	assocArraySymbols.insert(makeSymbol("clear", CompletionKind.keyword));
+	assocArraySymbols.insert(makeSymbol("byKey", CompletionKind.keyword, null,
+		"Returns a forward range enumerating the keys by reference."));
+	assocArraySymbols.insert(makeSymbol("byValue", CompletionKind.keyword, null,
+		"Returns a forward range enumerating the values by reference."));
+	assocArraySymbols.insert(makeSymbol("clear", CompletionKind.keyword, null,
+		"Removes all keys and values from the associative array."));
 	assocArraySymbols.insert(dup);
-	assocArraySymbols.insert(makeSymbol("get", CompletionKind.keyword));
+	assocArraySymbols.insert(makeSymbol("get", CompletionKind.keyword, null,
+		"Returns the value for a key, or a lazy default value if the key is not present."));
 	assocArraySymbols.insert(init);
-	assocArraySymbols.insert(makeSymbol("keys", CompletionKind.keyword));
+	assocArraySymbols.insert(makeSymbol("keys", CompletionKind.keyword, null,
+		"Returns a newly allocated dynamic array containing copies of the keys."));
 	assocArraySymbols.insert(length);
 	assocArraySymbols.insert(mangleof_);
-	assocArraySymbols.insert(makeSymbol("rehash", CompletionKind.keyword));
+	assocArraySymbols.insert(makeSymbol("rehash", CompletionKind.keyword, null,
+		"Reorganizes the associative array in place so that lookups are more efficient."));
 	assocArraySymbols.insert(sizeof_);
 	assocArraySymbols.insert(stringof_);
 	assocArraySymbols.insert(init);
-	assocArraySymbols.insert(makeSymbol("values", CompletionKind.keyword));
+	assocArraySymbols.insert(makeSymbol("values", CompletionKind.keyword, null,
+		"Returns a newly allocated dynamic array containing copies of the values."));
 
 	DSymbol*[12] integralTypeArray;
 	integralTypeArray[0] = bool_;
@@ -150,9 +184,12 @@ static this()
 
 	foreach (s; integralTypeArray)
 	{
-		s.addChild(makeSymbol("init", CompletionKind.keyword, s), false);
-		s.addChild(makeSymbol("min", CompletionKind.keyword, s), false);
-		s.addChild(makeSymbol("max", CompletionKind.keyword, s), false);
+		s.addChild(makeSymbol("init", CompletionKind.keyword, s,
+			"Default initializer value of the type."), false);
+		s.addChild(makeSymbol("min", CompletionKind.keyword, s,
+			"Minimum value representable by the type."), false);
+		s.addChild(makeSymbol("max", CompletionKind.keyword, s,
+			"Maximum value representable by the type."), false);
 		s.addChild(alignof_, false);
 		s.addChild(sizeof_, false);
 		s.addChild(stringof_, false);
@@ -187,19 +224,31 @@ static this()
 	foreach (s; floatTypeArray)
 	{
 		s.addChild(alignof_, false);
-		s.addChild(makeSymbol("dig", CompletionKind.keyword, s), false);
-		s.addChild(makeSymbol("epsilon", CompletionKind.keyword, s), false);
-		s.addChild(makeSymbol("infinity", CompletionKind.keyword, s), false);
-		s.addChild(makeSymbol("init", CompletionKind.keyword, s), false);
+		s.addChild(makeSymbol("dig", CompletionKind.keyword, s,
+			"Number of decimal digits of precision."), false);
+		s.addChild(makeSymbol("epsilon", CompletionKind.keyword, s,
+			"Smallest increment to the value 1."), false);
+		s.addChild(makeSymbol("infinity", CompletionKind.keyword, s,
+			"Infinity value."), false);
+		s.addChild(makeSymbol("init", CompletionKind.keyword, s,
+			"Default initializer value of the type."), false);
 		s.addChild(mangleof_, false);
-		s.addChild(makeSymbol("mant_dig", CompletionKind.keyword, int_), false);
-		s.addChild(makeSymbol("max", CompletionKind.keyword, s), false);
-		s.addChild(makeSymbol("max_10_exp", CompletionKind.keyword, int_), false);
-		s.addChild(makeSymbol("max_exp", CompletionKind.keyword, int_), false);
-		s.addChild(makeSymbol("min_exp", CompletionKind.keyword, int_), false);
-		s.addChild(makeSymbol("min_10_exp", CompletionKind.keyword, int_), false);
-		s.addChild(makeSymbol("min_normal", CompletionKind.keyword, s), false);
-		s.addChild(makeSymbol("nan", CompletionKind.keyword, s), false);
+		s.addChild(makeSymbol("mant_dig", CompletionKind.keyword, int_,
+			"Number of bits in the mantissa."), false);
+		s.addChild(makeSymbol("max", CompletionKind.keyword, s,
+			"Maximum value representable by the type."), false);
+		s.addChild(makeSymbol("max_10_exp", CompletionKind.keyword, int_,
+			"Maximum int value such that 10^max_10_exp is representable."), false);
+		s.addChild(makeSymbol("max_exp", CompletionKind.keyword, int_,
+			"Maximum int value such that 2^(max_exp-1) is representable."), false);
+		s.addChild(makeSymbol("min_exp", CompletionKind.keyword, int_,
+			"Minimum int value such that 2^(min_exp-1) is representable as a normalized value."), false);
+		s.addChild(makeSymbol("min_10_exp", CompletionKind.keyword, int_,
+			"Minimum int value such that 10^min_10_exp is representable as a normalized value."), false);
+		s.addChild(makeSymbol("min_normal", CompletionKind.keyword, s,
+			"Smallest representable normalized value that's not 0."), false);
+		s.addChild(makeSymbol("nan", CompletionKind.keyword, s,
+			"NaN - Not a Number value."), false);
 		s.addChild(sizeof_, false);
 		s.addChild(stringof_, false);
 	}
@@ -217,10 +266,13 @@ static this()
 	pointerSymbols.insert(stringof_);
 	pointerSymbols.insert(init);
 
-	classSymbols.insert(makeSymbol("classinfo", CompletionKind.variableName));
+	classSymbols.insert(makeSymbol("classinfo", CompletionKind.variableName, null,
+		"Information about the dynamic type of the class object (object.TypeInfo_Class)."));
 	classSymbols.insert(tupleof);
-	classSymbols.insert(makeSymbol("__vptr", CompletionKind.variableName));
-	classSymbols.insert(makeSymbol("__monitor", CompletionKind.variableName));
+	classSymbols.insert(makeSymbol("__vptr", CompletionKind.variableName, null,
+		"Gives access to the class object's vtbl[]; should not be used in user code."));
+	classSymbols.insert(makeSymbol("__monitor", CompletionKind.variableName, null,
+		"The class object's monitor field; defined in druntime and excluded from .tupleof."));
 	classSymbols.insert(mangleof_);
 	classSymbols.insert(alignof_);
 	classSymbols.insert(sizeof_);
@@ -236,12 +288,18 @@ static this()
 	enumSymbols.insert(max);
 
 
-	ireal_.addChild(makeSymbol("im", CompletionKind.keyword, real_), false);
-	ifloat_.addChild(makeSymbol("im", CompletionKind.keyword, float_), false);
-	idouble_.addChild(makeSymbol("im", CompletionKind.keyword, double_), false);
-	ireal_.addChild(makeSymbol("re", CompletionKind.keyword, real_), false);
-	ifloat_.addChild(makeSymbol("re", CompletionKind.keyword, float_), false);
-	idouble_.addChild(makeSymbol("re", CompletionKind.keyword, double_), false);
+	ireal_.addChild(makeSymbol("im", CompletionKind.keyword, real_,
+		"Imaginary part."), false);
+	ifloat_.addChild(makeSymbol("im", CompletionKind.keyword, float_,
+		"Imaginary part."), false);
+	idouble_.addChild(makeSymbol("im", CompletionKind.keyword, double_,
+		"Imaginary part."), false);
+	ireal_.addChild(makeSymbol("re", CompletionKind.keyword, real_,
+		"Real part."), false);
+	ifloat_.addChild(makeSymbol("re", CompletionKind.keyword, float_,
+		"Real part."), false);
+	idouble_.addChild(makeSymbol("re", CompletionKind.keyword, double_,
+		"Real part."), false);
 
 	auto void_ = makeSymbol(builtinTypeNames[14], CompletionKind.keyword);
 
@@ -321,17 +379,23 @@ static ~this()
 private RollbackAllocator rba;
 private HashSet!(DSymbol*) symbolsMadeHere;
 
-private DSymbol* makeSymbol(string s, CompletionKind kind, DSymbol* type = null)
+private DSymbol* makeSymbol(string s, CompletionKind kind, DSymbol* type = null,
+	string documentation = null)
 {
 	auto sym = rba.make!DSymbol(istring(s), kind, type);
 	sym.ownType = false;
+	if (documentation !is null)
+		sym.doc = DocString(istring(documentation));
 	symbolsMadeHere.insert(sym);
 	return sym;
 }
-private DSymbol* makeSymbol(istring s, CompletionKind kind, DSymbol* type = null)
+private DSymbol* makeSymbol(istring s, CompletionKind kind, DSymbol* type = null,
+	string documentation = null)
 {
 	auto sym = rba.make!DSymbol(s, kind, type);
 	sym.ownType = false;
+	if (documentation !is null)
+		sym.doc = DocString(istring(documentation));
 	symbolsMadeHere.insert(sym);
 	return sym;
 }
