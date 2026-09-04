@@ -1,0 +1,12 @@
+identifiers
+Hello	l
+__monitor	v
+__vptr	v
+age	v
+alignof	k
+classinfo	v
+init	k
+mangleof	k
+sizeof	k
+stringof	k
+tupleof	k
