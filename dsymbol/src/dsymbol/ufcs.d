@@ -882,7 +882,7 @@ private bool matchSymbolType(const(DSymbol)* firstParameter, const(DSymbol)* sig
         if (currentSignificantSymbolType.aliasThisSymbols.empty || currentSignificantSymbolType is currentSignificantSymbolType
             .aliasThisSymbols.front)
         {
-            return false;
+            break;
         }
 
         numberOfRetries++;
@@ -891,6 +891,43 @@ private bool matchSymbolType(const(DSymbol)* firstParameter, const(DSymbol)* sig
         currentSignificantSymbolType = currentSignificantSymbolType.aliasThisSymbols.front.type;
     }
     while (numberOfRetries <= MAX_NUMBER_OF_MATCHING_RUNS);
+
+    // A receiver of a derived class implicitly converts to any of its base
+    // classes / interfaces, so a UFCS function taking a base type is callable
+    // on it. This does NOT apply to `ref`/`out` parameters: D requires the
+    // exact type there (a `ref B` cannot bind a `C` lvalue).
+    // resolveInheritance adds an IMPORT_SYMBOL_NAME child pointing at each
+    // base symbol, so walk up the chain (cycle-guarded).
+    if (firstParameter.parameterIsRef || firstParameter.parameterIsOut)
+        return false;
+    return matchesWithBaseClass(firstParameter, significantSymbolType);
+}
+
+/**
+ * Returns: `true` if `firstParameter.type` matches any base class or
+ * interface of `significantSymbolType` (transitively).
+ */
+private bool matchesWithBaseClass(const(DSymbol)* firstParameter, const(DSymbol)* significantSymbolType)
+{
+    import dsymbol.builtin.names : IMPORT_SYMBOL_NAME;
+
+    // getPartsByName auto-dereferences pointers (member-completion
+    // semantics), but a T* receiver does NOT implicitly convert to anything
+    // T converts to when passed as a UFCS argument (e.g. an alias-this
+    // target or a base class of T). Stop before the walk.
+    if (significantSymbolType.qualifier == SymbolQualifier.pointer)
+        return false;
+
+    // resolveInheritance adds one IMPORT_SYMBOL_NAME child per base class /
+    // interface. getPartsByName follows those children transitively, so this
+    // is the full ancestor set (cycle-safe via its visited set).
+    foreach (base; significantSymbolType.getPartsByName(IMPORT_SYMBOL_NAME))
+    {
+        if (base.type is null)
+            continue;
+        if (typeMatchesWith(*firstParameter.type, *base.type))
+            return true;
+    }
     return false;
 }
 
