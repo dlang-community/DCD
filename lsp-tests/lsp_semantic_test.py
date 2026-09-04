@@ -293,6 +293,46 @@ labels = {i["label"] for i in resp["result"]["items"]}
 print(f"member completion 'hello.': {sorted(labels)}")
 assert "sayHello" in labels, f"sayHello not offered: {labels}"
 
+# offsetof: offered after a field access, not after an instance or type
+offsetof_source = (
+    "struct S { int x; int y; static int sx; }\n"
+    "void main() {\n"
+    "    S s;\n"
+    "    s.x.\n"
+    "}\n"
+)
+offsetof_cases = [
+    # (expression to complete after, expect offsetof)
+    ("s.x.", True),    # field access
+    ("s.", False),     # instance
+    ("S.", False),     # type
+    ("s.sx.", False),  # static field
+]
+offsetof_id = 100
+for expr, expect in offsetof_cases:
+    offsetof_id += 1
+    src = (
+        "struct S { int x; int y; static int sx; }\n"
+        "void main() {\n"
+        "    S s;\n"
+        "    " + expr + "\n"
+        "}\n"
+    )
+    send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+        "textDocument": {"uri": "file:///tmp/semantic.d", "version": offsetof_id},
+        "contentChanges": [{"text": src}]}})
+    line_no = 3
+    char_no = 4 + len(expr)
+    send({"jsonrpc": "2.0", "id": offsetof_id, "method": "textDocument/completion", "params": {
+        "textDocument": {"uri": "file:///tmp/semantic.d"},
+        "position": {"line": line_no, "character": char_no},
+    }})
+    resp = recv()
+    labels = {i["label"] for i in resp["result"]["items"]}
+    has = "offsetof" in labels
+    assert has == expect, f"offsetof after {expr!r}: got {has}, expected {expect} (items: {sorted(labels)})"
+    print(f"offsetof after {expr!r}: {'offered' if has else 'not offered'} (correct)")
+
 send({"jsonrpc": "2.0", "id": 5, "method": "shutdown"})
 recv()
 send({"jsonrpc": "2.0", "method": "exit"})

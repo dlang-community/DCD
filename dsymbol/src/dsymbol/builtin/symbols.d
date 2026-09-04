@@ -46,6 +46,15 @@ TTree!(DSymbol*, SymbolsAllocator, true, "a < b") enumSymbols;
 TTree!(DSymbol*, SymbolsAllocator, true, "a < b") pointerSymbols;
 
 /**
+ * The built-in `.offsetof` property of struct/class/union fields.
+ * Deliberately NOT inserted into any property tree: `offsetof` is only
+ * valid on a field access expression (e.g. `s.field.offsetof`), never on
+ * a type or a plain value, so it is appended to completion results only
+ * when the expression before the dot resolves to a field symbol.
+ */
+DSymbol* offsetofSymbol;
+
+/**
  * Properties for the template arguments of declarations (none)
  */
 TTree!(DSymbol*, SymbolsAllocator, true, "a < b") templatedSymbols;
@@ -84,6 +93,8 @@ static this()
 	auto dup = makeSymbol("dup", CompletionKind.keyword);
 	auto length = makeSymbol("length", CompletionKind.keyword, ulong_);
 	auto tupleof = makeSymbol("tupleof", CompletionKind.keyword);
+
+	offsetofSymbol = makeSymbol("offsetof", CompletionKind.keyword);
 
 	variadicTmpParamSymbol = makeSymbol("variadicTmpParam", CompletionKind.keyword);
 	variadicTmpParamSymbol.addChild(init, false);

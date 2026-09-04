@@ -257,6 +257,9 @@ final class FirstPass : ASTVisitor
 	override void visit(const VariableDeclaration dec)
 	{
 		assert (currentSymbol);
+		// Fields of aggregates support the built-in `.offsetof` property.
+		// static, __gshared, and enum (manifest constant) members do not.
+		immutable bool isField = isFieldDeclaration(dec);
 		foreach (declarator; dec.declarators)
 		{
 			SemanticSymbol* symbol = allocateSemanticSymbol(
@@ -267,6 +270,7 @@ final class FirstPass : ASTVisitor
 			symbol.parent = currentSymbol;
 			symbol.acSymbol.protection = protection.current;
 			symbol.acSymbol.doc = makeDocumentation(declarator.comment);
+			symbol.acSymbol.isAggregateField = isField;
 			currentSymbol.addChild(symbol, true);
 			currentScope.addSymbol(symbol.acSymbol, false);
 
@@ -289,6 +293,7 @@ final class FirstPass : ASTVisitor
 				populateInitializer(symbol.typeLookups, part.initializer);
 				symbol.acSymbol.protection = protection.current;
 				symbol.acSymbol.doc = makeDocumentation(dec.comment);
+				symbol.acSymbol.isAggregateField = isField;
 				currentSymbol.addChild(symbol, true);
 				currentScope.addSymbol(symbol.acSymbol, false);
 
@@ -301,6 +306,48 @@ final class FirstPass : ASTVisitor
 				}
 			}
 		}
+	}
+
+	/**
+	 * Returns: true if this declaration introduces a field of a struct,
+	 * union, or class (i.e. a member with a per-instance offset). static,
+	 * __gshared, and enum (manifest constant) members are excluded: they
+	 * have no instance storage, so `.offsetof` does not apply to them.
+	 */
+	private bool isFieldDeclaration(const VariableDeclaration dec) const @safe
+	{
+		switch (currentSymbol.acSymbol.kind)
+		{
+		case CompletionKind.structName:
+		case CompletionKind.unionName:
+		case CompletionKind.className:
+		case CompletionKind.interfaceName:
+			break;
+		default:
+			return false;
+		}
+		if (storageClassAttributes.length != 0)
+			return false;
+		bool excludesField(const StorageClass[] storageClasses)
+		{
+			foreach (sc; storageClasses)
+			{
+				switch (sc.token.type)
+				{
+				case tok!"static":
+				case tok!"__gshared":
+				case tok!"enum":
+					return true;
+				default:
+					break;
+				}
+			}
+			return false;
+		}
+		if (excludesField(dec.storageClasses))
+			return false;
+		return dec.autoDeclaration is null
+			|| !excludesField(dec.autoDeclaration.storageClasses);
 	}
 
 	override void visit(const AliasDeclaration aliasDeclaration)
@@ -364,6 +411,19 @@ final class FirstPass : ASTVisitor
 			if (isProtection(attr.attribute.type))
 				p = attr.attribute.type;
 		}
+		// Storage-class attributes (static, __gshared, enum) applied to a
+		// declaration affect the field-ness of the variables it declares:
+		// they have no per-instance storage, so `.offsetof` does not apply.
+		// Track them while visiting the inner declarations, like protection.
+		immutable size_t savedStorageClassDepth = storageClassAttributes.length;
+		foreach (const Attribute attr; dec.attributes)
+		{
+			if (attr.attribute.type == tok!"static"
+				|| attr.attribute.type == tok!"__gshared"
+				|| attr.attribute.type == tok!"enum")
+				storageClassAttributes ~= attr.attribute.type;
+		}
+		scope (exit) storageClassAttributes.length = savedStorageClassDepth;
 		if (p != tok!"")
 		{
 			protection.beginLocal(p);
@@ -1243,6 +1303,11 @@ private:
 
 	/// Current protection type
 	ProtectionStack protection;
+
+	/// Storage-class attributes (static, __gshared, enum) of the innermost
+	/// enclosing Declaration. Members declared under them have no
+	/// per-instance storage, so `.offsetof` does not apply to them.
+	IdType[] storageClassAttributes;
 
 	/// Current scope
 	Scope* currentScope;

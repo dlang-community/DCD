@@ -475,6 +475,10 @@ struct DSymbol
 	/// If the return type is a ref
 	alias returnIsRef = _flag11;
 
+	/// True if this symbol is a non-static field of a struct, union, or
+	/// class. Such symbols support the built-in `.offsetof` property.
+	alias isAggregateField = _flag0;
+
 	deprecated bool isPointer()
 	{
 		return qualifier == SymbolQualifier.pointer;

@@ -233,6 +233,33 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 			// Setting CompletionType in case of none symbols are found via setCompletions, but we have UFCS symbols.
 			response.completionType = CompletionType.identifiers;
 		}
+		// The built-in `.offsetof` property applies to field access
+		// expressions only (e.g. `s.field.` or `Type.field.`), never to a
+		// type or a plain value, so it lives in no property tree. Offer it
+		// when the expression before the dot resolves to a field symbol.
+		// setCompletions swaps the last chain element for its TYPE (that is
+		// where alignof/sizeof come from), which loses field-ness, so
+		// re-resolve the same expression with location semantics: the last
+		// token is then kept as the symbol itself.
+		if (partial.empty || "offsetof".startsWith(partial))
+		{
+			auto expression = getExpression(beforeTokens);
+			// Strip the trailing dot(s): the chain resolver swaps every
+			// non-final element with its type, and the dot the user just
+			// typed would make the field non-final.
+			size_t expressionLength = expression.length;
+			while (expressionLength > 0 && expression[expressionLength - 1] == tok!".")
+				expressionLength--;
+			auto fieldSymbols = getSymbolsByTokenChain(pair.scope_,
+				expression[0 .. expressionLength], cursorPosition,
+				CompletionType.location);
+			if (fieldSymbols.length > 0 && fieldSymbols[0].isAggregateField
+				&& !response.completions.canFind!(a => a.identifier == "offsetof"))
+			{
+				response.completions ~= makeSymbolCompletionInfo(
+					offsetofSymbol, offsetofSymbol.kind);
+			}
+		}
 		break;
 	//  these tokens before a "." mean "Module Scope Operator"
 	case tok!":":
