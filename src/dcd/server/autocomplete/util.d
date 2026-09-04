@@ -166,6 +166,24 @@ SymbolStuff getSymbolsForCompletion(const AutocompleteRequest request,
 	auto expression = getExpression(beforeTokens);
 	auto symbols = getSymbolsByTokenChain(pair.scope_, expression,
 		request.cursorPosition, type);
+	// The built-in `.offsetof` property lives in no property tree (it is
+	// only valid on field access expressions), so the chain resolver cannot
+	// find it. Mirror dotCompletion: strip the trailing `.offsetof` and
+	// resolve the builtin symbol when the rest of the expression resolves
+	// to an aggregate field.
+	if (symbols.length == 0 && expression.length > 0
+		&& expression[$ - 1] == tok!"identifier"
+		&& expression[$ - 1].text == "offsetof")
+	{
+		size_t expressionLength = expression.length - 1;
+		while (expressionLength > 0 && expression[expressionLength - 1] == tok!".")
+			expressionLength--;
+		auto fieldSymbols = getSymbolsByTokenChain(pair.scope_,
+			expression[0 .. expressionLength], request.cursorPosition,
+			CompletionType.location);
+		if (fieldSymbols.length > 0 && fieldSymbols[0].isAggregateField)
+			symbols = [offsetofSymbol];
+	}
 	if (symbols.length == 0 && !beforeTokens.empty &&
 		doUFCSSearch(stringToken(beforeTokens.front), stringToken(beforeTokens.back))) {
 		// Let search for UFCS, since we got no hit
