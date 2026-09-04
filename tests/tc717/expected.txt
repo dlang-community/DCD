@@ -1,8 +1,8 @@
 identifiers
-alignof	k				
-init	k				int
-mangleof	k				
-max	k				int
-min	k				int
-sizeof	k				
-stringof	k				
+alignof	k			Size boundary the type needs to be aligned on.	
+init	k			Default initializer value of the type.	int
+mangleof	k			String representing the mangled representation of the type or symbol.	
+max	k			Maximum value representable by the type.	int
+min	k			Minimum value representable by the type.	int
+sizeof	k			Size of the type or expression in bytes.	
+stringof	k			String representing the source representation of the type or expression; the expression is not evaluated.	

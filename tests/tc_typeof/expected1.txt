@@ -3,18 +3,18 @@ getMember	f	typeof(member) getMember()	stdin 78		Result
 identifiers
 staticMember	f	typeof(S.member) staticMember()	stdin 133		Result
 identifiers
-alignof	k				
+alignof	k			Size boundary the type needs to be aligned on.	
 expected	v	int expected	stdin 21		int
-init	k				
-mangleof	k				
-sizeof	k				
-stringof	k				
-tupleof	k				
+init	k			Default initializer value of the type.	
+mangleof	k			String representing the mangled representation of the type or symbol.	
+sizeof	k			Size of the type or expression in bytes.	
+stringof	k			String representing the source representation of the type or expression; the expression is not evaluated.	
+tupleof	k			Symbol sequence of all the non-static fields, in declaration order.	
 identifiers
-alignof	k				
+alignof	k			Size boundary the type needs to be aligned on.	
 expected	v	int expected	stdin 21		int
-init	k				
-mangleof	k				
-sizeof	k				
-stringof	k				
-tupleof	k				
+init	k			Default initializer value of the type.	
+mangleof	k			String representing the mangled representation of the type or symbol.	
+sizeof	k			Size of the type or expression in bytes.	
+stringof	k			String representing the source representation of the type or expression; the expression is not evaluated.	
+tupleof	k			Symbol sequence of all the non-static fields, in declaration order.	
