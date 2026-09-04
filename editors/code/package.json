@@ -16,9 +16,7 @@
   "categories": [
     "Programming Languages"
   ],
-  "activationEvents": [
-    "workspaceContains:**/*.d"
-  ],
+  "activationEvents": [],
   "main": "./out/extension.js",
   "icon": "images/icon.png",
   "contributes": {
