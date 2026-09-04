@@ -84,16 +84,81 @@ struct JsonRpcMessage
  * hang on an interactive pipe. The body is then read with a single exact-size
  * read, which correctly blocks until the whole message has arrived.
  *
+ * All reads go through the RAW file descriptor (core.sys.posix.unistd.read),
+ * not the stdio FILE*: fgetc/rawRead hold the FILE lock while blocked, and
+ * std.process.spawnProcess calls fileno() on stdin/stdout/stderr, which
+ * needs that same lock — a background thread spawning a process (e.g. the
+ * D-Scanner linter) would deadlock against a main thread blocked in fgetc
+ * waiting for the next message. Raw fd reads carry no lock.
+ *
  * Returns a message with `endOfStream == true` on end of stream.
  */
 JsonRpcMessage readMessage()
 {
+	version (Posix)
+	{
+		import core.sys.posix.unistd : read;
+		immutable fd = stdin.fileno;
+
+		// Reads one byte from the raw stdin fd; -1 on error/EOF.
+		int readByte()
+		{
+			ubyte[1] buf;
+			while (true)
+			{
+				immutable n = read(fd, buf.ptr, 1);
+				if (n == 1)
+					return buf[0];
+				if (n == 0)
+					return -1; // EOF
+				import core.stdc.errno : errno, EINTR;
+				if (errno == EINTR)
+					continue; // interrupted, retry
+				return -1; // hard error, treat as EOF
+			}
+		}
+
+		// Reads exactly buf.length bytes; false on EOF mid-message.
+		bool readExact(ubyte[] buf)
+		{
+			size_t filled;
+			while (filled < buf.length)
+			{
+				immutable n = read(fd, buf.ptr + filled, buf.length - filled);
+				if (n == 0)
+					return false; // EOF
+				if (n < 0)
+				{
+					import core.stdc.errno : errno, EINTR;
+					if (errno == EINTR)
+						continue;
+					return false;
+				}
+				filled += n;
+			}
+			return true;
+		}
+	}
+	else
+	{
+		import core.stdc.stdio : fgetc;
+		int readByte()
+		{
+			return fgetc(stdin.getFP());
+		}
+		bool readExact(ubyte[] buf)
+		{
+			auto got = stdin.rawRead(buf);
+			return got.length == buf.length;
+		}
+	}
+
 	// Read the header byte-by-byte until \r\n\r\n
 	auto headerBuffer = appender!(char[])();
 	bool foundTerminator;
 	while (true)
 	{
-		const int c = fgetc(stdin.getFP());
+		const int c = readByte();
 		if (c == EOF)
 			return JsonRpcMessage(true);
 		headerBuffer.put(cast(char) c);
@@ -133,8 +198,8 @@ JsonRpcMessage readMessage()
 	// Read exactly contentLength bytes for the body. This blocks until the
 	// full message has arrived, which is correct: the message is incomplete
 	// until then. A short read means the stream ended mid-message.
-	auto body = stdin.rawRead(new ubyte[contentLength]);
-	if (body.length < contentLength)
+	auto body = new ubyte[contentLength];
+	if (!readExact(body))
 		return JsonRpcMessage(true);
 
 	return parseMessage((cast(string) body).parseJSON());
