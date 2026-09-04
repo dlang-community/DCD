@@ -1,0 +1,47 @@
+name: LSP
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  Test:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-latest]
+        dc: [ldc-latest, dmd-latest]
+        exclude:
+          # macOS only with LDC (same as the main CI matrix)
+          - os: macos-latest
+            dc: dmd-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Setup D
+        uses: dlang-community/setup-dlang@v2
+        with:
+          compiler: ${{ matrix.dc }}
+
+      - name: Build server
+        run: dub build --config=server
+
+      # The tests drive bin/dcd-server over stdio with raw JSON-RPC and
+      # assert on responses; they are cwd-independent (they locate the
+      # server via the repo root derived from their own path).
+      - name: LSP smoke test
+        run: python3 lsp-tests/lsp_smoke_test.py
+
+      - name: LSP semantic test
+        run: python3 lsp-tests/lsp_semantic_test.py
+
+      - name: LSP wide rename test
+        run: python3 lsp-tests/lsp_wide_rename_test.py
+
+      - name: LSP module declaration test
+        run: python3 lsp-tests/lsp_module_decl_test.py

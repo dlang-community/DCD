@@ -2,10 +2,15 @@
 """Semantic test: completion/hover/definition on a self-contained document."""
 
 import json
+import os
 import subprocess
 
+# Repo root is the parent of this script's directory (lsp-tests/).
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SERVER = os.path.join(REPO, "bin", "dcd-server")
+
 proc = subprocess.Popen(
-    ["./bin/dcd-server", "--lsp", "--ignoreConfig", "--logLevel=critical"],
+    [SERVER, "--lsp", "--ignoreConfig", "--logLevel=critical"],
     stdin=subprocess.PIPE,
     stdout=subprocess.PIPE,
     stderr=subprocess.DEVNULL,
@@ -233,7 +238,7 @@ with open(os.path.join(ws, "source", "hello", "package.d"), "w") as f:
     f.write("module hello;\nvoid sayHello() {}\n")
 
 proc = subprocess.Popen(
-    ["./bin/dcd-server", "--lsp", "--ignoreConfig", "--logLevel=critical"],
+    [SERVER, "--lsp", "--ignoreConfig", "--logLevel=critical"],
     stdin=subprocess.PIPE,
     stdout=subprocess.PIPE,
     stderr=subprocess.DEVNULL,

@@ -11,7 +11,8 @@ but NOT in other.d.
 """
 import json, os, shutil, subprocess, sys, threading
 
-REPO = "/Users/danvu/code/dlang/DCD"
+# Repo root is the parent of this script's directory (lsp-tests/).
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SERVER = os.path.join(REPO, "bin", "dcd-server")
 WS = "/tmp/dcd-wide-rename"
 
