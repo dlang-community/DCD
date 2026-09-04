@@ -120,11 +120,16 @@ the issue.)
 	* *alias this*
 	* *auto* declarations (Mostly)
 	* *with* statements
-	* Simple UFCS suggestions for concrete types and fundamental types.
+	* UFCS suggestions for concrete types, fundamental types, strings and string literals, pointers, arrays, and type aliases
+	* UFCS suggestions for functions taking a bare template parameter (e.g. `void f(T)(T t)`)
+	* UFCS suggestions through *alias this*
+	* UFCS suggestions with inheritance: a receiver of a derived class matches functions taking any of its base classes or interfaces (`ref`/`out` parameters require an exact type match, as in the compiler)
 	* Dot chaining with other UFCS functions
+	* UFCS call tips
 * Not working:
-	* UFCS completion for templates, literals, aliased types, UFCS function arguments.
-	* UFCS calltips
+	* UFCS completion after member function calls in a chain (e.g. `obj.method().`)
+	* Evaluating template constraints for UFCS (a constrained template may be suggested even where its constraint would fail)
+	* Template parameter deduction for UFCS beyond the bare parameter (e.g. `void f(T)(T* p)` is not matched against an `int*` receiver)
 	* Autocompletion of declarations with template arguments (This will work to some extent, but it won't do things like replace T with int)
 	* Determining the type of an enum member when no base type is specified, but the first member has an initializer
 	* auto functions (which can then propagate the failure to auto declarations)
