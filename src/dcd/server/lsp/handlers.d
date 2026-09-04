@@ -1536,7 +1536,8 @@ JSONValue handleHover(ref ServerContext context, JSONValue params)
 	Hover hover;
 	string contents = completion.definition;
 	if (completion.documentation.length)
-		contents ~= "\n\n" ~ completion.documentation;
+		contents = contents.length ? contents ~ "\n\n" ~ completion.documentation
+			: completion.documentation;
 	hover.contents = contents;
 	return hover.toJson();
 }

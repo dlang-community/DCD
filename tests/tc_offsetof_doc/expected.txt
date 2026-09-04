@@ -1,0 +1,1 @@
+Offset in bytes of the field from the beginning of the struct, union, or class.
