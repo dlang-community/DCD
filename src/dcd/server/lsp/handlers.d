@@ -25,6 +25,8 @@ import std.experimental.logger;
 import std.json;
 import std.string;
 
+import core.time : MonoTime, Duration, seconds;
+
 import dcd.common.messages;
 import dcd.server.autocomplete;
 import dcd.server.autocomplete.util : clampedBucketCount;
@@ -69,6 +71,15 @@ struct ServerContext
 	/// when the executable resolves; the config is kept even when it is
 	/// missing so a later install is picked up on restart.
 	DfmtConfig dfmtConfig;
+
+	/// Whether to insert (or fix) the `module` declaration of files newly
+	/// created in the editor, matching the file's path-derived module name.
+	/// Mirrors serve-d's `d.generateModuleNames`.
+	bool autoModuleDeclaration = true;
+
+	/// Recently created-and-opened files, for the auto module declaration
+	/// feature (see `handleDidCreateFiles`).
+	RecentFileCreations recentCreations;
 }
 
 /**
@@ -157,6 +168,9 @@ HandlerResult handleRequest(ref ServerContext context, string method, JSONValue 
 			return HandlerResult(handleFormatting(context, params));
 		case "workspace/willRenameFiles":
 			return HandlerResult(handleWillRenameFiles(context, params));
+		case "workspace/didCreateFiles":
+			handleDidCreateFiles(context, params);
+			return HandlerResult();
 		case "$/cancelRequest":
 			return HandlerResult(); // no-op, we don't support cancellation
 		default:
@@ -255,6 +269,12 @@ HandlerResult handleInitialize(ref ServerContext context, JSONValue params)
 		// The executable is resolved lazily on the first formatting request.
 		if (options.type == JSONType.object && "dfmt" in options)
 			context.dfmtConfig = DfmtConfig.fromOptions(options["dfmt"]);
+		// Auto module declaration on newly created files (serve-d's
+		// d.generateModuleNames). Opt-out only.
+		if (options.type == JSONType.object
+			&& "autoModuleDeclaration" in options
+			&& options["autoModuleDeclaration"].type == JSONType.false_)
+			context.autoModuleDeclaration = false;
 	}
 
 	// Auto-detect import paths on the server so that any LSP client (not
@@ -302,6 +322,12 @@ HandlerResult handleInitialize(ref ServerContext context, JSONValue params)
 					{"pattern": {"glob": "**/*.d"}},
 					{"pattern": {"glob": "**/*.di"}},
 					{"pattern": {"glob": "**", "matches": "folder"}}
+				]
+			},
+			"didCreate": {
+				"filters": [
+					{"pattern": {"glob": "**/*.d"}},
+					{"pattern": {"glob": "**/*.di"}}
 				]
 			}
 		}
@@ -622,6 +648,11 @@ void handleDidOpen(ref ServerContext context, JSONValue params)
 	string text = textDocument["text"].str;
 	context.documents.didOpen(uri, languageId, docVersion, text);
 
+	// Auto module declaration: the open half of the created-in-editor
+	// signal (see handleDidCreateFiles).
+	if (languageId.empty || languageId == "d")
+		trackDidOpenForCreation(context, uri);
+
 	// Queue the document for external linting. Cheap (mutex + append);
 	// the dscanner process runs on the linter's background thread.
 	if (context.linter !is null && (languageId.empty || languageId == "d"))
@@ -933,6 +964,318 @@ void handleDidClose(ref ServerContext context, JSONValue params)
 	// on close, so no empty publishDiagnostics is needed.
 	if (context.linter !is null)
 		context.linter.forget(uri);
+}
+
+/**
+ * A file that was created in the editor recently, for the auto module
+ * declaration feature.
+ */
+private struct RecentFileCreation
+{
+	/// When the creation was seen; entries expire after this window.
+	MonoTime at;
+
+	/// The file's URI.
+	string uri;
+
+	/// True once a `workspace/didCreateFiles` was seen for the URI.
+	bool created;
+
+	/// True once a `textDocument/didOpen` was seen for the URI.
+	bool opened;
+}
+
+/**
+ * Tracks recently created files so the auto module declaration only fires
+ * for files created AND opened in the editor within a short window — the
+ * signature of "the user just created this file to edit it". A file that
+ * merely appeared on disk (git checkout, build output, a generator) never
+ * gets a didOpen in the window and is left alone.
+ */
+private struct RecentFileCreations
+{
+	/// How long a create/open pair stays valid.
+	static immutable creationWindow = 5.seconds;
+
+	/// The last few files seen (fixed ring, serve-d uses 8 too).
+	private RecentFileCreation[8] entries;
+
+	/// Returns the entry for `uri`, resetting it when expired.
+	/// A pointer, not a ref: callers must be able to set the created/opened
+	/// flags on the STORED entry — `auto entry = get(uri)` on a ref return
+	/// would copy the struct and the flags would never be seen by the
+	/// other half of the create/open pair.
+	RecentFileCreation* get(string uri)
+	{
+		auto now = MonoTime.currTime;
+		foreach (ref entry; entries)
+		{
+			if (entry.uri == uri)
+			{
+				if (entry.at == MonoTime.init
+					|| now - entry.at > creationWindow)
+				{
+					entry.created = false;
+					entry.opened = false;
+					entry.at = now;
+				}
+				return &entry;
+			}
+		}
+		// Reuse the oldest slot.
+		size_t oldest;
+		MonoTime oldestAt = MonoTime.max;
+		foreach (i, ref entry; entries)
+		{
+			if (entry.at < oldestAt)
+			{
+				oldestAt = entry.at;
+				oldest = i;
+			}
+		}
+		auto entry = &entries[oldest];
+		entry.uri = uri;
+		entry.at = now;
+		entry.created = false;
+		entry.opened = false;
+		return entry;
+	}
+}
+
+/**
+ * Handles `workspace/didCreateFiles`.
+ *
+ * The client sends this for files created through the editor (explorer
+ * "New File", apply-to-workspace edits), NOT for files that merely appear
+ * on disk. The notification alone is not enough to justify editing the
+ * file though — a generator or a git checkout followed by opening the
+ * file would also produce didOpen. The actual insertion happens in
+ * `maybeInsertModuleDeclaration`, called from `handleDidOpen` when BOTH a
+ * creation and an open were seen for the same URI within a few seconds.
+ */
+void handleDidCreateFiles(ref ServerContext context, JSONValue params)
+{
+	if (!context.autoModuleDeclaration)
+		return;
+	if (params.type != JSONType.object
+		|| "files" !in params || params["files"].type != JSONType.array)
+		return;
+	foreach (file; params["files"].array)
+	{
+		if (file.type != JSONType.object
+			|| "uri" !in file || file["uri"].type != JSONType.string)
+			continue;
+		auto entry = context.recentCreations.get(file["uri"].str);
+		entry.created = true;
+		if (entry.opened)
+			maybeInsertModuleDeclaration(context, file["uri"].str);
+	}
+}
+
+/**
+ * Called from `handleDidOpen` to record the open half of the
+ * created-in-editor signal (see `handleDidCreateFiles`).
+ */
+private void trackDidOpenForCreation(ref ServerContext context, string uri)
+{
+	if (!context.autoModuleDeclaration)
+		return;
+	auto entry = context.recentCreations.get(uri);
+	entry.opened = true;
+	if (entry.created)
+		maybeInsertModuleDeclaration(context, uri);
+}
+
+/**
+ * Inserts or fixes the `module` declaration of a newly created file.
+ *
+ * The expected module name is derived from the file's path relative to
+ * the most specific import path containing it (the same computation
+ * `workspace/willRenameFiles` uses). The edit is sent via
+ * `workspace/applyEdit` so the client applies it as a normal, undoable
+ * buffer edit — the user sees it happen and one Ctrl+Z reverts it.
+ *
+ * Nothing is sent when the file already has the right declaration, when
+ * no module name can be derived (outside every import path), or for
+ * `package.d` files (their module name is the package, which the compiler
+ * infers; serve-d skips them too).
+ */
+private void maybeInsertModuleDeclaration(ref ServerContext context, string uri)
+{
+	import std.path : baseName;
+
+	// Only D source files.
+	immutable ext = baseName(uri);
+	if (!ext.endsWith(".d") && !ext.endsWith(".di"))
+		return;
+
+	// package.d files: the module name equals the package name and is
+	// inferred by the compiler; inserting it is noise.
+	if (baseName(uri) == "package.d" || baseName(uri) == "package.di")
+		return;
+
+	string path = uriToPath(uri);
+	string moduleName = moduleNameForPath(path, context);
+	if (moduleName.empty)
+		return;
+
+	// The document must be open; edits are computed against its buffer.
+	auto doc = context.documents.get(uri);
+	if (doc is null)
+		return;
+
+	auto insertion = moduleDeclarationEdit(context, doc, moduleName);
+	if (!insertion.hasEdit)
+		return;
+
+	JSONValue edit = parseJSON(`{}`);
+	edit["range"] = insertion.edit.range.toJson();
+	edit["newText"] = JSONValue(insertion.edit.newText);
+
+	// params.edit is a WorkspaceEdit (documentChanges), not a bare
+	// TextDocumentEdit — the client's asWorkspaceEdit converter expects
+	// the former.
+	JSONValue workspaceEdit = parseJSON(`{}`);
+	workspaceEdit["documentChanges"] = JSONValue(
+		[textDocumentEdit(uri, [edit])]);
+	JSONValue applyParams = parseJSON(`{}`);
+	applyParams["edit"] = workspaceEdit;
+	applyParams["label"] = JSONValue("Add module declaration");
+	sendServerRequest("workspace/applyEdit", applyParams);
+	infof("Inserted module declaration %s into newly created %s",
+		moduleName, uri);
+}
+
+/**
+ * The edit needed to make a document declare `moduleName`: null when the
+ * document already declares it (or declares nothing and needs nothing),
+ * a whole-declaration replacement when a wrong declaration exists, or an
+ * insertion at the top when none exists.
+ *
+ * The insertion point skips a shebang line and a dub.sdl comment block
+ * directly after it (the `#!/usr/bin/env dub` + `/+ dub.sdl: ... +/`
+ * preamble), mirroring serve-d's `describeModule`.
+ */
+private struct ModuleDeclarationEdit
+{
+	/// Whether an edit is needed at all.
+	bool hasEdit;
+
+	/// The edit to apply.
+	TextEdit edit;
+}
+
+private ModuleDeclarationEdit moduleDeclarationEdit(
+	ref ServerContext context, TextDocument* doc, string moduleName)
+{
+	import dparse.lexer : LexerConfig, StringCache, getTokensForParser, tok;
+
+	immutable string text = doc.text;
+	LexerConfig config;
+	auto stringCache = StringCache(clampedBucketCount(text.length));
+	auto tokens = getTokensForParser(cast(ubyte[]) text, config, &stringCache);
+
+	// Find an existing `module` declaration (the first module keyword
+	// outside of comments/strings — the lexer guarantees that).
+	size_t moduleToken = size_t.max;
+	foreach (i, token; tokens)
+	{
+		if (token.type == tok!"module")
+		{
+			moduleToken = i;
+			break;
+		}
+	}
+
+	ModuleDeclarationEdit result;
+	if (moduleToken == size_t.max)
+	{
+		// No declaration: insert at the top, after a shebang line and a
+		// dub.sdl comment block that immediately follows it.
+		immutable insertAt = insertionPointAfterPreamble(text, tokens);
+		result.hasEdit = true;
+		result.edit.range = Range(
+			context.converter.toPosition(*doc, insertAt),
+			context.converter.toPosition(*doc, insertAt));
+		result.edit.newText = "module " ~ moduleName ~ ";\n\n";
+		return result;
+	}
+
+	// Existing declaration: replace it from the module keyword through
+	// the terminating semicolon.
+	size_t end = tokens[moduleToken].index;
+	foreach (token; tokens[moduleToken .. $])
+	{
+		// Keyword and operator tokens carry a null .text (only identifiers
+		// and literals have text), so the running end can only rely on
+		// identifier tokens; the semicolon is a single character.
+		if (token.type == tok!"identifier")
+			end = token.index + token.text.length;
+		else if (token.type == tok!";")
+		{
+			end = token.index + 1;
+			break;
+		}
+	}
+	// Read the declared name to check whether it is already correct.
+	string declared;
+	foreach (token; tokens[moduleToken + 1 .. $])
+	{
+		if (token.type == tok!";")
+			break;
+		if (token.type == tok!"identifier")
+			declared ~= token.text;
+		else if (token.type == tok!".")
+			declared ~= ".";
+	}
+	if (declared == moduleName)
+		return result;
+	result.hasEdit = true;
+	result.edit.range = Range(
+		context.converter.toPosition(*doc, tokens[moduleToken].index),
+		context.converter.toPosition(*doc, end));
+	result.edit.newText = "module " ~ moduleName ~ ";";
+	return result;
+}
+
+/**
+ * Computes where a module declaration should be inserted in a document
+ * that has none: byte 0, or just after a shebang line (`#!...`) and a
+ * comment block (`/+ ... +/` or a C-style block comment) that immediately
+ * follows it.
+ */
+private size_t insertionPointAfterPreamble(Tokens)(scope const(char)[] text, Tokens tokens)
+{
+	import dparse.lexer : tok;
+
+	size_t at = 0;
+	// A shebang must be the very first thing in the file.
+	if (tokens.length && tokens[0].type == tok!"scriptLine")
+	{
+		// The scriptLine token covers "#!" plus the rest of the line.
+		at = tokens[0].index + tokens[0].text.length;
+		// Skip the line terminator.
+		if (at < text.length && text[at] == '\r')
+			at++;
+		if (at < text.length && text[at] == '\n')
+			at++;
+		// Skip a comment block that starts immediately (dub.sdl preamble).
+		auto rest = text[at .. $];
+		if (rest.startsWith("/+") || rest.startsWith("/*"))
+		{
+			immutable closer = rest[1] == '+' ? "+/" : "*/";
+			immutable end = rest.indexOf(closer);
+			if (end != -1)
+			{
+				at += end + closer.length;
+				if (text[at .. $].startsWith("\r\n"))
+					at += 2;
+				else if (text[at .. $].startsWith("\r", "\n"))
+					at += 1;
+			}
+		}
+	}
+	return at;
 }
 
 /**

@@ -89,6 +89,7 @@ code --install-extension dcd-lsp-0.1.0.vsix
 
 | `dcd.dfmtPath` | `"dfmt"` | Path to the [dfmt](https://github.com/dlang-community/dfmt) executable for code formatting (Shift+Alt+F). A bare name is looked up on `PATH`; an empty string disables formatting. |
 | `dcd.dfmtBraceStyle` | `"default"` | Brace style used by dfmt when the project has no `.editorconfig`: `otbs`, `allman`, `stroustrup`, `knr`, or `default` (dfmt's built-in behavior). A project `.editorconfig` always takes precedence. |
+| `dcd.autoModuleDeclaration` | `true` | Automatically add (or fix) the `module` declaration of files newly created in the editor, matching the file's path-derived module name. The edit is undoable. |
 
 Commands: `DCD: Restart Language Server` and `DCD: Shutdown Language Server`.
 
@@ -132,6 +133,22 @@ style via a generated config (`default` = dfmt's built-in Allman). In VS Code
 this is the `dcd.dfmtBraceStyle` dropdown (`otbs`, `allman`, `stroustrup`,
 `knr`, or `default`); other clients set
 `initializationOptions.dfmt.braceStyle`.
+
+### Auto module declaration
+
+When a file is created **in the editor** (explorer "New File", a workspace
+edit) and then opened within a few seconds, the server sends a
+`workspace/applyEdit` request that inserts the file's module declaration —
+derived from its path relative to the import paths (`source/util/helper.d` →
+`module util.helper;`). A file that already declares the right module is
+left alone; a wrong declaration is fixed; `package.d` files and files with a
+shebang/dub.sdl preamble are handled (the declaration goes after the
+preamble). The edit is a normal buffer edit: visible and undoable with one
+Ctrl+Z. Files that merely appear on disk (git checkout, generators) never
+trigger it — only editor-initiated creations do.
+
+Disable it with `dcd.autoModuleDeclaration: false` (VS Code) or
+`initializationOptions.autoModuleDeclaration: false` (other clients).
 
 ## 3. Other editors
 

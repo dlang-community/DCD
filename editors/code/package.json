@@ -99,6 +99,11 @@
             "dfmt's built-in default (Allman)"
           ],
           "markdownDescription": "Brace style used by dfmt when the project has no `.editorconfig`. A project `.editorconfig` (with `dfmt_brace_style`) always takes precedence. 'default' uses dfmt's built-in behavior."
+        },
+        "dcd.autoModuleDeclaration": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically add (or fix) the module declaration of files newly created in the editor, matching the file's path-derived module name. The edit is undoable."
         }
       }
     }

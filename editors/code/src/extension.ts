@@ -110,6 +110,12 @@ class DcdContext implements vscode.Disposable {
       log(`dfmt brace style: ${dfmtBraceStyle}`);
     }
 
+    // Auto module declaration for newly created files (undoable edit).
+    const autoModuleDeclaration = config.get<boolean>('autoModuleDeclaration', true);
+    if (!autoModuleDeclaration) {
+      log('auto module declaration disabled');
+    }
+
     const clientOptions: LanguageClientOptions = {
       documentSelector: [{ scheme: 'file', language: 'd' }],
       outputChannel,
@@ -121,6 +127,7 @@ class DcdContext implements vscode.Disposable {
         ...(dfmtPathSetting
           ? { dfmt: { executable: dfmtPath, braceStyle: dfmtBraceStyle } }
           : {}),
+        autoModuleDeclaration,
       },
     };
 
