@@ -2,11 +2,16 @@
 """Smoke test for the DCD LSP server: initialize, open a doc, complete, shutdown."""
 
 import json
+import os
 import subprocess
 import sys
 
+# Repo root is the parent of this script's directory (lsp-tests/).
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SERVER = os.path.join(REPO, "bin", "dcd-server")
+
 proc = subprocess.Popen(
-    ["./bin/dcd-server", "--lsp", "--ignoreConfig", "--logLevel=critical"],
+    [SERVER, "--lsp", "--ignoreConfig", "--logLevel=critical"],
     stdin=subprocess.PIPE,
     stdout=subprocess.PIPE,
     stderr=subprocess.PIPE,

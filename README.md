@@ -65,8 +65,8 @@ Two Python scripts drive the LSP server over stdio and exercise the full
 protocol (lifecycle, completion, hover, definition, references, document
 symbols, inlay hints):
 
-	python3 lsp_smoke_test.py     # protocol lifecycle + basic requests
-	python3 lsp_semantic_test.py  # semantic correctness (real symbols, positions)
+	python3 lsp-tests/lsp_smoke_test.py     # protocol lifecycle + basic requests
+	python3 lsp-tests/lsp_semantic_test.py  # semantic correctness (real symbols, positions)
 
 Both must pass before committing changes to `src/dcd/server/lsp/`.
 

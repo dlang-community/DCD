@@ -19,6 +19,7 @@
 module dcd.server.lsp.jsonrpc;
 
 import core.stdc.stdio : fgetc, EOF;
+import core.sync.mutex : Mutex;
 import std.algorithm;
 import std.array;
 import std.conv;
@@ -283,6 +284,47 @@ JSONValue makeNotification(string method, JSONValue params)
 	if (params.type == JSONType.object)
 		request["params"] = params;
 	return request;
+}
+
+/**
+ * Counter for server -> client request ids. Server-originated requests use
+ * negative ids so they can never collide with the client's request ids
+ * (which start at 0 and count up).
+ */
+private long nextServerRequestId()
+{
+	static __gshared long counter;
+	static __gshared Mutex counterMutex;
+	if (counterMutex is null)
+		counterMutex = new Mutex;
+	synchronized (counterMutex)
+		return --counter;
+}
+
+/**
+ * Builds a JSON-RPC request object (with id) sent from the server to the
+ * client, e.g. `workspace/applyEdit`.
+ */
+JSONValue makeServerRequest(string method, JSONValue params)
+{
+	JSONValue request = parseJSON(`{"jsonrpc":"2.0"}`);
+	request["id"] = JSONValue(nextServerRequestId());
+	request["method"] = JSONValue(method);
+	if (params.type == JSONType.object)
+		request["params"] = params;
+	return request;
+}
+
+/**
+ * Sends a server -> client request and returns immediately, without
+ * waiting for the response. The response (if the client sends one) is
+ * ignored by the main loop; fire-and-forget is the right model for
+ * `workspace/applyEdit`, where the edit is advisory and the client may
+ * reject it (e.g. the user undid, the document changed).
+ */
+void sendServerRequest(string method, JSONValue params)
+{
+	writeMessageRaw(makeServerRequest(method, params).toString());
 }
 
 /**

@@ -67,8 +67,8 @@ ok "installed $EXT_ID"
 
 if [[ "$RUN_TESTS" -eq 1 ]]; then
   step "Tests"
-  (cd "$REPO_ROOT" && python3 lsp_smoke_test.py)   || fail "lsp_smoke_test.py failed"
-  (cd "$REPO_ROOT" && python3 lsp_semantic_test.py) || fail "lsp_semantic_test.py failed"
+  (cd "$REPO_ROOT/lsp-tests" && python3 lsp_smoke_test.py)   || fail "lsp_smoke_test.py failed"
+  (cd "$REPO_ROOT/lsp-tests" && python3 lsp_semantic_test.py) || fail "lsp_semantic_test.py failed"
   ok "LSP test suites passed"
 fi
 
