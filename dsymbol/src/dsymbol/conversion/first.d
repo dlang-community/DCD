@@ -487,7 +487,14 @@ final class FirstPass : ASTVisitor
 			istring modulePath = cache.resolveImportLocation(importPath);
 			if (modulePath is null)
 			{
-				warning("Could not resolve location of module '", importPath.data, "'");
+				// Imports of compiler-internal namespaces (gcc.* for GDC,
+				// ldc.* for LDC, ...) are guarded by version conditions that
+				// this parser does not evaluate, so they routinely fail to
+				// resolve under a different compiler. They are never needed
+				// for analysis — don't flood the log with warnings.
+				if (!isCompilerInternalNamespace(importPath))
+					warning("Could not resolve location of module '",
+						importPath.data, "'");
 				continue;
 			}
 			SemanticSymbol* importSymbol = allocateSemanticSymbol(IMPORT_SYMBOL_NAME,
@@ -566,7 +573,8 @@ final class FirstPass : ASTVisitor
 		istring modulePath = cache.resolveImportLocation(chain);
 		if (modulePath is null)
 		{
-			warning("Could not resolve location of module '", chain, "'");
+			if (!isCompilerInternalNamespace(chain))
+				warning("Could not resolve location of module '", chain, "'");
 			return;
 		}
 
@@ -1440,6 +1448,23 @@ static istring convertChainToImportPath(const IdentifierChain ic)
 			app.put(dirSeparator);
 	}
 	return istring(app.data);
+}
+
+/**
+ * Whether an import path refers to a compiler-internal namespace that is
+ * only available under a specific compiler: `gcc.*` (GDC), `ldc.*` (LDC),
+ * `dmd.*` (DMD back-end hooks). druntime references these behind version
+ * conditions (e.g. `version (GNU) public import gcc.builtins;`), which the
+ * parser does not evaluate, so they routinely fail to resolve when
+ * analyzing druntime with a different compiler. They carry no symbols
+ * relevant to analysis, so failures to resolve them are not worth a
+ * warning.
+ */
+private bool isCompilerInternalNamespace(istring importPath)
+{
+	import std.algorithm.searching : startsWith;
+
+	return importPath.data.startsWith("gcc/", "ldc/", "dmd/") != 0;
 }
 
 class InitializerVisitor : ASTVisitor
