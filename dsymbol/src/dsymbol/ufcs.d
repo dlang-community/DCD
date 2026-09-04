@@ -911,6 +911,13 @@ private bool matchesWithBaseClass(const(DSymbol)* firstParameter, const(DSymbol)
 {
     import dsymbol.builtin.names : IMPORT_SYMBOL_NAME;
 
+    // getPartsByName auto-dereferences pointers (member-completion
+    // semantics), but a T* receiver does NOT implicitly convert to anything
+    // T converts to when passed as a UFCS argument (e.g. an alias-this
+    // target or a base class of T). Stop before the walk.
+    if (significantSymbolType.qualifier == SymbolQualifier.pointer)
+        return false;
+
     // resolveInheritance adds one IMPORT_SYMBOL_NAME child per base class /
     // interface. getPartsByName follows those children transitively, so this
     // is the full ancestor set (cycle-safe via its visited set).
