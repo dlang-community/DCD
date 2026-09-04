@@ -121,6 +121,8 @@ static this()
 	offsetofSymbol = makeSymbol("offsetof", CompletionKind.keyword, null,
 		"Offset in bytes of the field from the beginning of the struct, union, or class.");
 
+	offsetofSymbol = makeSymbol("offsetof", CompletionKind.keyword);
+
 	variadicTmpParamSymbol = makeSymbol("variadicTmpParam", CompletionKind.keyword);
 	variadicTmpParamSymbol.addChild(init, false);
 	variadicTmpParamSymbol.addChild(length, false);
