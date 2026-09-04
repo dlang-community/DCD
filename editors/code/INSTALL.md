@@ -244,5 +244,5 @@ your editor rather than loose files.
 * **Server logs**: run with `--logLevel=all` (VS Code: the `DCD` output
   channel). The server exits when its stdin closes, so a dead server usually
   means the editor restarted it.
-* **VS Code extension doesn't activate**: it activates on
-  `workspaceContains:**/*.d` — open a folder containing `.d` files.
+* **VS Code extension doesn't activate**: it activates on `onLanguage:d`
+  (implicit from the `languages` contribution) — open a `.d` file.

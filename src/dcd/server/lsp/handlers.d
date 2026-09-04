@@ -80,6 +80,13 @@ struct ServerContext
 	/// Recently created-and-opened files, for the auto module declaration
 	/// feature (see `handleDidCreateFiles`).
 	RecentFileCreations recentCreations;
+
+	/// Whether the client advertised `window.workDoneProgress` support
+	/// (checked in `handleInitialize`).
+	bool clientSupportsWorkDoneProgress;
+
+	/// Monotonic counter for `$/progress` tokens.
+	long nextProgressToken;
 }
 
 /**
@@ -208,6 +215,14 @@ HandlerResult handleInitialize(ref ServerContext context, JSONValue params)
 	}
 	if ("capabilities" in params)
 		context.clientCapabilities = params["capabilities"];
+
+	// Whether we may show a work done progress indicator (the status-bar
+	// spinner) during long warmups.
+	context.clientSupportsWorkDoneProgress = context.clientCapabilities.type == JSONType.object
+		&& "window" in context.clientCapabilities
+		&& context.clientCapabilities["window"].type == JSONType.object
+		&& "workDoneProgress" in context.clientCapabilities["window"]
+		&& context.clientCapabilities["window"]["workDoneProgress"].type == JSONType.true_;
 
 	// Negotiate position encoding: prefer UTF-8 (byte offsets, what DCD
 	// uses internally), fall back to UTF-16 (the LSP default) if the client
@@ -668,13 +683,31 @@ void handleDidOpen(ref ServerContext context, JSONValue params)
 	// warmup simply queue in the pipe and are handled in order afterwards.
 	if (languageId.empty || languageId == "d")
 	{
-		try
-			warmupDocument(context, text);
-		catch (Exception e)
-			warningf("Warmup failed for %s: %s", uri, e.msg);
-		// Record the document's current imports as warmed so that later
-		// didChanges only warm imports added while editing.
-		warmNewImports(context, uri);
+		// Show a status-bar spinner while the import closure is being
+		// indexed, so a multi-second warmup is legible instead of silent.
+		// Only for clients that advertised workDoneProgress support.
+		if (context.clientSupportsWorkDoneProgress)
+		{
+			context.nextProgressToken++;
+			createWorkDoneProgress(context.nextProgressToken, "DCD: indexing");
+			try
+			{
+				warmupDocument(context, text);
+				warmNewImports(context, uri);
+			}
+			finally
+				sendWorkDoneProgress(context.nextProgressToken, "end", null);
+		}
+		else
+		{
+			try
+				warmupDocument(context, text);
+			catch (Exception e)
+				warningf("Warmup failed for %s: %s", uri, e.msg);
+			// Record the document's current imports as warmed so that later
+			// didChanges only warm imports added while editing.
+			warmNewImports(context, uri);
+		}
 	}
 }
 
@@ -920,7 +953,19 @@ void handleDidChange(ref ServerContext context, JSONValue params)
 	// Warm imports added by this change (see handleDidOpen): a newly typed
 	// `import std.regex;` would otherwise stall the first request that
 	// needs it by the parse time of its whole dependency closure.
-	warmNewImports(context, uri);
+	// With a progress indicator when the client supports it: warming a
+	// big new dependency tree can take seconds.
+	if (context.clientSupportsWorkDoneProgress)
+	{
+		context.nextProgressToken++;
+		createWorkDoneProgress(context.nextProgressToken, "DCD: indexing");
+		try
+			warmNewImports(context, uri);
+		finally
+			sendWorkDoneProgress(context.nextProgressToken, "end", null);
+	}
+	else
+		warmNewImports(context, uri);
 }
 
 /**
@@ -1536,7 +1581,8 @@ JSONValue handleHover(ref ServerContext context, JSONValue params)
 	Hover hover;
 	string contents = completion.definition;
 	if (completion.documentation.length)
-		contents ~= "\n\n" ~ completion.documentation;
+		contents = contents.length ? contents ~ "\n\n" ~ completion.documentation
+			: completion.documentation;
 	hover.contents = contents;
 	return hover.toJson();
 }
