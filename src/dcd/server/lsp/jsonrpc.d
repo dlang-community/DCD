@@ -287,6 +287,37 @@ JSONValue makeNotification(string method, JSONValue params)
 }
 
 /**
+ * Sends a `window/workDoneProgress/create` request for the given token,
+ * fire-and-forget like `sendServerRequest`. The client's response (or its
+ * absence, for clients that don't support work done progress) is ignored;
+ * the subsequent `$/progress` notifications are simply not displayed by
+ * such clients.
+ */
+void createWorkDoneProgress(long token, string title)
+{
+	JSONValue params = parseJSON(`{}`);
+	params["token"] = JSONValue(token);
+	params["title"] = JSONValue(title);
+	sendServerRequest("window/workDoneProgress/create", params);
+}
+
+/**
+ * Sends a `$/progress` notification with the given work done progress
+ * kind ("begin", "report" or "end").
+ */
+void sendWorkDoneProgress(long token, string kind, string message)
+{
+	JSONValue value = parseJSON(`{}`);
+	value["kind"] = JSONValue(kind);
+	if (message !is null)
+		value["message"] = JSONValue(message);
+	JSONValue params = parseJSON(`{}`);
+	params["token"] = JSONValue(token);
+	params["value"] = value;
+	writeMessageRaw(makeNotification("$/progress", params).toString());
+}
+
+/**
  * Counter for server -> client request ids. Server-originated requests use
  * negative ids so they can never collide with the client's request ids
  * (which start at 0 and count up).
