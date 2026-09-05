@@ -209,6 +209,13 @@ struct CompletionItem
 	/// LSP 3.17 `labelDetails.description`: rendered on the right side of
 	/// every row (grayed). Carries the "ufcs" marker for UFCS functions.
 	string labelDescription;
+	/// Optional edits performed IN ADDITION to the completion insert — used
+	/// for clangd-style auto-import: committing the item also inserts the
+	/// `import` declaration for the symbol's module.
+	TextEdit[] additionalTextEdits;
+	/// Sorts this item relative to others in the list. Auto-import items
+	/// get a prefix that ranks them below in-scope results (clangd model).
+	string sortText;
 
 	JSONValue toJson() const
 	{
@@ -227,6 +234,15 @@ struct CompletionItem
 			if (labelDescription.length)
 				labelDetails["description"] = JSONValue(labelDescription);
 			obj["labelDetails"] = labelDetails;
+		}
+		if (sortText.length)
+			obj["sortText"] = JSONValue(sortText);
+		if (additionalTextEdits.length)
+		{
+			JSONValue[] edits;
+			foreach (ref edit; additionalTextEdits)
+				edits ~= edit.toJson();
+			obj["additionalTextEdits"] = JSONValue(edits);
 		}
 		return obj;
 	}

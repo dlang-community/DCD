@@ -1364,6 +1364,94 @@ private size_t insertionPointAfterPreamble(Tokens)(scope const(char)[] text, Tok
 }
 
 /**
+ * Computes where a new `import` declaration should be inserted: after the
+ * last top-level import declaration, or after the module declaration /
+ * preamble when the file has no imports yet. The returned byte offset is
+ * the START of a line (or end of the module decl line), so the inserted
+ * text begins with a line break when needed.
+ */
+private size_t importInsertionPoint(scope const(char)[] text)
+{
+	import dparse.lexer : LexerConfig, StringCache, getTokensForParser, tok;
+
+	LexerConfig config;
+	auto stringCache = StringCache(clampedBucketCount(text.length));
+	auto tokens = getTokensForParser(cast(ubyte[]) text, config, &stringCache);
+
+	// Find the end of the last top-level import declaration: scan for the
+	// `import` keyword at brace depth 0 and take the `;` that terminates it.
+	int depth = 0;
+	size_t at = size_t.max;
+	bool inImport = false;
+	foreach (token; tokens)
+	{
+		switch (token.type)
+		{
+		case tok!"{":
+			depth++;
+			inImport = false;
+			break;
+		case tok!"}":
+			depth--;
+			break;
+		case tok!"import":
+			if (depth == 0)
+				inImport = true;
+			break;
+		case tok!";":
+			if (inImport)
+			{
+				at = token.index + 1;
+				inImport = false;
+			}
+			break;
+		default:
+			break;
+		}
+	}
+	if (at != size_t.max)
+	{
+		// Move to the start of the next line (skip the line break).
+		size_t i = at;
+		if (i < text.length && text[i] == '\r')
+			i++;
+		if (i < text.length && text[i] == '\n')
+			i++;
+		return i;
+	}
+
+	// No imports: insert after the module declaration, or after the
+	// shebang/comment preamble, or at the very top.
+	size_t moduleEnd = size_t.max;
+	foreach (token; tokens)
+	{
+		if (token.type == tok!"module")
+		{
+			// find the terminating `;`
+			foreach (t2; tokens)
+			{
+				if (t2.index > token.index && t2.type == tok!";")
+				{
+					moduleEnd = t2.index + 1;
+					break;
+				}
+			}
+			break;
+		}
+	}
+	if (moduleEnd != size_t.max)
+	{
+		size_t i = moduleEnd;
+		if (i < text.length && text[i] == '\r')
+			i++;
+		if (i < text.length && text[i] == '\n')
+			i++;
+		return i;
+	}
+	return insertionPointAfterPreamble(text, tokens);
+}
+
+/**
  * Builds an `AutocompleteRequest` for the document at the given position.
  */
 private AutocompleteRequest buildRequest(ref ServerContext context, JSONValue params)
@@ -1538,7 +1626,142 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 		}
 		list.items ~= item;
 	}
+
+	// clangd-style auto-import: when nothing in scope matches the typed
+	// identifier, search every cached module for public symbols with that
+	// name and offer them with an `additionalTextEdits` that inserts the
+	// `import` declaration. Committing the item silently adds the import.
+	if (!list.items.length)
+		list.items ~= autoImportCompletions(context, params, request);
 	return list.toJson();
+}
+
+/**
+ * Searches the whole module cache for public symbols matching the partial
+ * identifier being typed and returns completion items that, when committed,
+ * also insert the symbol's `import` declaration (clangd's auto-import).
+ *
+ * The search is name-based (not type-checked): DCD's UFCS machinery cannot
+ * verify that e.g. `empty(T)(in T[] a)` applies to the receiver at the
+ * cursor, so — like clangd's first cut — the item is offered whenever the
+ * name matches nothing in scope. Symbols from modules already imported are
+ * skipped (they would have been in scope), as are non-public symbols and
+ * internal placeholder names.
+ */
+private CompletionItem[] autoImportCompletions(ref ServerContext context,
+	JSONValue params, in AutocompleteRequest request)
+{
+	import dparse.lexer : LexerConfig, StringCache, getTokensForParser, tok;
+	import dsymbol.string_interning : istring;
+
+	// The partial identifier before the cursor: the identifier token that
+	// ends at (or contains) the cursor position.
+	auto doc = context.documents.get(params["textDocument"]["uri"].str);
+	if (doc is null)
+		return [];
+	LexerConfig config;
+	auto stringCache = StringCache(clampedBucketCount(doc.text.length));
+	auto tokens = getTokensForParser(cast(ubyte[]) doc.text, config, &stringCache);
+	string partial;
+	foreach_reverse (ref t; tokens)
+	{
+		if (t.type == tok!"identifier" && t.index < request.cursorPosition
+			&& request.cursorPosition <= t.index + t.text.length)
+		{
+			partial = t.text.idup;
+			break;
+		}
+		if (t.index < request.cursorPosition && t.type != tok!"identifier")
+			break; // stop at the first non-identifier token before the cursor
+	}
+	// Single-character prefixes would trigger the expensive cache scan on
+	// nearly every keystroke; require at least two characters.
+	if (partial.length < 2 || !isValidDIdentifier(partial))
+		return [];
+
+	// Modules already imported: their symbols are in scope, so offering an
+	// auto-import for them would be noise (and the completion above already
+	// failed to find the name, meaning it is not there).
+	// (Not tracked here — the name-based search below naturally skips them
+	// because their symbols would have resolved in scope.)
+
+	// Prefix search over every cached module. DCD's symbolSearch is
+	// exact-name-match, but completion needs prefix matching, so the
+	// module cache is walked directly. The first search triggers
+	// scanAll() which parses every .d/.di on the import paths —
+	// expensive (multi-second with Phobos), so it only runs when nothing
+	// in scope matched, like the classic dcd-client --search flow.
+	static struct PrefixMatches
+	{
+		string prefix;
+		DSymbol*[] symbols;
+		static immutable size_t maxMatches = 50;
+
+		void put(DSymbol* sym)
+		{
+			if (symbols.length >= maxMatches)
+				return;
+			if (sym.name is null || !sym.name.length)
+				return;
+			if (sym.name.data.startsWith(prefix))
+				symbols ~= sym;
+		}
+	}
+	PrefixMatches matches;
+	matches.prefix = partial;
+	HashSet!size_t visited;
+	foreach (entry; context.cache.getAllSymbols())
+		entry.symbol.getParts!(PrefixMatches)(istring(null), matches, visited);
+
+	// The requesting document's path: symbols declared there are already
+	// in scope (or unresolved), not import candidates.
+	string requestPath = uriToPath(params["textDocument"]["uri"].str);
+
+	CompletionItem[] items;
+	string[] seenKeys;
+	immutable insertAt = importInsertionPoint(doc.text);
+	foreach (sym; matches.symbols)
+	{
+		// Skip internal placeholder names (dsymbol models arrays/pointers
+		// with names like "*arr*") and non-importable kinds.
+		if (!sym.name.length || sym.name.data.canFind('*'))
+			continue;
+		if (!isPublicCompletionKind(sym.kind))
+			continue;
+		// The declaring file's module name; skip when it cannot be derived
+		// (outside every import path), is the requesting document, or is
+		// object.d (implicitly imported).
+		if (!sym.symbolFile.data.length)
+			continue;
+		if (sym.symbolFile.data == requestPath)
+			continue;
+		string moduleName = moduleNameForPath(sym.symbolFile.idup, context);
+		if (moduleName.empty || moduleName == "object")
+			continue;
+		// One item per (name, module): overloads and re-exports collapse.
+		string key = sym.name.data ~ "\0" ~ moduleName;
+		if (seenKeys.canFind(key))
+			continue;
+		seenKeys ~= key;
+
+		CompletionItem item;
+		item.label = sym.name.idup;
+		item.kind = toCompletionItemKind(sym.kind);
+		item.detail = moduleName;
+		// Rank auto-import items below everything in scope (clangd uses a
+		// similar penalty prefix).
+		item.sortText = "z" ~ moduleName;
+
+		// The import insertion edit: `import <module>;` at the top of the file.
+		TextEdit edit;
+		edit.range = Range(
+			context.converter.toPosition(*doc, insertAt),
+			context.converter.toPosition(*doc, insertAt));
+		edit.newText = "import " ~ moduleName ~ ";\n";
+		item.additionalTextEdits ~= edit;
+		items ~= item;
+	}
+	return items;
 }
 
 /**
