@@ -537,7 +537,7 @@ final class FirstPass : ASTVisitor
 	override void visit(const ImportDeclaration importDeclaration)
 	{
 		import std.algorithm : filter, map;
-		import std.path : buildPath;
+		import std.path : buildPath, dirSeparator;
 		import std.typecons : Tuple;
 
 		foreach (single; importDeclaration.singleImports.filter!(
@@ -564,6 +564,8 @@ final class FirstPass : ASTVisitor
 			{
 				size_t i = 0;
 				DSymbol* currentImportSymbol;
+				// used to resolve a package segment's package.d.
+				string partialPath;
 				foreach (p; single.identifierChain.identifiers.map!(a => a.text))
 				{
 					immutable bool first = i == 0;
@@ -605,6 +607,20 @@ final class FirstPass : ASTVisitor
 						}
 						else
 							currentImportSymbol = s[0];
+					}
+					if (i > 0)
+						partialPath ~= dirSeparator;
+					partialPath ~= p;
+					// A package segment names a directory, not a file, so it
+					// has no definition of its own — but when the package
+					// contains a package.d, go-to-definition on the segment
+					// navigates there (e.g. `conversion` in `import dsymbol.conversion.first;`).
+					if (!last && currentImportSymbol.symbolFile is null)
+					{
+						istring packagePath = cache.resolveImportLocation(
+							partialPath ~ dirSeparator ~ "package");
+						if (packagePath !is null)
+							currentImportSymbol.symbolFile = packagePath;
 					}
 					i++;
 				}

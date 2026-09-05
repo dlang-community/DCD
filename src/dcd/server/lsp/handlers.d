@@ -459,6 +459,30 @@ private string[] detectDubPackageImportPaths(string rootUri)
 			break;
 		}
 	}
+	// Subpackages of the workspace root (dub.json "subPackages", depended
+	// on as ":name") live in-tree, but dub.selections.json records them
+	// with a plain version or not at all, so without this pass they are
+	// either resolved to a stale registry cache copy or not resolved at
+	// all. Register them as path dependencies on their in-tree directory.
+	{
+		string m = buildPath(root, "dub.json");
+		if (exists(m))
+		{
+			auto json = parseJSON(readText(m));
+			if ("subPackages" in json
+				&& json["subPackages"].type == JSONType.array)
+			{
+				foreach (sp; json["subPackages"].array)
+				{
+					if (sp.type != JSONType.string)
+						continue;
+					string dir = buildPath(root, sp.str);
+					if (exists(dir) && isDir(dir))
+						direct[sp.str] = dir;
+				}
+			}
+		}
+	}
 	if (direct.empty)
 		return [];
 
@@ -478,12 +502,28 @@ private string[] detectDubPackageImportPaths(string rootUri)
 			continue;
 		visited[name] = true;
 
-		// Resolve the package root: a path dependency, or a cached
-		// registry package (~/.dub/packages/<name>/<version>/<name>/).
+		// Resolve the package root: a path dependency, an in-tree package
+		// directory, or a cached registry package
+		// (~/.dub/packages/<name>/<version>/<name>/).
 		string pkgRoot;
 		if (auto p = name in direct)
 			if (!(*p).empty && exists(*p) && isDir(*p))
 				pkgRoot = *p;
+		// A directory in the workspace root that is itself a dub package
+		// (DCD vendors libdparse, msgpack-d, ... as in-tree submodules)
+		// shadows the registry cache: the sources the user edits are the
+		// in-tree ones, so navigation must land there, not in
+		// ~/.dub/packages.
+		if (pkgRoot.empty)
+		{
+			immutable localName =
+				name.length && name[0] == ':' ? name[1 .. $] : name;
+			string inTree = buildPath(root, localName);
+			if (exists(inTree) && isDir(inTree)
+				&& (exists(buildPath(inTree, "dub.json"))
+					|| exists(buildPath(inTree, "dub.sdl"))))
+				pkgRoot = inTree;
+		}
 		if (pkgRoot.empty && cacheExists)
 		{
 			string pkgDir = buildPath(cacheDir, name);
