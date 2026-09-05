@@ -1277,7 +1277,8 @@ private:
 
 		if (t2.type !is null)
 			addTypeToLookups(lookups, t2.type, lookup);
-		else if (t2.builtinType !is tok!"")
+		else if (t2.builtinType !is tok!""
+			&& t2.superOrThis !is tok!"this" && t2.superOrThis !is tok!"super")
 			lookup.breadcrumbs.insert(getBuiltinTypeName(t2.builtinType));
 		else if (t2.typeIdentifierPart !is null)
 			writeIotcTo(t2.typeIdentifierPart, lookup.breadcrumbs);
