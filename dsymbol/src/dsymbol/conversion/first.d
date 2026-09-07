@@ -385,8 +385,8 @@ final class FirstPass : ASTVisitor
 				symbol.acSymbol.doc = makeDocumentation(aliasDeclaration.comment);
 
 				// Record alias forwarders for the string-mixin evaluator:
-				// `alias X(string name) = Y!name;` (erupted's
-				// VK_DEFINE_NON_DISPATCHABLE_HANDLE on D_LP64).
+				// `alias X(string name) = Y!name;` (a common pattern in C
+				// binding generator templates).
 				recordAliasForwarderIfApplicable(aliasDeclaration, initializer,
 					symbol.acSymbol);
 			}
@@ -851,8 +851,9 @@ final class FirstPass : ASTVisitor
 		if (type is null || type.type2 is null)
 			return false;
 		// `string` is an alias, so it parses as a TypeIdentifierPart; the
-		// builtin spellings (char[], immutable(char)[]) are not what erupted
-		// uses, matching on the identifier text is sufficient here.
+		// builtin spellings (char[], immutable(char)[]) are not used by the
+		// mixin generator templates, matching on the identifier text is
+		// sufficient here.
 		if (type.type2.typeIdentifierPart is null)
 			return false;
 		auto ioti = type.type2.typeIdentifierPart.identifierOrTemplateInstance;

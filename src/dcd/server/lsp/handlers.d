@@ -389,8 +389,8 @@ private string[] detectWorkspaceImportPaths(string rootUri)
 /**
  * Resolves the dub dependencies of the workspace project and returns the
  * import directories of each dependency, following transitive
- * dependencies. This is what makes `import erupted;` or `import sdl;`
- * resolve without any client-side configuration.
+ * dependencies. This is what makes third-party dub packages resolve
+ * without any client-side configuration.
  *
  * The dependency set is read from dub.selections.json (written by
  * `dub build`/`dub upgrade`) when present, falling back to the
