@@ -183,6 +183,13 @@ private const(Token)* findUFCSBaseToken(const(Token)[] tokens, out const(Token)[
         // Handle opening of nested scopes
         if (t is tok!"(" || t is tok!"[" || t is tok!"{")
         {
+            // An unmatched opener (e.g. the leading `(` of a call whose
+            // `)` lies after the cursor): the expression cannot extend
+            // past it. Without this, depth goes negative and every
+            // remaining token is skipped as "nested", so the base token
+            // lookup fails and the whole receiver type deduction aborts.
+            if (depth == 0)
+                return &tokens[i + 1];
             depth--;
             continue;
         }
@@ -213,8 +220,17 @@ private const(Token)* findUFCSBaseToken(const(Token)[] tokens, out const(Token)[
             return &tokens[i];
         }
 
-        // Stop at anything else that breaks the expression (operators, keywords, etc.)
-        return &tokens[i + 1];
+        // A leading `*` is a pointer DEREFERENCE, not the multiplication
+        // operator: `(*p).func` has `p` as its base. Keep walking so the
+        // identifier under the deref is found.
+        if (t is tok!"*")
+            continue;
+
+        // Stop at anything else that breaks the expression (operators,
+        // keywords, etc.). The stop token can be the LAST token of the
+        // slice (e.g. the `int` of `Foo!int` after paren stripping) —
+        // returning one past it would be out of bounds.
+        return i + 1 < tokens.length ? &tokens[i + 1] : &tokens[i];
     }
 
     // If we never returned inside the loop, the first token is the base
@@ -272,6 +288,91 @@ private const(DSymbol)* resolveUFCSChainSymbol(
     return fallback;
 }
 
+/**
+ * If `significantToken` is the last identifier of a plain member-access
+ * chain (`a.b.c`), returns the index of that identifier within `exprTokens`.
+ * The chain prefix must be exactly `identifier ('.' identifier)*`, so the
+ * index is even and at least 2. Returns 0 for anything else (no prefix,
+ * calls, indexings, keywords, literals).
+ */
+private size_t memberChainBaseIndex(const(Token)[] exprTokens,
+    const(Token)* significantToken)
+{
+    size_t sigIndex = size_t.max;
+    foreach (size_t i; 0 .. exprTokens.length)
+    {
+        if (&exprTokens[i] is significantToken)
+        {
+            sigIndex = i;
+            break;
+        }
+    }
+    if (sigIndex == size_t.max || sigIndex < 2 || sigIndex % 2 != 0)
+        return 0;
+    if (exprTokens[sigIndex].type !is tok!"identifier")
+        return 0;
+    foreach (size_t i; 0 .. sigIndex)
+    {
+        if (i % 2 == 0)
+        {
+            if (exprTokens[i].type !is tok!"identifier")
+                return 0;
+        }
+        else if (exprTokens[i].type !is tok!".")
+            return 0;
+    }
+    return sigIndex;
+}
+
+/**
+ * Resolves the type of the member-access chain `exprTokens[0 .. chainEnd]`
+ * (`a.b.c`, `chainEnd` = index of the last identifier) by looking up the
+ * first identifier in scope and following each `.name` link through the
+ * members of the current symbol's type. Returns null if any link cannot
+ * be resolved.
+ */
+private const(DSymbol)* resolveMemberChainType(Scope* completionScope,
+    const(Token)[] exprTokens, size_t chainEnd, size_t cursorPosition)
+{
+    auto symbols = completionScope.getSymbolsByNameAndCursor(
+        istring(exprTokens[0].text), cursorPosition);
+    if (symbols.empty)
+        return null;
+
+    const(DSymbol)* current = symbols.front;
+    for (size_t i = 1; i <= chainEnd; i += 2)
+    {
+        current = unwrapToValueSymbol(current);
+        // Variables and parameters carry their members on their type.
+        if (current is null || current.type is null || current.type is current)
+            return null;
+        auto parts = current.type.getPartsByName(istring(exprTokens[i + 1].text));
+        if (parts.empty)
+            return null;
+        current = parts.front;
+    }
+    current = unwrapToValueSymbol(current);
+    if (current is null || current.type is null || current.type is current)
+        return null;
+    return current.type;
+}
+
+/// Unwraps function/alias/import symbols to the value symbol they denote.
+private const(DSymbol)* unwrapToValueSymbol(const(DSymbol)* symbol)
+{
+    while (symbol !is null
+        && (symbol.qualifier == SymbolQualifier.func
+            || symbol.kind == CompletionKind.functionName
+            || symbol.kind == CompletionKind.importSymbol
+            || symbol.kind == CompletionKind.aliasName))
+    {
+        if (symbol.type is null || symbol.type is symbol)
+            break;
+        symbol = symbol.type;
+    }
+    return symbol;
+}
+
 private Nullable!ExpressionInfo deduceExpressionType(
     Scope* completionScope,
     const(Token)[] exprTokens,
@@ -282,6 +383,37 @@ private Nullable!ExpressionInfo deduceExpressionType(
     if (exprTokens.empty)
     {
         return Nullable!ExpressionInfo.init;
+    }
+
+    // A parenthesized receiver (`(*p).func`): the base of the expression
+    // is INSIDE the parens, but the backward walk below treats them as
+    // nested scopes to skip over, so it would never reach the identifier.
+    // Strip balanced outer parens first (mirroring the chain resolver's
+    // `tokens[0] == tok!"("` handling).
+    while (exprTokens.length >= 2
+        && exprTokens[0].type is tok!"("
+        && exprTokens[$ - 1].type is tok!")")
+    {
+        // Only strip when the parens actually wrap the WHOLE expression:
+        // the '(' at 0 must match the ')' at the end.
+        int depth = 0;
+        bool wrapsWhole;
+        foreach (i, t; exprTokens)
+        {
+            if (t.type is tok!"(")
+                depth++;
+            else if (t.type is tok!")")
+            {
+                depth--;
+                if (depth == 0 && i == exprTokens.length - 1)
+                    wrapsWhole = true;
+            }
+        }
+        if (!wrapsWhole)
+            break;
+        exprTokens = exprTokens[1 .. $ - 1];
+        if (exprTokens.empty)
+            return Nullable!ExpressionInfo.init;
     }
 
     info.significantToken = findUFCSBaseToken(exprTokens, info.arguments);
@@ -295,13 +427,56 @@ private Nullable!ExpressionInfo deduceExpressionType(
     auto scopeLookupContext = ScopeLookupContext(completionScope, exprTokens, cursorPosition);
     info.type = deduceSymbolTypeByToken(info, scopeLookupContext);
 
+    // The left→right walk below starts right after the base token.
+    size_t walkStart = 1;
+
     if (info.type is null)
     {
-        return Nullable!ExpressionInfo.init;
+        // The base identifier is not a scope-level name: it is the last
+        // segment of a member-access chain (`ctx.vertexBuffer` in
+        // `ctx.vertexBuffer.func()`), where `vertexBuffer` is a member and
+        // only the first segment (`ctx`) is visible in scope. Resolve the
+        // chain from its first identifier by following members — the same
+        // traversal the main chain resolver (getSymbolsByTokenChain)
+        // performs.
+        immutable size_t chainEnd = memberChainBaseIndex(exprTokens,
+            info.significantToken);
+        if (chainEnd == 0)
+            return Nullable!ExpressionInfo.init;
+        info.type = resolveMemberChainType(completionScope, exprTokens,
+            chainEnd, cursorPosition);
+        if (info.type is null)
+            return Nullable!ExpressionInfo.init;
+        // The chain up to and including the base identifier is already
+        // resolved; the walk must not re-process those tokens (its dot
+        // handler resolves UFCS chain links in scope, not members).
+        walkStart = chainEnd + 1;
+    }
+
+    // A leading `*` is a pointer DEREFERENCE (`(*p).func`): the receiver
+    // is the pointer's target, not the pointer itself. Unwrap one pointer
+    // layer so a `void func(Foo)` matches a `(*p).func` call.
+    if (exprTokens.length >= 2
+        && exprTokens[0].type is tok!"*"
+        && info.type.qualifier == SymbolQualifier.pointer
+        && info.type.type !is null)
+    {
+        info.type = info.type.type;
+    }
+
+    // A leading `*` is a pointer DEREFERENCE (`(*p).func`): the receiver
+    // is the pointer's target, not the pointer itself. Unwrap one pointer
+    // layer so a `void func(Foo)` matches a `(*p).func` call.
+    if (exprTokens.length >= 2
+        && exprTokens[0].type is tok!"*"
+        && info.type.qualifier == SymbolQualifier.pointer
+        && info.type.type !is null)
+    {
+        info.type = info.type.type;
     }
 
     // 2. Walk through the expression left → right
-    for (size_t i = 1; i < exprTokens.length; i++)
+    for (size_t i = walkStart; i < exprTokens.length; i++)
     {
         auto t = exprTokens[i].type;
 
@@ -858,8 +1033,28 @@ private bool typeMatchesWith(scope ref const(DSymbol) incomingSymbolType, scope 
             incomingSymbolType)
         || matchesWithTypeOfArray(incomingSymbolType, significantSymbolType)
         || matchesWithTypeOfPointer(incomingSymbolType, significantSymbolType)
-        || matchStringLikeTypes(incomingSymbolType, significantSymbolType);
+        || matchStringLikeTypes(incomingSymbolType, significantSymbolType)
+        // The same type can be represented by two different DSymbol
+        // instances: one from the analyzed ("stdin") document's tree and
+        // one from the cached on-disk module an imported function's
+        // parameter resolves through. Pointer equality above fails for
+        // those, so fall back to comparing the type names (both must be
+        // user-defined aggregate types; builtins are covered by the
+        // pointer-equal builtin trees).
+        || (isUserDefinedAggregate(incomingSymbolType)
+            && isUserDefinedAggregate(significantSymbolType)
+            && incomingSymbolType.name == significantSymbolType.name);
 
+}
+
+/// Whether `symbol` is a user-defined struct/class/union/interface type
+/// (as opposed to a builtin, variable, function, alias, etc.).
+private bool isUserDefinedAggregate(scope ref const(DSymbol) symbol)
+{
+    return symbol.kind == CompletionKind.className
+        || symbol.kind == CompletionKind.interfaceName
+        || symbol.kind == CompletionKind.structName
+        || symbol.kind == CompletionKind.unionName;
 }
 
 private bool matchSymbolType(const(DSymbol)* firstParameter, const(DSymbol)* significantSymbolType)
@@ -949,11 +1144,18 @@ bool isCallableWithArg(const(DSymbol)* incomingSymbol, ExpressionInfo beforeDotT
         return false;
     }
 
-    if (incomingSymbol.kind is CompletionKind.functionName && !incomingSymbol.functionParameters.empty && incomingSymbol
-        .functionParameters.front.type)
+    if (incomingSymbol.kind is CompletionKind.functionName && !incomingSymbol.functionParameters.empty)
     {
         auto firstParam = incomingSymbol.functionParameters.front;
-        return matchSymbolType(firstParam, beforeDotType.type);
+        if (firstParam.type)
+            return matchSymbolType(firstParam, beforeDotType.type);
+        // Parameter types of cached modules can stay unresolved when the
+        // declaring module is part of a circular import chain: the type's
+        // module was still being cached when the parameter was processed,
+        // so only the recorded type name (typeSymbolName) remains. Fall
+        // back to comparing it with the receiver's type name.
+        if (firstParam.typeSymbolName !is null && beforeDotType.type !is null)
+            return firstParam.typeSymbolName == beforeDotType.type.name;
     }
     return false;
 }

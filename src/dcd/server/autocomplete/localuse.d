@@ -32,7 +32,9 @@ import dparse.rollback_allocator;
 
 import dsymbol.conversion;
 import dsymbol.modulecache;
+import dsymbol.string_interning;
 import dsymbol.symbol;
+import dsymbol.ufcs;
 import dsymbol.utils;
 
 import dcd.common.messages;
@@ -75,8 +77,33 @@ public AutocompleteResponse findLocalUse(AutocompleteRequest request,
 	{
 		auto beforeTokens = sortedTokens.lowerBound(cursorPosition);
 		auto expression = getExpression(beforeTokens);
-		return SymbolStuff(getSymbolsByTokenChain(pair.scope_, expression,
-			cursorPosition, CompletionType.location), pair.symbol, pair.scope_);
+		auto symbols = getSymbolsByTokenChain(pair.scope_, expression,
+			cursorPosition, CompletionType.location);
+		// UFCS calls (`receiver.func(args)`) resolve to nothing through the
+		// plain chain resolver: `func` is not a member of the receiver's
+		// type. Mirror getSymbolsForCompletion's fallback and consult the
+		// UFCS machinery, which deduces the receiver's type and matches the
+		// first parameter of every function in scope. Without this, uses
+		// of a free function called with UFCS syntax are invisible to
+		// find-references/rename (while go-to-definition finds them).
+		if (symbols.length == 0 && !beforeTokens.empty)
+		{
+			auto beforeTokenArray = tokenArray[0 .. beforeTokens.length];
+			foreach (sym; getUFCSSymbolsForCursor(pair.scope_,
+				beforeTokenArray, cursorPosition))
+			{
+				// Only same-named functions whose receiver matches are the
+				// called symbol; the identifier at the cursor is the last
+				// token before it (the function name in a UFCS call).
+				if (sym.kind == CompletionKind.functionName
+					&& beforeTokens[$ - 1].type == tok!"identifier"
+					&& sym.name == internString(beforeTokens[$ - 1].text))
+				{
+					symbols ~= sym;
+				}
+			}
+		}
+		return SymbolStuff(symbols, pair.symbol, pair.scope_);
 	}
 
 	// gets the symbol matching to cursor pos
