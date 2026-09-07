@@ -22,6 +22,7 @@ import containers.unrolledlist;
 import dparse.ast;
 import dparse.formatter;
 import dparse.lexer;
+import dparse.rollback_allocator;
 import dsymbol.builtin.names;
 import dsymbol.builtin.symbols;
 import dsymbol.cache_entry;
@@ -382,6 +383,12 @@ final class FirstPass : ASTVisitor
 				currentScope.addSymbol(symbol.acSymbol, false);
 				symbol.acSymbol.protection = protection.current;
 				symbol.acSymbol.doc = makeDocumentation(aliasDeclaration.comment);
+
+				// Record alias forwarders for the string-mixin evaluator:
+				// `alias X(string name) = Y!name;` (erupted's
+				// VK_DEFINE_NON_DISPATCHABLE_HANDLE on D_LP64).
+				recordAliasForwarderIfApplicable(aliasDeclaration, initializer,
+					symbol.acSymbol);
 			}
 		}
 	}
@@ -767,21 +774,136 @@ final class FirstPass : ASTVisitor
 		scope (exit) mixinDepth--;
 		if (mixinDepth > 8)              // recursion cap for nested mixins
 			return;
-		foreach (decl; parseGeneratedDeclarations(generated, mixinOffset))
+		if (generated.length == 0)
+			return;
+		// The AST for the generated declarations is allocated from these two,
+		// so they must outlive the visit loop below. They are destroyed when
+		// this function returns — after every visit(decl) has copied what it
+		// needs (names are interned, locations are plain offsets) into the
+		// GC-allocated DSymbol tree. Same lifetime pattern as cacheModule().
+		auto stringCache = StringCache(
+			(mixinOffset + generated.length).optimalBucketCount);
+		RollbackAllocator rba;
+		foreach (decl; parseGeneratedDeclarations(generated, mixinOffset,
+				&rba, &stringCache))
 			visit(decl);                 // ← this line is why it must be a method
 	}
 
 	override void visit(const MixinDeclaration md) {
+		// `mixin SomeTemplate name;` — a template mixin, not a string mixin.
+		// Delegate to the template-mixin handling (same as before this
+		// visitor existed).
+		if (md.templateMixinExpression !is null) {
+			visit(md.templateMixinExpression);
+			return;
+		}
+
 		if (md.mixinExpression is null) {
-			return; 
+			return;
 		}
 
 		// we try to evaluate the mixin string if possible
-		auto generated = evaluateMixinString(md.mixinExpression, currentScope, cache);
+		auto generated = mixinEvaluator.evaluate(md.mixinExpression, currentScope);
 		if (generated is null) {
 			return;
 		}
 		injectMixinDeclarations(generated, md.tokens[0].index);
+	}
+
+	/**
+	 * Eponymous template declarations like
+	 * `enum VK_DEFINE_HANDLE(string name) = "struct " ~ name ~ ";";`
+	 * produce a template symbol (so the name is completable) and are
+	 * recorded for the string-mixin evaluator (see dsymbol.mixin_eval).
+	 */
+	override void visit(const EponymousTemplateDeclaration dec)
+	{
+		pushSymbol(dec.name.text, CompletionKind.templateName, symbolFile,
+			dec.name.index);
+		scope(exit) popSymbol();
+		currentSymbol.acSymbol.protection = protection.current;
+		currentSymbol.acSymbol.doc = makeDocumentation(dec.comment);
+		currentSymbol.acSymbol.qualifier = SymbolQualifier.templated;
+
+		// Record the template for string-mixin evaluation. Only templates
+		// with exactly one string value parameter are evaluable by the
+		// limited evaluator.
+		if (dec.templateParameters !is null
+			&& dec.templateParameters.templateParameterList !is null
+			&& dec.templateParameters.templateParameterList.items.length == 1)
+		{
+			const TemplateParameter p =
+				dec.templateParameters.templateParameterList.items[0];
+			if (p.templateValueParameter !is null
+				&& isStringType(p.templateValueParameter.type))
+			{
+				mixinEvaluator.recordEponymousTemplate(currentSymbol.acSymbol,
+					internString(p.templateValueParameter.identifier.text),
+					dec.assignExpression);
+			}
+		}
+	}
+
+	/// Returns: true if the given type node is `string` (or an equivalent
+	/// builtin spelling of it)
+	private static bool isStringType(const Type type) @safe pure nothrow
+	{
+		if (type is null || type.type2 is null)
+			return false;
+		// `string` is an alias, so it parses as a TypeIdentifierPart; the
+		// builtin spellings (char[], immutable(char)[]) are not what erupted
+		// uses, matching on the identifier text is sufficient here.
+		if (type.type2.typeIdentifierPart is null)
+			return false;
+		auto ioti = type.type2.typeIdentifierPart.identifierOrTemplateInstance;
+		return ioti !is null && ioti.identifier != tok!""
+			&& ioti.identifier.text == "string";
+	}
+
+	/**
+	 * Detects the alias forwarder form used by string-mixin generators:
+	 * `alias X(string name) = Y!name;` — the alias has exactly one
+	 * template value parameter of type string, and its body is a template
+	 * instance whose single argument is that parameter's identifier.
+	 * Records it so `mixin(X!arg)` can be evaluated through to Y.
+	 */
+	private void recordAliasForwarderIfApplicable(
+		const AliasDeclaration aliasDeclaration,
+		const AliasInitializer initializer, DSymbol* symbol)
+	{
+		// Must have exactly one string value parameter. The template
+		// parameters of `alias X(string name) = ...` live on the
+		// AliasInitializer, not on the AliasDeclaration.
+		if (initializer.templateParameters is null
+			|| initializer.templateParameters.templateParameterList is null
+			|| initializer.templateParameters.templateParameterList.items.length != 1)
+			return;
+		const TemplateParameter p =
+			initializer.templateParameters.templateParameterList.items[0];
+		if (p.templateValueParameter is null
+			|| !isStringType(p.templateValueParameter.type)
+			|| p.templateValueParameter.identifier == tok!"")
+			return;
+		// Body must be a template instance: Type2 → TypeIdentifierPart →
+		// IdentifierOrTemplateInstance → TemplateInstance
+		if (initializer.type is null || initializer.type.type2 is null
+			|| initializer.type.type2.typeIdentifierPart is null)
+			return;
+		auto ioti = initializer.type.type2.typeIdentifierPart.identifierOrTemplateInstance;
+		if (ioti is null || ioti.templateInstance is null)
+			return;
+		const TemplateInstance ti = ioti.templateInstance;
+		// The forwarded instance must take the parameter as its single
+		// argument (Y!name)
+		if (ti.templateArguments is null
+			|| ti.templateArguments.templateSingleArgument is null)
+			return;
+		const Token arg = ti.templateArguments.templateSingleArgument.token;
+		if (arg.type != tok!"identifier"
+			|| arg.text != p.templateValueParameter.identifier.text)
+			return;
+		mixinEvaluator.recordAliasForwarder(symbol,
+			internString(p.templateValueParameter.identifier.text), ti);
 	}
 
 	override void visit(const ForeachStatement feStatement)
@@ -1367,6 +1489,11 @@ private:
 	bool skipBaseClassesOfNewAnon;
 
 	uint mixinDepth;
+
+	/// String-mixin evaluator; owns the registry of evaluable templates
+	/// found in the module being parsed (AST pointers valid only during
+	/// this pass).
+	MixinEvaluator mixinEvaluator;
 
 	ubyte foreachTypeIndexOfInterest;
 	ubyte foreachTypeIndex;
