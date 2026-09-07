@@ -282,6 +282,7 @@ final class FirstPass : ASTVisitor
 				structFieldNames.insert(symbol.acSymbol.name);
 				// TODO: remove this cast. See the note on structFieldTypes
 				structFieldTypes.insert(cast() dec.type);
+				structFieldIsStatic.insert(!isField);
 			}
 		}
 		if (dec.autoDeclaration !is null)
@@ -305,6 +306,7 @@ final class FirstPass : ASTVisitor
 					structFieldNames.insert(symbol.acSymbol.name);
 					// TODO: remove this cast. See the note on structFieldTypes
 					structFieldTypes.insert(null);
+					structFieldIsStatic.insert(!isField);
 				}
 			}
 		}
@@ -521,8 +523,10 @@ final class FirstPass : ASTVisitor
 
 		auto savedStructFieldNames = move(structFieldNames);
 		auto savedStructFieldTypes = move(structFieldTypes);
+		auto savedStructFieldIsStatic = move(structFieldIsStatic);
 		scope(exit) structFieldNames = move(savedStructFieldNames);
 		scope(exit) structFieldTypes = move(savedStructFieldTypes);
+		scope(exit) structFieldIsStatic = move(savedStructFieldIsStatic);
 
 		DSymbol* thisSymbol = GCAllocator.instance.make!DSymbol(THIS_SYMBOL_NAME,
 			CompletionKind.variableName, currentSymbol.acSymbol);
@@ -1039,8 +1043,13 @@ private:
 		auto app = appender!string();
 		app.put("this(");
 		bool first = true;
-		foreach (field; zip(structFieldTypes[], structFieldNames[]))
+		foreach (field; zip(structFieldTypes[], structFieldNames[], structFieldIsStatic[]))
 		{
+			// static, __gshared, and enum members have no per-instance
+			// storage, so they are not parameters of the implicit
+			// constructor.
+			if (field[2])
+				continue;
 			if (first)
 				first = false;
 			else
@@ -1492,6 +1501,10 @@ private:
 
 	/// Field names for struct constructor generation
 	UnrolledList!(istring) structFieldNames;
+
+	/// Whether each field is static-like (static, __gshared, enum) and thus
+	/// not a parameter of the implicit struct constructor
+	UnrolledList!(bool) structFieldIsStatic;
 
 	/// Last comment for ditto-ing
 	istring lastComment;
