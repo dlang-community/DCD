@@ -46,7 +46,7 @@ echo "STAT:"
 # now rebuild server with -profile=gc
 cd ..
 rm -rf .dub bin/dcd-server
-if dub build --build=profile-gc --config=server --compiler=dmd 2>&1
+if dub build --build=profile-gc --config=server --compiler=ldc2 2>&1
 then
 	cd tests
 	./run_tests.sh --extra
