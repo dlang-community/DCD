@@ -50,6 +50,9 @@ fi
 if grep "DCD BUILD FAILED" <<< "$TOTAL"; then
 	echo '❌ Basic `dub build` failed! Please check your changes again.'
 	echo
+elif grep "DCD PROFILE-GC BUILD FAILED" <<< "$TOTAL"; then
+	echo '⚠️ The basic builds and tests passed, but the `profile-gc` statistics build failed (often a dmd `-profile=gc` issue, not a problem with this PR). GC statistics are unavailable for this run.'
+	echo
 else
 	if [ -z "$REMOVED_DEPRECATIONS" ]; then
 		# no removed deprecations

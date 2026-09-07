@@ -46,15 +46,22 @@ echo "STAT:"
 # now rebuild server with -profile=gc
 cd ..
 rm -rf .dub bin/dcd-server
-dub build --build=profile-gc --config=server --compiler=dmd 2>&1 || echo "DCD BUILD FAILED"
+if dub build --build=profile-gc --config=server --compiler=dmd 2>&1
+then
+	cd tests
+	./run_tests.sh --extra
 
-cd tests
-./run_tests.sh --extra
-
-echo "STAT:top 5 GC sources in server:"
-if [ ! -f "profilegc.log" ]; then
-	echo 'Missing profilegc.log file!'
-	echo 'Tail for stderr.txt:'
-	tail -n50 stderr.txt
+	echo "STAT:top 5 GC sources in server:"
+	if [ ! -f "profilegc.log" ]; then
+		echo 'Missing profilegc.log file!'
+		echo 'Tail for stderr.txt:'
+		tail -n50 stderr.txt
+	fi
+	head -n6 profilegc.log | sed 's/^/STAT:/g'
+else
+	# Distinct marker: the basic builds above succeeded; only the
+	# profile-gc statistics build failed (e.g. a dmd -profile=gc issue).
+	# Skip the second test run: there is no server binary to run it with.
+	echo "DCD PROFILE-GC BUILD FAILED"
+	echo "STAT:top 5 GC sources in server:"
 fi
-head -n6 profilegc.log | sed 's/^/STAT:/g'
