@@ -149,6 +149,8 @@ struct ModuleCache
 	DSymbol* cacheModule(string location)
 	{
 		import std.stdio : File;
+		import std.path : extension;
+		import std.process : execute;
 
 		assert (location !is null);
 
@@ -162,17 +164,39 @@ struct ModuleCache
 
 		recursionGuard.insert(&cachedLocation.data[0]);
 
-		File f = File(cachedLocation);
-		immutable fileSize = cast(size_t) f.size;
-		if (fileSize == 0)
-			return null;
+		ubyte[] source;
+		size_t sourceLength;
+		bool isCFile = cachedLocation.extension == ".c";
 
-		const(Token)[] tokens;
-		auto parseStringCache = StringCache(fileSize.optimalBucketCount);
+		if (isCFile)
 		{
-			ubyte[] source = cast(ubyte[]) Mallocator.instance.allocate(fileSize);
-			scope (exit) Mallocator.instance.deallocate(source);
+			// -o-: do not generate anything 
+			// -Hf=-: print interface file to stdout
+			// -i: follow imports (druntime's importc module)
+			auto result = execute(["dmd", "-o-", "-Hf=-", "-i", cachedLocation]);
+			if (result.status != 0 || result.output.length == 0){
+				warning("(importc) failed to generate di for ", location);
+				return null;
+			}
+			sourceLength = result.output.length;
+			source = cast(ubyte[]) Mallocator.instance.allocate(sourceLength);
+			source[] = cast(ubyte[]) result.output[];
+		}
+		else
+		{
+			File f = File(cachedLocation);
+			sourceLength = cast(size_t) f.size;
+			if (sourceLength == 0)
+				return null;
+			source = cast(ubyte[]) Mallocator.instance.allocate(sourceLength);
 			f.rawRead(source);
+		}
+
+		scope (exit) Mallocator.instance.deallocate(source);
+		
+		const(Token)[] tokens;
+		auto parseStringCache = StringCache(sourceLength.optimalBucketCount);
+		{
 			LexerConfig config;
 			config.fileName = cachedLocation;
 
@@ -301,11 +325,17 @@ struct ModuleCache
 			// no exact matches and no .di/package.d matches either
 			else if (!alternative.length)
 			{
-				string dotDi = buildPath(path, moduleName) ~ ".di";
+				string filePath = buildPath(path, moduleName);
+				string dotDi = filePath ~ ".di";
+				string dotC = filePath ~ ".c";
 				string dotD = dotDi[0 .. $ - 1];
 				string withoutSuffix = dotDi[0 .. $ - 3];
 				if (existsAnd!isFile(dotD))
+				{
 					return istring(dotD); // return early for exactly matching .d files
+				}
+				else if (existsAnd!isFile(dotC))
+					return istring(dotC);
 				else if (existsAnd!isFile(dotDi))
 					alternative = dotDi;
 				else if (existsAnd!isDir(withoutSuffix))
