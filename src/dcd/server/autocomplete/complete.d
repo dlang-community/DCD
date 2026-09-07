@@ -816,6 +816,11 @@ do
 	auto completionKindFilter = calltipHint == CalltipHint.regularArguments ? CompletionKind.variableName : CompletionKind.typeTmpParam;
 	const(DSymbol)*[] fields =
 	symbol.opSlice().filter!(a => a.kind == completionKindFilter).map!(a => cast(const(DSymbol)*) a).array();
+	// Only instance fields make up the implicit constructor's parameters.
+	// static, __gshared, and enum members have no per-instance storage,
+	// so they are excluded from the generated call tip.
+	if (calltipHint == CalltipHint.regularArguments)
+		fields = fields.filter!(a => a.isAggregateField).array();
 	fields.sort!((a, b) => a.location < b.location);
 	foreach (i, field; fields)
 	{
