@@ -2165,6 +2165,8 @@ private void findWorkspaceUses(ref ServerContext context,
 	import dparse.rollback_allocator : RollbackAllocator;
 	import dsymbol.conversion : generateAutocompleteTrees, ScopeSymbolPair;
 	import dsymbol.utils : getExpression;
+	import dsymbol.string_interning : internString;
+	import dsymbol.ufcs : getUFCSSymbolsForCursor;
 	import dcd.server.autocomplete.util : getSymbolsByTokenChain;
 	import std.range : assumeSorted;
 	import std.file : dirEntries, isFile, readText, SpanMode;
@@ -2267,6 +2269,22 @@ private void findWorkspaceUses(ref ServerContext context,
 			auto expression = getExpression(beforeTokens);
 			auto symbols = getSymbolsByTokenChain(pair.scope_, expression,
 				candidate + 1, CompletionType.location);
+			// UFCS calls (`receiver.func(...)`) resolve to nothing through
+			// the plain chain resolver; consult the UFCS machinery like
+			// findLocalUse does, so uses of free functions called with
+			// UFCS syntax are found across files too.
+			if (symbols.length == 0 && !beforeTokens.empty)
+			{
+				const(Token)[] beforeTokenArray = tokens[0 .. beforeTokens.length];
+				foreach (sym; getUFCSSymbolsForCursor(pair.scope_,
+					beforeTokenArray, candidate + 1))
+				{
+					if (sym.kind == CompletionKind.functionName
+						&& beforeTokens[$ - 1].type == tok!"identifier"
+						&& sym.name == internString(beforeTokens[$ - 1].text))
+						symbols ~= sym;
+				}
+			}
 			foreach (symbol; symbols)
 			{
 				immutable bool symbolFromThisFile = symbol.symbolFile == "stdin";

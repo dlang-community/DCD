@@ -183,6 +183,13 @@ private const(Token)* findUFCSBaseToken(const(Token)[] tokens, out const(Token)[
         // Handle opening of nested scopes
         if (t is tok!"(" || t is tok!"[" || t is tok!"{")
         {
+            // An unmatched opener (e.g. the leading `(` of a call whose
+            // `)` lies after the cursor): the expression cannot extend
+            // past it. Without this, depth goes negative and every
+            // remaining token is skipped as "nested", so the base token
+            // lookup fails and the whole receiver type deduction aborts.
+            if (depth == 0)
+                return &tokens[i + 1];
             depth--;
             continue;
         }
@@ -213,8 +220,17 @@ private const(Token)* findUFCSBaseToken(const(Token)[] tokens, out const(Token)[
             return &tokens[i];
         }
 
-        // Stop at anything else that breaks the expression (operators, keywords, etc.)
-        return &tokens[i + 1];
+        // A leading `*` is a pointer DEREFERENCE, not the multiplication
+        // operator: `(*p).func` has `p` as its base. Keep walking so the
+        // identifier under the deref is found.
+        if (t is tok!"*")
+            continue;
+
+        // Stop at anything else that breaks the expression (operators,
+        // keywords, etc.). The stop token can be the LAST token of the
+        // slice (e.g. the `int` of `Foo!int` after paren stripping) —
+        // returning one past it would be out of bounds.
+        return i + 1 < tokens.length ? &tokens[i + 1] : &tokens[i];
     }
 
     // If we never returned inside the loop, the first token is the base
@@ -284,6 +300,37 @@ private Nullable!ExpressionInfo deduceExpressionType(
         return Nullable!ExpressionInfo.init;
     }
 
+    // A parenthesized receiver (`(*p).func`): the base of the expression
+    // is INSIDE the parens, but the backward walk below treats them as
+    // nested scopes to skip over, so it would never reach the identifier.
+    // Strip balanced outer parens first (mirroring the chain resolver's
+    // `tokens[0] == tok!"("` handling).
+    while (exprTokens.length >= 2
+        && exprTokens[0].type is tok!"("
+        && exprTokens[$ - 1].type is tok!")")
+    {
+        // Only strip when the parens actually wrap the WHOLE expression:
+        // the '(' at 0 must match the ')' at the end.
+        int depth = 0;
+        bool wrapsWhole;
+        foreach (i, t; exprTokens)
+        {
+            if (t.type is tok!"(")
+                depth++;
+            else if (t.type is tok!")")
+            {
+                depth--;
+                if (depth == 0 && i == exprTokens.length - 1)
+                    wrapsWhole = true;
+            }
+        }
+        if (!wrapsWhole)
+            break;
+        exprTokens = exprTokens[1 .. $ - 1];
+        if (exprTokens.empty)
+            return Nullable!ExpressionInfo.init;
+    }
+
     info.significantToken = findUFCSBaseToken(exprTokens, info.arguments);
     if (isStringLiteral(info.significantToken.type))
     {
@@ -298,6 +345,17 @@ private Nullable!ExpressionInfo deduceExpressionType(
     if (info.type is null)
     {
         return Nullable!ExpressionInfo.init;
+    }
+
+    // A leading `*` is a pointer DEREFERENCE (`(*p).func`): the receiver
+    // is the pointer's target, not the pointer itself. Unwrap one pointer
+    // layer so a `void func(Foo)` matches a `(*p).func` call.
+    if (exprTokens.length >= 2
+        && exprTokens[0].type is tok!"*"
+        && info.type.qualifier == SymbolQualifier.pointer
+        && info.type.type !is null)
+    {
+        info.type = info.type.type;
     }
 
     // 2. Walk through the expression left → right
