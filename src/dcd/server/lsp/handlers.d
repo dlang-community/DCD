@@ -1529,6 +1529,19 @@ string pathToUri(string path)
 JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 {
 	auto request = buildRequest(context, params);
+
+	// The cursor inside an unfinished `module` declaration: suggest the
+	// module name derived from the file's path (the same name the
+	// auto-inserted declaration would use). Checked first because the
+	// regular completion has nothing useful to offer there.
+	if (auto moduleItems = moduleDeclarationCompletions(context, params, request))
+	{
+		CompletionList list;
+		list.isIncomplete = false;
+		list.items = moduleItems;
+		return list.toJson();
+	}
+
 	auto response = complete(request, *context.cache);
 
 	if (response.completionType == CompletionType.calltips)
@@ -1594,6 +1607,116 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 	if (!list.items.length)
 		list.items ~= autoImportCompletions(context, params, request);
 	return list.toJson();
+}
+
+/**
+ * Completion for the module name inside a `module` declaration: when the
+ * cursor is on (or right after) an unfinished `module` statement, the
+ * expected name — derived from the file's path relative to its most
+ * specific import path, the same computation the auto-inserted module
+ * declaration uses — is offered. A newly created `cheese/dippers.d` with
+ * `module |` suggests `cheese.dippers`.
+ *
+ * Returns null when the cursor is not inside a module declaration, the
+ * file already declares its full correct name, or no module name can be
+ * derived from the path (outside every import path).
+ */
+private CompletionItem[] moduleDeclarationCompletions(ref ServerContext context,
+	JSONValue params, in AutocompleteRequest request)
+{
+	import dparse.lexer : LexerConfig, StringCache, getTokensForParser, tok;
+	import std.path : baseName;
+
+	auto doc = context.documents.get(params["textDocument"]["uri"].str);
+	if (doc is null)
+		return null;
+
+	// package.d files: the module name is the package name and is
+	// inferred by the compiler; nothing to suggest.
+	immutable name = baseName(request.fileName);
+	if (name == "package.d" || name == "package.di")
+		return null;
+
+	// Lex the buffer and find the module declaration the cursor is in:
+	// the `module` keyword followed by identifiers/dots up to the cursor.
+	LexerConfig config;
+	auto stringCache = StringCache(clampedBucketCount(doc.text.length));
+	auto tokens = getTokensForParser(cast(ubyte[]) doc.text, config, &stringCache);
+
+	size_t moduleToken = size_t.max;
+	foreach (i, token; tokens)
+	{
+		if (token.type == tok!"module")
+		{
+			moduleToken = i;
+			break;
+		}
+	}
+	if (moduleToken == size_t.max)
+		return null;
+
+	// The cursor must be inside the declaration: after the `module`
+	// keyword and before the terminating `;` (or EOF when unfinished).
+	immutable moduleStart = tokens[moduleToken].index;
+	if (request.cursorPosition <= moduleStart)
+		return null;
+	size_t declEnd = doc.text.length;
+	foreach (token; tokens[moduleToken + 1 .. $])
+	{
+		if (token.type == tok!";")
+		{
+			declEnd = token.index + 1;
+			break;
+		}
+	}
+	if (request.cursorPosition > declEnd)
+		return null;
+
+	// Whether the declaration already has its terminating semicolon
+	// (found after the cursor — `module |;` — or at EOF). When it does,
+	// the completion must not insert another one.
+	immutable bool hasSemicolon = declEnd != doc.text.length;
+
+	// The full expected module name for this file's path.
+	string moduleName = moduleNameForPath(request.fileName, context);
+	if (moduleName.empty)
+		return null;
+
+	// Already fully and correctly declared: nothing to add.
+	string declared;
+	foreach (token; tokens[moduleToken + 1 .. $])
+	{
+		if (token.type == tok!";")
+			break;
+		if (token.type == tok!"identifier")
+			declared ~= token.text;
+		else if (token.type == tok!".")
+			declared ~= ".";
+	}
+	if (declared == moduleName)
+		return null;
+
+	CompletionItem item;
+	item.label = moduleName;
+	item.kind = CompletionItemKind.module_;
+	item.detail = "module declaration";
+	// Rank above everything else: this is the one name the file should
+	// declare, and the user is mid-typing it.
+	item.sortText = "0";
+	// The client filters on the label by default; `cheese.dippers` would
+	// not match the partial `dip`. Filter on the dotted name AND the last
+	// segment so typing either the package or the module prefix matches.
+	size_t lastDot = moduleName.lastIndexOf('.');
+	if (lastDot == size_t.max)
+		item.filterText = moduleName; // no package part: label already matches
+	else
+		item.filterText = moduleName ~ " " ~ moduleName[lastDot + 1 .. $];
+	// Insert the terminating semicolon too — unless the declaration
+	// already has one after the cursor (e.g. `module |;`), in which case
+	// adding another would be invalid D.
+	if (!hasSemicolon)
+		item.insertText = moduleName ~ ";";
+	return [item];
 }
 
 /**
