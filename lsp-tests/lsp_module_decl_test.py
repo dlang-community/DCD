@@ -13,6 +13,12 @@ Cases:
   5. package.d                            -> no edit
   6. shebang + dub.sdl preamble           -> inserted after the preamble
   7. feature disabled via initializationOptions -> no edit
+  8. completion inside unfinished `module |` -> suggests the path-derived name
+  9. completion with partial name typed     -> still suggests the full name
+ 10. completion when fully declared        -> no module suggestion
+ 11. completion outside the module decl   -> normal completion path
+ 12. insertText includes the `;` when the declaration has none
+ 13. insertText omits the `;` when one already follows the cursor
 """
 import json, os, shutil, subprocess, sys
 
@@ -237,6 +243,87 @@ def main():
         "uri": uri(f7), "languageId": "d", "version": 1, "text": ""}})
     edits = apply_edit_for(lsp, uri(f7))
     check("disabled -> no edit", edits is None, str(edits))
+    lsp.shutdown()
+
+    # --- case 8: completion inside unfinished `module |` ---
+    lsp = Lsp()
+    f8 = os.path.join(WS, "source", "util", "typed.d")
+    with open(f8, "w") as f:
+        f.write("module \n")
+    lsp.notify_and_sync("textDocument/didOpen", {"textDocument": {
+        "uri": uri(f8), "languageId": "d", "version": 1,
+        "text": open(f8).read()}})
+    r = lsp.request("textDocument/completion", {"textDocument": {"uri": uri(f8)},
+                "position": {"line": 0, "character": 7}})
+    items = r.get("result", {}).get("items", [])
+    check("module | -> suggests name",
+          [i["label"] for i in items] == ["util.typed"], json.dumps(items))
+    if items:
+        check("module | -> insertText with ;",
+              items[0].get("insertText") == "util.typed;", json.dumps(items[0]))
+    lsp.shutdown()
+
+    # --- case 9: completion with partial name typed ---
+    lsp = Lsp()
+    f9 = os.path.join(WS, "source", "util", "partial.d")
+    lsp.notify_and_sync("textDocument/didOpen", {"textDocument": {
+        "uri": uri(f9), "languageId": "d", "version": 1, "text": "module par\n"}})
+    r = lsp.request("textDocument/completion", {"textDocument": {"uri": uri(f9)},
+                "position": {"line": 0, "character": 10}})
+    items = r.get("result", {}).get("items", [])
+    check("module par| -> suggests full name",
+          [i["label"] for i in items] == ["util.partial"], json.dumps(items))
+    if items:
+        check("filterText covers last segment",
+              items[0].get("filterText") == "util.partial partial",
+              json.dumps(items[0]))
+    lsp.shutdown()
+
+    # --- case 10: fully declared -> no module suggestion ---
+    lsp = Lsp()
+    f10 = os.path.join(WS, "source", "util", "done.d")
+    lsp.notify_and_sync("textDocument/didOpen", {"textDocument": {
+        "uri": uri(f10), "languageId": "d", "version": 1,
+        "text": "module util.done;\n"}})
+    r = lsp.request("textDocument/completion", {"textDocument": {"uri": uri(f10)},
+                "position": {"line": 0, "character": 10}})
+    items = r.get("result", {}).get("items", [])
+    check("fully declared -> no suggestion", items == [], json.dumps(items))
+    lsp.shutdown()
+
+    # --- case 11: cursor outside the module decl -> normal path ---
+    lsp = Lsp()
+    f11 = os.path.join(WS, "source", "util", "outside.d")
+    lsp.notify_and_sync("textDocument/didOpen", {"textDocument": {
+        "uri": uri(f11), "languageId": "d", "version": 1,
+        "text": "module util.outside;\nvoid foo() { }\n"}})
+    r = lsp.request("textDocument/completion", {"textDocument": {"uri": uri(f11)},
+                "position": {"line": 1, "character": 13}})
+    items = r.get("result", {}).get("items", [])
+    check("outside decl -> no module suggestion",
+          all(i["label"] != "util.outside" for i in items), json.dumps(items))
+    lsp.shutdown()
+
+    # --- case 12/13: insertText semicolon handling ---
+    lsp = Lsp()
+    f12 = os.path.join(WS, "source", "util", "semi.d")
+    # no semicolon in the buffer -> insertText must include it
+    lsp.notify_and_sync("textDocument/didOpen", {"textDocument": {
+        "uri": uri(f12), "languageId": "d", "version": 1, "text": "module \n"}})
+    r = lsp.request("textDocument/completion", {"textDocument": {"uri": uri(f12)},
+                "position": {"line": 0, "character": 7}})
+    items = r.get("result", {}).get("items", [])
+    check("no ; -> insertText has ;",
+          items and items[0].get("insertText") == "util.semi;", json.dumps(items))
+    # semicolon already after the cursor -> insertText must NOT include it
+    lsp.notify_and_sync("textDocument/didChange", {"textDocument": {
+        "uri": uri(f12), "version": 2},
+        "contentChanges": [{"text": "module ;\n"}]})
+    r = lsp.request("textDocument/completion", {"textDocument": {"uri": uri(f12)},
+                "position": {"line": 0, "character": 7}})
+    items = r.get("result", {}).get("items", [])
+    check("has ; -> insertText without ;",
+          items and items[0].get("insertText") is None, json.dumps(items))
     lsp.shutdown()
 
     print("RESULT:", "PASS" if not failures else "FAIL (%s)" % failures)

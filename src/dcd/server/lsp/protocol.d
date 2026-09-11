@@ -198,6 +198,14 @@ struct CompletionItem
 	/// Sorts this item relative to others in the list. Auto-import items
 	/// get a prefix that ranks them below in-scope results (clangd model).
 	string sortText;
+	/// Overrides the string the client filters on (LSP 3.17): set when the
+	/// label is not what the user is typing (e.g. the module declaration
+	/// suggestion `cheese.dippers` must match the partial `che`/`dip`).
+	string filterText;
+	/// The text to insert instead of the label (LSP 3.17): used when the
+	/// inserted text differs from the label, e.g. the module declaration
+	/// suggestion inserts `cheese.dippers;` including the semicolon.
+	string insertText;
 
 	JSONValue toJson() const
 	{
@@ -219,6 +227,10 @@ struct CompletionItem
 		}
 		if (sortText.length)
 			obj["sortText"] = JSONValue(sortText);
+		if (filterText.length)
+			obj["filterText"] = JSONValue(filterText);
+		if (insertText.length)
+			obj["insertText"] = JSONValue(insertText);
 		if (additionalTextEdits.length)
 		{
 			JSONValue[] edits;
