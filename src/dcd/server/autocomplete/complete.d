@@ -390,6 +390,14 @@ CalltipHint getCalltipHint(T)(T beforeTokens, out size_t parenIndex)
 	// evaluate at comma case
 	if (beforeTokens.isComma)
 	{
+		// A comma inside a selective import (`import std.math: abs, `)
+		// separates import binds, not call arguments, the calltip walk
+		// below would scan back past the `:` and resolve the module name
+		// as an expression, yielding no completions. Import completion
+		// must handle it instead.
+		if (determineImportKind(beforeTokens) != ImportKind.neither)
+			return CalltipHint.none;
+
 		size_t tmp = beforeTokens.goBackToOpenParen;
 		if(tmp == size_t.max){
 			return CalltipHint.regularArguments;
