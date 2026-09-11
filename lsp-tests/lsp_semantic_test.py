@@ -381,6 +381,88 @@ assert result is not None, "sayHello did not resolve after selective import"
 assert result["uri"].endswith("hello.d") or result["uri"].endswith("package.d"), result
 print(f"definition after selective import: {result['uri']}")
 
+# --- auto-import: second symbol from the same module extends the bind list ---
+# The workspace module `hello` also declares `sayBye`; with
+# `import hello : sayHello;` already present, completing `sayBye` must
+# APPEND to the existing bind list (TypeScript-style) instead of adding a
+# second import declaration.
+with open(os.path.join(ws, "source", "hello", "package.d"), "w") as f:
+    f.write("module hello;\nvoid sayHello() {}\nvoid sayBye() {}\n")
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 210},
+    "contentChanges": [{"text": "import hello : sayHello;\nvoid main() { sayBy }\n"}]}})
+send({"jsonrpc": "2.0", "id": 211, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 1, "character": 19},
+}})
+resp = recv_response()
+items = resp["result"]["items"]
+bye = [i for i in items if i["label"] == "sayBye"]
+assert bye, f"sayBye not offered: {[i['label'] for i in items]}"
+edits = bye[0].get("additionalTextEdits", [])
+assert edits, "no additionalTextEdits on the bind-list item"
+edit = edits[0]
+# `;` of "import hello : sayHello;" is at line 0, character 23
+assert edit["newText"] == ", sayBye", f"not a bind-list append: {edit['newText']!r}"
+assert edit["range"]["start"] == {"line": 0, "character": 23}, edit["range"]
+print(f"bind-list append edit: {edit['newText']!r} at {edit['range']['start']}")
+
+# after applying, both symbols resolve
+applied2 = "import hello : sayHello, sayBye;\nvoid main() { sayBye }\n"
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 212},
+    "contentChanges": [{"text": applied2}]}})
+send({"jsonrpc": "2.0", "id": 213, "method": "textDocument/definition", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 1, "character": 19},
+}})
+resp = recv_response()
+result = resp["result"]
+assert result is not None, "sayBye did not resolve after bind-list append"
+print(f"definition after bind-list append: {result['uri']}")
+
+# --- auto-import: renamed binds and renamed modules still extend ---
+# `import hello : sayHello, foo = sayBye;` — a renamed bind in the list
+# must not confuse the append (the edit goes before the `;` regardless of
+# what the list contains).
+with open(os.path.join(ws, "source", "hello", "package.d"), "w") as f:
+    f.write("module hello;\nvoid sayHello() {}\nvoid sayBye() {}\nvoid sayAgain() {}\n")
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 220},
+    "contentChanges": [{"text": "import hello : sayHello, foo = sayBye;\nvoid main() { sayA }\n"}]}})
+send({"jsonrpc": "2.0", "id": 221, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 1, "character": 18},
+}})
+resp = recv_response()
+items = resp["result"]["items"]
+again = [i for i in items if i["label"] == "sayAgain"]
+assert again, f"sayAgain not offered: {[i['label'] for i in items]}"
+edit = again[0]["additionalTextEdits"][0]
+assert edit["newText"] == ", sayAgain", f"not an append: {edit['newText']!r}"
+# `;` of "import hello : sayHello, foo = sayBye;" is at char 37
+assert edit["range"]["start"] == {"line": 0, "character": 37}, edit["range"]
+print(f"renamed bind append: {edit['newText']!r} at {edit['range']['start']}")
+
+# `import h = hello : sayHello;` — a renamed MODULE: the module name is
+# read from the chain after `=`, so the bind list is still extended.
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 224},
+    "contentChanges": [{"text": "import h = hello : sayHello;\nvoid main() { sayB }\n"}]}})
+send({"jsonrpc": "2.0", "id": 225, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 1, "character": 18},
+}})
+resp = recv_response()
+items = resp["result"]["items"]
+bye = [i for i in items if i["label"] == "sayBye"]
+assert bye, f"sayBye not offered: {[i['label'] for i in items]}"
+edit = bye[0]["additionalTextEdits"][0]
+assert edit["newText"] == ", sayBye", f"not an append: {edit['newText']!r}"
+# `;` of "import h = hello : sayHello;" is at char 27
+assert edit["range"]["start"] == {"line": 0, "character": 27}, edit["range"]
+print(f"renamed module append: {edit['newText']!r} at {edit['range']['start']}")
+
 send({"jsonrpc": "2.0", "id": 5, "method": "shutdown"})
 recv_response()
 send({"jsonrpc": "2.0", "method": "exit"})
