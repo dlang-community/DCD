@@ -35,10 +35,20 @@ def recv():
     return json.loads(proc.stdout.read(length))
 
 
+def recv_response():
+    """Skips server-initiated notifications (e.g. window/showMessage)
+    that may legally arrive between requests and responses."""
+    while True:
+        msg = recv()
+        if "id" in msg:
+            return msg
+        # notification (no id): ignore
+
+
 send({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
     "processId": None, "rootUri": None, "capabilities": {
         "general": {"positionEncodings": ["utf-16"]}}}})
-resp = recv()
+resp = recv_response()
 # server should fall back to utf-16 when client doesn't offer utf-8
 assert resp["result"]["capabilities"]["positionEncoding"] == "utf-16", resp["result"]["capabilities"]
 send({"jsonrpc": "2.0", "method": "initialized", "params": {}})
@@ -70,7 +80,7 @@ send({"jsonrpc": "2.0", "id": 2, "method": "textDocument/completion", "params": 
     "textDocument": {"uri": "file:///tmp/semantic.d"},
     "position": {"line": 10, "character": 6},
 }})
-resp = recv()
+resp = recv_response()
 items = resp["result"]["items"]
 print(f"member completion: {len(items)} items")
 for item in items:
@@ -83,7 +93,7 @@ send({"jsonrpc": "2.0", "id": 3, "method": "textDocument/definition", "params": 
     "textDocument": {"uri": "file:///tmp/semantic.d"},
     "position": {"line": 10, "character": 5},  # on "p" in "p."
 }})
-resp = recv()
+resp = recv_response()
 result = resp["result"]
 print("definition of p:", result)
 assert result is not None, "definition not found"
@@ -100,7 +110,7 @@ send({"jsonrpc": "2.0", "id": 6, "method": "textDocument/definition", "params": 
     "textDocument": {"uri": "file:///tmp/semantic.d"},
     "position": {"line": 9, "character": 4},  # on "P" (first char of Point)
 }})
-resp = recv()
+resp = recv_response()
 result = resp["result"]
 print("definition of Point (first char):", result)
 assert result is not None, "definition not found on first character of symbol"
@@ -111,7 +121,7 @@ assert result["range"]["start"]["character"] == 7, result
 # documentSymbol
 send({"jsonrpc": "2.0", "id": 4, "method": "textDocument/documentSymbol", "params": {
     "textDocument": {"uri": "file:///tmp/semantic.d"}}})
-resp = recv()
+resp = recv_response()
 symbols = resp["result"]
 print(f"documentSymbol: {len(symbols)} symbols")
 for s in symbols:
@@ -127,7 +137,7 @@ send({"jsonrpc": "2.0", "id": 7, "method": "textDocument/references", "params": 
     "position": {"line": 10, "character": 4},  # on "p" in "p."
     "context": {"includeDeclaration": True},
 }})
-resp = recv()
+resp = recv_response()
 locs = resp["result"]
 print(f"references of p: {len(locs)} refs")
 for l in locs:
@@ -145,7 +155,7 @@ send({"jsonrpc": "2.0", "id": 8, "method": "textDocument/references", "params": 
     "position": {"line": 10, "character": 4},
     "context": {"includeDeclaration": False},
 }})
-resp = recv()
+resp = recv_response()
 locs = resp["result"]
 print(f"references of p (no decl): {len(locs)} refs")
 assert len(locs) == 1, f"expected 1 use without declaration, got {len(locs)}"
@@ -158,7 +168,7 @@ send({"jsonrpc": "2.0", "id": 9, "method": "textDocument/prepareRename", "params
     "textDocument": {"uri": "file:///tmp/semantic.d"},
     "position": {"line": 9, "character": 10},
 }})
-resp = recv()
+resp = recv_response()
 result = resp["result"]
 print("prepareRename on decl:", result)
 assert result is not None, "prepareRename returned null on declaration"
@@ -172,7 +182,7 @@ send({"jsonrpc": "2.0", "id": 10, "method": "textDocument/prepareRename", "param
     "textDocument": {"uri": "file:///tmp/semantic.d"},
     "position": {"line": 2, "character": 2},
 }})
-resp = recv()
+resp = recv_response()
 assert resp["result"] is None, f"keyword should not be renameable: {resp['result']}"
 print("prepareRename on keyword: null (correct)")
 
@@ -182,7 +192,7 @@ send({"jsonrpc": "2.0", "id": 11, "method": "textDocument/rename", "params": {
     "position": {"line": 9, "character": 10},
     "newName": "point",
 }})
-resp = recv()
+resp = recv_response()
 result = resp["result"]
 print(f"rename p -> point: {len(result['documentChanges'][0]['edits'])} edits")
 assert result is not None, "rename returned null"
@@ -205,7 +215,7 @@ send({"jsonrpc": "2.0", "id": 12, "method": "textDocument/rename", "params": {
     "position": {"line": 9, "character": 10},
     "newName": "struct",
 }})
-resp = recv()
+resp = recv_response()
 assert "error" in resp, f"keyword rename should fail: {resp}"
 print("rename to keyword rejected:", resp["error"]["message"])
 
@@ -215,7 +225,7 @@ send({"jsonrpc": "2.0", "id": 13, "method": "textDocument/rename", "params": {
     "position": {"line": 9, "character": 10},
     "newName": "1bad",
 }})
-resp = recv()
+resp = recv_response()
 assert "error" in resp, f"invalid identifier rename should fail: {resp}"
 print("rename to invalid identifier rejected:", resp["error"]["message"])
 
@@ -224,7 +234,7 @@ print("rename to invalid identifier rejected:", resp["error"]["message"])
 # The server is started with --ignoreConfig, so pass an import path via
 # initializationOptions like the VS Code extension does.
 send({"jsonrpc": "2.0", "id": 5, "method": "shutdown"})
-recv()
+recv_response()
 proc.stdin.close()
 proc.wait(timeout=10)
 
@@ -247,7 +257,7 @@ send({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
     "processId": None, "rootUri": None, "capabilities": {
         "general": {"positionEncodings": ["utf-16"]}},
     "initializationOptions": {"importPaths": [os.path.join(ws, "source")]}}})
-recv()
+recv_response()
 send({"jsonrpc": "2.0", "method": "initialized", "params": {}})
 
 # "import he" (2 tokens) — module name completion
@@ -262,7 +272,7 @@ send({"jsonrpc": "2.0", "id": 2, "method": "textDocument/completion", "params": 
     "textDocument": {"uri": "file:///tmp/semantic.d"},
     "position": {"line": 0, "character": 8},
 }})
-resp = recv()
+resp = recv_response()
 labels = {i["label"] for i in resp["result"]["items"]}
 print(f"import completion 'he': {sorted(labels)}")
 assert "hello" in labels, f"module 'hello' not offered: {labels}"
@@ -275,7 +285,7 @@ send({"jsonrpc": "2.0", "id": 3, "method": "textDocument/completion", "params": 
     "textDocument": {"uri": "file:///tmp/semantic.d"},
     "position": {"line": 0, "character": 13},
 }})
-resp = recv()
+resp = recv_response()
 labels = {i["label"] for i in resp["result"]["items"]}
 print(f"import completion 'hello.': {sorted(labels)}")
 assert "package" in labels, f"'package' not offered: {labels}"
@@ -288,7 +298,7 @@ send({"jsonrpc": "2.0", "id": 4, "method": "textDocument/completion", "params": 
     "textDocument": {"uri": "file:///tmp/semantic.d"},
     "position": {"line": 1, "character": 20},
 }})
-resp = recv()
+resp = recv_response()
 labels = {i["label"] for i in resp["result"]["items"]}
 print(f"member completion 'hello.': {sorted(labels)}")
 assert "sayHello" in labels, f"sayHello not offered: {labels}"
@@ -327,14 +337,14 @@ for expr, expect in offsetof_cases:
         "textDocument": {"uri": "file:///tmp/semantic.d"},
         "position": {"line": line_no, "character": char_no},
     }})
-    resp = recv()
+    resp = recv_response()
     labels = {i["label"] for i in resp["result"]["items"]}
     has = "offsetof" in labels
     assert has == expect, f"offsetof after {expr!r}: got {has}, expected {expect} (items: {sorted(labels)})"
     print(f"offsetof after {expr!r}: {'offered' if has else 'not offered'} (correct)")
 
 send({"jsonrpc": "2.0", "id": 5, "method": "shutdown"})
-recv()
+recv_response()
 send({"jsonrpc": "2.0", "method": "exit"})
 code = proc.wait(timeout=10)
 assert code == 0, f"exit code {code}"

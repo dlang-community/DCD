@@ -86,6 +86,8 @@ class Lsp:
             msg = self.recv()
             if msg.get("id") == obj.get("id"):
                 return msg
+            # server notifications (no id) and other server requests are
+            # skipped; this test doesn't trigger any
 
     def notify(self, obj):
         self.send(obj)

@@ -1,21 +1,3 @@
-/**
- * This file is part of DCD, a development tool for the D programming language.
- * Copyright (C) 2014 Brian Schott
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://wwwwww.gnu.org/licenses/>.
- */
-
 module dcd.server.lsp.handlers;
 
 import std.algorithm;
@@ -35,6 +17,7 @@ import dcd.server.lsp.protocol;
 import dcd.server.lsp.jsonrpc;
 import dcd.server.lsp.dscanner : DScannerConfig, DScannerLinter;
 import dcd.server.lsp.dfmt : DfmtConfig, formatWithDfmt;
+import dcd.server.lsp.stdlib : detectStdlibImportPaths;
 
 import containers.hashset;
 import dsymbol.modulecache;
@@ -84,6 +67,12 @@ struct ServerContext
 	/// Whether the client advertised `window.workDoneProgress` support
 	/// (checked in `handleInitialize`).
 	bool clientSupportsWorkDoneProgress;
+
+	/// Whether stdlib (Phobos/druntime) auto-detection failed during
+	/// `initialize`; surfaced to the user as a `window/showMessage`
+	/// warning on `initialized` (the first point where clients are
+	/// allowed to display messages).
+	bool stdlibMissing;
 
 	/// Monotonic counter for `$/progress` tokens.
 	long nextProgressToken;
@@ -141,6 +130,7 @@ HandlerResult handleRequest(ref ServerContext context, string method, JSONValue 
 		case "initialize":
 			return handleInitialize(context, params);
 		case "initialized":
+			handleInitialized(context);
 			return HandlerResult(); // notification, no response
 		case "shutdown":
 			return HandlerResult(JSONValue(null));
@@ -300,9 +290,11 @@ HandlerResult handleInitialize(ref ServerContext context, JSONValue params)
 	auto dub = detectDubPackageImportPaths(context.rootUri);
 	if (!dub.empty)
 		detected ~= dub;
-	auto phobos = detectPhobosImportPaths();
-	if (!phobos.empty)
-		detected ~= phobos;
+	auto stdlib = detectStdlibImportPaths();
+	if (!stdlib.empty)
+		detected ~= stdlib;
+	else
+		context.stdlibMissing = true;
 	if (!detected.empty)
 	{
 		infof("Auto-detected import paths:\n    %-(%s\n    %)", detected);
@@ -628,56 +620,6 @@ private string[] detectDubPackageImportPaths(string rootUri)
 }
 
 /**
- * Auto-detects the import directory of a locally installed D compiler
- * (Homebrew LDC, system LDC, or DMD via the install script) so that
- * `import std.*` resolves without any client-side configuration.
- */
-private string[] detectPhobosImportPaths()
-{
-	import std.algorithm : map, sort;
-	import std.array : array;
-	import std.file : dirEntries, exists, isDir, SpanMode;
-	import std.path : baseName, buildPath, expandTilde;
-
-	string[] candidates;
-
-	// Homebrew LDC: /opt/homebrew/Cellar/ldc/<version>/include/dlang/ldc
-	immutable ldcCellar = "/opt/homebrew/Cellar/ldc";
-	if (exists(ldcCellar) && isDir(ldcCellar))
-	{
-		auto versions = dirEntries(ldcCellar, SpanMode.shallow)
-			.map!(a => a.name).array;
-		sort!((a, b) => a > b)(versions); // newest first (lexicographic)
-		foreach (v; versions)
-			candidates ~= buildPath(v, "include", "dlang", "ldc");
-	}
-
-	// System-wide LDC
-	candidates ~= "/usr/local/include/dlang/ldc";
-	candidates ~= "/usr/include/dlang/ldc";
-
-	// DMD via the install script: ~/dlang/dmd-<version>/src/{phobos,druntime}
-	immutable dlangDir = expandTilde("~/dlang");
-	if (exists(dlangDir) && isDir(dlangDir))
-	{
-		auto dirs = dirEntries(dlangDir, SpanMode.shallow)
-			.map!(a => a.name).array;
-		sort!((a, b) => a > b)(dirs);
-		foreach (d; dirs)
-			if (baseName(d).startsWith("dmd-"))
-			{
-				candidates ~= buildPath(d, "src", "phobos");
-				candidates ~= buildPath(d, "src", "druntime", "import");
-			}
-	}
-
-	foreach (c; candidates)
-		if (exists(buildPath(c, "std")))
-			return [c];
-	return [];
-}
-
-/**
  * Builds the serverInfo object.
  */
 JSONValue serverInfo()
@@ -688,6 +630,24 @@ JSONValue serverInfo()
 	info["name"] = JSONValue("dcd-lsp");
 	info["version"] = JSONValue(DCD_VERSION);
 	return info;
+}
+
+/**
+ * Handles the `initialized` notification: the first point in the LSP
+ * lifecycle where the client is ready to display messages, so this is
+ * where deferred user-facing warnings (e.g. failed stdlib detection)
+ * are surfaced.
+ */
+void handleInitialized(ref ServerContext context)
+{
+	if (context.stdlibMissing)
+	{
+		// MessageType.warning = 2
+		showMessage(2, "DCD could not locate the D standard library "
+			~ "(Phobos/druntime). Completions for std.* and core.* "
+			~ "will not work. Pass the import path via the -I flag, "
+			~ "dcd.conf, or your client's import path setting.");
+	}
 }
 
 /**

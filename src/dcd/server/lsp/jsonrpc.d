@@ -1,21 +1,3 @@
-/**
- * This file is part of DCD, a development tool for the D programming language.
- * Copyright (C) 2014 Brian Schott
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 module dcd.server.lsp.jsonrpc;
 
 import core.stdc.stdio : fgetc, EOF;
@@ -299,6 +281,19 @@ void createWorkDoneProgress(long token, string title)
 	params["token"] = JSONValue(token);
 	params["title"] = JSONValue(title);
 	sendServerRequest("window/workDoneProgress/create", params);
+}
+
+/**
+ * Sends a `window/showMessage` notification (MessageType: 1 = error,
+ * 2 = warning, 3 = information, 4 = hint) to the client. Fire-and-forget;
+ * clients that don't display messages simply ignore it.
+ */
+void showMessage(int messageType, string message)
+{
+	JSONValue params = parseJSON(`{}`);
+	params["type"] = JSONValue(messageType);
+	params["message"] = JSONValue(message);
+	writeMessageRaw(makeNotification("window/showMessage", params).toString());
 }
 
 /**

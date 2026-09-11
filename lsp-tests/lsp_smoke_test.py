@@ -38,13 +38,23 @@ def recv():
     return json.loads(proc.stdout.read(length))
 
 
+def recv_response():
+    """Skips server-initiated notifications (e.g. window/showMessage)
+    that may legally arrive between requests and responses."""
+    while True:
+        msg = recv()
+        if "id" in msg:
+            return msg
+        # notification (no id): ignore
+
+
 # 1. initialize
 send({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
     "processId": None,
     "rootUri": None,
     "capabilities": {},
 }})
-resp = recv()
+resp = recv_response()
 assert resp["id"] in (1, "1"), resp
 caps = resp["result"]["capabilities"]
 print("initialize OK")
@@ -72,7 +82,7 @@ send({"jsonrpc": "2.0", "id": 2, "method": "textDocument/completion", "params": 
     "textDocument": {"uri": "file:///tmp/test.d"},
     "position": {"line": 2, "character": 21},
 }})
-resp = recv()
+resp = recv_response()
 assert resp["id"] in (2, "2"), resp
 items = resp["result"]["items"]
 print(f"completion OK ({len(items)} items)")
@@ -84,7 +94,7 @@ send({"jsonrpc": "2.0", "id": 3, "method": "textDocument/hover", "params": {
     "textDocument": {"uri": "file:///tmp/test.d"},
     "position": {"line": 2, "character": 22},
 }})
-resp = recv()
+resp = recv_response()
 assert resp["id"] in (3, "3"), resp
 print("hover OK:", str(resp.get("result"))[:120])
 
@@ -93,13 +103,13 @@ send({"jsonrpc": "2.0", "id": 4, "method": "textDocument/definition", "params": 
     "textDocument": {"uri": "file:///tmp/test.d"},
     "position": {"line": 2, "character": 22},
 }})
-resp = recv()
+resp = recv_response()
 assert resp["id"] in (4, "4"), resp
 print("definition OK:", str(resp.get("result"))[:120])
 
 # 7. shutdown / exit
 send({"jsonrpc": "2.0", "id": 5, "method": "shutdown"})
-resp = recv()
+resp = recv_response()
 assert resp["id"] in (5, "5") and "result" in resp, resp
 print("shutdown OK")
 send({"jsonrpc": "2.0", "method": "exit"})

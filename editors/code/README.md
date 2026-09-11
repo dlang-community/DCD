@@ -21,8 +21,9 @@ stdio. No socket, no separate client binary, no bundled language runtime.
 * **Document symbols** — hierarchical outline view
 * **Inlay hints** — inferred variable types and alias targets
 * **Import-path auto-detection** — workspace sources, dub dependencies
-  (including transitive ones from `~/.dub/packages/`), and the local Phobos
-  installation are found without any configuration
+  (including transitive ones from `~/.dub/packages/`), and the local
+  Phobos/druntime installation (read from the compiler's own config file,
+  so any install location works) are found without any configuration
 * **Lint diagnostics** *(optional)* — via an external
   [D-Scanner](https://github.com/dlang-community/D-Scanner) process
 * **Formatting** *(optional)* — via an external
