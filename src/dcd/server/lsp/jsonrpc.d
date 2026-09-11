@@ -302,6 +302,19 @@ void createWorkDoneProgress(long token, string title)
 }
 
 /**
+ * Sends a `window/showMessage` notification (MessageType: 1 = error,
+ * 2 = warning, 3 = information, 4 = hint) to the client. Fire-and-forget;
+ * clients that don't display messages simply ignore it.
+ */
+void showMessage(int messageType, string message)
+{
+	JSONValue params = parseJSON(`{}`);
+	params["type"] = JSONValue(messageType);
+	params["message"] = JSONValue(message);
+	writeMessageRaw(makeNotification("window/showMessage", params).toString());
+}
+
+/**
  * Sends a `$/progress` notification with the given work done progress
  * kind ("begin", "report" or "end").
  */

@@ -226,8 +226,10 @@ The server resolves imports from several sources, in this order:
    * the workspace's own `source/`, `src/`, `import/` directories and root
    * dub dependencies from `dub.selections.json` / `dub.json` / `dub.sdl`,
      including transitive deps from `~/.dub/packages/`
-   * the local Phobos installation (Homebrew LDC, system LDC, or
-     `~/dlang/dmd-*`)
+   * the local Phobos/druntime installation, read from the compiler's own
+     config file (`ldc2.conf` for LDC, `dmd.conf` for DMD — the same file
+     the compiler itself uses, so any install location works), falling
+     back to well-known install directories
 
 Auto-detection uses the workspace root the client reports in `initialize`
 (`rootUri` / `rootPath` / `workspaceFolders`), so open the project folder in
