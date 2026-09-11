@@ -179,7 +179,34 @@ private bool detectFromCompilerConfig(string compilerPath, ref string[] result)
 
 	foreach (conf; confCandidates)
 	{
-		if (!exists(conf) || !isFile(conf))
+		if (!exists(conf))
+			continue;
+		// LDC >= 1.42 generates the config as a DIRECTORY of numbered
+		// .conf files (etc/ldc2.conf/50-target-default.conf, ...); the
+		// compiler itself reads every file in it (iterateConfigFiles),
+		// sorted numerically, later files overriding earlier ones.
+		if (isDir(conf))
+		{
+			string[] files = dirEntries(conf, SpanMode.shallow)
+				.filter!(a => a.isFile && a.name.endsWith(".conf"))
+				.map!(a => a.name).array;
+			sort(files);
+			foreach (f; files)
+			{
+				string[] paths;
+				if (parseLdcConf(f, binDir, paths) && !paths.empty)
+				{
+					result = paths.filter!(a => !a.empty && exists(a)).array;
+					if (!result.empty)
+					{
+						tracef("stdlib: found via %s: %s", f, result);
+						return true;
+					}
+				}
+			}
+			continue;
+		}
+		if (!isFile(conf))
 			continue;
 		string[] paths;
 		if (parseLdcConf(conf, binDir, paths) || parseDmdConf(conf, paths))
