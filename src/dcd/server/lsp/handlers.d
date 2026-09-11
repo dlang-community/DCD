@@ -1438,6 +1438,71 @@ private void enforceDoc(TextDocument* doc, string uri)
 }
 
 /**
+ * The primary `textEdit` shared by every completion item (clangd's model):
+ * the range from the START of the identifier token containing the cursor
+ * TO the cursor position.
+ *
+ * With this range attached, the client replaces exactly the typed prefix
+ * when an item is committed — `m.lol.off|setof` + offsetof replaces `off`
+ * and inserts `offsetof` — and filters items by the same prefix,
+ * regardless of how the client computes "the word under the cursor".
+ * Mid-word triggers (cursor on the first letter of an existing word)
+ * behave identically to end-of-word ones.
+ *
+ * When the cursor is not inside an identifier (right after a `.`, on a
+ * fresh line, ...), the range is empty at the cursor: items insert at the
+ * position and no prefix is filtered.
+ */
+private ModuleDeclarationEdit completionTextEdit(ref ServerContext context,
+	JSONValue params, in AutocompleteRequest request)
+{
+	import dparse.lexer : LexerConfig, StringCache, getTokensForParser, Token, tok;
+
+	ModuleDeclarationEdit result;
+
+	auto doc = context.documents.get(params["textDocument"]["uri"].str);
+	if (doc is null)
+		return result;
+
+	LexerConfig config;
+	auto stringCache = StringCache(clampedBucketCount(doc.text.length));
+	auto tokens = getTokensForParser(cast(ubyte[]) doc.text, config, &stringCache);
+
+	// The identifier token containing (or ending at) the cursor — the
+	// same inclusive-end matching lookupSymbol uses for rename.
+	const(Token)* found;
+	foreach (ref t; tokens)
+	{
+		if (t.type == tok!"identifier"
+			&& request.cursorPosition >= t.index
+			&& request.cursorPosition <= t.index + t.text.length)
+		{
+			found = &t;
+			break;
+		}
+	}
+
+	result.hasEdit = true;
+	if (found is null)
+	{
+		// No identifier at the cursor: an empty range at the cursor —
+		// items insert at the position.
+		result.edit.range = Range(
+			context.converter.toPosition(*doc, request.cursorPosition),
+			context.converter.toPosition(*doc, request.cursorPosition));
+	}
+	else
+	{
+		// From the identifier's first byte to the cursor: committing an
+		// item replaces only the typed prefix.
+		result.edit.range = Range(
+			context.converter.toPosition(*doc, found.index),
+			context.converter.toPosition(*doc, request.cursorPosition));
+	}
+	return result;
+}
+
+/**
  * Builds an `AutocompleteRequest` for a symbol query (definition, hover,
  * references) at the given position.
  *
@@ -1448,6 +1513,11 @@ private void enforceDoc(TextDocument* doc, string uri)
  * token chain and the lookup fails. For symbol queries (unlike completion,
  * where the cursor is naturally after the typed text) the position is ON the
  * symbol, so nudge the offset one byte into the token when needed.
+ *
+ * A cursor on a `.` (common in Vim normal mode, whose cursor sits ON a
+ * character — VS Code's sits between them) is nudged forward onto the
+ * identifier that follows: the dot is never a symbol itself, and the user
+ * hovering there means the next segment (`m.lol.|offsetof`).
  */
 private AutocompleteRequest buildSymbolRequest(ref ServerContext context, JSONValue params)
 {
@@ -1461,6 +1531,17 @@ private AutocompleteRequest buildSymbolRequest(ref ServerContext context, JSONVa
 		if (isIdentChar(c) && (request.cursorPosition == 0
 				|| !isIdentChar(request.sourceCode[request.cursorPosition - 1])))
 			request.cursorPosition++;
+		// A dot: skip it (and any whitespace) so the cursor lands inside
+		// the FOLLOWING identifier — `m.lol.|offsetof` hovers offsetof.
+		else if (c == '.')
+		{
+			size_t i = request.cursorPosition + 1;
+			while (i < request.sourceCode.length
+				&& (request.sourceCode[i] == ' ' || request.sourceCode[i] == '\t'))
+				i++;
+			if (i < request.sourceCode.length && isIdentChar(request.sourceCode[i]))
+				request.cursorPosition = i + 1;
+		}
 	}
 	return request;
 }
@@ -1555,6 +1636,12 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 
 	CompletionList list;
 	list.isIncomplete = false;
+	// The clangd-style primary edit: the range from the start of the
+	// identifier being completed to the cursor. Attaching it to every item
+	// makes clients replace exactly that span instead of guessing "the
+	// word under the cursor" — which is where VS Code, Vim and other
+	// clients diverge (mid-word triggers, cursor on the first letter...).
+	auto completionEdit = completionTextEdit(context, params, request);
 	// Bundle overloads of the same name into a single item (like clangd
 	// does for C++ template overloads): "destroy" with 5 template
 	// constraints shows once. The completion engine ranks constraint-matching
@@ -1570,6 +1657,12 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 		item.kind = toCompletionItemKind(cast(CompletionKind) completion.kind);
 		item.documentation = completion.documentation;
 		fillLabelDetails(item, completion);
+		item.hasTextEdit = completionEdit.hasEdit;
+		item.textEdit = completionEdit.edit;
+		// The edit inserts the item's label (the identifier being
+		// completed); insertText (e.g. the module decl's `name;`) would
+		// conflict with the textEdit per the LSP spec.
+		item.textEdit.newText = item.label;
 
 		bool merged = false;
 		foreach (i, ref existing; bundled)
@@ -2042,14 +2135,30 @@ private string returnTypeFromDefinition(string definition, size_t paren)
 
 /**
  * Handles `textDocument/hover`.
+ *
+ * Symbols WITH doc comments show definition + docs (the classic getDoc
+ * behavior). Symbols WITHOUT docs — local variables, plain fields,
+ * undocumented functions — fall back to their signature/type, like
+ * clangd and rust-analyzer: hovering `int lol;` shows `int lol` instead
+ * of nothing.
  */
 JSONValue handleHover(ref ServerContext context, JSONValue params)
 {
 	auto request = buildSymbolRequest(context, params);
 	auto response = getDoc(request, *context.cache);
 
+	// No documented symbol at the cursor: resolve the symbol anyway and
+	// show its signature/type. getDoc only returns symbols that carry a
+	// doc comment, so undocumented symbols would otherwise hover as null.
 	if (response.completions.empty)
-		return JSONValue(null);
+	{
+		auto fallback = hoverFallback(request, *context.cache);
+		if (fallback.empty)
+			return JSONValue(null);
+		Hover hover;
+		hover.contents = fallback;
+		return hover.toJson();
+	}
 
 	auto completion = response.completions[0];
 	Hover hover;
@@ -2059,6 +2168,41 @@ JSONValue handleHover(ref ServerContext context, JSONValue params)
 			: completion.documentation;
 	hover.contents = contents;
 	return hover.toJson();
+}
+
+/**
+ * The hover text for a symbol that has no doc comment: its signature
+ * (functions: the calltip), its type (variables/fields), or its name —
+ * whatever `makeSymbolCompletionInfo` can derive. Empty when the symbol
+ * cannot be resolved at all.
+ */
+private string hoverFallback(in AutocompleteRequest request,
+	ref ModuleCache moduleCache)
+{
+	import dparse.lexer : StringCache, Token;
+	import dparse.rollback_allocator : RollbackAllocator;
+	import dsymbol.conversion : generateAutocompleteTrees;
+	import dsymbol.utils : getExpression;
+	import dcd.server.autocomplete.util : getSymbolsByTokenChain,
+		getTokensBeforeCursor, clampedBucketCount, makeSymbolCompletionInfo;
+
+	// Same resolution getDoc uses (getSymbolsForCompletion with ddoc
+	// semantics), but WITHOUT the doc-comment filter on the results.
+	RollbackAllocator rba;
+	auto cache = StringCache(clampedBucketCount(request.sourceCode.length));
+	const(Token)[] tokenArray;
+	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
+		request.cursorPosition, cache, tokenArray);
+	auto pair = generateAutocompleteTrees(tokenArray, &rba,
+		request.cursorPosition, moduleCache);
+	scope(exit) pair.destroy();
+	auto symbols = getSymbolsByTokenChain(pair.scope_,
+		getExpression(beforeTokens), request.cursorPosition,
+		CompletionType.ddoc);
+	if (symbols.empty)
+		return null;
+	auto completion = makeSymbolCompletionInfo(symbols[0], symbols[0].kind);
+	return completion.definition.length ? completion.definition : null;
 }
 
 /**

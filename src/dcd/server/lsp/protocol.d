@@ -206,6 +206,15 @@ struct CompletionItem
 	/// inserted text differs from the label, e.g. the module declaration
 	/// suggestion inserts `cheese.dippers;` including the semicolon.
 	string insertText;
+	/// The primary edit for this item (LSP 3.17 `textEdit`): the range the
+	/// label replaces. Set by the server so every client replaces the same
+	/// span regardless of how it computes "the word under the cursor" —
+	/// clangd's model. The range spans from the start of the identifier
+	/// being completed to the cursor, so mid-word triggers replace only
+	/// the typed prefix. When null, clients fall back to their own word
+	/// detection (the previous behavior).
+	bool hasTextEdit;
+	TextEdit textEdit;
 
 	JSONValue toJson() const
 	{
@@ -231,6 +240,8 @@ struct CompletionItem
 			obj["filterText"] = JSONValue(filterText);
 		if (insertText.length)
 			obj["insertText"] = JSONValue(insertText);
+		if (hasTextEdit)
+			obj["textEdit"] = textEdit.toJson();
 		if (additionalTextEdits.length)
 		{
 			JSONValue[] edits;
