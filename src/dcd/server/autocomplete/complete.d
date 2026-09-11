@@ -72,6 +72,22 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
 		request.cursorPosition, stringCache, tokenArray);
 
+	// `import |` — the cursor is right after the import keyword with no
+	// module name typed yet. Route it to the import completion with an
+	// empty partial so the available modules/packages are offered (the
+	// same result as `import s|`, minus the prefix filter). This must
+	// happen before the keyword faking below, which would otherwise turn
+	// the trailing `import` keyword into an identifier and send the
+	// request to dot completion. The keyword token itself is passed
+	// through: setImportCompletions only looks at identifier tokens, so
+	// it contributes neither a partial nor a module path component.
+	if (beforeTokens.length && beforeTokens[$ - 1] == tok!"import")
+	{
+		AutocompleteResponse response;
+		setImportCompletions(beforeTokens[$ - 1 .. $], response, moduleCache);
+		return response;
+	}
+
 	// allows to get completion on keyword, typically "is"
 	if (beforeTokens.length &&
 		(isKeyword(beforeTokens[$-1].type) || isBasicType(beforeTokens[$-1].type)))
