@@ -1722,7 +1722,8 @@ private CompletionItem[] moduleDeclarationCompletions(ref ServerContext context,
 /**
  * Searches the whole module cache for public symbols matching the partial
  * identifier being typed and returns completion items that, when committed,
- * also insert the symbol's `import` declaration (clangd's auto-import).
+ * also insert a SELECTIVE import of that symbol (clangd's auto-import with
+ * `import std.math : abs;` instead of the whole module).
  *
  * The search is name-based (not type-checked): DCD's UFCS machinery cannot
  * verify that e.g. `empty(T)(in T[] a)` applies to the receiver at the
@@ -1800,6 +1801,12 @@ private CompletionItem[] autoImportCompletions(ref ServerContext context,
 	// in scope (or unresolved), not import candidates.
 	string requestPath = uriToPath(params["textDocument"]["uri"].str);
 
+	// Existing selective imports in the document, so a second symbol from
+	// the same module EXTENDS the existing bind list (TypeScript's
+	// behavior: `import { a } from "m"` becomes `import { a, b } from
+	// "m"`) instead of adding a second `import m : b;` line.
+	auto existingBinds = existingSelectiveImports(doc.text);
+
 	CompletionItem[] items;
 	string[] seenKeys;
 	immutable insertAt = importInsertionPoint(doc.text);
@@ -1835,16 +1842,133 @@ private CompletionItem[] autoImportCompletions(ref ServerContext context,
 		// similar penalty prefix).
 		item.sortText = "z" ~ moduleName;
 
-		// The import insertion edit: `import <module>;` at the top of the file.
+		// The import edit: a SELECTIVE import of just this symbol
+		// (`import std.math : abs;`) rather than the whole module —
+		// minimal namespace pollution, and the user sees exactly what
+		// came from where. Overloads of the same name in the same module
+		// collapse into one item (seenKeys above), so the bind list stays
+		// a single name. When the module is ALREADY selectively imported,
+		// the existing declaration is extended instead:
+		// `import std.stdio : writeln;` + `write` becomes
+		// `import std.stdio : writeln, write;`.
 		TextEdit edit;
-		edit.range = Range(
-			context.converter.toPosition(*doc, insertAt),
-			context.converter.toPosition(*doc, insertAt));
-		edit.newText = "import " ~ moduleName ~ ";\n";
+		if (auto existing = moduleName in existingBinds)
+		{
+			// Append `, <symbol>` before the terminating `;` of the
+			// existing declaration.
+			edit.range = Range(
+				context.converter.toPosition(*doc, existing.semicolonAt),
+				context.converter.toPosition(*doc, existing.semicolonAt));
+			edit.newText = ", " ~ sym.name.idup;
+		}
+		else
+		{
+			edit.range = Range(
+				context.converter.toPosition(*doc, insertAt),
+				context.converter.toPosition(*doc, insertAt));
+			edit.newText = "import " ~ moduleName ~ " : " ~ sym.name.idup ~ ";\n";
+		}
 		item.additionalTextEdits ~= edit;
 		items ~= item;
 	}
 	return items;
+}
+
+/**
+ * A selective import declaration found in a document: the module name and
+ * the byte offset of the terminating `;` (where additional bind names can
+ * be inserted).
+ */
+private struct SelectiveImport
+{
+	/// The dotted module name (`std.stdio`).
+	string moduleName;
+
+	/// Byte offset of the declaration's terminating semicolon.
+	size_t semicolonAt;
+}
+
+/**
+ * Finds the top-level selective import declarations in a document, keyed
+ * by dotted module name. Used by the auto-import completion so that
+ * importing a second symbol from an already selectively-imported module
+ * extends the existing bind list (`import std.stdio : writeln;` + `write`
+ * becomes `import std.stdio : writeln, write;`) instead of adding a second
+ * import declaration.
+ *
+ * Renamed binds (`import std.stdio : writeln, foo = write;`) and renamed
+ * modules (`import io = std.stdio : writeln;`) are handled: the bind list
+ * is located by the `:` regardless of what it contains, and the module
+ * name is taken from the chain after `=` when one is present.
+ *
+ * Only top-level imports are considered (the auto-import edit inserts at
+ * top level too). The last declaration per module wins, matching where a
+ * new bind would most naturally be appended.
+ */
+private SelectiveImport[string] existingSelectiveImports(scope const(char)[] text)
+{
+	import dparse.lexer : LexerConfig, StringCache, getTokensForParser, tok;
+
+	LexerConfig config;
+	auto stringCache = StringCache(clampedBucketCount(text.length));
+	auto tokens = getTokensForParser(cast(ubyte[]) text, config, &stringCache);
+
+	SelectiveImport[string] result;
+	int depth;
+	size_t i;
+	while (i < tokens.length)
+	{
+		if (tokens[i].type == tok!"{")
+		{
+			depth++;
+			i++;
+			continue;
+		}
+		if (tokens[i].type == tok!"}")
+		{
+			depth--;
+			i++;
+			continue;
+		}
+		if (tokens[i].type != tok!"import" || depth != 0)
+		{
+			i++;
+			continue;
+		}
+
+		// `import [ident =] <ident (. ident)*> :` — a selective import,
+		 // optionally with a module rename (`import io = std.stdio : ...`).
+		// Skip the rename, then collect the module chain.
+		size_t j = i + 1;
+		if (j + 1 < tokens.length
+			&& tokens[j].type == tok!"identifier" && tokens[j + 1].type == tok!"=")
+			j += 2;
+		string moduleName;
+		while (j < tokens.length && tokens[j].type == tok!"identifier")
+		{
+			if (moduleName.length)
+				moduleName ~= ".";
+			moduleName ~= tokens[j].text;
+			j++;
+			if (j < tokens.length && tokens[j].type == tok!".")
+				j++;
+		}
+		// The bind list must follow: `:` then binds (identifiers, `=`
+		// renames, commas) up to the terminating `;`.
+		if (moduleName.empty || j >= tokens.length || tokens[j].type != tok!":")
+		{
+			i++;
+			continue;
+		}
+		// Find the `;` ending this declaration.
+		size_t semi = j;
+		while (semi < tokens.length && tokens[semi].type != tok!";")
+			semi++;
+		if (semi < tokens.length)
+			result[moduleName] = SelectiveImport(moduleName, tokens[semi].index);
+		i = semi < tokens.length ? semi + 1 : tokens.length;
+	}
+	return result;
 }
 
 /**
