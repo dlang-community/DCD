@@ -88,6 +88,39 @@ for item in items:
 labels = {i["label"] for i in items}
 assert "x" in labels and "y" in labels and "distance" in labels, f"missing members: {labels}"
 
+# clangd-style textEdit: every item carries the range it replaces. After
+# "p." (no identifier typed) the range is empty at the cursor and the
+# newText is the item's label.
+te = items[0].get("textEdit")
+assert te, f"no textEdit on completion item: {items[0]}"
+assert te["range"]["start"] == {"line": 10, "character": 6}, te
+assert te["range"]["end"] == {"line": 10, "character": 6}, te
+assert te["newText"] == items[0]["label"], te
+print(f"textEdit OK: empty range at cursor, newText={te['newText']!r}")
+
+# mid-word trigger: complete inside "distance" on its USE — add a use
+# first. Change the doc to have "p.distance" typed and the cursor mid-word.
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 2},
+    "contentChanges": [{"text": source.replace("    p.\n", "    p.di\n")}]}})
+send({"jsonrpc": "2.0", "id": 20, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 10, "character": 8},
+}})
+resp = recv_response()
+items2 = resp["result"]["items"]
+assert items2, "mid-word completion returned no items"
+te2 = items2[0].get("textEdit")
+assert te2, f"no textEdit: {items2[0]}"
+# "    p.di" — 'di' starts at char 6 (after "    p."), cursor at char 8
+assert te2["range"]["start"]["character"] == 6, te2
+assert te2["range"]["end"]["character"] == 8, te2
+assert te2["newText"] == items2[0]["label"], te2
+print(f"mid-word textEdit OK: range 6..8, newText={te2['newText']!r}")
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 3},
+    "contentChanges": [{"text": source}]}})
+
 # definition of "p" in "p." on line 10
 send({"jsonrpc": "2.0", "id": 3, "method": "textDocument/definition", "params": {
     "textDocument": {"uri": "file:///tmp/semantic.d"},
@@ -360,11 +393,15 @@ resp = recv_response()
 items = resp["result"]["items"]
 say = [i for i in items if i["label"] == "sayHello"]
 assert say, f"sayHello not offered by auto-import: {[i['label'] for i in items]}"
+# every auto-import item shows its module on every row via
+# labelDetails.description (VS Code renders it grayed-out on the right)
+ld = say[0].get("labelDetails", {})
+assert ld.get("description") == "hello", f"no module origin on the item: {say[0]}"
 edits = say[0].get("additionalTextEdits", [])
 assert edits, "no additionalTextEdits on the auto-import item"
 edit_text = edits[0]["newText"]
 assert edit_text == "import hello : sayHello;\n", f"not a selective import: {edit_text!r}"
-print(f"auto-import edit: {edit_text!r}")
+print(f"auto-import edit: {edit_text!r} (origin: {ld.get('description')!r})")
 
 # after applying the edit (and committing the item), the symbol resolves
 applied = edit_text + "void main() { sayHello }\n"

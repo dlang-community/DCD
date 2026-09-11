@@ -72,7 +72,7 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
 		request.cursorPosition, stringCache, tokenArray);
 
-	// `import |` — the cursor is right after the import keyword with no
+	// `import |` - the cursor is right after the import keyword with no
 	// module name typed yet. Route it to the import completion with an
 	// empty partial so the available modules/packages are offered (the
 	// same result as `import s|`, minus the prefix filter). This must
@@ -228,6 +228,26 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	}
 	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == tok!".")
 		significantTokenType = beforeTokens[$ - 2].type;
+	else if (beforeTokens.length >= 1 && beforeTokens[$ - 1].type.among(
+		tok!"{", tok!"}", tok!";", tok!":", tok!"(", tok!"[", tok!","))
+	{
+		// Fresh statement position with nothing typed: offer every symbol
+		// visible at the cursor. setCompletions only walks the cursor
+		// scope when `partial` is non-null, so pass "" (no prefix filter).
+		RollbackAllocator rba;
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba,
+			cursorPosition, moduleCache);
+		scope(exit) pair.destroy();
+		response.setCompletions(pair.scope_, getExpression(beforeTokens),
+			cursorPosition, CompletionType.identifiers, CalltipHint.none, "");
+		if (!pair.ufcsSymbols.empty)
+		{
+			response.completions ~= pair.ufcsSymbols.map!(s =>
+				makeSymbolCompletionInfo(s, CompletionKind.ufcsName)).array;
+			response.completionType = CompletionType.identifiers;
+		}
+		return response;
+	}
 	else
 		return response;
 	switch (significantTokenType)

@@ -352,8 +352,8 @@ HandlerResult handleInitialize(ref ServerContext context, JSONValue params)
 /**
  * Auto-detects the workspace's own import directories from the workspace
  * root: the standard dub layouts (source/, src/, import/) plus the root
- * itself. Runs on the server so that every LSP client — not just the VS
- * Code extension — resolves the project's own modules out of the box.
+ * itself. Runs on the server so that every LSP client - not just the VS
+ * Code extension - resolves the project's own modules out of the box.
  */
 private string[] detectWorkspaceImportPaths(string rootUri)
 {
@@ -744,13 +744,13 @@ private void warmupDocument(ref ServerContext context, string text)
 /**
  * Scans tokenized source for import declarations and returns the imported
  * module paths in DCD's internal "a/b/c" form (dirSeparator-joined, the
- * format `resolveImportLocation` expects — NOT dot-separated).
+ * format `resolveImportLocation` expects - NOT dot-separated).
  *
  * This is a cheap token-level scan (no parsing) used to detect imports
  * added while editing. It covers the forms that affect module resolution:
  * plain chains (`import a.b;`), import lists (`import a, b;`), renamed
- * imports (`import io = a.b;` — the chain is what resolves) and selective
- * imports (`import a.b : x;` — the module, not the binds, needs caching).
+ * imports (`import io = a.b;` - the chain is what resolves) and selective
+ * imports (`import a.b : x;` - the module, not the binds, needs caching).
  * Import expressions (`import("file")`) are not declarations and are
  * skipped. A chain is only reported once it is grammatically finished
  * (`;`, `:` or `,` follows): a partial `import std.` typed mid-statement
@@ -974,7 +974,7 @@ void handleDidChange(ref ServerContext context, JSONValue params)
  *
  * Returns a single whole-document TextEdit (the standard way to return
  * fully formatted text), or null when formatting is unavailable (dfmt not
- * installed) or failed (syntax errors in the document — the client shows
+ * installed) or failed (syntax errors in the document - the client shows
  * nothing and the user's text is untouched).
  */
 JSONValue handleFormatting(ref ServerContext context, JSONValue params)
@@ -1032,7 +1032,7 @@ private struct RecentFileCreation
 
 /**
  * Tracks recently created files so the auto module declaration only fires
- * for files created AND opened in the editor within a short window — the
+ * for files created AND opened in the editor within a short window - the
  * signature of "the user just created this file to edit it". A file that
  * merely appeared on disk (git checkout, build output, a generator) never
  * gets a didOpen in the window and is left alone.
@@ -1047,7 +1047,7 @@ private struct RecentFileCreations
 
 	/// Returns the entry for `uri`, resetting it when expired.
 	/// A pointer, not a ref: callers must be able to set the created/opened
-	/// flags on the STORED entry — `auto entry = get(uri)` on a ref return
+	/// flags on the STORED entry - `auto entry = get(uri)` on a ref return
 	/// would copy the struct and the flags would never be seen by the
 	/// other half of the create/open pair.
 	RecentFileCreation* get(string uri)
@@ -1093,7 +1093,7 @@ private struct RecentFileCreations
  * The client sends this for files created through the editor (explorer
  * "New File", apply-to-workspace edits), NOT for files that merely appear
  * on disk. The notification alone is not enough to justify editing the
- * file though — a generator or a git checkout followed by opening the
+ * file though - a generator or a git checkout followed by opening the
  * file would also produce didOpen. The actual insertion happens in
  * `maybeInsertModuleDeclaration`, called from `handleDidOpen` when BOTH a
  * creation and an open were seen for the same URI within a few seconds.
@@ -1138,7 +1138,7 @@ private void trackDidOpenForCreation(ref ServerContext context, string uri)
  * the most specific import path containing it (the same computation
  * `workspace/willRenameFiles` uses). The edit is sent via
  * `workspace/applyEdit` so the client applies it as a normal, undoable
- * buffer edit — the user sees it happen and one Ctrl+Z reverts it.
+ * buffer edit - the user sees it happen and one Ctrl+Z reverts it.
  *
  * Nothing is sent when the file already has the right declaration, when
  * no module name can be derived (outside every import path), or for
@@ -1178,7 +1178,7 @@ private void maybeInsertModuleDeclaration(ref ServerContext context, string uri)
 	edit["newText"] = JSONValue(insertion.edit.newText);
 
 	// params.edit is a WorkspaceEdit (documentChanges), not a bare
-	// TextDocumentEdit — the client's asWorkspaceEdit converter expects
+	// TextDocumentEdit - the client's asWorkspaceEdit converter expects
 	// the former.
 	JSONValue workspaceEdit = parseJSON(`{}`);
 	workspaceEdit["documentChanges"] = JSONValue(
@@ -1221,7 +1221,7 @@ private ModuleDeclarationEdit moduleDeclarationEdit(
 	auto tokens = getTokensForParser(cast(ubyte[]) text, config, &stringCache);
 
 	// Find an existing `module` declaration (the first module keyword
-	// outside of comments/strings — the lexer guarantees that).
+	// outside of comments/strings - the lexer guarantees that).
 	size_t moduleToken = size_t.max;
 	foreach (i, token; tokens)
 	{
@@ -1438,6 +1438,58 @@ private void enforceDoc(TextDocument* doc, string uri)
 }
 
 /**
+ * The primary `textEdit` shared by every completion item (clangd's
+ * model): the range from the start of the identifier at the cursor to
+ * the cursor. Clients then replace exactly the typed prefix when an
+ * item is committed, instead of guessing the word under the cursor.
+ * Without an identifier at the cursor the range is empty at the cursor.
+ */
+private ModuleDeclarationEdit completionTextEdit(ref ServerContext context,
+	JSONValue params, in AutocompleteRequest request)
+{
+	import dparse.lexer : LexerConfig, StringCache, getTokensForParser, Token, tok;
+
+	ModuleDeclarationEdit result;
+
+	auto doc = context.documents.get(params["textDocument"]["uri"].str);
+	if (doc is null)
+		return result;
+
+	LexerConfig config;
+	auto stringCache = StringCache(clampedBucketCount(doc.text.length));
+	auto tokens = getTokensForParser(cast(ubyte[]) doc.text, config, &stringCache);
+
+	// The identifier token containing (or ending at) the cursor, with
+	// the same inclusive-end matching lookupSymbol uses.
+	const(Token)* found;
+	foreach (ref t; tokens)
+	{
+		if (t.type == tok!"identifier"
+			&& request.cursorPosition >= t.index
+			&& request.cursorPosition <= t.index + t.text.length)
+		{
+			found = &t;
+			break;
+		}
+	}
+
+	result.hasEdit = true;
+	if (found is null)
+	{
+		result.edit.range = Range(
+			context.converter.toPosition(*doc, request.cursorPosition),
+			context.converter.toPosition(*doc, request.cursorPosition));
+	}
+	else
+	{
+		result.edit.range = Range(
+			context.converter.toPosition(*doc, found.index),
+			context.converter.toPosition(*doc, request.cursorPosition));
+	}
+	return result;
+}
+
+/**
  * Builds an `AutocompleteRequest` for a symbol query (definition, hover,
  * references) at the given position.
  *
@@ -1448,6 +1500,10 @@ private void enforceDoc(TextDocument* doc, string uri)
  * token chain and the lookup fails. For symbol queries (unlike completion,
  * where the cursor is naturally after the typed text) the position is ON the
  * symbol, so nudge the offset one byte into the token when needed.
+ *
+ * A cursor on a `.` (Vim normal mode puts the cursor ON a character, VS
+ * Code's sits between them) is nudged forward onto the identifier that
+ * follows: the dot is never a symbol itself.
  */
 private AutocompleteRequest buildSymbolRequest(ref ServerContext context, JSONValue params)
 {
@@ -1461,6 +1517,17 @@ private AutocompleteRequest buildSymbolRequest(ref ServerContext context, JSONVa
 		if (isIdentChar(c) && (request.cursorPosition == 0
 				|| !isIdentChar(request.sourceCode[request.cursorPosition - 1])))
 			request.cursorPosition++;
+		// A dot: skip it (and any whitespace) so the cursor lands inside
+		// the following identifier.
+		else if (c == '.')
+		{
+			size_t i = request.cursorPosition + 1;
+			while (i < request.sourceCode.length
+				&& (request.sourceCode[i] == ' ' || request.sourceCode[i] == '\t'))
+				i++;
+			if (i < request.sourceCode.length && isIdentChar(request.sourceCode[i]))
+				request.cursorPosition = i + 1;
+		}
 	}
 	return request;
 }
@@ -1555,6 +1622,9 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 
 	CompletionList list;
 	list.isIncomplete = false;
+	// The clangd-style primary edit attached to every item so clients
+	// replace the same span instead of guessing the word under the cursor.
+	auto completionEdit = completionTextEdit(context, params, request);
 	// Bundle overloads of the same name into a single item (like clangd
 	// does for C++ template overloads): "destroy" with 5 template
 	// constraints shows once. The completion engine ranks constraint-matching
@@ -1570,6 +1640,11 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 		item.kind = toCompletionItemKind(cast(CompletionKind) completion.kind);
 		item.documentation = completion.documentation;
 		fillLabelDetails(item, completion);
+		item.hasTextEdit = completionEdit.hasEdit;
+		item.textEdit = completionEdit.edit;
+		// The edit inserts the label; insertText would conflict with
+		// textEdit per the LSP spec.
+		item.textEdit.newText = item.label;
 
 		bool merged = false;
 		foreach (i, ref existing; bundled)
@@ -1612,9 +1687,9 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 /**
  * Completion for the module name inside a `module` declaration: when the
  * cursor is on (or right after) an unfinished `module` statement, the
- * expected name — derived from the file's path relative to its most
+ * expected name - derived from the file's path relative to its most
  * specific import path, the same computation the auto-inserted module
- * declaration uses — is offered. A newly created `cheese/dippers.d` with
+ * declaration uses - is offered. A newly created `cheese/dippers.d` with
  * `module |` suggests `cheese.dippers`.
  *
  * Returns null when the cursor is not inside a module declaration, the
@@ -1673,7 +1748,7 @@ private CompletionItem[] moduleDeclarationCompletions(ref ServerContext context,
 		return null;
 
 	// Whether the declaration already has its terminating semicolon
-	// (found after the cursor — `module |;` — or at EOF). When it does,
+	// (found after the cursor - `module |;` - or at EOF). When it does,
 	// the completion must not insert another one.
 	immutable bool hasSemicolon = declEnd != doc.text.length;
 
@@ -1711,7 +1786,7 @@ private CompletionItem[] moduleDeclarationCompletions(ref ServerContext context,
 		item.filterText = moduleName; // no package part: label already matches
 	else
 		item.filterText = moduleName ~ " " ~ moduleName[lastDot + 1 .. $];
-	// Insert the terminating semicolon too — unless the declaration
+	// Insert the terminating semicolon too - unless the declaration
 	// already has one after the cursor (e.g. `module |;`), in which case
 	// adding another would be invalid D.
 	if (!hasSemicolon)
@@ -1727,7 +1802,7 @@ private CompletionItem[] moduleDeclarationCompletions(ref ServerContext context,
  *
  * The search is name-based (not type-checked): DCD's UFCS machinery cannot
  * verify that e.g. `empty(T)(in T[] a)` applies to the receiver at the
- * cursor, so — like clangd's first cut — the item is offered whenever the
+ * cursor, so - like clangd's first cut - the item is offered whenever the
  * name matches nothing in scope. Symbols from modules already imported are
  * skipped (they would have been in scope), as are non-public symbols and
  * internal placeholder names.
@@ -1766,13 +1841,13 @@ private CompletionItem[] autoImportCompletions(ref ServerContext context,
 	// Modules already imported: their symbols are in scope, so offering an
 	// auto-import for them would be noise (and the completion above already
 	// failed to find the name, meaning it is not there).
-	// (Not tracked here — the name-based search below naturally skips them
+	// (Not tracked here - the name-based search below naturally skips them
 	// because their symbols would have resolved in scope.)
 
 	// Prefix search over every cached module. DCD's symbolSearch is
 	// exact-name-match, but completion needs prefix matching, so the
 	// module cache is walked directly. The first search triggers
-	// scanAll() which parses every .d/.di on the import paths —
+	// scanAll() which parses every .d/.di on the import paths -
 	// expensive (multi-second with Phobos), so it only runs when nothing
 	// in scope matched, like the classic dcd-client --search flow.
 	static struct PrefixMatches
@@ -1838,12 +1913,16 @@ private CompletionItem[] autoImportCompletions(ref ServerContext context,
 		item.label = sym.name.idup;
 		item.kind = toCompletionItemKind(sym.kind);
 		item.detail = moduleName;
+		// Show the module on EVERY row (labelDetails.description renders
+		// grayed-out on the right side, like clangd's origin marker), not
+		// just on the focused row like `detail`.
+		item.labelDescription = moduleName;
 		// Rank auto-import items below everything in scope (clangd uses a
 		// similar penalty prefix).
 		item.sortText = "z" ~ moduleName;
 
 		// The import edit: a SELECTIVE import of just this symbol
-		// (`import std.math : abs;`) rather than the whole module —
+		// (`import std.math : abs;`) rather than the whole module -
 		// minimal namespace pollution, and the user sees exactly what
 		// came from where. Overloads of the same name in the same module
 		// collapse into one item (seenKeys above), so the bind list stays
@@ -1936,7 +2015,7 @@ private SelectiveImport[string] existingSelectiveImports(scope const(char)[] tex
 			continue;
 		}
 
-		// `import [ident =] <ident (. ident)*> :` — a selective import,
+		// `import [ident =] <ident (. ident)*> :` - a selective import,
 		 // optionally with a module rename (`import io = std.stdio : ...`).
 		// Skip the rename, then collect the module chain.
 		size_t j = i + 1;
@@ -2038,14 +2117,26 @@ private string returnTypeFromDefinition(string definition, size_t paren)
 
 /**
  * Handles `textDocument/hover`.
+ *
+ * Symbols with doc comments show definition + docs. Symbols without
+ * docs fall back to their signature/type, like clangd and rust-analyzer.
  */
 JSONValue handleHover(ref ServerContext context, JSONValue params)
 {
 	auto request = buildSymbolRequest(context, params);
 	auto response = getDoc(request, *context.cache);
 
+	// getDoc only returns symbols that carry a doc comment; fall back
+	// to the signature/type for undocumented symbols.
 	if (response.completions.empty)
-		return JSONValue(null);
+	{
+		auto fallback = hoverFallback(request, *context.cache);
+		if (fallback.empty)
+			return JSONValue(null);
+		Hover hover;
+		hover.contents = fallback;
+		return hover.toJson();
+	}
 
 	auto completion = response.completions[0];
 	Hover hover;
@@ -2055,6 +2146,39 @@ JSONValue handleHover(ref ServerContext context, JSONValue params)
 			: completion.documentation;
 	hover.contents = contents;
 	return hover.toJson();
+}
+
+/**
+ * The hover text for a symbol that has no doc comment: its signature,
+ * type, or name, whatever `makeSymbolCompletionInfo` can derive. Empty
+ * when the symbol cannot be resolved at all.
+ */
+private string hoverFallback(in AutocompleteRequest request,
+	ref ModuleCache moduleCache)
+{
+	import dparse.lexer : StringCache, Token;
+	import dparse.rollback_allocator : RollbackAllocator;
+	import dsymbol.conversion : generateAutocompleteTrees;
+	import dsymbol.utils : getExpression;
+	import dcd.server.autocomplete.util : getSymbolsByTokenChain,
+		getTokensBeforeCursor, clampedBucketCount, makeSymbolCompletionInfo;
+
+	// Same resolution getDoc uses, but without the doc-comment filter.
+	RollbackAllocator rba;
+	auto cache = StringCache(clampedBucketCount(request.sourceCode.length));
+	const(Token)[] tokenArray;
+	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
+		request.cursorPosition, cache, tokenArray);
+	auto pair = generateAutocompleteTrees(tokenArray, &rba,
+		request.cursorPosition, moduleCache);
+	scope(exit) pair.destroy();
+	auto symbols = getSymbolsByTokenChain(pair.scope_,
+		getExpression(beforeTokens), request.cursorPosition,
+		CompletionType.ddoc);
+	if (symbols.empty)
+		return null;
+	auto completion = makeSymbolCompletionInfo(symbols[0], symbols[0].kind);
+	return completion.definition.length ? completion.definition : null;
 }
 
 /**
@@ -2176,7 +2300,7 @@ JSONValue handleReferences(ref ServerContext context, JSONValue params)
 
 	// Symbols declared OUTSIDE the workspace (Phobos, dub dependencies)
 	// are never scanned, so their declaration is not among the uses
-	// above — add it separately.
+	// above - add it separately.
 	if (includeDeclaration && lookup.declarationFile.length
 		&& lookup.declarationFile != requestPath
 		&& !lookup.files.canFind(lookup.declarationFile))
@@ -2263,7 +2387,7 @@ private struct SymbolLookup
  * is lexed and each same-named identifier is resolved to its symbol
  * to check whether it denotes the same declaration. The identifier range
  * is computed by lexing the requesting document and finding the identifier
- * token containing the request position — this also validates that the
+ * token containing the request position - this also validates that the
  * cursor is on an identifier and not a keyword, literal or comment.
  */
 private SymbolLookup lookupSymbol(ref ServerContext context, JSONValue params)
@@ -2380,7 +2504,7 @@ private void findWorkspaceUses(ref ServerContext context,
 	import std.path : extension;
 
 	// Collect the workspace's .d/.di files. Only the workspace root is
-	// scanned — NOT the import paths: they include auto-detected Phobos
+	// scanned - NOT the import paths: they include auto-detected Phobos
 	// and dub dependencies (read-only library sources, thousands of files;
 	// scanning them makes rename take minutes and edits there could never
 	// be applied anyway).
@@ -2550,7 +2674,7 @@ JSONValue handleRename(ref ServerContext context, JSONValue params)
 		throw new Exception("Missing newName parameter");
 
 	// Reject names that are not valid D identifiers or that collide with
-	// keywords — the client would otherwise apply edits that break the code.
+	// keywords - the client would otherwise apply edits that break the code.
 	if (!isValidDIdentifier(newName))
 		throw new Exception("Invalid identifier: " ~ newName);
 
@@ -2609,7 +2733,7 @@ JSONValue handleRename(ref ServerContext context, JSONValue params)
  *
  * The textDocument identifier is an OptionalVersionedTextDocumentIdentifier:
  * the client libraries (vscode-languageserver-protocol) require `version`
- * to be null or an integer — echoing a request's {uri} without a version
+ * to be null or an integer - echoing a request's {uri} without a version
  * field makes TextDocumentEdit.is() fail and the edit gets rejected with
  * "Unknown workspace edit change received".
  */
@@ -2738,7 +2862,7 @@ private size_t preferredSignature(AutocompleteResponse response,
 /**
  * The signature string to show for a calltip completion. For a UFCS call
  * (`ma.dostuff(...)`) the first parameter is the receiver, which the user
- * has already typed before the dot, so it is stripped from the label — the
+ * has already typed before the dot, so it is stripped from the label - the
  * widget then shows (and highlights) only the arguments that are actually
  * typed inside the parentheses.
  */
@@ -2944,7 +3068,7 @@ JSONValue handleInlayHint(ref ServerContext context, JSONValue params)
 			|| completion.identifier.canFind('*'))
 			continue;
 		// A stale or bogus offset (e.g. from an incomplete parse while the
-		// user is typing) must not fail the whole request — skip the hint.
+		// user is typing) must not fail the whole request - skip the hint.
 		try
 		{
 			hint.position = completion.symbolFilePath == "stdin"
@@ -3016,7 +3140,7 @@ private DocumentSymbol documentSymbolFor(ref ServerContext context,
 	result.detail = symbol.formatType;
 	// A bogus offset (e.g. size_t.max on synthetic varargs symbols, or a
 	// stale location from an incomplete parse) must not fail the whole
-	// request — clamp it to the document end.
+	// request - clamp it to the document end.
 	Position pos;
 	try
 		pos = context.converter.toPosition(doc, symbol.location);
@@ -3109,7 +3233,7 @@ private ModuleNameUse[] scanModuleNameUses(T)(T tokens)
 		// ImportList: SingleImport ("," SingleImport)* (":" ImportBinds)?
 		while (true)
 		{
-			// renamed import: Identifier "=" IdentifierChain — the chain
+			// renamed import: Identifier "=" IdentifierChain - the chain
 			// after the "=" is what resolves
 			if (i + 1 < tokens.length && tokens[i].type == tok!"identifier"
 				&& tokens[i + 1].type == tok!"=")
@@ -3181,7 +3305,7 @@ unittest
 	foreach (use; uses)
 		assert(use.segments == ["a", "b"] || use.segments == ["c", "d"],
 			"unexpected segments: " ~ use.segments.join("."));
-	// "module a.b;" — the chain a.b spans bytes 7..10
+	// "module a.b;" - the chain a.b spans bytes 7..10
 	assert(uses[0].start == 7 && uses[0].end == 10);
 
 	// strings, comments and import expressions are not declarations
@@ -3200,7 +3324,7 @@ unittest
 /**
  * Collects every .d/.di file under the workspace root, deduplicated.
  *
- * Only the workspace root is scanned — NOT the import paths: they include
+ * Only the workspace root is scanned - NOT the import paths: they include
  * auto-detected Phobos and dub dependencies (read-only library sources,
  * thousands of files; scanning them makes rename take minutes and edits
  * there could never be applied anyway).
@@ -3285,7 +3409,7 @@ private string moduleNameForPath(string path, ref ServerContext context)
 
 /**
  * Whether a module name use refers to the renamed module: an exact match,
- * or — when a folder was renamed, moving every file inside it — a
+ * or - when a folder was renamed, moving every file inside it - a
  * submodule of the renamed package. A file rename only changes that one
  * module.
  */
@@ -3319,7 +3443,7 @@ private bool moduleNameMatches(string[] segments, string[] oldSegments, bool fol
  * Like serve-d's module renaming, only module declarations and import
  * chains are rewritten; qualified usages of the module name in expressions
  * (e.g. `helper.cheer()` after `import helper;` became `import greeter;`)
- * are left to the user — telling them apart from same-named variables
+ * are left to the user - telling them apart from same-named variables
  * requires full semantic resolution.
  */
 JSONValue handleWillRenameFiles(ref ServerContext context, JSONValue params)

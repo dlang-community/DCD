@@ -223,7 +223,7 @@ private:
 
 		// Resolve the configured executable. A bare name (no directory
 		// component, like the default "dscanner") means "look it up on
-		// the PATH" — the same convention as dcd.serverPath. A path with
+		// the PATH" - the same convention as dcd.serverPath. A path with
 		// a directory component must exist as given.
 		string name = config.executable;
 		if (name.empty || name.dirName == ".")
@@ -573,7 +573,7 @@ private bool dscannerIniDiscovered(string workDir)
  * returns its path. The file is shared by all lint runs of this server
  * process; it is never cleaned up (a few bytes in the temp dir, like
  * clangd's crash reports). Returns an empty string when it cannot be
- * written (e.g. no temp dir) — the linter then just runs dscanner with
+ * written (e.g. no temp dir) - the linter then just runs dscanner with
  * its stock defaults.
  */
 private string defaultDscannerIni()

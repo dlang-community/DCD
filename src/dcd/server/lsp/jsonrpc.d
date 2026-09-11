@@ -70,7 +70,7 @@ struct JsonRpcMessage
  * All reads go through the RAW file descriptor (core.sys.posix.unistd.read),
  * not the stdio FILE*: fgetc/rawRead hold the FILE lock while blocked, and
  * std.process.spawnProcess calls fileno() on stdin/stdout/stderr, which
- * needs that same lock — a background thread spawning a process (e.g. the
+ * needs that same lock - a background thread spawning a process (e.g. the
  * D-Scanner linter) would deadlock against a main thread blocked in fgetc
  * waiting for the next message. Raw fd reads carry no lock.
  *
