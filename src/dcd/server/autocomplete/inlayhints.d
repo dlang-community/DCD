@@ -104,7 +104,7 @@ public AutocompleteResponse getInlayHints(const AutocompleteRequest request,
 		//}
 
 		// Function parameters always have their type spelled out in the
-		// source — a hint there is pure noise.
+		// source - a hint there is pure noise.
 		const isParam = inFunctionParams
 			&& it.kind == CompletionKind.variableName;
 
@@ -113,7 +113,7 @@ public AutocompleteResponse getInlayHints(const AutocompleteRequest request,
 		// 		alias Alias1 = Data;
 		// 		Alias1 var;				renders:  var: Data
 		// Builtin aliases (string/wstring/dstring) are skipped: they are
-		// idiomatic D, so resolving them is noise — and the resolved label
+		// idiomatic D, so resolving them is noise - and the resolved label
 		// would be wrong anyway (string is immutable(char)[], but the
 		// placeholder-symbol type chain cannot express the immutable).
 		if (!isParam && it.kind == CompletionKind.variableName && it.type
@@ -136,7 +136,7 @@ public AutocompleteResponse getInlayHints(const AutocompleteRequest request,
 				type = type.type;
 			appendType(c, type.type !is null ? type.type : type);
 
-			// nothing renderable behind the alias — skip instead of
+			// nothing renderable behind the alias - skip instead of
 			// emitting a bare ": " label
 			if (c.identifier.length > 2)
 				response.completions ~= c;
@@ -146,7 +146,7 @@ public AutocompleteResponse getInlayHints(const AutocompleteRequest request,
 		// type is NOT spelled out in the declaration, i.e. inferred via
 		// `auto`/`const`/`immutable`/`enum`. Explicitly typed declarations
 		// (`Mama mama`, function parameters) already show the type next to
-		// the name — a hint there would be redundant. String literals are
+		// the name - a hint there would be redundant. String literals are
 		// also skipped: their type is self-evident.
 		else if (!isParam && it.kind == CompletionKind.variableName && it.type
 			&& it.type.name !is null && it.type.name.length
@@ -192,7 +192,7 @@ public AutocompleteResponse getInlayHints(const AutocompleteRequest request,
  * type inferred rather than spelled out in the source, i.e. the name is
  * directly preceded by a type-inferring storage class (`auto`, `const`,
  * `immutable`, `enum`). Explicitly typed declarations (`Mama mama`,
- * function parameters — which in D always carry a type) and continued
+ * function parameters - which in D always carry a type) and continued
  * declarators (`int a = 1, b = 2`) already show the type in the source, so
  * a hint there would be redundant.
  */
@@ -210,7 +210,7 @@ private bool typeIsInferred(const(ubyte)[] source, size_t nameStart)
 
 	// punctuation directly before the name means an explicit (possibly
 	// complex) type (`const(char)[] x`, `int* p`) or a continued declarator
-	// (`int a = 1, b = 2`) — no hint needed either way
+	// (`int a = 1, b = 2`) - no hint needed either way
 	if (!isIdentChar(source[i - 1]))
 		return false;
 

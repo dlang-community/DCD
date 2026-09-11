@@ -191,7 +191,7 @@ struct CompletionItem
 	/// LSP 3.17 `labelDetails.description`: rendered on the right side of
 	/// every row (grayed). Carries the "ufcs" marker for UFCS functions.
 	string labelDescription;
-	/// Optional edits performed IN ADDITION to the completion insert — used
+	/// Optional edits performed IN ADDITION to the completion insert - used
 	/// for clangd-style auto-import: committing the item also inserts the
 	/// `import` declaration for the symbol's module.
 	TextEdit[] additionalTextEdits;
@@ -208,7 +208,7 @@ struct CompletionItem
 	string insertText;
 	/// The primary edit for this item (LSP 3.17 `textEdit`): the range the
 	/// label replaces. Set by the server so every client replaces the same
-	/// span regardless of how it computes "the word under the cursor" —
+	/// span regardless of how it computes "the word under the cursor" -
 	/// clangd's model. The range spans from the start of the identifier
 	/// being completed to the cursor, so mid-word triggers replace only
 	/// the typed prefix. When null, clients fall back to their own word

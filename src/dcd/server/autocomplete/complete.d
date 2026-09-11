@@ -72,7 +72,7 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
 		request.cursorPosition, stringCache, tokenArray);
 
-	// `import |` — the cursor is right after the import keyword with no
+	// `import |` - the cursor is right after the import keyword with no
 	// module name typed yet. Route it to the import completion with an
 	// empty partial so the available modules/packages are offered (the
 	// same result as `import s|`, minus the prefix filter). This must
@@ -231,13 +231,9 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	else if (beforeTokens.length >= 1 && beforeTokens[$ - 1].type.among(
 		tok!"{", tok!"}", tok!";", tok!":", tok!"(", tok!"[", tok!","))
 	{
-		// The cursor is at a fresh statement position (a new line after
-		// `{`, `}`, `;`, ...) with nothing typed yet: offer every symbol
-		// visible at the cursor, like TypeScript and other language servers
-		// do. The scope is resolved from the full token array with the
-		// real cursor position so the enclosing function/class is honored.
-		// setCompletions only walks the cursor scope when `partial` is
-		// non-null (empty string = no prefix filter, matches everything).
+		// Fresh statement position with nothing typed: offer every symbol
+		// visible at the cursor. setCompletions only walks the cursor
+		// scope when `partial` is non-null, so pass "" (no prefix filter).
 		RollbackAllocator rba;
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba,
 			cursorPosition, moduleCache);

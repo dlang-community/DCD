@@ -20,7 +20,7 @@ import dcd.server.lsp.handlers : uriToPath;
  * and the request returns null (no edits).
  *
  * Formatting runs synchronously on the request thread: unlike linting it is
- * user-initiated (Shift+Alt+F), so a short blocking call is expected — the
+ * user-initiated (Shift+Alt+F), so a short blocking call is expected - the
  * same way clangd blocks on its internal formatter. dfmt is fast (a few ms
  * for typical files).
  */
@@ -132,7 +132,7 @@ string formatWithDfmt(ref DfmtConfig config, string uri, string source)
  *
  * On syntax errors dfmt prints lines like `stdin(16:9)[error]: no
  * identifier for declarator` BEFORE the (mangled) formatted text. Only
- * the diagnostics are useful in the log — echoing the formatted source
+ * the diagnostics are useful in the log - echoing the formatted source
  * is noise. Caps at three diagnostics; falls back to a short raw preview
  * when no recognizable diagnostic lines exist (e.g. dfmt crashed).
  */
@@ -214,7 +214,7 @@ private bool editorconfigDiscovered(string workDir)
  * `--config` takes a directory, not a file). The file is shared by all
  * format requests of this server process; it is never cleaned up (a few
  * bytes in the temp dir). Returns an empty string when it cannot be
- * written — formatting then just uses dfmt's stock defaults.
+ * written - formatting then just uses dfmt's stock defaults.
  */
 private string defaultEditorconfig(string braceStyle)
 {

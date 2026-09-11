@@ -2,15 +2,15 @@
  * Auto-detection of the local D standard library (Phobos + druntime)
  * import directories.
  *
- * The primary source is the compiler's own configuration file — the same
+ * The primary source is the compiler's own configuration file - the same
  * file the compiler itself consults to find its stdlib, so any install
  * location works:
  *
  * $(UL
- *     $(LI LDC: `ldc2.conf` — `default` section, `switches` /
+ *     $(LI LDC: `ldc2.conf` - `default` section, `switches` /
  *         `post-switches` arrays, `-I` entries, `%%ldcbinarypath%%`
  *         substitution)
- *     $(LI DMD: `dmd.conf` — `[Environment64]`/`[Environment32]` sections,
+ *     $(LI DMD: `dmd.conf` - `[Environment64]`/`[Environment32]` sections,
  *         `DFLAGS=` line, `-I` entries, `%@P%` substitution for the conf
  *         file's directory))
  *
@@ -306,7 +306,7 @@ private bool parseLdcConf(string confPath, string binDir, ref string[] paths)
 		if (trimmed.empty || trimmed.startsWith("//"))
 			continue;
 
-		// Section header: `default:` or `"regex":` — always ends with
+		// Section header: `default:` or `"regex":` - always ends with
 		// `:`, unlike array entries (`"-I..."`), which also start with
 		// a quote.
 		if (trimmed.endsWith(":")
