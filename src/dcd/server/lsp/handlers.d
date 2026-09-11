@@ -1838,6 +1838,10 @@ private CompletionItem[] autoImportCompletions(ref ServerContext context,
 		item.label = sym.name.idup;
 		item.kind = toCompletionItemKind(sym.kind);
 		item.detail = moduleName;
+		// Show the module on EVERY row (labelDetails.description renders
+		// grayed-out on the right side, like clangd's origin marker), not
+		// just on the focused row like `detail`.
+		item.labelDescription = moduleName;
 		// Rank auto-import items below everything in scope (clangd uses a
 		// similar penalty prefix).
 		item.sortText = "z" ~ moduleName;

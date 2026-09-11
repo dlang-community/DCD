@@ -360,11 +360,15 @@ resp = recv_response()
 items = resp["result"]["items"]
 say = [i for i in items if i["label"] == "sayHello"]
 assert say, f"sayHello not offered by auto-import: {[i['label'] for i in items]}"
+# every auto-import item shows its module on every row via
+# labelDetails.description (VS Code renders it grayed-out on the right)
+ld = say[0].get("labelDetails", {})
+assert ld.get("description") == "hello", f"no module origin on the item: {say[0]}"
 edits = say[0].get("additionalTextEdits", [])
 assert edits, "no additionalTextEdits on the auto-import item"
 edit_text = edits[0]["newText"]
 assert edit_text == "import hello : sayHello;\n", f"not a selective import: {edit_text!r}"
-print(f"auto-import edit: {edit_text!r}")
+print(f"auto-import edit: {edit_text!r} (origin: {ld.get('description')!r})")
 
 # after applying the edit (and committing the item), the symbol resolves
 applied = edit_text + "void main() { sayHello }\n"
