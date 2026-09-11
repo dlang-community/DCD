@@ -1722,7 +1722,8 @@ private CompletionItem[] moduleDeclarationCompletions(ref ServerContext context,
 /**
  * Searches the whole module cache for public symbols matching the partial
  * identifier being typed and returns completion items that, when committed,
- * also insert the symbol's `import` declaration (clangd's auto-import).
+ * also insert a SELECTIVE import of that symbol (clangd's auto-import with
+ * `import std.math : abs;` instead of the whole module).
  *
  * The search is name-based (not type-checked): DCD's UFCS machinery cannot
  * verify that e.g. `empty(T)(in T[] a)` applies to the receiver at the
@@ -1835,12 +1836,17 @@ private CompletionItem[] autoImportCompletions(ref ServerContext context,
 		// similar penalty prefix).
 		item.sortText = "z" ~ moduleName;
 
-		// The import insertion edit: `import <module>;` at the top of the file.
+		// The import insertion edit: a SELECTIVE import of just this
+		// symbol (`import std.math : abs;`) rather than the whole module —
+		// minimal namespace pollution, and the user sees exactly what
+		// came from where. Overloads of the same name in the same module
+		// collapse into one item (seenKeys above), so the bind list stays
+		// a single name.
 		TextEdit edit;
 		edit.range = Range(
 			context.converter.toPosition(*doc, insertAt),
 			context.converter.toPosition(*doc, insertAt));
-		edit.newText = "import " ~ moduleName ~ ";\n";
+		edit.newText = "import " ~ moduleName ~ " : " ~ sym.name.idup ~ ";\n";
 		item.additionalTextEdits ~= edit;
 		items ~= item;
 	}
