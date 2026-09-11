@@ -228,6 +228,30 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	}
 	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == tok!".")
 		significantTokenType = beforeTokens[$ - 2].type;
+	else if (beforeTokens.length >= 1 && beforeTokens[$ - 1].type.among(
+		tok!"{", tok!"}", tok!";", tok!":", tok!"(", tok!"[", tok!","))
+	{
+		// The cursor is at a fresh statement position (a new line after
+		// `{`, `}`, `;`, ...) with nothing typed yet: offer every symbol
+		// visible at the cursor, like TypeScript and other language servers
+		// do. The scope is resolved from the full token array with the
+		// real cursor position so the enclosing function/class is honored.
+		// setCompletions only walks the cursor scope when `partial` is
+		// non-null (empty string = no prefix filter, matches everything).
+		RollbackAllocator rba;
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba,
+			cursorPosition, moduleCache);
+		scope(exit) pair.destroy();
+		response.setCompletions(pair.scope_, getExpression(beforeTokens),
+			cursorPosition, CompletionType.identifiers, CalltipHint.none, "");
+		if (!pair.ufcsSymbols.empty)
+		{
+			response.completions ~= pair.ufcsSymbols.map!(s =>
+				makeSymbolCompletionInfo(s, CompletionKind.ufcsName)).array;
+			response.completionType = CompletionType.identifiers;
+		}
+		return response;
+	}
 	else
 		return response;
 	switch (significantTokenType)
