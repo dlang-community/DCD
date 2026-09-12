@@ -582,11 +582,27 @@ void generateUpdatePairs(DSymbol* oldSymbol, DSymbol* newSymbol, ref UpdatePairC
 	results.insert(UpdatePair(oldSymbol, newSymbol));
 	foreach (part; oldSymbol.parts[])
 	{
-		auto temp = DSymbol(oldSymbol.name);
-		auto r = newSymbol.parts.equalRange(SymbolOwnership(&temp));
-		if (r.empty)
+		// Import placeholders are re-resolved separately and never have a
+		// counterpart in the new tree.
+		if (part.name == IMPORT_SYMBOL_NAME)
 			continue;
-		generateUpdatePairs(part, r.front, results);
+
+		// Find the counterpart of `part` among the new symbol's children.
+		// Matching is done by name; if several children share the name
+		// (overloads), prefer the one at the same location.
+		auto candidates = newSymbol.parts.equalRange(SymbolOwnership(part, false));
+		if (candidates.empty)
+			continue;
+		auto match = candidates.front;
+		foreach (candidate; candidates)
+		{
+			if (candidate.location == part.location)
+			{
+				match = candidate;
+				break;
+			}
+		}
+		generateUpdatePairs(part, match, results);
 	}
 }
 

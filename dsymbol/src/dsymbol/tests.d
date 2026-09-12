@@ -588,6 +588,57 @@ unittest
 	assert(a.data.ptr == b.data.ptr);
 }
 
+// generateUpdatePairs must recurse into child symbols so that modules
+// depending on a re-cached module get their type references patched to
+// the new symbol tree.
+unittest
+{
+	import std.experimental.allocator : make;
+	import std.experimental.allocator.gc_allocator : GCAllocator;
+
+	// old module: struct S { int member; }
+	auto oldRoot = GCAllocator.instance.make!DSymbol(internString("old"));
+	auto oldS = GCAllocator.instance.make!DSymbol(internString("S"));
+	auto oldMember = GCAllocator.instance.make!DSymbol(internString("member"));
+	oldRoot.addChild(oldS, true);
+	oldS.addChild(oldMember, true);
+
+	// new module: struct S { int member; } (fresh tree after re-parse)
+	auto newRoot = GCAllocator.instance.make!DSymbol(internString("new"));
+	auto newS = GCAllocator.instance.make!DSymbol(internString("S"));
+	auto newMember = GCAllocator.instance.make!DSymbol(internString("member"));
+	newRoot.addChild(newS, true);
+	newS.addChild(newMember, true);
+
+	UpdatePairCollection pairs;
+	generateUpdatePairs(oldRoot, newRoot, pairs);
+
+	// root pair must always be present
+	assert(!pairs.equalRange(UpdatePair(oldRoot, null)).empty);
+
+	// the child pair is what master fails to generate
+	assert(!pairs.equalRange(UpdatePair(oldS, null)).empty,
+		"generateUpdatePairs did not pair the child symbol S");
+	assert(!pairs.equalRange(UpdatePair(oldMember, null)).empty,
+		"generateUpdatePairs did not pair the nested symbol S.member");
+
+	// and the pairs must point at the *new* tree
+	foreach (pair; pairs.equalRange(UpdatePair(oldS, null)))
+		assert(pair.newSymbol is newS);
+
+	// simulate what modulecache does: patch a dependent module's reference
+	auto dependent = GCAllocator.instance.make!DSymbol(internString("dependent"));
+	dependent.type = oldS;
+	dependent.updateTypes(pairs);
+	assert(dependent.type is newS,
+		"updateTypes did not re-point the dependent's type to the new symbol");
+
+	// cleanup (children are owned by their parents)
+	GCAllocator.instance.dispose(oldRoot);
+	GCAllocator.instance.dispose(newRoot);
+	GCAllocator.instance.dispose(dependent);
+}
+
 private StringCache stringCache = void;
 static this()
 {
