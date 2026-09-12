@@ -336,6 +336,112 @@ assert te["range"]["start"]["character"] == 12, f"edit does not cover @no: {te}"
 assert te["newText"] == "@nogc", te
 print("@no partial: textEdit covers `@no` -> no double-@ on commit")
 
+# --- parameter storage classes: completion inside a parameter list ---
+# `void mama(|` (nothing typed) offers the parameter storage classes
+# (ref, scope, in, out, ...) alongside the scope symbols (the parameter
+# type can be a user-defined symbol). Compiler-verified: `auto` is NOT a
+# valid parameter storage class.
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 238},
+    "contentChanges": [{"text": "void mama(\n{\n}\n"}]}})
+send({"jsonrpc": "2.0", "id": 239, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 0, "character": 10},
+}})
+resp = recv_response()
+labels = {i["label"] for i in resp["result"]["items"]}
+for expected in ("ref", "scope", "in", "out", "inout", "lazy", "const",
+        "immutable", "shared", "return", "int"):
+    assert expected in labels, f"{expected} not offered inside param list: {sorted(labels)}"
+assert "auto" not in labels, f"auto offered inside param list: {sorted(labels)}"
+print(f"parameter storage classes inside `void mama(|`: {len(labels)} items")
+
+# partial `i` -> in/inout/int (scope symbols filtered by the same partial)
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 240},
+    "contentChanges": [{"text": "void mama(i\n{\n}\n"}]}})
+send({"jsonrpc": "2.0", "id": 241, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 0, "character": 11},
+}})
+resp = recv_response()
+labels = {i["label"] for i in resp["result"]["items"]}
+for expected in ("in", "inout", "int"):
+    assert expected in labels, f"{expected} not offered for partial i: {sorted(labels)}"
+assert "out" not in labels, f"out offered for partial i: {sorted(labels)}"
+print("parameter storage classes partial `i`: in/inout/int only")
+
+# keyword textEdit: `in|` committing `inout` must REPLACE the typed `in`
+# (keyword tokens have null text, so the edit range needs the keyword
+# spelling) - otherwise the commit would produce `ininout`.
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 242},
+    "contentChanges": [{"text": "void mama(in\n{\n}\n"}]}})
+send({"jsonrpc": "2.0", "id": 243, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 0, "character": 12},
+}})
+resp = recv_response()
+items = [i for i in resp["result"]["items"] if i["label"] == "inout"]
+assert items, f"inout not offered for partial in: {[i['label'] for i in resp['result']['items']]}"
+te = items[0]["textEdit"]
+assert te["range"]["start"]["character"] == 10, f"edit does not cover `in`: {te}"
+assert te["range"]["end"]["character"] == 12, f"edit does not cover `in`: {te}"
+assert te["newText"] == "inout", te
+print("keyword textEdit: `in` replaced by inout (no ininout)")
+
+# after a comma separating parameters
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 244},
+    "contentChanges": [{"text": "void mama(int a, \n{\n}\n"}]}})
+send({"jsonrpc": "2.0", "id": 245, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 0, "character": 17},
+}})
+resp = recv_response()
+labels = {i["label"] for i in resp["result"]["items"]}
+assert "ref" in labels, f"ref not offered after comma: {sorted(labels)}"
+print("parameter storage classes after comma: ref offered")
+
+# a CALL expression keeps its calltip (signatureHelp shape, not items)
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 246},
+    "contentChanges": [{"text": "void mama(int a) {}\nvoid main() {\n    mama(\n}\n"}]}})
+send({"jsonrpc": "2.0", "id": 247, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 2, "character": 9},
+}})
+resp = recv_response()
+assert "items" not in resp["result"], f"call expr returned items, not calltip: {str(resp['result'])[:120]}"
+assert "signatures" in resp["result"], f"call expr lost its calltip: {str(resp['result'])[:120]}"
+print("call expression `mama(` still returns calltip")
+
+# a delegating constructor CALL keeps its calltip too
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 248},
+    "contentChanges": [{"text": "struct S {\n    this(int x) {}\n    this() {\n        this(\n    }\n}\n"}]}})
+send({"jsonrpc": "2.0", "id": 249, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 3, "character": 13},
+}})
+resp = recv_response()
+assert "items" not in resp["result"], f"delegating ctor call returned items: {str(resp['result'])[:120]}"
+assert "signatures" in resp["result"], f"delegating ctor call lost its calltip: {str(resp['result'])[:120]}"
+print("delegating constructor call still returns calltip")
+
+# a constructor DECLARATION gets the storage classes
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 250},
+    "contentChanges": [{"text": "struct S {\n    this(\n}\n"}]}})
+send({"jsonrpc": "2.0", "id": 251, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 1, "character": 9},
+}})
+resp = recv_response()
+labels = {i["label"] for i in resp["result"]["items"]}
+assert "ref" in labels, f"ref not offered in ctor param list: {sorted(labels)}"
+print("constructor declaration param list: storage classes offered")
+
 send({"jsonrpc": "2.0", "id": 5, "method": "shutdown"})
 recv_response()
 proc.stdin.close()

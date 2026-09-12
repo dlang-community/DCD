@@ -129,6 +129,54 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 		return response;
 	}
 
+	// `void mama(|` / `void mama(int a, |` - the cursor is inside the
+	// parameter list of a function declaration being typed. Offer the
+	// parameter storage classes (`ref`, `scope`, `in`, `out`, ...) and
+	// the symbols visible at the cursor (types for the parameter).
+	// This must run before the calltip detection: the calltip path would
+	// try to resolve the function being declared as a call expression,
+	// which finds nothing (the declaration is not complete yet) and
+	// yields an empty response.
+	if (isParameterListPosition(beforeTokens))
+	{
+		string partial;
+		auto paramListTokens = beforeTokens;
+		if (beforeTokens.length && beforeTokens[$ - 1] == tok!"identifier")
+		{
+			auto t = beforeTokens[$ - 1];
+			// A partial only when the cursor is ON the identifier (mid-word
+			// or adjacent); a gap means the word is complete and the user
+			// is typing the next storage class.
+			if (request.cursorPosition <= t.index + t.text.length)
+				partial = t.text[0 .. request.cursorPosition - t.index];
+			// Pop the partial before resolving the scope: the chain
+			// resolver would try to resolve it as a symbol (a warning and
+			// no scope symbols).
+			paramListTokens = beforeTokens[0 .. $ - 1];
+		}
+		setParameterStorageClassCompletions(response, partial);
+		// The parameter's TYPE can also be a user-defined symbol: offer
+		// the scope symbols alongside the storage classes (the same
+		// fresh-statement behavior as after `;`/`{`/`}`), filtered by
+		// the same partial. `partial` may be null (nothing typed):
+		// setCompletions only walks the cursor scope for a non-null
+		// partial, so pass "" (no prefix filter) in that case.
+		RollbackAllocator rba;
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba,
+			request.cursorPosition, moduleCache);
+		scope(exit) pair.destroy();
+		response.setCompletions(pair.scope_, getExpression(paramListTokens),
+			request.cursorPosition, CompletionType.identifiers, CalltipHint.none,
+			partial is null ? "" : partial);
+		if (!pair.ufcsSymbols.empty)
+		{
+			response.completions ~= pair.ufcsSymbols.map!(s =>
+				makeSymbolCompletionInfo(s, CompletionKind.ufcsName)).array;
+			response.completionType = CompletionType.identifiers;
+		}
+		return response;
+	}
+
 	const bool dotId = beforeTokens.length >= 2 &&
 		beforeTokens[$-1] == tok!"identifier" && beforeTokens[$-2] == tok!".";
 
@@ -725,6 +773,118 @@ private bool isDeclarationAttributeStart(T)(T beforeTokens,
 }
 
 /**
+ * Fills the response with the storage classes that can start a function
+ * parameter (`ref`, `scope`, `in`, `out`, ...), filtered by the partial
+ * identifier the user typed (if any).
+ */
+private void setParameterStorageClassCompletions(ref AutocompleteResponse response,
+	string partial)
+{
+	response.completionType = CompletionType.identifiers;
+	foreach (completion; parameterStorageClasses)
+	{
+		if (partial is null || completion.identifier.startsWith(partial))
+			response.completions ~= AutocompleteResponse.Completion(
+				completion.identifier,
+				CompletionKind.keyword,
+				null, null, 0, // definition, symbol path+location
+				completion.ddoc
+			);
+	}
+}
+
+/**
+ * Whether the cursor sits inside the parameter list of a function
+ * DECLARATION being typed: after the opening `(` (`void foo(|`), after a
+ * comma separating parameters (`void foo(int a, |`), or after a storage
+ * class already typed (`void foo(ref |`).
+ *
+ * The check walks back from the cursor over storage classes and
+ * identifiers (a partially typed parameter), matches the unclosed `(`,
+ * and requires the token before the `(` to be the declared name and the
+ * token before THAT to be part of a declaration (a type or another
+ * attribute). This excludes call expressions (`= foo(|`, `foo(|;`),
+ * where the name is preceded by `=`, `(`, `;`, `{`, `.` etc., and whose
+ * calltips must keep working.
+ */
+private bool isParameterListPosition(T)(T beforeTokens)
+{
+	if (beforeTokens.empty)
+		return false;
+
+	// The partial identifier being typed, if any.
+	size_t end = beforeTokens.length;
+	if (beforeTokens[end - 1] == tok!"identifier")
+		end--;
+
+	// Walk back over the parameter prefix the user may already have
+	// typed: storage classes (`ref scope |`), type identifiers
+	// (`const int |`) and earlier parameters separated by commas
+	// (`int a, ref int b, |`), so `void foo(ref |` and
+	// `void foo(int a, i|` are still recognized.
+	while (end > 0)
+	{
+		if (beforeTokens[end - 1].type.among(tok!"const", tok!"immutable",
+			tok!"in", tok!"inout", tok!"lazy", tok!"out", tok!"ref",
+			tok!"return", tok!"scope", tok!"shared", tok!"auto",
+			tok!"identifier", tok!"int", tok!"uint", tok!"long",
+			tok!"ulong", tok!"char", tok!"wchar", tok!"dchar",
+			tok!"bool", tok!"byte", tok!"ubyte", tok!"short",
+			tok!"ushort", tok!"cent", tok!"ucent", tok!"float",
+			tok!"ifloat", tok!"cfloat", tok!"idouble", tok!"cdouble",
+			tok!"double", tok!"real", tok!"ireal", tok!"creal",
+			tok!",", tok!"[", tok!"]", tok!"*"))
+			end--;
+		else
+			break;
+	}
+
+	// The parameter list must start here.
+	if (end == 0 || beforeTokens[end - 1] != tok!"(")
+		return false;
+
+	// Match any template parameter lists back (`void foo(T)(`): the name
+	// sits before the outermost `(`. `end - 1` is the index of the `(`,
+	// so start the walk at the token before it.
+	size_t nameEnd = end - 1;
+	while (nameEnd > 0 && beforeTokens[nameEnd - 1] == tok!")")
+	{
+		immutable open = skipParenReverse(beforeTokens[0 .. nameEnd],
+			nameEnd - 1, tok!")", tok!"(");
+		if (open == 0)
+			return false;
+		nameEnd = open;
+	}
+	if (nameEnd == 0)
+		return false;
+
+	// The token before the `(` is the declared name.
+	const name = beforeTokens[nameEnd - 1];
+	if (name != tok!"identifier" && name != tok!"this")
+		return false;
+
+	if (nameEnd < 2)
+		return false;
+	const before = beforeTokens[nameEnd - 2];
+	if (name == tok!"this")
+	{
+		// A constructor DECLARATION sits at the aggregate member level; a
+		// delegating constructor CALL (`this() { this(`, `super(); this(`)
+		// sits inside a function body. They are lexically identical up to
+		// the enclosing block, so require the innermost enclosing `{` to
+		// open an aggregate body.
+		return enclosingBlockIsAggregate(beforeTokens[0 .. nameEnd - 1]);
+	}
+	// A declaration has a return type (or another attribute) before the
+	// name; a call expression has `=`, `(`, `;`, `{`, `.`, `!` ... instead.
+	return before == tok!"identifier" || isBasicType(before.type)
+		|| before.type.among(tok!"*", tok!"]", tok!"auto", tok!"static",
+			tok!"pure", tok!"nothrow", tok!"const", tok!"immutable",
+			tok!"shared", tok!"inout", tok!"ref", tok!"scope",
+			tok!"synchronized", tok!"override", tok!"final", tok!"abstract");
+}
+
+/**
  * Whether the cursor sits in a function attribute position: after the
  * parameter list of a function declaration (`void foo() | {`), possibly
  * with a partial identifier (`void foo() pu|`) or already-typed
@@ -804,6 +964,61 @@ private bool isFunctionAttributePosition(T)(T beforeTokens)
 			tok!"pure", tok!"nothrow", tok!"const", tok!"immutable",
 			tok!"shared", tok!"inout", tok!"ref", tok!"scope",
 			tok!"synchronized", tok!"override", tok!"final", tok!"abstract");
+}
+
+/**
+ * Whether the innermost enclosing `{` of `beforeTokens` opens an
+ * aggregate body (struct/class/interface/union), i.e. the tokens end
+ * directly at the member level of an aggregate. Used to tell a
+ * constructor DECLARATION (`struct S { this(`) from a delegating
+ * constructor CALL inside a function body (`this() { this(`).
+ *
+ * Unlike `isInsideAggregate`, the walk over the tokens before the `{`
+ * also skips base class lists (`class Beta : Alpha {`) and template
+ * parameter lists (`class C(T) {`).
+ */
+private bool enclosingBlockIsAggregate(T)(T beforeTokens)
+{
+	// Match braces from the end: every `}` closes a `{`, the first
+	// unmatched `{` is the innermost enclosing block.
+	int depth = 0;
+	for (size_t i = beforeTokens.length; i > 0; i--)
+	{
+		const tokType = beforeTokens[i - 1].type;
+		if (tokType == tok!"}")
+			depth++;
+		else if (tokType == tok!"{")
+		{
+			if (depth != 0)
+			{
+				depth--;
+				continue;
+			}
+			// Walk left from the `{` over the aggregate's name, template
+			// parameter list and base class list: `struct S {`,
+			// `class C(T) {`, `class Beta : Alpha {`, anonymous `union {`.
+			size_t j = i - 1; // index of the `{`
+			while (j > 0)
+			{
+				if (beforeTokens[j - 1] == tok!")")
+				{
+					immutable open = skipParenReverse(beforeTokens[0 .. j],
+						j - 1, tok!")", tok!"(");
+					if (open == 0)
+						break;
+					j = open;
+				}
+				else if (beforeTokens[j - 1] == tok!"identifier"
+					|| beforeTokens[j - 1].type.among(tok!":", tok!",", tok!"."))
+					j--;
+				else
+					break;
+			}
+			return j > 0 && beforeTokens[j - 1].type.among(
+				tok!"struct", tok!"class", tok!"interface", tok!"union");
+		}
+	}
+	return false;
 }
 
 /**
