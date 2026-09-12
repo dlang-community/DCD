@@ -307,7 +307,9 @@ HandlerResult handleInitialize(ref ServerContext context, JSONValue params)
 	capabilities["textDocumentSync"] = JSONValue(cast(int) TextDocumentSyncKind.full);
 	JSONValue completionProvider = parseJSON(`{}`);
 	completionProvider["resolveProvider"] = JSONValue(false);
-	completionProvider["triggerCharacters"] = JSONValue(["."]);
+	// `.` triggers member completion, `@` triggers the @-spelled attribute
+	// completion (@nogc, @safe, ...).
+	completionProvider["triggerCharacters"] = JSONValue([".", "@"]);
 	capabilities["completionProvider"] = completionProvider;
 	capabilities["hoverProvider"] = JSONValue(true);
 	capabilities["definitionProvider"] = JSONValue(true);
@@ -1462,30 +1464,47 @@ private ModuleDeclarationEdit completionTextEdit(ref ServerContext context,
 	// The identifier token containing (or ending at) the cursor, with
 	// the same inclusive-end matching lookupSymbol uses.
 	const(Token)* found;
-	foreach (ref t; tokens)
+	size_t foundIndex;
+	foreach (i, ref t; tokens)
 	{
 		if (t.type == tok!"identifier"
 			&& request.cursorPosition >= t.index
 			&& request.cursorPosition <= t.index + t.text.length)
 		{
 			found = &t;
+			foundIndex = i;
 			break;
 		}
 	}
 
 	result.hasEdit = true;
-	if (found is null)
+	size_t start = request.cursorPosition;
+	if (found !is null)
 	{
-		result.edit.range = Range(
-			context.converter.toPosition(*doc, request.cursorPosition),
-			context.converter.toPosition(*doc, request.cursorPosition));
+		start = found.index;
+		// `@no|` - an @-spelled attribute being completed: the replacement
+		// must cover the `@` too, otherwise committing `@nogc` on top of
+		// the typed `@no` leaves a doubled `@@nogc`.
+		if (foundIndex > 0 && tokens[foundIndex - 1].type == tok!"@")
+			start = tokens[foundIndex - 1].index;
 	}
 	else
 	{
-		result.edit.range = Range(
-			context.converter.toPosition(*doc, found.index),
-			context.converter.toPosition(*doc, request.cursorPosition));
+		// `@|` - nothing typed after the @ yet: cover the @ itself so
+		// committing `@nogc` replaces it instead of appending after it
+		// (which would also produce `@@nogc`).
+		foreach (ref t; tokens)
+		{
+			if (t.type == tok!"@" && request.cursorPosition == t.index + 1)
+			{
+				start = t.index;
+				break;
+			}
+		}
 	}
+	result.edit.range = Range(
+		context.converter.toPosition(*doc, start),
+		context.converter.toPosition(*doc, request.cursorPosition));
 	return result;
 }
 
@@ -1645,6 +1664,11 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 		// The edit inserts the label; insertText would conflict with
 		// textEdit per the LSP spec.
 		item.textEdit.newText = item.label;
+		// @-spelled attributes: the label carries the `@` but the user may
+		// be typing the bare name (`no` for `@nogc`, offered after a
+		// parameter list). Filter on both spellings so either matches.
+		if (item.label.length && item.label[0] == '@')
+			item.filterText = item.label ~ " " ~ item.label[1 .. $];
 
 		bool merged = false;
 		foreach (i, ref existing; bundled)

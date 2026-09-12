@@ -71,6 +71,7 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 	auto stringCache = StringCache(clampedBucketCount(request.sourceCode.length));
 	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
 		request.cursorPosition, stringCache, tokenArray);
+	AutocompleteResponse response;
 
 	// `import |` - the cursor is right after the import keyword with no
 	// module name typed yet. Route it to the import completion with an
@@ -83,10 +84,19 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 	// it contributes neither a partial nor a module path component.
 	if (beforeTokens.length && beforeTokens[$ - 1] == tok!"import")
 	{
-		AutocompleteResponse response;
-		setImportCompletions(beforeTokens[$ - 1 .. $], response, moduleCache);
-		return response;
+		AutocompleteResponse importResponse;
+		setImportCompletions(beforeTokens[$ - 1 .. $], importResponse, moduleCache);
+		return importResponse;
 	}
+
+	// `@|` - the cursor is right after an `@` (or after `@` plus a partial
+	// identifier, e.g. `@no`). Offer the @-spelled attributes. This must
+	// happen before the keyword faking below: `@safe` lexes as `@` +
+	// keyword `safe`, and the faking would turn the trailing keyword into
+	// an identifier and route the request to dot completion, where the
+	// partial "safe" matches nothing.
+	if (atAttributeCompletion(beforeTokens, response))
+		return response;
 
 	// allows to get completion on keyword, typically "is"
 	if (beforeTokens.length &&
@@ -95,6 +105,28 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 		Token* fakeIdent = cast(Token*) (&beforeTokens[$-1]);
 		fakeIdent.text = str(fakeIdent.type);
 		fakeIdent.type = tok!"identifier";
+	}
+
+	// `void mama() |` / `void mama() pu|` - the cursor is in the function
+	// attribute position: right after a function's parameter list, where
+	// attributes like `pure`, `nothrow` or `@safe` may be written. Offer
+	// them instead of the (bogus) member completion on the function
+	// symbol that this position would otherwise produce.
+	if (isFunctionAttributePosition(beforeTokens))
+	{
+		string partial;
+		if (beforeTokens.length && beforeTokens[$ - 1] == tok!"identifier")
+		{
+			auto t = beforeTokens[$ - 1];
+			// A partial only when the cursor is ON the identifier (mid-word
+			// or adjacent); a gap means the word is complete and the user
+			// is typing the next attribute.
+			if (request.cursorPosition <= t.index + t.text.length)
+				partial = t.text[0 .. request.cursorPosition - t.index];
+		}
+		setFunctionAttributeCompletions(response, partial,
+			isInsideAggregate(beforeTokens));
+		return response;
 	}
 
 	const bool dotId = beforeTokens.length >= 2 &&
@@ -228,12 +260,14 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	}
 	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == tok!".")
 		significantTokenType = beforeTokens[$ - 2].type;
-	else if (beforeTokens.length >= 1 && beforeTokens[$ - 1].type.among(
+	else if (beforeTokens.empty || beforeTokens[$ - 1].type.among(
 		tok!"{", tok!"}", tok!";", tok!":", tok!"(", tok!"[", tok!","))
 	{
-		// Fresh statement position with nothing typed: offer every symbol
-		// visible at the cursor. setCompletions only walks the cursor
-		// scope when `partial` is non-null, so pass "" (no prefix filter).
+		// Fresh statement position with nothing typed (including the very
+		// beginning of the file, e.g. the line before a declaration):
+		// offer every symbol visible at the cursor. setCompletions only
+		// walks the cursor scope when `partial` is non-null, so pass ""
+		// (no prefix filter).
 		RollbackAllocator rba;
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba,
 			cursorPosition, moduleCache);
@@ -246,6 +280,13 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 				makeSymbolCompletionInfo(s, CompletionKind.ufcsName)).array;
 			response.completionType = CompletionType.identifiers;
 		}
+		// A declaration can start here (`; pure void f()`, `} @safe int x`),
+		// so the declaration attributes are offered alongside the scope
+		// symbols. Only for the boundaries that start declarations; `(`, `[`
+		// and `,` are argument positions where attributes are invalid.
+		if (beforeTokens.empty
+			|| beforeTokens[$ - 1].type.among(tok!";", tok!"}", tok!"{"))
+			setDeclarationAttributeCompletions(response, null);
 		return response;
 	}
 	else
@@ -296,6 +337,12 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 					offsetofSymbol, offsetofSymbol.kind);
 			}
 		}
+		// A partial identifier at a declaration start (`; pu|`, `{ pu|`,
+		// `pure no|`, or the very beginning of the file): a declaration can
+		// start with an attribute, so offer them alongside the scope symbols.
+		if (partial.length
+			&& isDeclarationAttributeStart(beforeTokens, tokenArray, partial))
+			setDeclarationAttributeCompletions(response, partial);
 		break;
 	//  these tokens before a "." mean "Module Scope Operator"
 	case tok!":":
@@ -468,6 +515,337 @@ CalltipHint getCalltipHint(T)(T beforeTokens, out size_t parenIndex)
 	}
 
 	return CalltipHint.none;
+}
+
+/**
+ * Fills the response with the @-spelled attributes matching the partial
+ * identifier typed after an `@` (e.g. `@no` -> `@nogc`).
+ *
+ * Params:
+ *     partial = the partial identifier typed after the `@`, or null
+ *     response = the response to fill
+ */
+private void setAtAttributeCompletions(ref AutocompleteResponse response, string partial)
+{
+	response.completionType = CompletionType.identifiers;
+	foreach (completion; atAttributes)
+	{
+		if (partial is null || completion.identifier[1 .. $].startsWith(partial))
+			response.completions ~= AutocompleteResponse.Completion(
+				completion.identifier,
+				CompletionKind.keyword,
+				null, null, 0, // definition, symbol path+location
+				completion.ddoc
+			);
+	}
+}
+
+/**
+ * Completion for the @-spelled function attributes (`@nogc`, `@safe`, ...).
+ *
+ * Matches when the token before the cursor is an `@` (nothing typed yet:
+ * `@|`) or an identifier/keyword directly following an `@` (a partial:
+ * `@no|`). Fills `response` and returns true in those cases; returns false
+ * otherwise (leaving `response` untouched).
+ *
+ * The plain (non-@) attributes like `pure`, `ref`, `scope` are NOT handled
+ * here: they are ordinary keywords, so the regular scope completion already
+ * offers them wherever they are valid D.
+ */
+private bool atAttributeCompletion(T)(T beforeTokens,
+	ref AutocompleteResponse response)
+{
+	if (beforeTokens.empty)
+		return false;
+
+	// `@|` - nothing typed after the @ yet
+	if (beforeTokens[$ - 1] == tok!"@")
+	{
+		setAtAttributeCompletions(response, null);
+		return true;
+	}
+
+	// `@par|` - a partial identifier (or keyword, e.g. `@saf|`) after the @
+	if (beforeTokens.length >= 2 && beforeTokens[$ - 2] == tok!"@"
+		&& (beforeTokens[$ - 1] == tok!"identifier" || isKeyword(beforeTokens[$ - 1].type)))
+	{
+		// A COMPLETE attribute (`@safe`) is already typed, not a partial:
+		// fall through so the function-attribute position logic below can
+		// offer every attribute (the user may type more after it).
+		if (atAttributes.canFind!(a => a.identifier[1 .. $] == beforeTokens[$ - 1].text))
+			return false;
+		setAtAttributeCompletions(response, beforeTokens[$ - 1].text);
+		return true;
+	}
+
+	return false;
+}
+
+/**
+ * Fills the response with the function attributes valid after a
+ * parameter list (`pure`, `nothrow`, `@safe`, ...), filtered by the
+ * partial identifier the user typed (if any).
+ *
+ * The @-spelled attributes are matched against their name without the
+ * `@` so that typing `no` finds both `nothrow` and `@nogc`.
+ */
+private void setFunctionAttributeCompletions(ref AutocompleteResponse response,
+	string partial, bool isMethod)
+{
+	response.completionType = CompletionType.identifiers;
+	foreach (completion; functionAttributes)
+	{
+		if (partial is null || completion.identifier.startsWith(partial))
+			response.completions ~= AutocompleteResponse.Completion(
+				completion.identifier,
+				CompletionKind.keyword,
+				null, null, 0, // definition, symbol path+location
+				completion.ddoc
+			);
+	}
+	// `const`/`immutable`/`inout`/`shared` are only valid on methods -
+	// a free function cannot be `const`.
+	if (isMethod)
+	{
+		foreach (completion; methodAttributes)
+		{
+			if (partial is null || completion.identifier.startsWith(partial))
+				response.completions ~= AutocompleteResponse.Completion(
+					completion.identifier,
+					CompletionKind.keyword,
+					null, null, 0, // definition, symbol path+location
+					completion.ddoc
+				);
+		}
+	}
+	foreach (completion; atAttributes)
+	{
+		if (partial is null || completion.identifier[1 .. $].startsWith(partial))
+			response.completions ~= AutocompleteResponse.Completion(
+				completion.identifier,
+				CompletionKind.keyword,
+				null, null, 0, // definition, symbol path+location
+				completion.ddoc
+			);
+	}
+}
+
+/**
+ * Fills the response with the attributes that can START a declaration
+ * (`pure`, `static`, `@safe`, ...), filtered by the partial identifier
+ * the user typed (if any).
+ *
+ * The @-spelled attributes are matched against their name without the
+ * `@` so that typing `no` finds both `nothrow` and `@nogc`.
+ */
+private void setDeclarationAttributeCompletions(ref AutocompleteResponse response,
+	string partial)
+{
+	foreach (completion; declarationAttributes)
+	{
+		if (partial is null || completion.identifier.startsWith(partial))
+			response.completions ~= AutocompleteResponse.Completion(
+				completion.identifier,
+				CompletionKind.keyword,
+				null, null, 0, // definition, symbol path+location
+				completion.ddoc
+			);
+	}
+	foreach (completion; atAttributes)
+	{
+		if (partial is null || completion.identifier[1 .. $].startsWith(partial))
+			response.completions ~= AutocompleteResponse.Completion(
+				completion.identifier,
+				CompletionKind.keyword,
+				null, null, 0, // definition, symbol path+location
+				completion.ddoc
+			);
+	}
+}
+
+/**
+ * Whether `beforeTokens` (the tokens before a partial identifier that
+ * was already popped) ends at a position where a declaration - and
+ * therefore a declaration attribute - can start: after `;`, `{`, `}`,
+ * after another attribute keyword, after a known `@`-attribute, or at
+ * the very beginning of the file.
+ *
+ * `tokenArray` and `partial` distinguish the true beginning of the file
+ * from the UDA-expression trimming in `complete()`: after `@UDA F|` the
+ * popped tokens are empty too, but the file does not start with `F`.
+ */
+private bool isDeclarationAttributeStart(T)(T beforeTokens,
+	const(Token)[] tokenArray, string partial)
+{
+	if (beforeTokens.empty)
+	{
+		return tokenArray.length > 0 && tokenArray[0] == tok!"identifier"
+			&& tokenArray[0].text == partial;
+	}
+	// `@safe pu|` - a known @-attribute (a user-defined UDA like `@UDA F`
+	// is a declaration name instead, and must not match)
+	if (beforeTokens.length >= 2 && beforeTokens[$ - 2] == tok!"@"
+		&& beforeTokens[$ - 1] == tok!"identifier")
+	{
+		switch (beforeTokens[$ - 1].text)
+		{
+		case "safe": case "nogc": case "trusted": case "system":
+		case "property": case "disable": case "live":
+			return true;
+		default:
+			return false;
+		}
+	}
+	switch (beforeTokens[$ - 1].type)
+	{
+	case tok!";":
+	case tok!"{":
+	case tok!"}":
+		return true;
+	// Attributes stack: `pure nothrow void f()`.
+	case tok!"abstract":
+	case tok!"auto":
+	case tok!"const":
+	case tok!"final":
+	case tok!"immutable":
+	case tok!"inout":
+	case tok!"nothrow":
+	case tok!"override":
+	case tok!"pure":
+	case tok!"ref":
+	case tok!"scope":
+	case tok!"shared":
+	case tok!"static":
+	case tok!"synchronized":
+	case tok!"__gshared":
+		return true;
+	default:
+		return false;
+	}
+}
+
+/**
+ * Whether the cursor sits in a function attribute position: after the
+ * parameter list of a function declaration (`void foo() | {`), possibly
+ * with a partial identifier (`void foo() pu|`) or already-typed
+ * attributes (`void foo() pure no|`) between the `)` and the cursor.
+ *
+ * The check walks back from the cursor over any attributes already
+ * typed, matches the `)` to its `(`, and requires the token before the
+ * `(` to be the function's name and the token before THAT to be part of
+ * a declaration (a type or another attribute). This excludes call
+ * expressions (`= foo() |`, `foo() |;`), where the name is preceded by
+ * `=`, `(`, `;`, `{`, `.` etc.
+ */
+private bool isFunctionAttributePosition(T)(T beforeTokens)
+{
+	if (beforeTokens.empty)
+		return false;
+
+	// The partial identifier being typed, if any.
+	size_t end = beforeTokens.length;
+	if (beforeTokens[end - 1] == tok!"identifier")
+		end--;
+
+	// Walk back over attributes the user may already have typed so that
+	// `void foo() pure no|` and `void foo() @safe |` are still recognized.
+	while (end > 0)
+	{
+		if (beforeTokens[end - 1] == tok!"@")
+			end--; // the `@` of an attribute whose name was consumed above
+		else if (end >= 2 && beforeTokens[end - 2] == tok!"@")
+			end -= 2; // `@` and the identifier it introduces
+		else if (beforeTokens[end - 1].type.among(tok!"const", tok!"immutable",
+			tok!"inout", tok!"nothrow", tok!"pure", tok!"ref", tok!"return",
+			tok!"scope", tok!"shared"))
+			end--;
+		else
+			break;
+	}
+
+	// The parameter list must end here.
+	if (end == 0 || beforeTokens[end - 1] != tok!")")
+		return false;
+
+	// Match the `)` back to its `(` and skip template parameter lists
+	// (`void foo(T)()`): the name sits before the outermost `(`.
+	size_t nameEnd = end;
+	while (nameEnd > 0 && beforeTokens[nameEnd - 1] == tok!")")
+	{
+		immutable open = skipParenReverse(beforeTokens[0 .. nameEnd],
+			nameEnd - 1, tok!")", tok!"(");
+		if (open == 0)
+			return false;
+		nameEnd = open;
+	}
+	if (nameEnd == 0)
+		return false;
+
+	// The token before the `(` is the declared name.
+	const name = beforeTokens[nameEnd - 1];
+	if (name != tok!"identifier" && name != tok!"this")
+		return false;
+
+	if (nameEnd < 2)
+		return false;
+	const before = beforeTokens[nameEnd - 2];
+	if (name == tok!"this")
+	{
+		// Constructors and destructors are preceded by a scope boundary
+		// or a type (delegating constructor calls are indistinguishable
+		// lexically; suggesting attributes there is harmless).
+		return before.type.among(tok!"{", tok!"}", tok!";", tok!":", tok!"~")
+			|| before == tok!"identifier" || isBasicType(before.type);
+	}
+	// A declaration has a return type (or another attribute) before the
+	// name; a call expression has `=`, `(`, `;`, `{`, `.`, `!` ... instead.
+	return before == tok!"identifier" || isBasicType(before.type)
+		|| before.type.among(tok!"*", tok!"]", tok!"auto", tok!"static",
+			tok!"pure", tok!"nothrow", tok!"const", tok!"immutable",
+			tok!"shared", tok!"inout", tok!"ref", tok!"scope",
+			tok!"synchronized", tok!"override", tok!"final", tok!"abstract");
+}
+
+/**
+ * Whether the tokens end inside a struct/class/interface body, i.e. the
+ * enclosing `{` (found by brace matching from the end) is preceded by one
+ * of the aggregate keywords. Used to offer the method-only function
+ * attributes (`const`, `immutable`, `inout`, `shared`) there - a free
+ * function cannot be `const`.
+ */
+private bool isInsideAggregate(T)(T beforeTokens)
+{
+	// Match braces from the end: every `}` closes a `{`, the first
+	// unmatched `{` is the innermost enclosing block.
+	int depth = 0;
+	for (size_t i = beforeTokens.length; i > 0; i--)
+	{
+		const tokType = beforeTokens[i - 1].type;
+		if (tokType == tok!"}")
+			depth++;
+		else if (tokType == tok!"{")
+		{
+			if (depth == 0)
+			{
+				// Walk left from the `{` over the aggregate's name and
+				// template parameter list: `struct S {`, `class C(T) {`,
+				// anonymous `union {`.
+				size_t j = i - 1; // index of the `{`
+				if (j > 0 && beforeTokens[j - 1] == tok!")")
+				{
+					immutable open = skipParenReverse(beforeTokens[0 .. j],
+						j - 1, tok!")", tok!"(");
+					j = open;
+				}
+				if (j > 0 && beforeTokens[j - 1] == tok!"identifier")
+					j--; // the aggregate's name
+				return j > 0 && beforeTokens[j - 1].type.among(
+					tok!"struct", tok!"class", tok!"interface", tok!"union");
+			}
+			depth--;
+		}
+	}
+	return false;
 }
 
 /**

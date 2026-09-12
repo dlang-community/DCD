@@ -52,7 +52,70 @@ immutable ConstantCompletion[] scopes = [
 	ConstantCompletion("failure", "Executes statements when the scope exits due to exception unwinding."),
 	ConstantCompletion("success", "Executes statements when the scope exits normally.")
 ];
+/**
+ * Function attributes that can appear AFTER a function's parameter list,
+ * e.g. `void foo() pure @safe { ... }`.
+ * https://dlang.org/spec/attribute.html
+ */
+immutable ConstantCompletion[] functionAttributes = [
+	ConstantCompletion("nothrow", "The function cannot throw exceptions."),
+	ConstantCompletion("pure", "The function cannot access any mutable global or static state."),
+	ConstantCompletion("return", "Marks return scope / return ref parameters."),
+	ConstantCompletion("scope", "The function does not escape references to its scope parameters."),
+];
 
+/**
+ * Function attributes that can appear AFTER a METHOD's parameter list
+ * only (a function declared inside a struct/class/interface), e.g.
+ * `void foo() const { ... }` - a free function cannot be `const`.
+ * https://dlang.org/spec/attribute.html
+ */
+immutable ConstantCompletion[] methodAttributes = [
+	ConstantCompletion("const", "The method cannot modify mutable state reachable through `this`."),
+	ConstantCompletion("immutable", "The method can only access immutable data."),
+	ConstantCompletion("inout", "The method preserves the mutability of its inout parameters."),
+	ConstantCompletion("shared", "The method can access shared data."),
+];
+
+/**
+ * Attributes and storage classes that can START a declaration
+ * (`pure void f()`, `static int x`, `auto y = 1`). Offered at declaration
+ * boundaries: after `;`, `{`, `}`, at the beginning of a file, or after
+ * another attribute.
+ * https://dlang.org/spec/attribute.html
+ */
+immutable ConstantCompletion[] declarationAttributes = [
+	ConstantCompletion("abstract", "Class cannot be instantiated directly, or method must be overridden."),
+	ConstantCompletion("auto", "Type is inferred from the initializer or return statement."),
+	ConstantCompletion("const", "Data that cannot be modified."),
+	ConstantCompletion("final", "Method cannot be overridden by derived classes, or class has no subclasses."),
+	ConstantCompletion("immutable", "Data that cannot be modified, directly or via references."),
+	ConstantCompletion("inout", "Applies the inout storage class to a parameter or a function."),
+	ConstantCompletion("nothrow", "Function cannot throw exceptions."),
+	ConstantCompletion("override", "Function overrides a base class method."),
+	ConstantCompletion("pure", "Function cannot access any mutable global or static state."),
+	ConstantCompletion("ref", "Function returns a reference, or parameter is passed by reference."),
+	ConstantCompletion("return", "Marks a return scope parameter or a return ref."),
+	ConstantCompletion("scope", "Restricts the lifetime of a parameter or a delegate."),
+	ConstantCompletion("shared", "Data that is shared between threads."),
+	ConstantCompletion("static", "Storage class: one instance per thread or per type."),
+	ConstantCompletion("synchronized", "Only one thread at a time can execute the function."),
+	ConstantCompletion("__gshared", "Data that is shared between threads, bypassing the type system."),
+];
+
+/**
+ * Attributes that are spelled with a leading `@` in a declaration attribute
+ * position. https://dlang.org/spec/attribute.html#uda
+ */
+immutable ConstantCompletion[] atAttributes = [
+	ConstantCompletion("@disable", "Prevents the compiler from generating a default member (e.g. `@disable this();`)."),
+	ConstantCompletion("@live", "Enables better guarantees for pointers to live memory."),
+	ConstantCompletion("@nogc", "Function cannot allocate memory with the garbage collector."),
+	ConstantCompletion("@property", "Function is called with property syntax, without parentheses."),
+	ConstantCompletion("@safe", "Function is checked for memory safety."),
+	ConstantCompletion("@system", "Function is not checked for memory safety (the default)."),
+	ConstantCompletion("@trusted", "Function is assumed to be memory safe by the programmer."),
+];
 /**
  * Compiler-defined values for version() conditions.
  */

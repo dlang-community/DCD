@@ -1,5 +1,7 @@
 identifiers
 idouble	k
 ifloat	k
+immutable	k
+inout	k
 int	k
 ireal	k
