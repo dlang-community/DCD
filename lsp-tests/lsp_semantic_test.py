@@ -266,6 +266,56 @@ print("rename to invalid identifier rejected:", resp["error"]["message"])
 # --- module search: import completion against a real import path ---
 # The server is started with --ignoreConfig, so pass an import path via
 # initializationOptions like the VS Code extension does.
+# --- function attributes: completion after a parameter list ---
+# `void mama() |` (nothing typed) offers the post-parameter-list
+# attributes (pure, nothrow, @safe, ...); `no` matches both nothrow and
+# @nogc (the @-items carry filterText with the bare name).
+attr_source = "void mama() \n{\n}\n"
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 230},
+    "contentChanges": [{"text": attr_source}]}})
+send({"jsonrpc": "2.0", "id": 231, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 0, "character": 12},
+}})
+resp = recv_response()
+labels = {i["label"] for i in resp["result"]["items"]}
+for expected in ("pure", "nothrow", "ref", "scope", "@safe", "@nogc", "@property"):
+    assert expected in labels, f"{expected} not offered after param list: {sorted(labels)}"
+print(f"function attributes after `void mama() |`: {len(labels)} items")
+
+# partial `no` -> nothrow + @nogc
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 232},
+    "contentChanges": [{"text": "void mama() no\n{\n}\n"}]}})
+send({"jsonrpc": "2.0", "id": 233, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 0, "character": 13},
+}})
+resp = recv_response()
+labels = {i["label"] for i in resp["result"]["items"]}
+assert "nothrow" in labels and "@nogc" in labels, f"no partial: {sorted(labels)}"
+nogc = [i for i in resp["result"]["items"] if i["label"] == "@nogc"][0]
+assert nogc.get("filterText") == "@nogc nogc", f"filterText on @nogc: {nogc}"
+print("function attributes partial `no`: nothrow + @nogc (filterText OK)")
+
+# `@no` -> @nogc only, and the textEdit covers the `@` so committing
+# does not leave a doubled `@@nogc`
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 234},
+    "contentChanges": [{"text": "void mama() @no\n{\n}\n"}]}})
+send({"jsonrpc": "2.0", "id": 235, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 0, "character": 14},
+}})
+resp = recv_response()
+items = [i for i in resp["result"]["items"] if i["label"] == "@nogc"]
+assert items, f"@nogc not offered for @no: {[i['label'] for i in resp['result']['items']]}"
+te = items[0]["textEdit"]
+assert te["range"]["start"]["character"] == 12, f"edit does not cover @no: {te}"
+assert te["newText"] == "@nogc", te
+print("@no partial: textEdit covers `@no` -> no double-@ on commit")
+
 send({"jsonrpc": "2.0", "id": 5, "method": "shutdown"})
 recv_response()
 proc.stdin.close()
