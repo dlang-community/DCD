@@ -58,15 +58,23 @@ immutable ConstantCompletion[] scopes = [
  * https://dlang.org/spec/attribute.html
  */
 immutable ConstantCompletion[] functionAttributes = [
-	ConstantCompletion("const", "The function cannot modify mutable state reachable through its parameters."),
-	ConstantCompletion("immutable", "The function can only access immutable data."),
-	ConstantCompletion("inout", "The function preserves the mutability of its inout parameters."),
 	ConstantCompletion("nothrow", "The function cannot throw exceptions."),
 	ConstantCompletion("pure", "The function cannot access any mutable global or static state."),
-	ConstantCompletion("ref", "The function returns a reference."),
 	ConstantCompletion("return", "Marks return scope / return ref parameters."),
 	ConstantCompletion("scope", "The function does not escape references to its scope parameters."),
-	ConstantCompletion("shared", "The function can access shared data."),
+];
+
+/**
+ * Function attributes that can appear AFTER a METHOD's parameter list
+ * only (a function declared inside a struct/class/interface), e.g.
+ * `void foo() const { ... }` - a free function cannot be `const`.
+ * https://dlang.org/spec/attribute.html
+ */
+immutable ConstantCompletion[] methodAttributes = [
+	ConstantCompletion("const", "The method cannot modify mutable state reachable through `this`."),
+	ConstantCompletion("immutable", "The method can only access immutable data."),
+	ConstantCompletion("inout", "The method preserves the mutability of its inout parameters."),
+	ConstantCompletion("shared", "The method can access shared data."),
 ];
 
 /**

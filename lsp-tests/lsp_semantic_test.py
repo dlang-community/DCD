@@ -270,6 +270,9 @@ print("rename to invalid identifier rejected:", resp["error"]["message"])
 # `void mama() |` (nothing typed) offers the post-parameter-list
 # attributes (pure, nothrow, @safe, ...); `no` matches both nothrow and
 # @nogc (the @-items carry filterText with the bare name).
+# Compiler-verified: `ref`, `static`, `override`, `final`, `abstract`,
+# `synchronized`, `__gshared` and `auto` are NOT valid in postfix
+# position, and `const`/`immutable`/`inout`/`shared` are method-only.
 attr_source = "void mama() \n{\n}\n"
 send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
     "textDocument": {"uri": "file:///tmp/semantic.d", "version": 230},
@@ -280,9 +283,26 @@ send({"jsonrpc": "2.0", "id": 231, "method": "textDocument/completion", "params"
 }})
 resp = recv_response()
 labels = {i["label"] for i in resp["result"]["items"]}
-for expected in ("pure", "nothrow", "ref", "scope", "@safe", "@nogc", "@property"):
+for expected in ("pure", "nothrow", "scope", "return", "@safe", "@nogc", "@property"):
     assert expected in labels, f"{expected} not offered after param list: {sorted(labels)}"
+for invalid in ("ref", "static", "override", "final", "abstract", "const", "shared"):
+    assert invalid not in labels, f"{invalid} offered after FREE function param list: {sorted(labels)}"
 print(f"function attributes after `void mama() |`: {len(labels)} items")
+
+# method context: const/immutable/inout/shared ARE offered
+method_source = "struct S {\n    void mama() \n    {\n    }\n}\n"
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 236},
+    "contentChanges": [{"text": method_source}]}})
+send({"jsonrpc": "2.0", "id": 237, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 1, "character": 16},
+}})
+resp = recv_response()
+labels = {i["label"] for i in resp["result"]["items"]}
+for expected in ("const", "immutable", "inout", "shared", "pure", "nothrow"):
+    assert expected in labels, f"{expected} not offered after METHOD param list: {sorted(labels)}"
+print("method attributes after `void mama() |` in struct: const/immutable/inout/shared offered")
 
 # partial `no` -> nothrow + @nogc
 send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {

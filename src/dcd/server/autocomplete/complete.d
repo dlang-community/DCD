@@ -124,7 +124,8 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 			if (request.cursorPosition <= t.index + t.text.length)
 				partial = t.text[0 .. request.cursorPosition - t.index];
 		}
-		setFunctionAttributeCompletions(response, partial);
+		setFunctionAttributeCompletions(response, partial,
+			isInsideAggregate(beforeTokens));
 		return response;
 	}
 
@@ -589,7 +590,7 @@ private bool atAttributeCompletion(T)(T beforeTokens,
  * `@` so that typing `no` finds both `nothrow` and `@nogc`.
  */
 private void setFunctionAttributeCompletions(ref AutocompleteResponse response,
-	string partial)
+	string partial, bool isMethod)
 {
 	response.completionType = CompletionType.identifiers;
 	foreach (completion; functionAttributes)
@@ -601,6 +602,21 @@ private void setFunctionAttributeCompletions(ref AutocompleteResponse response,
 				null, null, 0, // definition, symbol path+location
 				completion.ddoc
 			);
+	}
+	// `const`/`immutable`/`inout`/`shared` are only valid on methods -
+	// a free function cannot be `const`.
+	if (isMethod)
+	{
+		foreach (completion; methodAttributes)
+		{
+			if (partial is null || completion.identifier.startsWith(partial))
+				response.completions ~= AutocompleteResponse.Completion(
+					completion.identifier,
+					CompletionKind.keyword,
+					null, null, 0, // definition, symbol path+location
+					completion.ddoc
+				);
+		}
 	}
 	foreach (completion; atAttributes)
 	{
@@ -788,6 +804,48 @@ private bool isFunctionAttributePosition(T)(T beforeTokens)
 			tok!"pure", tok!"nothrow", tok!"const", tok!"immutable",
 			tok!"shared", tok!"inout", tok!"ref", tok!"scope",
 			tok!"synchronized", tok!"override", tok!"final", tok!"abstract");
+}
+
+/**
+ * Whether the tokens end inside a struct/class/interface body, i.e. the
+ * enclosing `{` (found by brace matching from the end) is preceded by one
+ * of the aggregate keywords. Used to offer the method-only function
+ * attributes (`const`, `immutable`, `inout`, `shared`) there - a free
+ * function cannot be `const`.
+ */
+private bool isInsideAggregate(T)(T beforeTokens)
+{
+	// Match braces from the end: every `}` closes a `{`, the first
+	// unmatched `{` is the innermost enclosing block.
+	int depth = 0;
+	for (size_t i = beforeTokens.length; i > 0; i--)
+	{
+		const tokType = beforeTokens[i - 1].type;
+		if (tokType == tok!"}")
+			depth++;
+		else if (tokType == tok!"{")
+		{
+			if (depth == 0)
+			{
+				// Walk left from the `{` over the aggregate's name and
+				// template parameter list: `struct S {`, `class C(T) {`,
+				// anonymous `union {`.
+				size_t j = i - 1; // index of the `{`
+				if (j > 0 && beforeTokens[j - 1] == tok!")")
+				{
+					immutable open = skipParenReverse(beforeTokens[0 .. j],
+						j - 1, tok!")", tok!"(");
+					j = open;
+				}
+				if (j > 0 && beforeTokens[j - 1] == tok!"identifier")
+					j--; // the aggregate's name
+				return j > 0 && beforeTokens[j - 1].type.among(
+					tok!"struct", tok!"class", tok!"interface", tok!"union");
+			}
+			depth--;
+		}
+	}
+	return false;
 }
 
 /**

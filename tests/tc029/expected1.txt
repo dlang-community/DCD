@@ -5,4 +5,5 @@ cent	k
 cfloat	k
 char	k
 complicatedLess	l
+const	k
 creal	k
