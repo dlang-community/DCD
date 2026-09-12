@@ -1,0 +1,4 @@
+identifiers
+in	k
+inout	k
+int	k

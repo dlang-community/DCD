@@ -1449,7 +1449,8 @@ private void enforceDoc(TextDocument* doc, string uri)
 private ModuleDeclarationEdit completionTextEdit(ref ServerContext context,
 	JSONValue params, in AutocompleteRequest request)
 {
-	import dparse.lexer : LexerConfig, StringCache, getTokensForParser, Token, tok;
+	import dparse.lexer : LexerConfig, StringCache, getTokensForParser, Token,
+		tok, isKeyword, str;
 
 	ModuleDeclarationEdit result;
 
@@ -1462,17 +1463,26 @@ private ModuleDeclarationEdit completionTextEdit(ref ServerContext context,
 	auto tokens = getTokensForParser(cast(ubyte[]) doc.text, config, &stringCache);
 
 	// The identifier token containing (or ending at) the cursor, with
-	// the same inclusive-end matching lookupSymbol uses.
+	// the same inclusive-end matching lookupSymbol uses. Keyword tokens
+	// count too: the storage-class completions (`in`, `ref`, ...) are
+	// keywords, and without covering the typed keyword prefix, committing
+	// `inout` over `in` would double it (`ininout`). Keyword tokens have
+	// null text, so their span comes from the keyword's spelling.
 	const(Token)* found;
 	size_t foundIndex;
+	size_t foundLength;
 	foreach (i, ref t; tokens)
 	{
-		if (t.type == tok!"identifier"
-			&& request.cursorPosition >= t.index
-			&& request.cursorPosition <= t.index + t.text.length)
+		if (t.type != tok!"identifier" && !isKeyword(t.type))
+			continue;
+		immutable length = t.type == tok!"identifier"
+			? t.text.length : str(t.type).length;
+		if (request.cursorPosition >= t.index
+			&& request.cursorPosition <= t.index + length)
 		{
 			found = &t;
 			foundIndex = i;
+			foundLength = length;
 			break;
 		}
 	}
