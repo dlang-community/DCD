@@ -743,6 +743,13 @@ private const(DSymbol)* deduceSymbolTypeByToken(ref ExpressionInfo info, ScopeLo
             {
             break;
         }
+        // Propagate the alias's instantiation identity to the receiver.
+        if (symbolType.kind == CompletionKind.aliasName
+            && info.templateArgs is null
+            && symbolType.templateArgs !is null)
+        {
+            info.templateArgs = symbolType.templateArgs;
+        }
         //look at next type to deduce
         symbolType = symbolType.type;
     }

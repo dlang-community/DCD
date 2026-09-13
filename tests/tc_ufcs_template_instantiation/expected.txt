@@ -1,6 +1,7 @@
 identifiers
 alignof	k
 fooA	F
+fooAliasA	F
 init	k
 mangleof	k
 sizeof	k

@@ -284,7 +284,14 @@ do
 		else
 		{
 			if (currentSymbol.kind == CompletionKind.aliasName)
+			{
+				// Propagate the alias's instantiation identity (a direct
+				// reference on the symbol itself wins).
+				if (symbol.templateArgs is null
+					&& currentSymbol.templateArgs !is null)
+					symbol.templateArgs = currentSymbol.templateArgs;
 				currentSymbol = currentSymbol.type;
+			}
 			if (currentSymbol is null)
 				return;
 			if (currentSymbol.kind == CompletionKind.moduleName && currentSymbol.type !is null)
@@ -322,6 +329,11 @@ do
 	{
 		symbol.type = currentSymbol;
 		symbol.ownType = false;
+		// Same propagation for a bare alias type (no further breadcrumb).
+		if (symbol.templateArgs is null
+			&& currentSymbol.kind == CompletionKind.aliasName
+			&& currentSymbol.templateArgs !is null)
+			symbol.templateArgs = currentSymbol.templateArgs;
 	}
 	else if (!remainingImports.empty)
 	{
