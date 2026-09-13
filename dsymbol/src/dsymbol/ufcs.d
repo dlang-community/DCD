@@ -421,41 +421,98 @@ private Nullable!ExpressionInfo deduceExpressionType(
             return Nullable!ExpressionInfo.init;
     }
 
+    // A parenthesized PREFIX (`(arr)[1..2].func`): the parens wrap only
+    // the base, not the whole expression, so the loop above cannot strip
+    // them. The backward base-token walk would then treat the '(' as an
+    // unmatched opener and return the token AFTER it — the `[` — as the
+    // base, and the type deduction aborts. Strip the parens around the
+    // base identifier directly instead.
+    if (exprTokens.length >= 3
+        && exprTokens[0].type is tok!"("
+        && (exprTokens[1].type is tok!"identifier"
+            || (exprTokens[1].type is tok!"*"
+                && exprTokens.length >= 4
+                && exprTokens[2].type is tok!"identifier")))
+    {
+        // find the ')' that closes this '('
+        int depth = 0;
+        foreach (i, t; exprTokens)
+        {
+            if (t.type is tok!"(")
+                depth++;
+            else if (t.type is tok!")")
+            {
+                depth--;
+                if (depth == 0)
+                {
+                    // only strip when the parens wrap just the base
+                    // identifier, possibly behind a `*` deref: `(arr)`,
+                    // `(*p)`. Binary expressions like `(a + b)` keep
+                    // their parens (they cannot be resolved anyway).
+                    immutable bool wrapsBaseOnly =
+                        (exprTokens[1].type is tok!"identifier" && i == 2)
+                        || (exprTokens[1].type is tok!"*" && i == 3);
+                    if (wrapsBaseOnly)
+                        exprTokens = exprTokens[1 .. i]
+                            ~ exprTokens[i + 1 .. $];
+                    break;
+                }
+            }
+        }
+    }
+
     info.significantToken = findUFCSBaseToken(exprTokens, info.arguments);
-    if (isStringLiteral(info.significantToken.type))
+    bool isLiteralBase = isStringLiteral(info.significantToken.type);
+    if (isLiteralBase)
     {
         info.type = completionScope.getFirstSymbolByNameAndCursor(
             symbolNameToTypeName(STRING_LITERAL_SYMBOL_NAME), cursorPosition);
-        return nullable(info);
+        // Do not return yet: the literal may be indexed/sliced
+        // (`"hello"[1..2].func` — a string slice, not the whole
+        // literal). Fall through to the left→right walk, which handles
+        // the brackets; with no brackets it is a no-op.
     }
 
     auto scopeLookupContext = ScopeLookupContext(completionScope, exprTokens, cursorPosition);
-    info.type = deduceSymbolTypeByToken(info, scopeLookupContext);
 
     // The left→right walk below starts right after the base token.
     size_t walkStart = 1;
 
-    if (info.type is null)
+    // A member-chain receiver (`ctx.arr.`) must be resolved by following
+    // members from its FIRST identifier, even when the last segment
+    // (`arr`) also names a scope-level symbol: a local shadowing the
+    // member would otherwise be picked as the base, and the left→right
+    // walk below would then re-process the chain's own dots as UFCS links
+    // (`ctx.arr.` → resolveUFCSChainSymbol("arr") → null → abort).
+    // The chain shape (`ident ('.' ident)*`) also matches UFCS chains
+    // (`m.mamaFoo.mamaToPapa.`), whose links are free functions, not
+    // members — those must keep the old base-token path, so the member
+    // resolution is only taken when it actually succeeds.
+    immutable size_t chainEnd = memberChainBaseIndex(exprTokens,
+        info.significantToken);
+
+    if (chainEnd > 0)
     {
-        // The base identifier is not a scope-level name: it is the last
-        // segment of a member-access chain (`ctx.vertexBuffer` in
-        // `ctx.vertexBuffer.func()`), where `vertexBuffer` is a member and
-        // only the first segment (`ctx`) is visible in scope. Resolve the
-        // chain from its first identifier by following members — the same
-        // traversal the main chain resolver (getSymbolsByTokenChain)
-        // performs.
-        immutable size_t chainEnd = memberChainBaseIndex(exprTokens,
-            info.significantToken);
-        if (chainEnd == 0)
-            return Nullable!ExpressionInfo.init;
-        info.type = resolveMemberChainType(completionScope, exprTokens,
-            chainEnd, cursorPosition);
-        if (info.type is null)
-            return Nullable!ExpressionInfo.init;
-        // The chain up to and including the base identifier is already
-        // resolved; the walk must not re-process those tokens (its dot
-        // handler resolves UFCS chain links in scope, not members).
-        walkStart = chainEnd + 1;
+        const(DSymbol)* chainType = resolveMemberChainType(completionScope,
+            exprTokens, chainEnd, cursorPosition);
+        if (chainType !is null)
+        {
+            info.type = chainType;
+            // The chain up to and including the base identifier is already
+            // resolved; the walk must not re-process those tokens (its dot
+            // handler resolves UFCS chain links in scope, not members).
+            walkStart = chainEnd + 1;
+        }
+        else if (!isLiteralBase)
+        {
+            info.type = deduceSymbolTypeByToken(info, scopeLookupContext);
+        }
+    }
+    else if (!isLiteralBase)
+    {
+        // A literal base keeps the type set above; only identifier bases
+        // are looked up in scope.
+        info.type = deduceSymbolTypeByToken(info, scopeLookupContext);
     }
 
     // A leading `*` is a pointer DEREFERENCE (`(*p).func`): the receiver
@@ -502,12 +559,13 @@ private Nullable!ExpressionInfo deduceExpressionType(
                 j++;
             }
 
-            // Function call → move to return type
-            if (info.type !is null && info.type.type !is null)
-            {
-                info.type = info.type.type;
-            }
-
+            // Function call → skip the parens. The type is already the
+            // callee's RETURN type at this point: the base symbol was
+            // unwrapped by deduceSymbolTypeByToken, and chain links were
+            // unwrapped by the dot handler below (match.type of a
+            // function symbol IS its return type). Unwrapping here would
+            // peel one layer too many (`getArr()[1..2].` would deduce
+            // the ELEMENT type instead of the slice type).
             i = j - 1;
             continue;
         }
@@ -531,7 +589,77 @@ private Nullable!ExpressionInfo deduceExpressionType(
                 return Nullable!ExpressionInfo.init;
             }
 
+            // The matched UFCS function's return type becomes the new
+            // receiver type for the rest of the chain
+            // (`arr[1..2].someFunc().more`). resolveUFCSChainSymbol
+            // returns the FIRST overload whose first parameter matches —
+            // not necessarily the one selected by the call arguments —
+            // so a void-returning overload would poison the chain
+            // (`x.showSomething(args).` deducing void). Keep the
+            // previous type in that case; it is the receiver's own type,
+            // which is the best approximation available.
+            if (match.type !is null && !isInvalidForUFCSCompletion(match))
+                info.type = match.type;
+
             i++; // skip identifier
+            continue;
+        }
+
+        // ---- Handle indexing / slicing: arr[i], arr[i..j], arr[] ----
+        if (t is tok!"[")
+        {
+            // Skip to matching ']'
+            int depth = 1;
+            size_t j = i + 1;
+            bool hasDotDot = false;
+
+            while (j < exprTokens.length && depth > 0)
+            {
+                if (exprTokens[j].type is tok!"[")
+                    depth++;
+                else if (exprTokens[j].type is tok!"]")
+                    depth--;
+                else if (depth == 1 && exprTokens[j].type is tok!"..")
+                    hasDotDot = true;
+                j++;
+            }
+
+            if (info.type is null)
+                return Nullable!ExpressionInfo.init;
+
+            // A slice (`arr[i..j]`, `arr[]`) keeps the array type itself;
+            // a single index (`arr[i]`) yields the element type.
+            if (hasDotDot || j - i == 2) // `[]` — empty brackets
+            {
+                // slicing is a no-op on the type
+            }
+            else
+            {
+                // Unwrap aliases first: a string literal's type is the
+                // `string` alias, whose target is the actual array symbol
+                // (`"hello"[1]` must yield `char`).
+                const(DSymbol)* indexed = unwrapToValueSymbol(info.type);
+                if (indexed is null)
+                    return Nullable!ExpressionInfo.init;
+                if (indexed.qualifier == SymbolQualifier.array
+                    || indexed.qualifier == SymbolQualifier.assocArray
+                    || indexed.qualifier == SymbolQualifier.pointer)
+                {
+                    // indexing an array yields the element type;
+                    // indexing a pointer dereferences it
+                    info.type = indexed.type;
+                }
+                else
+                {
+                    // opIndex on a user-defined type
+                    auto opIndex = indexed.getFirstPartNamed(internString("opIndex"));
+                    if (opIndex is null || opIndex.type is null)
+                        return Nullable!ExpressionInfo.init;
+                    info.type = opIndex.type;
+                }
+            }
+
+            i = j - 1;
             continue;
         }
     }
