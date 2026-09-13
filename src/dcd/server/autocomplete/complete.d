@@ -98,6 +98,13 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 	if (atAttributeCompletion(beforeTokens, response))
 		return response;
 
+// `case |` / `case re|` - offer the switch condition's enum members,
+	// filtered by the partial and the values already used in earlier case
+	// labels. Must run before the keyword faking below.
+	if (switchCaseCompletion(beforeTokens, tokenArray,
+		request.cursorPosition, moduleCache, response))
+		return response;
+
 	// allows to get completion on keyword, typically "is"
 	if (beforeTokens.length &&
 		(isKeyword(beforeTokens[$-1].type) || isBasicType(beforeTokens[$-1].type)))
@@ -1312,6 +1319,130 @@ private void setParameterStorageClassCompletions(ref AutocompleteResponse respon
 				completion.ddoc
 			);
 	}
+}
+
+/**
+ * Completion for the case-label values of a switch statement
+ * (`case |`, `case re|`): offers the switch condition's enum members,
+ * filtered by the partial and by the members already used in earlier
+ * case labels. Returns false when the cursor is not at a case-value
+ * position or the condition is not an enum.
+ */
+private bool switchCaseCompletion(T)(T beforeTokens,
+	const(Token)[] tokenArray, size_t cursorPosition, ref ModuleCache moduleCache,
+	ref AutocompleteResponse response)
+{
+	string partial;
+	if (beforeTokens.empty)
+		return false;
+	if (beforeTokens[$ - 1] == tok!"case")
+	{
+	}
+	else if (beforeTokens[$ - 1] == tok!"identifier"
+		&& beforeTokens.length >= 2
+		&& beforeTokens[$ - 2] == tok!"case")
+	{
+		auto t = beforeTokens[$ - 1];
+		if (cursorPosition >= t.index
+			&& cursorPosition - t.index <= t.text.length)
+			partial = t.text[0 .. cursorPosition - t.index];
+		beforeTokens = beforeTokens[0 .. $ - 1];
+	}
+	else
+		return false;
+
+	// The enclosing switch: the innermost unclosed `{` must be the switch
+	// body, preceded by the condition's parens and the `switch` keyword.
+	size_t body = innermostUnclosedOpener(beforeTokens, tok!"{", tok!"}");
+	if (body == size_t.max || body < 2)
+		return false;
+	if (beforeTokens[body - 1] != tok!")")
+		return false;
+	size_t condEnd = body - 1;
+	size_t condStart = beforeTokens.skipParenReverse(condEnd, tok!")", tok!"(");
+	if (condStart == size_t.max || condStart == 0)
+		return false;
+	if (beforeTokens[condStart - 1] == tok!"switch")
+	{
+	}
+	else if (beforeTokens[condStart - 1] == tok!"final"
+		&& condStart >= 2 && beforeTokens[condStart - 2] == tok!"switch")
+	{
+	}
+	else
+		return false;
+
+	// Members already used in earlier case labels (the last identifier
+	// before the `:`, so qualified references count too).
+	string[] usedNames;
+	{
+		size_t j = body + 1;
+		while (j < beforeTokens.length)
+		{
+			if (beforeTokens[j] == tok!"case")
+			{
+				size_t k = j + 1;
+				string lastName;
+				while (k < beforeTokens.length
+					&& beforeTokens[k] != tok!":"
+					&& beforeTokens[k] != tok!"case")
+				{
+					if (beforeTokens[k] == tok!"identifier")
+						lastName = beforeTokens[k].text;
+					k++;
+				}
+				if (lastName.length)
+					usedNames ~= lastName;
+				j = k;
+			}
+			else
+				j++;
+		}
+	}
+
+	// Resolve the condition's type (identifiers semantics swap the
+	// condition variable with its type).
+	auto condTokens = beforeTokens[condStart + 1 .. condEnd];
+	if (condTokens.empty)
+		return false;
+
+	RollbackAllocator rba;
+	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba,
+		cursorPosition, moduleCache);
+	scope(exit) pair.destroy();
+
+	auto symbols = getSymbolsByTokenChain(pair.scope_, condTokens,
+		cursorPosition, CompletionType.identifiers);
+	if (symbols.length == 0)
+		return false;
+
+	// Follow aliases to the underlying enum.
+	auto enumSymbol = symbols[0];
+	while (enumSymbol.kind == CompletionKind.aliasName)
+	{
+		if (enumSymbol.type is null || enumSymbol.type is enumSymbol)
+			return false;
+		enumSymbol = enumSymbol.type;
+	}
+	if (enumSymbol.kind != CompletionKind.enumName)
+		return false;
+
+	response.completionType = CompletionType.identifiers;
+	foreach (member; enumSymbol.opSlice())
+	{
+		if (member.kind != CompletionKind.enumMember)
+			continue;
+		if (member.name is null || member.name.length == 0)
+			continue;
+		if (partial.length
+			&& !toUpper(member.name.data).startsWith(toUpper(partial)))
+			continue;
+		if (usedNames.canFind(member.name.data))
+			continue;
+		response.completions ~= makeSymbolCompletionInfo(member,
+			CompletionKind.enumMember);
+	}
+	return true;
 }
 
 /**
