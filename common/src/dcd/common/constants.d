@@ -104,6 +104,25 @@ immutable ConstantCompletion[] declarationAttributes = [
 ];
 
 /**
+ * Storage classes that can appear at the START of a function parameter
+ * (`void f(scope ref int x)`), offered inside a parameter list being
+ * typed: after the opening `(` or a `,` separating parameters.
+ * https://dlang.org/spec/function.html#parameters
+ */
+immutable ConstantCompletion[] parameterStorageClasses = [
+	ConstantCompletion("const", "Parameter of the const type constructor."),
+	ConstantCompletion("immutable", "Parameter of the immutable type constructor."),
+	ConstantCompletion("in", "Equivalent to `scope const`."),
+	ConstantCompletion("inout", "Parameter of the inout type constructor."),
+	ConstantCompletion("lazy", "Argument is evaluated on first use, not at call site."),
+	ConstantCompletion("out", "Parameter is initialized by the function and returned by reference."),
+	ConstantCompletion("ref", "Parameter is passed by reference."),
+	ConstantCompletion("return", "Combined with `ref` or `scope`, allows the parameter to be returned or assigned to `this`."),
+	ConstantCompletion("scope", "References in the parameter cannot escape the function."),
+	ConstantCompletion("shared", "Parameter of the shared type constructor."),
+];
+
+/**
  * Attributes that are spelled with a leading `@` in a declaration attribute
  * position. https://dlang.org/spec/attribute.html#uda
  */
