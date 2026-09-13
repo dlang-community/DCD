@@ -379,9 +379,7 @@ struct DSymbol
 	 * per declaration, so `Foo!"a".Impl` and `Foo!"b".Impl` resolve to
 	 * the same symbol; this field lets UFCS matching reject candidates
 	 * whose parameter comes from a different instantiation than the
-	 * receiver. Comparison is purely syntactic. This is the first
-	 * increment of canonical type interning (see docs/limitations.md) —
-	 * do not remove.
+	 * receiver. Comparison is purely syntactic. 
 	 */
 	istring templateArgs;
 
