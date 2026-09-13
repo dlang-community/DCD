@@ -1338,12 +1338,16 @@ private void setStatementKeywordCompletions(ref AutocompleteResponse response,
 	foreach (completion; statementKeywords ~ declarationKeywords)
 	{
 		if (partial is null || completion.identifier.startsWith(partial))
-			response.completions ~= AutocompleteResponse.Completion(
+		{
+			auto item = AutocompleteResponse.Completion(
 				completion.identifier,
 				CompletionKind.keyword,
 				null, null, 0, // definition, symbol path+location
 				completion.ddoc
 			);
+			item.snippet = completion.snippet;
+			response.completions ~= item;
+		}
 	}
 }
 

@@ -849,6 +849,27 @@ labels = {i["label"] for i in items}
 assert labels == {"age"}, f"ctor named arg should offer 'age', got {labels}"
 print("ctor named arg: implicit constructor fields offered")
 
+# --- keyword snippets ---
+# `fo` at a statement start: the loop keywords carry LSP snippet text
+# (tab stops) flagged with insertTextFormat=2; plain keywords (break,
+# return) stay plain-text inserts.
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 250},
+    "contentChanges": [{"text": "void main() {\n    fo\n}\n"}]}})
+send({"jsonrpc": "2.0", "id": 251, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 1, "character": 6},
+}})
+resp = recv_response()
+items = resp["result"]["items"]
+by_label = {i["label"]: i for i in items}
+for kw in ("for", "foreach", "foreach_reverse"):
+    item = by_label[kw]
+    assert item.get("insertTextFormat") == 2, f"{kw} not a snippet: {item}"
+    assert "$0" in item["textEdit"]["newText"], f"{kw} missing final tab stop"
+    assert kw in item["textEdit"]["newText"], f"{kw} snippet missing keyword"
+print(f"keyword snippets: for/foreach/foreach_reverse carry tab stops")
+
 send({"jsonrpc": "2.0", "id": 5, "method": "shutdown"})
 recv_response()
 send({"jsonrpc": "2.0", "method": "exit"})

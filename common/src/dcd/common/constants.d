@@ -26,6 +26,11 @@ struct ConstantCompletion
 {
 	string identifier;
 	string ddoc;
+	/**
+	 * LSP snippet text for the completion item (tab stops/placeholders
+	 * per the LSP snippet syntax), or null for a plain-text insert.
+	 */
+	string snippet;
 }
 
 /**
@@ -84,23 +89,36 @@ immutable ConstantCompletion[] methodAttributes = [
  * https://dlang.org/spec/statement.html
  */
 immutable ConstantCompletion[] statementKeywords = [
-	ConstantCompletion("assert", "Checks a condition at runtime; throws on failure."),
+	ConstantCompletion("assert", "Checks a condition at runtime; throws on failure.",
+		"assert(${1:condition});"),
 	ConstantCompletion("break", "Exits the enclosing loop or switch."),
-	ConstantCompletion("case", "A label of a switch statement."),
+	ConstantCompletion("case", "A label of a switch statement.",
+		"case ${1:value}:"),
 	ConstantCompletion("continue", "Skips to the next iteration of the enclosing loop."),
-	ConstantCompletion("default", "The fallback label of a switch statement."),
-	ConstantCompletion("do", "A do-while loop."),
-	ConstantCompletion("else", "The fallback branch of an if statement."),
-	ConstantCompletion("for", "A for loop."),
-	ConstantCompletion("foreach", "A foreach loop over a range, array, or aggregate."),
-	ConstantCompletion("foreach_reverse", "A foreach loop iterating in reverse."),
+	ConstantCompletion("default", "The fallback label of a switch statement.",
+		"default:"),
+	ConstantCompletion("do", "A do-while loop.",
+		"do\n{\n\t$0\n}\nwhile (${1:condition});"),
+	ConstantCompletion("else", "The fallback branch of an if statement.",
+		"else\n{\n\t$0\n}"),
+	ConstantCompletion("for", "A for loop.",
+		"for (${1:i} = ${2:0}; ${1:i} < ${3:count}; ${1:i}++)\n{\n\t$0\n}"),
+	ConstantCompletion("foreach", "A foreach loop over a range, array, or aggregate.",
+		"foreach (${2:item}; ${1:aggregate})\n{\n\t$0\n}"),
+	ConstantCompletion("foreach_reverse", "A foreach loop iterating in reverse.",
+		"foreach_reverse (${2:item}; ${1:aggregate})\n{\n\t$0\n}"),
 	ConstantCompletion("goto", "Jumps to a label."),
-	ConstantCompletion("if", "A conditional statement."),
+	ConstantCompletion("if", "A conditional statement.",
+		"if (${1:condition})\n{\n\t$0\n}"),
 	ConstantCompletion("return", "Returns from the function."),
-	ConstantCompletion("switch", "A switch statement."),
-	ConstantCompletion("throw", "Throws an exception."),
-	ConstantCompletion("try", "A try-catch-finally statement."),
-	ConstantCompletion("while", "A while loop."),
+	ConstantCompletion("switch", "A switch statement.",
+		"switch (${1:value})\n{\n\tcase ${2:}:\n\t\t$0\n\t\tbreak;\n}"),
+	ConstantCompletion("throw", "Throws an exception.",
+		"throw new ${1:Exception}(${2:message});"),
+	ConstantCompletion("try", "A try-catch-finally statement.",
+		"try\n{\n\t$0\n}\ncatch (${1:Exception} ${2:e})\n{\n\t${3:// handle}\n}"),
+	ConstantCompletion("while", "A while loop.",
+		"while (${1:condition})\n{\n\t$0\n}"),
 ];
 
 /**
@@ -110,16 +128,26 @@ immutable ConstantCompletion[] statementKeywords = [
  * https://dlang.org/spec/declaration.html
  */
 immutable ConstantCompletion[] declarationKeywords = [
-	ConstantCompletion("alias", "Creates an alias for a type or symbol."),
-	ConstantCompletion("class", "Declares a class type."),
-	ConstantCompletion("enum", "Declares an enumerated type or a manifest constant."),
-	ConstantCompletion("import", "Imports symbols from a module."),
-	ConstantCompletion("interface", "Declares an interface type."),
-	ConstantCompletion("mixin", "Mixes in a template or string of declarations."),
-	ConstantCompletion("struct", "Declares a struct type."),
-	ConstantCompletion("template", "Declares a template."),
-	ConstantCompletion("union", "Declares a union type."),
-	ConstantCompletion("unittest", "Declares a unit test block."),
+	ConstantCompletion("alias", "Creates an alias for a type or symbol.",
+		"alias ${1:name} = ${2:type};"),
+	ConstantCompletion("class", "Declares a class type.",
+		"class ${1:Name}\n{\n\t$0\n}"),
+	ConstantCompletion("enum", "Declares an enumerated type or a manifest constant.",
+		"enum ${1:Name}\n{\n\t$0\n}"),
+	ConstantCompletion("import", "Imports symbols from a module.",
+		"import ${1:module};"),
+	ConstantCompletion("interface", "Declares an interface type.",
+		"interface ${1:Name}\n{\n\t$0\n}"),
+	ConstantCompletion("mixin", "Mixes in a template or string of declarations.",
+		"mixin ${1:template};"),
+	ConstantCompletion("struct", "Declares a struct type.",
+		"struct ${1:Name}\n{\n\t$0\n}"),
+	ConstantCompletion("template", "Declares a template.",
+		"template ${1:name}(${2:params})\n{\n\t$0\n}"),
+	ConstantCompletion("union", "Declares a union type.",
+		"union ${1:Name}\n{\n\t$0\n}"),
+	ConstantCompletion("unittest", "Declares a unit test block.",
+		"unittest\n{\n\t$0\n}"),
 ];
 
 /**
