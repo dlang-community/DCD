@@ -1,7 +1,5 @@
 module tests.tc_struct_init_completion.file;
 
-module tests.tc_struct_init_completion.file;
-
 struct Person
 {
 	string name;

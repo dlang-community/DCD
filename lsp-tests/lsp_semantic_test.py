@@ -752,7 +752,10 @@ items = resp["result"]["items"]
 labels = {i["label"] for i in items}
 assert "name" in labels, f"field 'name' not offered: {labels}"
 assert "age" not in labels, f"'age' should not match partial 'na': {labels}"
-print(f"struct init partial: {sorted(labels)}")
+# committing a field name inserts `name: ` ready for the value
+name_item = next(i for i in items if i["label"] == "name")
+assert name_item["textEdit"]["newText"] == "name: ", name_item["textEdit"]
+print(f"struct init partial: {sorted(labels)} (newText 'name: ')")
 
 # after a comma with one field used: only the unused field is offered
 send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
@@ -767,7 +770,8 @@ resp = recv_response()
 items = resp["result"]["items"]
 labels = {i["label"] for i in items}
 assert labels == {"age"}, f"expected only 'age' after 'name' used, got {labels}"
-print("struct init after comma: only unused field offered")
+assert items[0]["textEdit"]["newText"] == "age: ", items[0]["textEdit"]
+print("struct init after comma: only unused field offered (newText 'age: ')")
 
 # nested initializer: `Wrapper w = { inner: { ` offers Person's fields
 send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
@@ -808,7 +812,10 @@ items = resp["result"]["items"]
 labels = {i["label"] for i in items}
 assert "alpha" in labels, f"parameter 'alpha' not offered: {labels}"
 assert "beta" not in labels, f"'beta' should not match partial 'al': {labels}"
-print(f"named arg partial: {sorted(labels)}")
+# committing an argument name inserts `alpha: ` ready for the value
+alpha_item = next(i for i in items if i["label"] == "alpha")
+assert alpha_item["textEdit"]["newText"] == "alpha: ", alpha_item["textEdit"]
+print(f"named arg partial: {sorted(labels)} (newText 'alpha: ')")
 
 # after a comma with alpha used: only beta is offered
 send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
@@ -823,7 +830,8 @@ resp = recv_response()
 items = resp["result"]["items"]
 labels = {i["label"] for i in items}
 assert labels == {"beta"}, f"expected only 'beta' after 'alpha' used, got {labels}"
-print("named arg after comma: only unused parameter offered")
+assert items[0]["textEdit"]["newText"] == "beta: ", items[0]["textEdit"]
+print("named arg after comma: only unused parameter offered (newText 'beta: ')")
 
 # constructor call: `Person(name: "A", ag` offers the implicit ctor's
 # field parameters

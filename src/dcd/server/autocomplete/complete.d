@@ -813,8 +813,12 @@ private bool namedArgumentCompletion(T)(T beforeTokens,
 			continue;
 		if (usedNames.canFind(param.name.data))
 			continue;
-		response.completions ~= makeSymbolCompletionInfo(param,
+		auto completion = makeSymbolCompletionInfo(param,
 			CompletionKind.variableName);
+		// Committing the argument name produces a `name: ` argument so
+		// the cursor lands ready for the value.
+		completion.insertSuffix = ": ";
+		response.completions ~= completion;
 	}
 	return true;
 }
@@ -1072,8 +1076,12 @@ private bool structInitializerCompletion(T)(T beforeTokens,
 			continue;
 		if (usedNames.canFind(field.name.data))
 			continue;
-		response.completions ~= makeSymbolCompletionInfo(field,
+		auto completion = makeSymbolCompletionInfo(field,
 			CompletionKind.memberVariableName);
+		// Committing the field name produces a `name: ` member so the
+		// cursor lands ready for the value.
+		completion.insertSuffix = ": ";
+		response.completions ~= completion;
 	}
 	return true;
 }

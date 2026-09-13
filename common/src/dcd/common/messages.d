@@ -162,6 +162,14 @@ struct AutocompleteResponse
 		 * Otherwise (probably) empty.
 		 */
 		string typeOf;
+		/**
+		 * Text appended to the identifier when an editor commits the
+		 * completion (e.g. `": " for struct-initializer field names and
+		 * named arguments, so that committing `name` in `Person p = { na`
+		 * inserts `name: ` ready for the value). Empty for ordinary
+		 * completions.
+		 */
+		string insertSuffix;
 	}
 
 	/**
