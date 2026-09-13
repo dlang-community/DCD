@@ -13,6 +13,7 @@ enum TypeLookupKind : ubyte
 	mixinTemplate,
 	varOrFunType,
 	selectiveImport,
+	templateInstantiation,
 }
 
 /**
@@ -36,4 +37,6 @@ struct TypeLookup
 	UnrolledList!istring breadcrumbs;
 	/// The kind of type lookup
 	TypeLookupKind kind;
+	/// For template instantiations, stores the template arguments (in order)
+	UnrolledList!istring templateArguments;
 }

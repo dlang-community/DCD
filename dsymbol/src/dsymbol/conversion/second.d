@@ -545,9 +545,141 @@ void resolveType(DSymbol* symbol, ref TypeLookups typeLookups,
 		// issue 94
 		else if (lookup.kind == TypeLookupKind.inherit)
 			resolveInheritance(symbol, typeLookups, moduleScope, cache);
+		else if (lookup.kind == TypeLookupKind.templateInstantiation)
+			resolveTemplateInstantiation(symbol, lookup, moduleScope, cache);
 		else
 			assert(false, "How did this happen?");
 		}
+}
+
+
+void resolveTemplateInstantiation(DSymbol* symbol, TypeLookup* lookup,
+	Scope* moduleScope, ref ModuleCache cache)
+{
+	if (moduleScope is null)
+		return;
+
+	// Get the template name from breadcrumbs
+	if (lookup.breadcrumbs.empty)
+		return;
+
+	istring templateName = lookup.breadcrumbs.back;
+	DSymbol*[] templateSymbols = moduleScope.getSymbolsByNameAndCursor(templateName, symbol.location);
+	if (templateSymbols.length == 0)
+	{
+		symbol.typeSymbolName = templateName;
+		return;
+	}
+
+	DSymbol* templateSymbol = templateSymbols[0];
+
+	// Ensure we found a template
+	if (templateSymbol.kind != CompletionKind.templateName
+		&& templateSymbol.kind != CompletionKind.structName
+		&& templateSymbol.kind != CompletionKind.className
+		&& templateSymbol.kind != CompletionKind.unionName
+		&& templateSymbol.qualifier != SymbolQualifier.templated)
+	{
+		symbol.type = templateSymbol;
+		symbol.ownType = false;
+		return;
+	}
+
+	// Create a new DSymbol for the instantiated type
+	// This symbol will have its template parameters resolved
+	auto instantiatedType = GCAllocator.instance.make!DSymbol(
+		templateSymbol.name,
+		templateSymbol.kind == CompletionKind.templateName
+			? CompletionKind.structName : templateSymbol.kind);
+	instantiatedType.location = symbol.location;
+	instantiatedType.symbolFile = templateSymbol.symbolFile;
+	instantiatedType.qualifier = templateSymbol.qualifier;
+
+	// Get template parameter names from the template declaration
+	import std.array : Appender;
+	auto paramNamesAppender = Appender!(istring[])();
+	foreach (child; templateSymbol.opSlice())
+	{
+		if (child.kind == CompletionKind.typeTmpParam
+			|| child.kind == CompletionKind.aliasName)
+		{
+			paramNamesAppender.put(child.name);
+		}
+	}
+	istring[] templateParamNames = paramNamesAppender.data;
+
+	// Map template parameters to arguments
+	// Create a substitution map for resolving member types
+	DSymbol*[istring] substitutionMap;
+	size_t argIndex = 0;
+	foreach (argName; lookup.templateArguments[])
+	{
+		if (argIndex < templateParamNames.length)
+		{
+			// Try to resolve the argument type
+			DSymbol* argType = moduleScope.getFirstSymbolByNameAndCursor(argName, symbol.location);
+			if (argType is null)
+			{
+				// Create a fallback symbol
+				argType = GCAllocator.instance.make!DSymbol(argName, CompletionKind.structName);
+				argType.symbolFile = templateSymbol.symbolFile;
+			}
+			substitutionMap[templateParamNames[argIndex]] = argType;
+		}
+		argIndex++;
+	}
+
+	// Copy children from template, resolving template parameter types
+	foreach (child; templateSymbol.opSlice())
+	{
+		if (child.kind == CompletionKind.typeTmpParam
+			|| child.kind == CompletionKind.aliasName)
+		{
+			// Skip template parameters themselves, but add their resolved types as members
+			if (child.name in substitutionMap)
+			{
+				auto resolvedChild = GCAllocator.instance.make!DSymbol(
+					substitutionMap[child.name].name,
+					CompletionKind.typeTmpParam,
+					substitutionMap[child.name].type ? substitutionMap[child.name].type : substitutionMap[child.name]);
+				resolvedChild.symbolFile = child.symbolFile;
+				resolvedChild.ownType = false;
+				instantiatedType.addChild(resolvedChild, true);
+			}
+		}
+		else if (child.type !is null && child.type.name in substitutionMap)
+		{
+			// This member's type is a template parameter - resolve it
+			auto resolvedMember = GCAllocator.instance.make!DSymbol(
+				child.name,
+				child.kind,
+				substitutionMap[child.type.name]);
+			resolvedMember.symbolFile = child.symbolFile;
+			resolvedMember.callTip = child.callTip;
+			resolvedMember.doc = child.doc;
+			resolvedMember.protection = child.protection;
+			resolvedMember.qualifier = child.qualifier;
+			instantiatedType.addChild(resolvedMember, true);
+		}
+		else
+		{
+			// Copy other children as-is
+			auto copiedChild = GCAllocator.instance.make!DSymbol(
+				child.name,
+				child.kind,
+				child.type);
+			copiedChild.symbolFile = child.symbolFile;
+			copiedChild.callTip = child.callTip;
+			copiedChild.doc = child.doc;
+			copiedChild.protection = child.protection;
+			copiedChild.qualifier = child.qualifier;
+			copiedChild.ownType = false;
+			instantiatedType.addChild(copiedChild, true);
+		}
+	}
+
+	symbol.type = instantiatedType;
+	symbol.ownType = true;
 }
 
 void typeSwap(ref DSymbol* currentSymbol)
