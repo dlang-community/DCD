@@ -107,6 +107,7 @@ do
 	while (true) switch (beforeTokens[i].type)
 	{
 	case tok!",":
+	case tok!":":
 	case tok!".":
 	case tok!"*":
 	case tok!"&":

@@ -720,6 +720,127 @@ assert edit["newText"] == ", sayBye", f"not an append: {edit['newText']!r}"
 assert edit["range"]["start"] == {"line": 0, "character": 27}, edit["range"]
 print(f"renamed module append: {edit['newText']!r} at {edit['range']['start']}")
 
+# --- struct initializer field-name completion ---
+# `Person p = { na` offers the struct's fields; already-initialized
+# fields are filtered out; nested initializers resolve the field's type.
+init_src = (
+    "module test;\n"
+    "\n"
+    "struct Person {\n"
+    "    string name;\n"
+    "    int age;\n"
+    "}\n"
+    "\n"
+    "struct Wrapper {\n"
+    "    Person inner;\n"
+    "}\n"
+    "\n"
+    "void main() {\n"
+    "    Person p = { na\n"
+    "}\n"
+)
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 230},
+    "contentChanges": [{"text": init_src}]}})
+# cursor after "na" on line 12: "    Person p = { na" -> char 19
+send({"jsonrpc": "2.0", "id": 231, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 12, "character": 19},
+}})
+resp = recv_response()
+items = resp["result"]["items"]
+labels = {i["label"] for i in items}
+assert "name" in labels, f"field 'name' not offered: {labels}"
+assert "age" not in labels, f"'age' should not match partial 'na': {labels}"
+print(f"struct init partial: {sorted(labels)}")
+
+# after a comma with one field used: only the unused field is offered
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 232},
+    "contentChanges": [{"text": init_src.replace(
+        "Person p = { na\n", 'Person p = { name: "A", \n')}]}})
+send({"jsonrpc": "2.0", "id": 233, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 12, "character": 28},
+}})
+resp = recv_response()
+items = resp["result"]["items"]
+labels = {i["label"] for i in items}
+assert labels == {"age"}, f"expected only 'age' after 'name' used, got {labels}"
+print("struct init after comma: only unused field offered")
+
+# nested initializer: `Wrapper w = { inner: { ` offers Person's fields
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 234},
+    "contentChanges": [{"text": init_src.replace(
+        "Person p = { na\n", "Wrapper w = { inner: { \n")}]}})
+send({"jsonrpc": "2.0", "id": 235, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 12, "character": 27},
+}})
+resp = recv_response()
+items = resp["result"]["items"]
+labels = {i["label"] for i in items}
+assert labels == {"name", "age"}, f"nested init should offer Person fields, got {labels}"
+print("nested struct init: inner aggregate fields offered")
+
+# --- named argument completion ---
+# `foo(al` offers the callee's parameter names; used ones are filtered.
+named_src = (
+    "module test;\n"
+    "\n"
+    "void foo(int alpha, int beta) {}\n"
+    "\n"
+    "void main() {\n"
+    "    foo(al\n"
+    "}\n"
+)
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 240},
+    "contentChanges": [{"text": named_src}]}})
+# cursor after "al" on line 5: "    foo(al" -> char 10
+send({"jsonrpc": "2.0", "id": 241, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 5, "character": 10},
+}})
+resp = recv_response()
+items = resp["result"]["items"]
+labels = {i["label"] for i in items}
+assert "alpha" in labels, f"parameter 'alpha' not offered: {labels}"
+assert "beta" not in labels, f"'beta' should not match partial 'al': {labels}"
+print(f"named arg partial: {sorted(labels)}")
+
+# after a comma with alpha used: only beta is offered
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 242},
+    "contentChanges": [{"text": named_src.replace(
+        "foo(al\n", "foo(alpha: 1, be\n")}]}})
+send({"jsonrpc": "2.0", "id": 243, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 5, "character": 19},
+}})
+resp = recv_response()
+items = resp["result"]["items"]
+labels = {i["label"] for i in items}
+assert labels == {"beta"}, f"expected only 'beta' after 'alpha' used, got {labels}"
+print("named arg after comma: only unused parameter offered")
+
+# constructor call: `Person(name: "A", ag` offers the implicit ctor's
+# field parameters
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 244},
+    "contentChanges": [{"text": init_src.replace(
+        "Person p = { na\n", 'Person p = Person(name: "A", ag\n')}]}})
+send({"jsonrpc": "2.0", "id": 245, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 12, "character": 35},
+}})
+resp = recv_response()
+items = resp["result"]["items"]
+labels = {i["label"] for i in items}
+assert labels == {"age"}, f"ctor named arg should offer 'age', got {labels}"
+print("ctor named arg: implicit constructor fields offered")
+
 send({"jsonrpc": "2.0", "id": 5, "method": "shutdown"})
 recv_response()
 send({"jsonrpc": "2.0", "method": "exit"})
