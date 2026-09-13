@@ -1043,8 +1043,44 @@ private bool typeMatchesWith(scope ref const(DSymbol) incomingSymbolType, scope 
         // pointer-equal builtin trees).
         || (isUserDefinedAggregate(incomingSymbolType)
             && isUserDefinedAggregate(significantSymbolType)
-            && incomingSymbolType.name == significantSymbolType.name);
+            && incomingSymbolType.name == significantSymbolType.name)
+        // Same split-instance problem for aliases; the receiver may
+        // already be unwrapped to the alias target.
+        || aliasTargetsMatch(incomingSymbolType, significantSymbolType);
 
+}
+
+private bool aliasTargetsMatch(scope ref const(DSymbol) incomingSymbolType, scope ref const(DSymbol) significantSymbolType)
+{
+    if (incomingSymbolType.kind != CompletionKind.aliasName
+        && significantSymbolType.kind != CompletionKind.aliasName)
+        return false;
+    auto incomingTarget = resolveAliasTarget(&incomingSymbolType);
+    auto significantTarget = resolveAliasTarget(&significantSymbolType);
+    if (incomingTarget is null || significantTarget is null)
+        return false;
+    return incomingTarget.qualifier == significantTarget.qualifier
+        && incomingTarget.kind == significantTarget.kind
+        && incomingTarget.name == significantTarget.name;
+}
+
+/// Follows an alias chain (including pointer indirections) to its target.
+private const(DSymbol)* resolveAliasTarget(const(DSymbol)* symbol)
+{
+    size_t guard = 0;
+    while (symbol !is null && guard++ < 32)
+    {
+        if (symbol.kind == CompletionKind.aliasName
+            || symbol.qualifier == SymbolQualifier.pointer)
+        {
+            if (symbol.type is null || symbol.type is symbol)
+                return symbol;
+            symbol = symbol.type;
+            continue;
+        }
+        return symbol;
+    }
+    return symbol;
 }
 
 /// Whether `symbol` is a user-defined struct/class/union/interface type
