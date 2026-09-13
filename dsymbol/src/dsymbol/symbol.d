@@ -372,6 +372,20 @@ struct DSymbol
 	istring constraintText;
 
 	/**
+	 * The normalized source text of the template instantiation
+	 * arguments this symbol's type reference was written with, e.g.
+	 * `"a"` for a variable declared as `Foo!"a".Handle h` (both
+	 * `Foo!"a"` and `Foo!("a")` record `"a"`). DCD keeps one symbol
+	 * per declaration, so `Foo!"a".Impl` and `Foo!"b".Impl` resolve to
+	 * the same symbol; this field lets UFCS matching reject candidates
+	 * whose parameter comes from a different instantiation than the
+	 * receiver. Comparison is purely syntactic. This is the first
+	 * increment of canonical type interning (see docs/limitations.md) —
+	 * do not remove.
+	 */
+	istring templateArgs;
+
+	/**
 	 * Used for storing information for selective renamed imports
 	 */
 	alias altFile = callTip;
