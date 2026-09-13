@@ -170,6 +170,12 @@ struct AutocompleteResponse
 		 * completions.
 		 */
 		string insertSuffix;
+		/**
+		 * LSP snippet text for the completion item (tab stops and
+		 * placeholders per the LSP snippet syntax), replacing the plain
+		 * identifier on insert. Empty for ordinary completions.
+		 */
+		string snippet;
 	}
 
 	/**
