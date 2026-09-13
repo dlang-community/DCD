@@ -369,7 +369,11 @@ final class FirstPass : ASTVisitor
 				SemanticSymbol* symbol = allocateSemanticSymbol(
 					name.text, CompletionKind.aliasName, symbolFile, name.index);
 				if (aliasDeclaration.type !is null)
+				{
 					addTypeToLookups(symbol.typeLookups, aliasDeclaration.type);
+					// Keep the instantiation identity for UFCS (see DSymbol.templateArgs).
+					symbol.acSymbol.templateArgs = templateArgsText(aliasDeclaration.type);
+				}
 				symbol.parent = currentSymbol;
 				currentSymbol.addChild(symbol, true);
 				currentScope.addSymbol(symbol.acSymbol, false);
@@ -385,7 +389,10 @@ final class FirstPass : ASTVisitor
 					initializer.name.text, CompletionKind.aliasName,
 					symbolFile, initializer.name.index);
 				if (initializer.type !is null)
+				{
 					addTypeToLookups(symbol.typeLookups, initializer.type);
+					symbol.acSymbol.templateArgs = templateArgsText(initializer.type);
+				}
 				symbol.parent = currentSymbol;
 				currentSymbol.addChild(symbol, true);
 				currentScope.addSymbol(symbol.acSymbol, false);
