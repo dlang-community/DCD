@@ -439,6 +439,13 @@ private void resolveTypeFromInitializer(R)(DSymbol* symbol, TypeLookup* lookup,
 		}
 		else
 		{
+			// Propagate the alias's instantiation identity (see
+			// resolveTypeFromType).
+			if (currentSymbol !is null
+				&& currentSymbol.kind == CompletionKind.aliasName
+				&& symbol.templateArgs is null
+				&& currentSymbol.templateArgs !is null)
+				symbol.templateArgs = currentSymbol.templateArgs;
 			typeSwap(currentSymbol);
 			if (currentSymbol is null)
 				return;
@@ -447,6 +454,12 @@ private void resolveTypeFromInitializer(R)(DSymbol* symbol, TypeLookup* lookup,
 		if (currentSymbol is null)
 			return;
 	}
+	// Same propagation for a bare alias initializer (`auto b = Foo;`).
+	if (currentSymbol !is null
+		&& currentSymbol.kind == CompletionKind.aliasName
+		&& symbol.templateArgs is null
+		&& currentSymbol.templateArgs !is null)
+		symbol.templateArgs = currentSymbol.templateArgs;
 	typeSwap(currentSymbol);
 }
 
