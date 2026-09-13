@@ -1639,6 +1639,8 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 		return list.toJson();
 	}
 
+	// LSP completion has a separate signatureHelp trigger.
+	request.lspCompletion = true;
 	auto response = complete(request, *context.cache);
 
 	if (response.completionType == CompletionType.calltips)

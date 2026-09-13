@@ -456,11 +456,11 @@ send({"jsonrpc": "2.0", "id": 247, "method": "textDocument/completion", "params"
     "position": {"line": 2, "character": 9},
 }})
 resp = recv_response()
-assert "items" not in resp["result"], f"call expr returned items, not calltip: {str(resp['result'])[:120]}"
-assert "signatures" in resp["result"], f"call expr lost its calltip: {str(resp['result'])[:120]}"
-print("call expression `mama(` still returns calltip")
+labels = {i["label"] for i in resp["result"]["items"]}
+assert "a" in labels, f"call expr lost parameter names: {sorted(labels)}"
+print("call expression `mama(` offers parameter names")
 
-# a delegating constructor CALL keeps its calltip too
+# a delegating constructor CALL offers its parameter names too
 send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
     "textDocument": {"uri": "file:///tmp/semantic.d", "version": 248},
     "contentChanges": [{"text": "struct S {\n    this(int x) {}\n    this() {\n        this(\n    }\n}\n"}]}})
@@ -469,9 +469,9 @@ send({"jsonrpc": "2.0", "id": 249, "method": "textDocument/completion", "params"
     "position": {"line": 3, "character": 13},
 }})
 resp = recv_response()
-assert "items" not in resp["result"], f"delegating ctor call returned items: {str(resp['result'])[:120]}"
-assert "signatures" in resp["result"], f"delegating ctor call lost its calltip: {str(resp['result'])[:120]}"
-print("delegating constructor call still returns calltip")
+labels = {i["label"] for i in resp["result"]["items"]}
+assert "x" in labels, f"delegating ctor call lost parameter names: {sorted(labels)}"
+print("delegating constructor call offers parameter names")
 
 # a constructor DECLARATION gets the storage classes
 send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
