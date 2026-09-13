@@ -425,6 +425,10 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 		if (partial.length
 			&& isDeclarationAttributeStart(beforeTokens, tokenArray, partial))
 			setDeclarationAttributeCompletions(response, partial);
+		// A partial identifier at a statement start: offer the
+		// matching statement keywords alongside the scope symbols.
+		if (partial.length && isStatementStart(beforeTokens, tokenArray))
+			setStatementKeywordCompletions(response, partial);
 		break;
 	//  these tokens before a "." mean "Module Scope Operator"
 	case tok!":":
@@ -439,6 +443,9 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 		scope(exit) pair.destroy();
 		response.setCompletions(pair.scope_, getExpression(beforeTokens),
 			1, CompletionType.identifiers, CalltipHint.none, partial);
+		// Ditto for the module-scope-operator path.
+		if (partial.length && isStatementStart(beforeTokens, tokenArray))
+			setStatementKeywordCompletions(response, partial);
 		break;
 	default:
 		break;
@@ -1297,6 +1304,46 @@ private bool isDeclarationAttributeStart(T)(T beforeTokens,
 		return true;
 	default:
 		return false;
+	}
+}
+
+/**
+ * Whether the cursor is at a position where a statement can start:
+ * after a statement boundary (`;`, `{`, `}`) or at the beginning of
+ * the file.
+ */
+private bool isStatementStart(T)(T beforeTokens, const(Token)[] tokenArray)
+{
+	if (beforeTokens.empty)
+		return tokenArray.length > 0;
+	switch (beforeTokens[$ - 1].type)
+	{
+	case tok!";":
+	case tok!"{":
+	case tok!"}":
+		return true;
+	default:
+		return false;
+	}
+}
+
+/**
+ * Fills the response with the statement-start keywords (and the local
+ * declaration keywords, which can start a statement too) matching the
+ * partial.
+ */
+private void setStatementKeywordCompletions(ref AutocompleteResponse response,
+	string partial)
+{
+	foreach (completion; statementKeywords ~ declarationKeywords)
+	{
+		if (partial is null || completion.identifier.startsWith(partial))
+			response.completions ~= AutocompleteResponse.Completion(
+				completion.identifier,
+				CompletionKind.keyword,
+				null, null, 0, // definition, symbol path+location
+				completion.ddoc
+			);
 	}
 }
 
