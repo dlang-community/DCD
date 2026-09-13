@@ -102,6 +102,11 @@ struct AutocompleteRequest
 	 */
 	RequestKind kind;
 
+    /**
+     * Set for LSP textDocument/completion requests: completion may offer
+     * parameter names at bare `(`/`,` argument positions instead of calltips.
+     */
+    bool lspCompletion;
 	/**
 	 * Paths to be searched for import files
 	 */

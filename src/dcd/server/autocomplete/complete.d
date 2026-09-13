@@ -193,10 +193,11 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 	// run before the calltip detection: a partial identifier is not a
 	// calltip position, so the request would otherwise fall through to dot
 	// completion and offer only scope symbols.
+	// For LSP completion requests the bare `(`/`,` positions fire too.
 	{
 		AutocompleteResponse namedArgs;
 		if (namedArgumentCompletion(beforeTokens, tokenArray,
-			request.cursorPosition, moduleCache, namedArgs))
+			request.cursorPosition, moduleCache, namedArgs, request.lspCompletion))
 			return namedArgs;
 	}
 
@@ -716,44 +717,50 @@ private string[] collectUsedInitializerNames(T)(T tokens, size_t open)
 
 /**
  * Completion for named arguments inside a function call
- * (`foo(al|`, `foo(alpha: 1, be|`). Fills `response` and returns true
- * when the cursor is on a partial identifier at an argument-name
- * position of a call whose callee's parameters could be resolved;
- * returns false (response untouched) otherwise, letting the regular
- * completion paths run.
+ * (`foo(|`, `foo(al|`, `foo(alpha: 1, be|`). Fills `response` and
+ * returns true when the cursor is at an argument-name position of a
+ * call whose callee's parameters could be resolved; returns false
+ * (response untouched) otherwise, letting the regular completion
+ * paths run.
  *
- * Only fires on a partial identifier: right after `(` or `,` the
- * calltip/signature-help path owns the position (it shows the
- * signature), and after `name:` the user is typing a value (scope
- * symbols apply).
+ * Fires both on a partial identifier and right after `(`/`,` (empty
+ * partial): the signature widget comes from the client's own
+ * signatureHelp trigger, so the completion request can always return
+ * the parameter names. After `name:` the user is typing a value
+ * (scope symbols apply).
  */
 private bool namedArgumentCompletion(T)(T beforeTokens,
 	const(Token)[] tokenArray, size_t cursorPosition, ref ModuleCache moduleCache,
-	ref AutocompleteResponse response)
+	ref AutocompleteResponse response, bool allowBareParen = false)
 {
-	// A partial identifier preceded by `(` or `,` at the argument level.
-	if (beforeTokens.length < 3
-		|| beforeTokens[$ - 1] != tok!"identifier"
-		|| !beforeTokens[$ - 2].type.among(tok!"(", tok!","))
-		return false;
-
-	// The partial identifier being typed (the argument name).
+	// A partial identifier preceded by `(` or `,`, or nothing typed yet
+	// (LSP completion only).
 	string partial;
-	auto t = beforeTokens[$ - 1];
-	if (cursorPosition >= t.index
-		&& cursorPosition - t.index <= t.text.length)
-		partial = t.text[0 .. cursorPosition - t.index];
-	auto argTokens = beforeTokens[0 .. $ - 1];
+	if (beforeTokens.empty)
+		return false;
+	if (beforeTokens[$ - 1] == tok!"identifier"
+		&& beforeTokens.length >= 2
+		&& beforeTokens[$ - 2].type.among(tok!"(", tok!","))
+	{
+		auto t = beforeTokens[$ - 1];
+		if (cursorPosition >= t.index
+			&& cursorPosition - t.index <= t.text.length)
+			partial = t.text[0 .. cursorPosition - t.index];
+		beforeTokens = beforeTokens[0 .. $ - 1];
+	}
+	else if (!allowBareParen
+		|| !beforeTokens[$ - 1].type.among(tok!"(", tok!","))
+		return false;
 
 	// The call's opening paren (goBackToOpenParen returns the index
 	// AFTER the `(`).
-	size_t parenIndex = argTokens.goBackToOpenParen;
+	size_t parenIndex = beforeTokens.goBackToOpenParen;
 	if (parenIndex == size_t.max)
 		return false;
 
 	// The callee expression: everything before the `(`. getExpression
 	// already drops a leading `new` of a construction.
-	auto calleeExpr = getExpression(argTokens[0 .. parenIndex - 1]);
+	auto calleeExpr = getExpression(beforeTokens[0 .. parenIndex - 1]);
 	if (calleeExpr.empty)
 		return false;
 
@@ -817,7 +824,7 @@ private bool namedArgumentCompletion(T)(T beforeTokens,
 	if (params.empty)
 		return false;
 
-	string[] usedNames = collectUsedArgumentNames(argTokens, parenIndex - 1);
+	string[] usedNames = collectUsedArgumentNames(beforeTokens, parenIndex - 1);
 
 	response.completionType = CompletionType.identifiers;
 	foreach (param; params)
