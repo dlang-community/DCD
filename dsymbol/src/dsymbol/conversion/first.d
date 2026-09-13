@@ -1691,20 +1691,32 @@ private istring templateArgsText(const(TypeIdentifierPart) tip, size_t depth)
  * identically. Argument contents are formatted, which normalizes
  * whitespace; comparison remains syntactic — `!(2 * 3)` and `!6` stay
  * different.
+ *
+ * Interpolated-string arguments (`TemplateSingleArgument.istring`) are
+ * only handled when the field exists: it was added in libdparse 0.25.0,
+ * while dsymbol supports libdparse >= 0.23.0. The `__traits(compiles)`
+ * guard keeps this compiling against older versions, where the token
+ * fallback below still renders everything else.
+ *
+ * TODO: remove the guard once the minimum supported libdparse version is
+ * raised to >= 0.25.0 (see dsymbol/dub.json).
  */
 private string renderTemplateArguments(const TemplateArguments args)
 {
 	auto app = appender!string();
 	if (args.templateSingleArgument !is null)
 	{
-		if (args.templateSingleArgument.istring !is null)
-			formatNode(app, args.templateSingleArgument.istring);
-		else
+		static if (__traits(compiles, args.templateSingleArgument.istring))
 		{
-			const Token token = args.templateSingleArgument.token;
-			// keyword tokens (e.g. the `int` of `Foo!int`) carry no text
-			app.put(token.text.length ? token.text : str(token.type));
+			if (args.templateSingleArgument.istring !is null)
+			{
+				formatNode(app, args.templateSingleArgument.istring);
+				return app.data;
+			}
 		}
+		const Token token = args.templateSingleArgument.token;
+		// keyword tokens (e.g. the `int` of `Foo!int`) carry no text
+		app.put(token.text.length ? token.text : str(token.type));
 	}
 	else if (args.namedTemplateArgumentList !is null)
 	{
