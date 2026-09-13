@@ -968,13 +968,22 @@ final class FirstPass : ASTVisitor
 	override void visit(const ForeachTypeList feTypeList)
 	{
 		foreachTypeIndex = 0;
+		// ALL loop variables get symbols (not just the last one): the
+		// first of two (`foreach (k, v; aa)`) is the AA key / array index,
+		// the others are the values. The position is recorded so the
+		// second pass can pick the right type.
 		foreachTypeIndexOfInterest = cast(ubyte)(feTypeList.items.length - 1);
+		foreachTypeCount = cast(ubyte)(feTypeList.items.length);
 		feTypeList.accept(this);
 	}
 
 	override void visit(const ForeachType feType)
 	{
-		if (foreachTypeIndex++ == foreachTypeIndexOfInterest)
+		const ubyte index = foreachTypeIndex++;
+		// The last variable keeps the old behavior (the element/value
+		// type); the earlier ones are keys/indexes, resolved separately.
+		if (index == foreachTypeIndexOfInterest
+			|| (foreachTypeCount > 1 && index < foreachTypeIndexOfInterest))
 		{
 			SemanticSymbol* symbol = allocateSemanticSymbol(feType.identifier.text,
 				CompletionKind.variableName, symbolFile, feType.identifier.index);
@@ -984,7 +993,16 @@ final class FirstPass : ASTVisitor
 			currentSymbol.addChild(symbol, true);
 			currentScope.addSymbol(symbol.acSymbol, true);
 			if (symbol.typeLookups.empty && feExpression !is null)
-				populateInitializer(symbol.typeLookups, feExpression, true);
+			{
+				// The last variable gets the element/value type; the earlier
+				// ones of a multi-variable loop are keys/indexes, resolved by
+				// the second pass from the aggregate with a `foreachKey`
+				// crumb instead of the element `foreach` crumb.
+				populateInitializer(symbol.typeLookups, feExpression,
+					index == foreachTypeIndexOfInterest
+						? internString("foreach")
+						: internString("foreachKey"));
+			}
 		}
 	}
 
@@ -1003,7 +1021,7 @@ final class FirstPass : ASTVisitor
 			currentSymbol.addChild(symbol, true);
 			currentScope.addSymbol(symbol.acSymbol, true);
 			if (symbol.typeLookups.empty && ifs.condition !is null && ifs.condition.expression !is null)
-				populateInitializer(symbol.typeLookups, ifs.condition.expression, false);
+				populateInitializer(symbol.typeLookups, ifs.condition.expression);
 		}
 		ifs.accept(this);
 	}
@@ -1021,7 +1039,7 @@ final class FirstPass : ASTVisitor
 				currentScope.startLocation, null);
 			scope(exit) popSymbol();
 
-			populateInitializer(currentSymbol.typeLookups, withStatement.expression, false);
+			populateInitializer(currentSymbol.typeLookups, withStatement.expression);
 			withStatement.accept(this);
 
 		}
@@ -1407,12 +1425,12 @@ private:
 	}
 
 	void populateInitializer(T)(ref TypeLookups lookups, const T initializer,
-		bool appendForeach = false, TypeLookup* l = null)
+		istring foreachCrumb = istring.init, TypeLookup* l = null)
 	{
 		auto lookup = l ? l : TypeLookupsAllocator.instance.make!TypeLookup(TypeLookupKind.varOrFunType);
 
 		lookup.breadcrumbs.insert(TYPEOF_SYMBOL_NAME);
-		scope visitor = new InitializerVisitor(lookup, appendForeach, this);
+		scope visitor = new InitializerVisitor(lookup, foreachCrumb, this);
 		scope (exit)
 			if (!visitor.isCast)
 				lookup.breadcrumbs.insert(TYPEOF_END_SYMBOL_NAME);
@@ -1443,7 +1461,7 @@ private:
 			TypeLookupKind.varOrFunType);
 		auto t2 = type.type2;
 		if (t2.typeofExpression !is null)
-			populateInitializer(lookups, t2.typeofExpression, false, lookup);
+			populateInitializer(lookups, t2.typeofExpression, istring.init, lookup);
 		else if (t2.superOrThis is tok!"this")
 			lookup.breadcrumbs.insert(internString("this"));
 		else if (t2.superOrThis is tok!"super")
@@ -1544,6 +1562,7 @@ private:
 
 	ubyte foreachTypeIndexOfInterest;
 	ubyte foreachTypeIndex;
+	ubyte foreachTypeCount;
 }
 
 struct ProtectionStack
@@ -1817,10 +1836,10 @@ private bool isCompilerInternalNamespace(istring importPath)
 
 class InitializerVisitor : ASTVisitor
 {
-	this (TypeLookup* lookup, bool appendForeach, FirstPass fp)
+	this (TypeLookup* lookup, istring foreachCrumb, FirstPass fp)
 	{
 		this.lookup = lookup;
-		this.appendForeach = appendForeach;
+		this.foreachCrumb = foreachCrumb;
 		this.fp = fp;
 	}
 
@@ -1995,8 +2014,8 @@ class InitializerVisitor : ASTVisitor
 	{
 		on = true;
 		expression.accept(this);
-		if (appendForeach)
-			lookup.breadcrumbs.insert(internString("foreach"));
+		if (foreachCrumb !is istring.init)
+			lookup.breadcrumbs.insert(foreachCrumb);
 		on = false;
 	}
 
@@ -2023,14 +2042,14 @@ class InitializerVisitor : ASTVisitor
 	{
 		on = true;
 		super.dynamicDispatch(expression);
-		if (appendForeach)
-			lookup.breadcrumbs.insert(internString("foreach"));
+		if (foreachCrumb !is istring.init)
+			lookup.breadcrumbs.insert(foreachCrumb);
 		on = false;
 	}
 
 	TypeLookup* lookup;
 	bool on = false;
-	const bool appendForeach;
+	const istring foreachCrumb;
 	FirstPass fp;
 	bool isCast;
 }
