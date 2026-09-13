@@ -17,6 +17,7 @@ import dcd.server.lsp.protocol;
 import dcd.server.lsp.jsonrpc;
 import dcd.server.lsp.dscanner : DScannerConfig, DScannerLinter;
 import dcd.server.lsp.dfmt : DfmtConfig, formatWithDfmt;
+import dcd.server.lsp.ddoc : ddocToMarkdown;
 import dcd.server.lsp.stdlib : detectStdlibImportPaths;
 
 import containers.hashset;
@@ -1667,7 +1668,7 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 		CompletionItem item;
 		item.label = completion.identifier;
 		item.kind = toCompletionItemKind(cast(CompletionKind) completion.kind);
-		item.documentation = completion.documentation;
+		item.documentation = ddocToMarkdown(completion.documentation);
 		fillLabelDetails(item, completion);
 		item.hasTextEdit = completionEdit.hasEdit;
 		item.textEdit = completionEdit.edit;
@@ -2174,12 +2175,25 @@ JSONValue handleHover(ref ServerContext context, JSONValue params)
 
 	auto completion = response.completions[0];
 	Hover hover;
-	string contents = completion.definition;
+	// The signature is wrapped in a fenced code block tagged "d" so
+	// clients render it with the D grammar (like clangd's ```cpp fences).
+	string contents = codeFence(completion.definition);
 	if (completion.documentation.length)
-		contents = contents.length ? contents ~ "\n\n" ~ completion.documentation
-			: completion.documentation;
+	{
+		immutable docs = ddocToMarkdown(completion.documentation);
+		contents = contents.length ? contents ~ "\n\n" ~ docs : docs;
+	}
 	hover.contents = contents;
 	return hover.toJson();
+}
+
+/**
+ * Wraps text in a fenced code block tagged "d". An empty input stays
+ * empty so callers can keep using .empty checks on the result.
+ */
+private string codeFence(string text)
+{
+	return text.length ? "```d\n" ~ text ~ "\n```" : "";
 }
 
 /**
@@ -2212,7 +2226,7 @@ private string hoverFallback(in AutocompleteRequest request,
 	if (symbols.empty)
 		return null;
 	auto completion = makeSymbolCompletionInfo(symbols[0], symbols[0].kind);
-	return completion.definition.length ? completion.definition : null;
+	return completion.definition.length ? codeFence(completion.definition) : null;
 }
 
 /**
@@ -2998,6 +3012,7 @@ private SignatureHelp signatureHelpFromResponse(AutocompleteResponse response,
 	{
 		SignatureInformation sig;
 		sig.label = signatureLabel(completion);
+		sig.documentation = ddocToMarkdown(completion.documentation);
 		// Parameter labels with offsets into `label` let the client highlight
 		// the active argument; without them the widget can't show which
 		// parameter is being typed.
