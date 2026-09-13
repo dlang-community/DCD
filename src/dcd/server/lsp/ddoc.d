@@ -26,10 +26,65 @@ string ddocToMarkdown(string ddoc)
 
 	string result;
 	try
-		result = convertSections(ddoc);
+		result = convertSections(stripDecoration(ddoc));
 	catch (Exception e)
 		return ddoc;
 	return result;
+}
+
+/**
+ * Removes leading ` * ` / ` + ` comment decoration from every line.
+ *
+ * SAFETY NET for a libdparse bug: `unDecorateComment` fails to strip
+ * the decoration when a block doc comment contains ddoc code fences
+ * (`---` lines and their content are undecorated by convention, which
+ * breaks its allDecorated detection). This hits many Phobos symbols,
+ * e.g. `writeln` in std.stdio.
+ *
+ * TODO: remove once the libdparse fix is merged and the submodule is
+ * bumped: https://github.com/dlang-community/libdparse/pull//536
+ * (branch fix_ddoc_with_code_fences, "Fix comment undecoration when
+ * ddoc code fences are present"). For already-undecorated comments
+ * this is a no-op.
+ */
+string stripDecoration(string ddoc)
+{
+	// Only strip when every non-empty line OUTSIDE code fences carries
+	// the decoration; otherwise the comment was already undecorated (or
+	// contains code where a leading `*` is literal content).
+	bool decorated;
+	bool inFence;
+	foreach (line; ddoc.lineSplitter)
+	{
+		auto s = line.stripLeft;
+		if (s == "---")
+		{
+			inFence = !inFence;
+			continue;
+		}
+		if (inFence || !s.length)
+			continue;
+		if (s[0] == '*' || s[0] == '+')
+			decorated = true;
+		else
+			return ddoc;
+	}
+	if (!decorated)
+		return ddoc;
+
+	auto app = appender!string;
+	inFence = false;
+	foreach (line; ddoc.lineSplitter)
+	{
+		auto s = line.stripLeft;
+		if (s == "---")
+			inFence = !inFence;
+		else if (!inFence && s.length && (s[0] == '*' || s[0] == '+'))
+			s = s[1 .. $];
+		app.put(s);
+		app.put('\n');
+	}
+	return app.data;
 }
 
 private:
