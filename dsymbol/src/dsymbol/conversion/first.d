@@ -166,6 +166,9 @@ final class FirstPass : ASTVisitor
 
 		if (dec.returnType !is null){
 			addTypeToLookups(currentSymbol.typeLookups, dec.returnType);
+			// recorded so a call result used as a UFCS receiver keeps its
+			// instantiation identity (`getFoo!"a"().bar()`)
+			currentSymbol.acSymbol.templateArgs = templateArgsText(dec.returnType);
 		}
 	}
 
@@ -268,7 +271,10 @@ final class FirstPass : ASTVisitor
 				declarator.name.text, CompletionKind.variableName,
 				symbolFile, declarator.name.index);
 			if (dec.type !is null)
+			{
 				addTypeToLookups(symbol.typeLookups, dec.type);
+				symbol.acSymbol.templateArgs = templateArgsText(dec.type);
+			}
 			symbol.parent = currentSymbol;
 			symbol.acSymbol.protection = protection.current;
 			symbol.acSymbol.doc = makeDocumentation(declarator.comment);
@@ -1234,7 +1240,10 @@ private:
 					p.name.text, CompletionKind.variableName, symbolFile,
 					p.name.index);
 				if (p.type !is null)
+				{
 					addTypeToLookups(parameter.typeLookups, p.type);
+					parameter.acSymbol.templateArgs = templateArgsText(p.type);
+				}
 				parameter.parent = currentSymbol;
 				foreach (const attribute; p.parameterAttributes)
 				{
@@ -1638,6 +1647,75 @@ private istring formatConstraint(const Constraint constraint)
 	auto app = appender!string();
 	formatNode(app, constraint.expression);
 	return internString(app.data);
+}
+
+/**
+ * Renders the template instantiation arguments of a type reference to
+ * normalized text, e.g. `"a"` for the type `Foo!"a".Handle`. `Foo!"a"`
+ * and `Foo!("a")` produce the same text so both spellings of a single
+ * argument compare equal. Returns istring.init when the type's identifier
+ * chain contains no template instance (the common non-templated case).
+ */
+private istring templateArgsText(const Type type)
+{
+	if (type is null || type.type2 is null)
+		return istring.init;
+	// Type constructors such as `const(Foo!x)` wrap the inner type
+	if (type.type2.type !is null)
+		return templateArgsText(type.type2.type);
+	return templateArgsText(type.type2.typeIdentifierPart, 0);
+}
+
+private istring templateArgsText(const(TypeIdentifierPart) tip, size_t depth)
+{
+	if (tip is null || depth >= 64)
+		return istring.init;
+	if (tip.identifierOrTemplateInstance !is null)
+	{
+		const TemplateInstance instance =
+			tip.identifierOrTemplateInstance.templateInstance;
+		if (instance !is null && instance.templateArguments !is null)
+		{
+			const string text =
+				renderTemplateArguments(instance.templateArguments);
+			if (text.length)
+				return internString(text);
+		}
+	}
+	return templateArgsText(tip.typeIdentifierPart, depth + 1);
+}
+
+/**
+ * Renders template arguments without the leading `!` and without the
+ * parentheses of an argument list, so `Foo!arg` and `Foo!(arg)` render
+ * identically. Argument contents are formatted, which normalizes
+ * whitespace; comparison remains syntactic — `!(2 * 3)` and `!6` stay
+ * different.
+ */
+private string renderTemplateArguments(const TemplateArguments args)
+{
+	auto app = appender!string();
+	if (args.templateSingleArgument !is null)
+	{
+		if (args.templateSingleArgument.istring !is null)
+			formatNode(app, args.templateSingleArgument.istring);
+		else
+		{
+			const Token token = args.templateSingleArgument.token;
+			// keyword tokens (e.g. the `int` of `Foo!int`) carry no text
+			app.put(token.text.length ? token.text : str(token.type));
+		}
+	}
+	else if (args.namedTemplateArgumentList !is null)
+	{
+		foreach (count, arg; args.namedTemplateArgumentList.items)
+		{
+			if (count)
+				app.put(", ");
+			formatNode(app, arg);
+		}
+	}
+	return app.data;
 }
 
 private:

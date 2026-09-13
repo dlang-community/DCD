@@ -121,6 +121,11 @@ struct ExpressionInfo
     bool isFromFunction;
     const(Token)[] arguments;
     string name;
+    /// Template instantiation arguments of the receiver's declared type
+    /// (source text, see DSymbol.templateArgs). Used to reject UFCS
+    /// candidates whose parameter comes from a different instantiation
+    /// of the same template.
+    istring templateArgs;
 }
 
 enum CompletionContext
@@ -543,6 +548,12 @@ private const(DSymbol)* deduceSymbolTypeByToken(ref ExpressionInfo info, ScopeLo
     {
         return null;
     }
+
+    // Keep the receiver's instantiation identity: a variable declared as
+    // `Foo!"a".Handle h` carries its recorded template arguments so that
+    // UFCS candidates from a different instantiation can be rejected later.
+    if (info.templateArgs is null)
+        info.templateArgs = found.front.templateArgs;
 
     if (found.length == 1)
     {
@@ -1183,6 +1194,18 @@ bool isCallableWithArg(const(DSymbol)* incomingSymbol, ExpressionInfo beforeDotT
     if (incomingSymbol.kind is CompletionKind.functionName && !incomingSymbol.functionParameters.empty)
     {
         auto firstParam = incomingSymbol.functionParameters.front;
+        // Reject cross-instantiation candidates: when both the receiver and
+        // the parameter carry recorded template arguments and they differ,
+        // the parameter comes from a different instantiation of the same
+        // template (e.g. `Foo!"a".Handle` vs `Foo!"b".Handle` — one shared
+        // symbol in DCD's model). Either side missing recorded args keeps
+        // the old permissive behavior.
+        if (beforeDotType.templateArgs !is null
+            && firstParam.templateArgs !is null
+            && beforeDotType.templateArgs != firstParam.templateArgs)
+        {
+            return false;
+        }
         if (firstParam.type)
             return matchSymbolType(firstParam, beforeDotType.type);
         // Parameter types of cached modules can stay unresolved when the
