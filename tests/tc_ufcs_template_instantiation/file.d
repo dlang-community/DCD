@@ -1,7 +1,5 @@
 module tests.tc_ufcs_template_instantiation.file;
 
-module tests.tc_ufcs_template_instantiation.file;
-
 struct Box(string Tag)
 {
 	struct Impl { int x; }

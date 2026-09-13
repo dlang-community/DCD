@@ -1,0 +1,10 @@
+identifiers
+alignof	k
+init	k
+mangleof	k
+sizeof	k
+sliceFunc	F
+stringof	k
+tupleof	k
+x	v
+y	v
