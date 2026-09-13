@@ -449,6 +449,35 @@ private void resolveTypeFromInitializer(R)(DSymbol* symbol, TypeLookup* lookup,
 			typeSwap(currentSymbol);
 			if (currentSymbol is null)
 				return;
+			// A builtin property of the type resolved so far
+			// (`auto x = Foo.init`): the shared property symbol carries
+			// no type, so the walk would dead-end. `init` yields the
+			// type itself; the others have builtin result types.
+			if (crumb == "init")
+			{
+				continue;
+			}
+			else if (crumb == "sizeof" || crumb == "alignof")
+			{
+				currentSymbol = moduleScope.getFirstSymbolByNameAndCursor(
+					getBuiltinTypeName(tok!"ulong"), symbol.location);
+				if (currentSymbol is null)
+					return;
+				continue;
+			}
+			else if (crumb == "stringof" || crumb == "mangleof")
+			{
+				currentSymbol = moduleScope.getFirstSymbolByNameAndCursor(
+					istring("string"), symbol.location);
+				if (currentSymbol is null)
+					return;
+				continue;
+			}
+			else if (crumb == "tupleof")
+			{
+				// No sensible single type for the field tuple.
+				return;
+			}
 			currentSymbol = currentSymbol.getFirstPartNamed(crumb);
 		}
 		if (currentSymbol is null)
