@@ -78,6 +78,51 @@ immutable ConstantCompletion[] methodAttributes = [
 ];
 
 /**
+ * Keywords that can START a statement (`assert(...)`, `if (...)`,
+ * `foreach (...)`). Offered when a partial identifier is typed at a
+ * statement position, alongside the scope symbols.
+ * https://dlang.org/spec/statement.html
+ */
+immutable ConstantCompletion[] statementKeywords = [
+	ConstantCompletion("assert", "Checks a condition at runtime; throws on failure."),
+	ConstantCompletion("break", "Exits the enclosing loop or switch."),
+	ConstantCompletion("case", "A label of a switch statement."),
+	ConstantCompletion("continue", "Skips to the next iteration of the enclosing loop."),
+	ConstantCompletion("default", "The fallback label of a switch statement."),
+	ConstantCompletion("do", "A do-while loop."),
+	ConstantCompletion("else", "The fallback branch of an if statement."),
+	ConstantCompletion("for", "A for loop."),
+	ConstantCompletion("foreach", "A foreach loop over a range, array, or aggregate."),
+	ConstantCompletion("foreach_reverse", "A foreach loop iterating in reverse."),
+	ConstantCompletion("goto", "Jumps to a label."),
+	ConstantCompletion("if", "A conditional statement."),
+	ConstantCompletion("return", "Returns from the function."),
+	ConstantCompletion("switch", "A switch statement."),
+	ConstantCompletion("throw", "Throws an exception."),
+	ConstantCompletion("try", "A try-catch-finally statement."),
+	ConstantCompletion("while", "A while loop."),
+];
+
+/**
+ * Keywords that can START a local declaration inside a function or
+ * unittest body (`enum Color { ... }`, `struct S { ... }`). Offered
+ * like the statement keywords, at statement positions.
+ * https://dlang.org/spec/declaration.html
+ */
+immutable ConstantCompletion[] declarationKeywords = [
+	ConstantCompletion("alias", "Creates an alias for a type or symbol."),
+	ConstantCompletion("class", "Declares a class type."),
+	ConstantCompletion("enum", "Declares an enumerated type or a manifest constant."),
+	ConstantCompletion("import", "Imports symbols from a module."),
+	ConstantCompletion("interface", "Declares an interface type."),
+	ConstantCompletion("mixin", "Mixes in a template or string of declarations."),
+	ConstantCompletion("struct", "Declares a struct type."),
+	ConstantCompletion("template", "Declares a template."),
+	ConstantCompletion("union", "Declares a union type."),
+	ConstantCompletion("unittest", "Declares a unit test block."),
+];
+
+/**
  * Attributes and storage classes that can START a declaration
  * (`pure void f()`, `static int x`, `auto y = 1`). Offered at declaration
  * boundaries: after `;`, `{`, `}`, at the beginning of a file, or after

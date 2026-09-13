@@ -1,9 +1,12 @@
 identifiers
 car	v
+case	k
 cdouble	k
 cent	k
 cfloat	k
 char	k
+class	k
 complicatedLess	l
 const	k
+continue	k
 creal	k

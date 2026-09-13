@@ -1,3 +1,6 @@
 identifiers
 foo	f	void foo()	stdin 26	my documentation	void
 foo	f	void foo(int i)	stdin 49	my documentation	void
+for	k			A for loop.	
+foreach	k			A foreach loop over a range, array, or aggregate.	
+foreach_reverse	k			A foreach loop iterating in reverse.	

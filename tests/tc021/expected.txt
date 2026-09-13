@@ -1,7 +1,10 @@
 identifiers
 idouble	k
+if	k
 ifloat	k
 immutable	k
+import	k
 inout	k
 int	k
+interface	k
 ireal	k
