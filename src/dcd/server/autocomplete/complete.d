@@ -180,6 +180,33 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 	const bool dotId = beforeTokens.length >= 2 &&
 		beforeTokens[$-1] == tok!"identifier" && beforeTokens[$-2] == tok!".";
 
+	// Named-argument completion: the cursor is on a partial identifier at
+	// an argument-NAME position of a call (`foo(al|`, `foo(alpha: 1, be|`).
+	// Offer the callee's parameter names that are not already used. Must
+	// run before the calltip detection: a partial identifier is not a
+	// calltip position, so the request would otherwise fall through to dot
+	// completion and offer only scope symbols.
+	{
+		AutocompleteResponse namedArgs;
+		if (namedArgumentCompletion(beforeTokens, tokenArray,
+			request.cursorPosition, moduleCache, namedArgs))
+			return namedArgs;
+	}
+
+	// Struct-initializer completion: the cursor is at a field-NAME
+	// position of a `{ field: value, ... }` initializer
+	// (`Person p = { na|`, `Person p = { name: "A", |`). Offer the
+	// initialized aggregate's fields that are not already initialized.
+	// Must run before the calltip/import/dot dispatch: the comma inside
+	// an initializer would otherwise be treated as call arguments, and
+	// the fresh-statement path would offer every symbol in scope.
+	{
+		AutocompleteResponse structInit;
+		if (structInitializerCompletion(beforeTokens, tokenArray,
+			request.cursorPosition, moduleCache, structInit))
+			return structInit;
+	}
+
 	// detects if the completion request uses the current module `ModuleDeclaration`
 	// as access chain. In this case removes this access chain, and just keep the dot
 	// because within a module semantic is the same (`myModule.stuff` -> `.stuff`).
@@ -563,6 +590,500 @@ CalltipHint getCalltipHint(T)(T beforeTokens, out size_t parenIndex)
 	}
 
 	return CalltipHint.none;
+}
+
+/**
+ * Scans backwards from the end of `tokens` for the innermost unmatched
+ * opener of the given kind. Returns its index, or `size_t.max` when
+ * there is none (the cursor is not inside such a block).
+ */
+private size_t innermostUnclosedOpener(T)(T tokens, IdType open, IdType close)
+{
+	int depth = 0;
+	size_t i = tokens.length;
+	while (i-- > 0)
+	{
+		if (tokens[i].type == open)
+		{
+			if (depth == 0)
+				return i;
+			depth--;
+		}
+		else if (tokens[i].type == close)
+			depth++;
+	}
+	return size_t.max;
+}
+
+/**
+ * Collects the argument names already used in the call whose opening
+ * paren is at index `parenIndex` (the paren itself): `name:` at paren
+ * depth 1 (directly inside the call's parens). `:`s of nested calls,
+ * struct initializers and slices live at deeper nesting and are
+ * skipped.
+ */
+private string[] collectUsedArgumentNames(T)(T tokens, size_t parenIndex)
+{
+	string[] used;
+	int parenDepth = 0;
+	int braceDepth = 0;
+	int bracketDepth = 0;
+	foreach (size_t j; parenIndex .. tokens.length)
+	{
+		switch (tokens[j].type)
+		{
+		case tok!"(":
+			parenDepth++;
+			break;
+		case tok!")":
+			parenDepth--;
+			break;
+		case tok!"{":
+			braceDepth++;
+			break;
+		case tok!"}":
+			braceDepth--;
+			break;
+		case tok!"[":
+			bracketDepth++;
+			break;
+		case tok!"]":
+			bracketDepth--;
+			break;
+		case tok!":":
+			if (parenDepth == 1 && braceDepth == 0 && bracketDepth == 0
+				&& j > parenIndex && tokens[j - 1] == tok!"identifier")
+				used ~= tokens[j - 1].text;
+			break;
+		default:
+			break;
+		}
+	}
+	return used;
+}
+
+/**
+ * Collects the field names already initialized in the initializer whose
+ * opening brace is at index `open`: `name:` at brace depth 0 relative
+ * to that brace. `:`s of nested initializers and slices are skipped.
+ */
+private string[] collectUsedInitializerNames(T)(T tokens, size_t open)
+{
+	string[] used;
+	int braceDepth = 0;
+	int bracketDepth = 0;
+	foreach (size_t j; open + 1 .. tokens.length)
+	{
+		switch (tokens[j].type)
+		{
+		case tok!"{":
+			braceDepth++;
+			break;
+		case tok!"}":
+			braceDepth--;
+			break;
+		case tok!"[":
+			bracketDepth++;
+			break;
+		case tok!"]":
+			bracketDepth--;
+			break;
+		case tok!":":
+			if (braceDepth == 0 && bracketDepth == 0 && j > open + 1
+				&& tokens[j - 1] == tok!"identifier")
+				used ~= tokens[j - 1].text;
+			break;
+		default:
+			break;
+		}
+	}
+	return used;
+}
+
+/**
+ * Completion for named arguments inside a function call
+ * (`foo(al|`, `foo(alpha: 1, be|`). Fills `response` and returns true
+ * when the cursor is on a partial identifier at an argument-name
+ * position of a call whose callee's parameters could be resolved;
+ * returns false (response untouched) otherwise, letting the regular
+ * completion paths run.
+ *
+ * Only fires on a partial identifier: right after `(` or `,` the
+ * calltip/signature-help path owns the position (it shows the
+ * signature), and after `name:` the user is typing a value (scope
+ * symbols apply).
+ */
+private bool namedArgumentCompletion(T)(T beforeTokens,
+	const(Token)[] tokenArray, size_t cursorPosition, ref ModuleCache moduleCache,
+	ref AutocompleteResponse response)
+{
+	// A partial identifier preceded by `(` or `,` at the argument level.
+	if (beforeTokens.length < 3
+		|| beforeTokens[$ - 1] != tok!"identifier"
+		|| !beforeTokens[$ - 2].type.among(tok!"(", tok!","))
+		return false;
+
+	// The partial identifier being typed (the argument name).
+	string partial;
+	auto t = beforeTokens[$ - 1];
+	if (cursorPosition >= t.index
+		&& cursorPosition - t.index <= t.text.length)
+		partial = t.text[0 .. cursorPosition - t.index];
+	auto argTokens = beforeTokens[0 .. $ - 1];
+
+	// The call's opening paren (goBackToOpenParen returns the index
+	// AFTER the `(`).
+	size_t parenIndex = argTokens.goBackToOpenParen;
+	if (parenIndex == size_t.max)
+		return false;
+
+	// The callee expression: everything before the `(`. getExpression
+	// already drops a leading `new` of a construction.
+	auto calleeExpr = getExpression(argTokens[0 .. parenIndex - 1]);
+	if (calleeExpr.empty)
+		return false;
+
+	// Collect the parameter symbols of the callee (all overloads: the
+	// user may be calling any of them).
+	RollbackAllocator rba;
+	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba,
+		cursorPosition, moduleCache);
+	scope(exit) pair.destroy();
+
+	auto symbols = getSymbolsByTokenChain(pair.scope_, calleeExpr,
+		cursorPosition, CompletionType.calltips);
+	DSymbol*[] params;
+	foreach (sym; symbols)
+	{
+		if (sym.kind != CompletionKind.functionName)
+			continue;
+		foreach (param; sym.functionParameters)
+		{
+			if (param.name !is null && param.name.length > 0
+				&& !params.canFind!(a => a.name.data == param.name.data))
+				params ~= param;
+		}
+	}
+	// A struct/class type called like a function (`Person(name: ...)`)
+	// names its constructor's parameters.
+	if (params.empty)
+	{
+		foreach (sym; symbols)
+		{
+			if (sym.kind != CompletionKind.structName
+				&& sym.kind != CompletionKind.className)
+				continue;
+			foreach (ctor; sym.getPartsByName(CONSTRUCTOR_SYMBOL_NAME))
+				foreach (param; ctor.functionParameters)
+				{
+					if (param.name !is null && param.name.length > 0
+						&& !params.canFind!(a => a.name.data == param.name.data))
+						params ~= param;
+				}
+		}
+	}
+	// A struct without an explicit constructor has an implicit one whose
+	// parameters are the instance fields (the same set the generated
+	// `this(...)` calltip shows).
+	if (params.empty)
+	{
+		foreach (sym; symbols)
+		{
+			if (sym.kind != CompletionKind.structName)
+				continue;
+			foreach (field; sym.opSlice())
+			{
+				if (field.isAggregateField && field.name !is null
+					&& field.name.length > 0
+					&& !params.canFind!(a => a.name.data == field.name.data))
+					params ~= field;
+			}
+		}
+	}
+	if (params.empty)
+		return false;
+
+	string[] usedNames = collectUsedArgumentNames(argTokens, parenIndex - 1);
+
+	response.completionType = CompletionType.identifiers;
+	foreach (param; params)
+	{
+		if (partial.length
+			&& !toUpper(param.name.data).startsWith(toUpper(partial)))
+			continue;
+		if (usedNames.canFind(param.name.data))
+			continue;
+		auto completion = makeSymbolCompletionInfo(param,
+			CompletionKind.variableName);
+		// Committing the argument name produces a `name: ` argument so
+		// the cursor lands ready for the value.
+		completion.insertSuffix = ": ";
+		response.completions ~= completion;
+	}
+	return true;
+}
+
+/**
+ * Whether the tokens left of the `=` at index `i` form the tail of a
+ * variable declaration (`Type name =`), as opposed to an assignment
+ * expression (`expr =`). Walks left over the declared name, the type
+ * tokens and storage classes; a declaration is found when the walk is
+ * stopped by a statement/declaration boundary or the beginning of the
+ * file.
+ */
+private bool isDeclarationEquals(T)(T tokens, size_t i)
+{
+	while (i > 0)
+	{
+		switch (tokens[i - 1].type)
+		{
+		case tok!"identifier":
+		case tok!".":
+		case tok!"*":
+		case tok!"]":
+		case tok!")":
+		case tok!"const":
+		case tok!"immutable":
+		case tok!"scope":
+		case tok!"auto":
+		case tok!"static":
+		case tok!"__gshared":
+		case tok!"enum":
+		case tok!"inout":
+		case tok!"shared":
+			i--;
+			break;
+		case tok!"[":
+			// array suffix of the type: skip the balanced [ ... ]
+			i = tokens.skipParenReverse(i - 1, tok!"[", tok!"]");
+			break;
+		case tok!"(":
+			// template instance suffix `Foo!(...)`: skip the balanced
+			// ( ... )
+			i = tokens.skipParenReverse(i - 1, tok!"(", tok!")");
+			break;
+		case tok!",":
+			// `Person p = { ... }, q = { ... }` - a previous declarator
+			// in the same declaration. Keep walking.
+			i--;
+			break;
+		default:
+			// A `;`, `{`, `}` of an enclosing statement, an operator, ...
+			// is the boundary of the declaration.
+			return true;
+		}
+	}
+	return true;
+}
+
+/**
+ * Resolves the aggregate whose fields are being initialized in the
+ * struct initializer whose opening brace is at index `open`. Returns
+ * null when the aggregate cannot be resolved.
+ *
+ * The type is deduced from the tokens before the `{`:
+ *   - `Type name = {` - a variable declaration with initializer
+ *   - `field: {` - a nested initializer for an aggregate field
+ *
+ * The symbols of `pair` (the caller's autocomplete trees) must outlive
+ * the returned symbol: it points into that tree.
+ */
+private DSymbol* structInitializerAggregate(T)(T beforeTokens, size_t open,
+	Scope* completionScope, size_t cursorPosition)
+{
+	// `field: {` - nested initializer: the aggregate is the type of the
+	// field `field` of the aggregate initialized by the ENCLOSING
+	// initializer.
+	if (open >= 2 && beforeTokens[open - 1] == tok!":"
+		&& beforeTokens[open - 2] == tok!"identifier")
+	{
+		size_t outerOpen = innermostUnclosedOpener(
+			beforeTokens[0 .. open], tok!"{", tok!"}");
+		if (outerOpen == size_t.max)
+			return null;
+		auto outer = structInitializerAggregate(beforeTokens, outerOpen,
+			completionScope, cursorPosition);
+		if (outer is null)
+			return null;
+		immutable fieldName = beforeTokens[open - 2].text;
+		foreach (field; outer.opSlice())
+		{
+			if (field.name == fieldName && field.type !is null)
+			{
+				auto aggregate = field.type;
+				while (aggregate.kind == CompletionKind.aliasName)
+				{
+					if (aggregate.type is null || aggregate.type is aggregate)
+						return null;
+					aggregate = aggregate.type;
+				}
+				return aggregate;
+			}
+		}
+		return null;
+	}
+
+	// `Type name = {` - a declaration. The type chain is the tokens
+	// between the declaration boundary and the declared name.
+	if (open >= 3 && beforeTokens[open - 1] == tok!"="
+		&& beforeTokens[open - 2] == tok!"identifier")
+	{
+		if (!isDeclarationEquals(beforeTokens, open - 1))
+			return null;
+
+		// Walk left from the name to the declaration start; the type
+		// chain is then [start .. nameIndex).
+		size_t nameIndex = open - 2;
+		size_t start = nameIndex;
+		while (start > 0)
+		{
+			switch (beforeTokens[start - 1].type)
+			{
+			case tok!"identifier":
+			case tok!".":
+			case tok!"*":
+			case tok!"]":
+			case tok!")":
+			case tok!"const":
+			case tok!"immutable":
+			case tok!"scope":
+			case tok!"auto":
+			case tok!"static":
+			case tok!"__gshared":
+			case tok!"enum":
+			case tok!"inout":
+			case tok!"shared":
+				start--;
+				break;
+			case tok!"[":
+				start = beforeTokens.skipParenReverse(start - 1,
+					tok!"[", tok!"]");
+				break;
+			case tok!"(":
+				start = beforeTokens.skipParenReverse(start - 1,
+					tok!"(", tok!")");
+				break;
+			default:
+				goto done;
+			}
+		}
+	done:
+		if (start == nameIndex)
+			return null;
+		auto typeExpr = beforeTokens[start .. nameIndex];
+		// Drop storage classes/attributes from the head of the chain.
+		while (!typeExpr.empty && typeExpr[0].type.among(
+			tok!"const", tok!"immutable", tok!"scope", tok!"auto",
+			tok!"static", tok!"__gshared", tok!"enum", tok!"inout",
+			tok!"shared"))
+			typeExpr = typeExpr[1 .. $];
+		if (typeExpr.empty)
+			return null;
+
+		// Location semantics: the last chain element is kept as the
+		// symbol itself (the aggregate), not swapped with its type.
+		auto symbols = getSymbolsByTokenChain(completionScope, typeExpr,
+			cursorPosition, CompletionType.location);
+		if (symbols.length == 0)
+			return null;
+		auto aggregate = symbols[0];
+		while (aggregate.kind == CompletionKind.aliasName)
+		{
+			if (aggregate.type is null || aggregate.type is aggregate)
+				return null;
+			aggregate = aggregate.type;
+		}
+		if (aggregate.kind != CompletionKind.structName
+			&& aggregate.kind != CompletionKind.unionName)
+			return null;
+		return aggregate;
+	}
+
+	return null;
+}
+
+/**
+ * Completion for the field names inside a struct initializer
+ * (`Person p = { na|`, `Person p = { name: "A", |`). Fills `response`
+ * and returns true when the cursor is at a field-name position of a
+ * struct initializer whose aggregate could be resolved; returns false
+ * (response untouched) otherwise, letting the regular completion paths
+ * run.
+ *
+ * Fires right after the initializer's `{`, after a `,` separating
+ * members, and on a partial identifier preceded by `{` or `,`. The
+ * cursor after `name:` (a value position) is left to the regular paths.
+ */
+private bool structInitializerCompletion(T)(T beforeTokens,
+	const(Token)[] tokenArray, size_t cursorPosition, ref ModuleCache moduleCache,
+	ref AutocompleteResponse response)
+{
+	// The cursor must be inside a `{ ... }` initializer.
+	size_t open = innermostUnclosedOpener(beforeTokens, tok!"{", tok!"}");
+	if (open == size_t.max)
+		return false;
+
+	// A function literal `auto f = { ... }` or a statement block is not
+	// an initializer; only `= {` and `: {` forms are.
+	if (open == 0 || !beforeTokens[open - 1].type.among(tok!"=", tok!":"))
+		return false;
+
+	string partial;
+	if (beforeTokens[$ - 1] == tok!"identifier")
+	{
+		// The partial must be inside the initializer (after its `{`).
+		if (beforeTokens.length - 1 <= open)
+			return false;
+		auto t = beforeTokens[$ - 1];
+		if (cursorPosition >= t.index
+			&& cursorPosition - t.index <= t.text.length)
+			partial = t.text[0 .. cursorPosition - t.index];
+		// The partial identifier must be at a field-name position:
+		// preceded by `{` or `,` (not by `:` - that is a value).
+		if (beforeTokens.length >= 2
+			&& !beforeTokens[$ - 2].type.among(tok!"{", tok!","))
+			return false;
+		beforeTokens = beforeTokens[0 .. $ - 1];
+	}
+	else if (!beforeTokens[$ - 1].type.among(tok!"{", tok!","))
+		return false;
+
+	// The autocomplete trees must outlive the field symbols offered in
+	// the response, so the pair is created here and passed down.
+	RollbackAllocator rba;
+	ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba,
+		cursorPosition, moduleCache);
+	scope(exit) pair.destroy();
+
+	auto aggregate = structInitializerAggregate(beforeTokens, open,
+		pair.scope_, cursorPosition);
+	if (aggregate is null)
+		return false;
+
+	// Instance fields only: static/__gshared/enum members have no
+	// per-instance storage and cannot be initialized here.
+	auto fields = aggregate.opSlice().filter!(a => a.isAggregateField).array;
+	if (fields.empty)
+		return false;
+
+	string[] usedNames = collectUsedInitializerNames(beforeTokens, open);
+
+	response.completionType = CompletionType.identifiers;
+	foreach (field; fields)
+	{
+		if (partial.length
+			&& !toUpper(field.name.data).startsWith(toUpper(partial)))
+			continue;
+		if (usedNames.canFind(field.name.data))
+			continue;
+		auto completion = makeSymbolCompletionInfo(field,
+			CompletionKind.memberVariableName);
+		// Committing the field name produces a `name: ` member so the
+		// cursor lands ready for the value.
+		completion.insertSuffix = ": ";
+		response.completions ~= completion;
+	}
+	return true;
 }
 
 /**

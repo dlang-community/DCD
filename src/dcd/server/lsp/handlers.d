@@ -1672,9 +1672,11 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 		fillLabelDetails(item, completion);
 		item.hasTextEdit = completionEdit.hasEdit;
 		item.textEdit = completionEdit.edit;
-		// The edit inserts the label; insertText would conflict with
-		// textEdit per the LSP spec.
-		item.textEdit.newText = item.label;
+		// The edit inserts the label plus the context suffix (": " for
+		// struct-initializer field names and named arguments, so the
+		// cursor lands ready for the value); insertText would conflict
+		// with textEdit per the LSP spec.
+		item.textEdit.newText = item.label ~ completion.insertSuffix;
 		// @-spelled attributes: the label carries the `@` but the user may
 		// be typing the bare name (`no` for `@nogc`, offered after a
 		// parameter list). Filter on both spellings so either matches.
