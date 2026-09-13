@@ -224,7 +224,15 @@ struct CompletionItem
 		if (detail.length)
 			obj["detail"] = JSONValue(detail);
 		if (documentation.length)
-			obj["documentation"] = JSONValue(documentation);
+		{
+			// MarkupContent, not a bare string: a bare string is plaintext
+			// per the LSP spec, so markdown (fences, bold, lists) would render
+			// literally in the details pane.
+			JSONValue markup = parseJSON(`{}`);
+			markup["kind"] = JSONValue("markdown");
+			markup["value"] = JSONValue(documentation);
+			obj["documentation"] = markup;
+		}
 		if (labelDetail.length || labelDescription.length)
 		{
 			JSONValue labelDetails = parseJSON(`{}`);
@@ -316,7 +324,12 @@ struct ParameterInformation
 		offsets ~= JSONValue(cast(long) labelEnd);
 		obj["label"] = JSONValue(offsets);
 		if (documentation.length)
-			obj["documentation"] = JSONValue(documentation);
+		{
+			JSONValue markup = parseJSON(`{}`);
+			markup["kind"] = JSONValue("markdown");
+			markup["value"] = JSONValue(documentation);
+			obj["documentation"] = markup;
+		}
 		return obj;
 	}
 }
@@ -335,7 +348,12 @@ struct SignatureInformation
 		JSONValue obj = parseJSON(`{}`);
 		obj["label"] = JSONValue(label);
 		if (documentation.length)
-			obj["documentation"] = JSONValue(documentation);
+		{
+			JSONValue markup = parseJSON(`{}`);
+			markup["kind"] = JSONValue("markdown");
+			markup["value"] = JSONValue(documentation);
+			obj["documentation"] = markup;
+		}
 		if (parameters.length)
 		{
 			JSONValue[] params;

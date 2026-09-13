@@ -162,6 +162,50 @@ for s in symbols:
 names = {s["name"] for s in symbols}
 assert "Point" in names and "main" in names, f"missing symbols: {names}"
 
+# --- hover: signature wrapped in a ```d fence (syntax highlighting) ---
+# "distance" is declared at line 5 char 11 ("double distance() ...").
+send({"jsonrpc": "2.0", "id": 8, "method": "textDocument/hover", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 5, "character": 15},  # on "distance"
+}})
+resp = recv_response()
+hover_val = resp["result"]["contents"]["value"]
+print("hover on distance:", hover_val)
+assert hover_val.startswith("```d\n"), hover_val
+assert "double distance()" in hover_val, hover_val
+assert hover_val.count("```") == 2, hover_val  # exactly one fence
+
+# --- hover: ddoc converted to markdown (Params section as a list) ---
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 4},
+    "contentChanges": [{"text": (
+        "module test;\n"
+        "\n"
+        "/// Moves the point.\n"
+        "///\n"
+        "/// Params:\n"
+        "///     dx = horizontal delta\n"
+        "///     dy = vertical delta\n"
+        "void move(int dx, int dy) {}\n"
+        "\n"
+        "void main() { move(1, 2); }\n"
+    )}]}})
+send({"jsonrpc": "2.0", "id": 9, "method": "textDocument/hover", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 9, "character": 14},  # on "move"
+}})
+resp = recv_response()
+hover_val = resp["result"]["contents"]["value"]
+print("hover on move:", hover_val)
+assert hover_val.startswith("```d\nvoid move(int dx, int dy)\n```"), hover_val
+assert "**Params**" in hover_val, hover_val
+assert "- `dx` horizontal delta" in hover_val, hover_val
+assert "- `dy` vertical delta" in hover_val, hover_val
+# restore the original document for the remaining tests
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 5},
+    "contentChanges": [{"text": source}]}})
+
 # --- references: all uses of "p" within the document ---
 # "p" is declared at line 9 char 10 ("Point p;") and used at line 10
 # char 4 ("p.").
