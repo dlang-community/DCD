@@ -418,6 +418,15 @@ private void resolveTypeFromInitializer(R)(DSymbol* symbol, TypeLookup* lookup,
 			typeSwap(currentSymbol);
 			if (currentSymbol is null)
 				return;
+			// A function call aggregate (`foreach (x; getItems())`): the
+			// function symbol's type IS its return type.
+			if (currentSymbol.qualifier == SymbolQualifier.func
+				|| currentSymbol.kind == CompletionKind.functionName)
+			{
+				if (currentSymbol.type is null || currentSymbol.type is currentSymbol)
+					return;
+				currentSymbol = currentSymbol.type;
+			}
 			if (currentSymbol.qualifier == SymbolQualifier.array
 				|| currentSymbol.qualifier == SymbolQualifier.assocArray)
 			{
@@ -436,6 +445,23 @@ private void resolveTypeFromInitializer(R)(DSymbol* symbol, TypeLookup* lookup,
 				currentSymbol = opApply.type;
 				continue;
 			}
+		}
+		else if (crumb == "foreachKey")
+		{
+			// The key/index variable of `foreach (k, v; aggregate)`: the
+			// array index is size_t. The AA key type is not recorded
+			// anywhere (addTypeToLookups drops the key of a type suffix),
+			// so AA keys stay unresolved rather than guessed.
+			typeSwap(currentSymbol);
+			if (currentSymbol is null)
+				return;
+			if (currentSymbol.qualifier == SymbolQualifier.assocArray)
+				return;
+			currentSymbol = moduleScope.getFirstSymbolByNameAndCursor(
+				getBuiltinTypeName(tok!"ulong"), symbol.location);
+			if (currentSymbol is null)
+				return;
+			continue;
 		}
 		else
 		{
