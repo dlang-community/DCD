@@ -1,0 +1,12 @@
+identifiers
+alignof	k
+dup	k
+idup	k
+init	k
+length	k
+mangleof	k
+offsetof	k
+ptr	k
+sizeof	k
+sliceFunc	F
+stringof	k
