@@ -132,7 +132,7 @@ the issue.)
 	* *foreach* loop variables: the element type comes from the iterated aggregate, including function call results (`foreach (item; getItems())`)
 	* Struct initializer field-name completion (`Person p = { na` offers the struct's fields, already-initialized fields are filtered out, nested initializers resolve the field's aggregate)
 	* Named-argument completion (`foo(al` offers the callee's parameter names, used ones are filtered out; constructor calls offer the constructor's parameters, or the struct's fields for the implicit constructor)
-	* Parameter names at bare argument positions over LSP (`Mama(` offers `name` and `age` right after the opening paren or a comma; the classic protocol keeps returning calltips there)
+	* Parameter names at bare argument positions over LSP (`Person(` offers `name` and `age` right after the opening paren or a comma; the classic protocol keeps returning calltips there)
 	* Switch case completion (`case ` offers the switched enum's members, already-cased ones are filtered out)
 	* Statement and declaration keyword completion (`as` offers `assert`, `fore` offers `foreach`, at statement and declaration positions)
 * Not working:
