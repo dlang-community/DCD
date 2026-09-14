@@ -57,6 +57,41 @@ immutable ConstantCompletion[] scopes = [
 	ConstantCompletion("failure", "Executes statements when the scope exits due to exception unwinding."),
 	ConstantCompletion("success", "Executes statements when the scope exits normally.")
 ];
+
+/**
+ * Type comparison keywords for the `is(T == X)` form of the is
+ * expression, offered after the `==` inside `is(...)`.
+ * https://dlang.org/spec/expression.html#IsExpression
+ */
+immutable ConstantCompletion[] isTypeComparisons = [
+	ConstantCompletion("aggregate", "True if T is a struct, union, class, or interface."),
+	ConstantCompletion("arithmetic", "True if T is an arithmetic type (integral or floating)."),
+	ConstantCompletion("class", "True if T is a class type."),
+	ConstantCompletion("const", "True if T is const."),
+	ConstantCompletion("delegate", "True if T is a delegate."),
+	ConstantCompletion("enum", "True if T is an enum."),
+	ConstantCompletion("floating", "True if T is a floating point type."),
+	ConstantCompletion("function", "True if T is a function."),
+	ConstantCompletion("iftype", "True if the is expression would succeed (deprecated alias)."),
+	ConstantCompletion("immutable", "True if T is immutable."),
+	ConstantCompletion("inout", "True if T is inout."),
+	ConstantCompletion("integral", "True if T is an integral type."),
+	ConstantCompletion("interface", "True if T is an interface."),
+	ConstantCompletion("module", "True if T is a module."),
+	ConstantCompletion("nested", "True if T is a nested struct/class/function."),
+	ConstantCompletion("package", "True if T is a package."),
+	ConstantCompletion("pod", "True if T is a POD (plain old data) type."),
+	ConstantCompletion("return", "True if T is a return scope parameter type."),
+	ConstantCompletion("scalar", "True if T is a scalar type."),
+	ConstantCompletion("shared", "True if T is shared."),
+	ConstantCompletion("struct", "True if T is a struct."),
+	ConstantCompletion("super", "True if T is a class or interface with a base."),
+	ConstantCompletion("this", "True if T is the type of this in a member function."),
+	ConstantCompletion("union", "True if T is a union."),
+	ConstantCompletion("vectors", "True if T is a SIMD vector type."),
+	ConstantCompletion("zero", "True if T can be initialized with all zeros."),
+];
+
 /**
  * Function attributes that can appear AFTER a function's parameter list,
  * e.g. `void foo() pure @safe { ... }`.
@@ -93,26 +128,26 @@ immutable ConstantCompletion[] statementKeywords = [
 		"assert(${1:condition});"),
 	ConstantCompletion("break", "Exits the enclosing loop or switch."),
 	ConstantCompletion("case", "A label of a switch statement.",
-		"case ${1:value}:"),
+		"case ${1:value}:\n\t$0"),
 	ConstantCompletion("continue", "Skips to the next iteration of the enclosing loop."),
 	ConstantCompletion("default", "The fallback label of a switch statement.",
-		"default:"),
+		"default:\n\t$0"),
 	ConstantCompletion("do", "A do-while loop.",
 		"do\n{\n\t$0\n}\nwhile (${1:condition});"),
 	ConstantCompletion("else", "The fallback branch of an if statement.",
 		"else\n{\n\t$0\n}"),
 	ConstantCompletion("for", "A for loop.",
-		"for (${1:i} = ${2:0}; ${1:i} < ${3:count}; ${1:i}++)\n{\n\t$0\n}"),
+		"for (${1:auto} ${2:i} = ${3:0}; ${2:i} < ${4:count}; ${2:i}++)\n{\n\t$0\n}"),
 	ConstantCompletion("foreach", "A foreach loop over a range, array, or aggregate.",
-		"foreach (${2:item}; ${1:aggregate})\n{\n\t$0\n}"),
+		"foreach (ref ${1:item}; ${2:items})\n{\n\t$0\n}"),
 	ConstantCompletion("foreach_reverse", "A foreach loop iterating in reverse.",
-		"foreach_reverse (${2:item}; ${1:aggregate})\n{\n\t$0\n}"),
+		"foreach_reverse (ref ${1:item}; ${2:items})\n{\n\t$0\n}"),
 	ConstantCompletion("goto", "Jumps to a label."),
 	ConstantCompletion("if", "A conditional statement.",
 		"if (${1:condition})\n{\n\t$0\n}"),
 	ConstantCompletion("return", "Returns from the function."),
 	ConstantCompletion("switch", "A switch statement.",
-		"switch (${1:value})\n{\n\tcase ${2:}:\n\t\t$0\n\t\tbreak;\n}"),
+		"switch (${1:value})\n{\n\t$0\n}"),
 	ConstantCompletion("throw", "Throws an exception.",
 		"throw new ${1:Exception}(${2:message});"),
 	ConstantCompletion("try", "A try-catch-finally statement.",

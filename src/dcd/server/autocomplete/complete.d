@@ -113,6 +113,197 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 		response))
 		return response;
 
+	// `is(T == |` - the type-comparison position of an is expression:
+	// offer the `is(T == X)` keywords (struct, class, integral, ...).
+	// The `==` is an operator token no other path handles, so the
+	// request would otherwise return nothing.
+	{
+		string isPartial;
+		if (isTypeComparisonPosition(beforeTokens, request.cursorPosition,
+			isPartial))
+		{
+			response.completionType = CompletionType.identifiers;
+			foreach (completion; isTypeComparisons)
+			{
+				if (isPartial.length
+					&& !completion.identifier.startsWith(isPartial))
+					continue;
+				response.completions ~= AutocompleteResponse.Completion(
+					completion.identifier,
+					CompletionKind.keyword,
+					null, null, 0, // definition, symbol path+location
+					completion.ddoc
+				);
+			}
+			return response;
+		}
+	}
+
+	// `if (|`, `while (|`, `for (|`, ... - the cursor is right after the
+	// opening paren of a statement keyword, or after a binary operator
+	// inside one (`if (foo == |`). An expression starts there, so offer
+	// the symbols visible at the cursor. Without this the request falls
+	// through to dot completion, whose dispatch has no case for a
+	// trailing `(` preceded by a statement keyword or a binary operator.
+	// Must run after the is(T == handler: `is(T == |` is also a binary
+	// operator inside an unclosed paren, but the is keywords are the
+	// better answer there.
+	// `cast(bool) |` - the operand position of a cast expression: an
+	// expression starts there too, but getExpression strips the cast
+	// (it applies to a FOLLOWING expression), leaving an empty
+	// expression that no dispatch case handles.
+	if (isExpressionPosition(beforeTokens)
+		|| isCastOperandPosition(beforeTokens))
+	{
+		RollbackAllocator rba;
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba,
+			request.cursorPosition, moduleCache);
+		scope(exit) pair.destroy();
+		response.setCompletions(pair.scope_, getExpression(beforeTokens),
+			request.cursorPosition, CompletionType.identifiers, CalltipHint.none, "");
+		if (!pair.ufcsSymbols.empty)
+		{
+			response.completions ~= pair.ufcsSymbols.map!(s =>
+				makeSymbolCompletionInfo(s, CompletionKind.ufcsName)).array;
+			response.completionType = CompletionType.identifiers;
+		}
+		return response;
+	}
+
+	// `new |` and `new const(|` - the cursor is right after the new
+	// keyword (possibly followed by a type constructor and its opening
+	// paren) with no type name typed yet. Offer the symbols visible at
+	// the cursor (the type to construct). Must run before the keyword
+	// faking below, which would otherwise turn the trailing `new`
+	// keyword into an identifier and send the request to dot completion,
+	// where the partial "new" matches nothing.
+	{
+		// The tokens after `new` that still expect a type: nothing, or a
+		// type constructor's opening paren (`new const(`).
+		size_t newPrefix = 1;
+		if (beforeTokens.length >= 3
+			&& beforeTokens[$ - 1] == tok!"("
+			&& beforeTokens[$ - 2].type.among(tok!"const", tok!"immutable", tok!"shared")
+			&& beforeTokens[$ - 3] == tok!"new")
+			newPrefix = 3;
+		if (beforeTokens.length >= newPrefix
+			&& beforeTokens[$ - newPrefix] == tok!"new")
+		{
+			RollbackAllocator rba;
+			ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba,
+				request.cursorPosition, moduleCache);
+			scope(exit) pair.destroy();
+			response.setCompletions(pair.scope_,
+				getExpression(beforeTokens[0 .. $ - newPrefix]),
+				request.cursorPosition, CompletionType.identifiers, CalltipHint.none, "");
+			// Only type-ish symbols can follow: aggregates, aliases,
+			// templates, enums, basic types and the type constructors
+			// const/immutable/shared (for `new const(Foo)`). Functions,
+			// variables, modules, packages and the __LINE__-style
+			// keywords are not types and are dropped.
+			response.completions = response.completions.filter!(
+				a => isCastableType(a.identifier, cast(CompletionKind) a.kind, false)).array;
+			// The type constructors are keywords, not scope symbols, so
+			// they are not in the list above - add them explicitly.
+			foreach (tc; ["const", "immutable", "shared"])
+				response.completions ~= AutocompleteResponse.Completion(
+					tc, CompletionKind.keyword, null, null, 0);
+			return response;
+		}
+	}
+
+	// `cast(|` and `cast(const(|` - the cursor is inside the type
+	// parens of a cast expression with no type name typed yet. Offer
+	// the symbols visible at the cursor (the type to cast to). Like
+	// the `new` case this must run before the keyword faking and the
+	// calltip dispatch, which would otherwise resolve `cast` (or the
+	// type constructor) as a callee and return nothing.
+	{
+		// The tokens after `cast` that still expect a type: the opening
+		// paren (`cast(`), or a type constructor's opening paren
+		// (`cast(const(`).
+		size_t castPrefix = 2;
+		if (beforeTokens.length >= 4
+			&& beforeTokens[$ - 1] == tok!"("
+			&& beforeTokens[$ - 2].type.among(tok!"const", tok!"immutable", tok!"shared")
+			&& beforeTokens[$ - 4] == tok!"cast")
+			castPrefix = 4;
+		if (beforeTokens.length >= castPrefix
+			&& beforeTokens[$ - castPrefix] == tok!"cast"
+			&& beforeTokens[$ - castPrefix + 1] == tok!"(")
+		{
+			RollbackAllocator rba;
+			ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba,
+				request.cursorPosition, moduleCache);
+			scope(exit) pair.destroy();
+			response.setCompletions(pair.scope_,
+				getExpression(beforeTokens[0 .. $ - castPrefix]),
+				request.cursorPosition, CompletionType.identifiers, CalltipHint.none, "");
+			// The same type-ish filter as `new`, except that `void` and
+			// the string aliases ARE valid cast targets (`cast(void)f()`,
+			// `cast(string)"x"`).
+			response.completions = response.completions.filter!(
+				a => isCastableType(a.identifier, cast(CompletionKind) a.kind, true)).array;
+			foreach (tc; ["const", "immutable", "shared"])
+				response.completions ~= AutocompleteResponse.Completion(
+					tc, CompletionKind.keyword, null, null, 0);
+			return response;
+		}
+	}
+
+	// `if (1) |`, `else |`, `scope(exit) |`, `version(none) |` - the
+	// cursor is at a statement-body position: right after the closing
+	// paren of a statement keyword's condition (`if (...)`, `while (...)`,
+	// `foreach (...)`, `scope(exit)`, `version(...)`, ...), or right
+	// after a body-introducing keyword with no paren (`else`, `try`,
+	// `finally`, `do`). A statement - or a declaration (`if (1) int x;`
+	// is valid D) - starts there, so offer the same completions as a
+	// fresh statement after `;`: the symbols visible at the cursor plus
+	// the declaration attributes. Without this the request falls
+	// through to dot completion, whose dispatch has no case for a
+	// trailing `)` or these keywords, and returns nothing.
+	// Must run before the keyword faking below, which would turn a
+	// trailing `else`/`try`/`do`/`finally` keyword into an identifier
+	// and send the request to dot completion, where it matches nothing.
+	{
+		string statementBodyPartial;
+		size_t constructStart;
+		if (isStatementBodyPosition(beforeTokens, request.cursorPosition,
+			statementBodyPartial, constructStart))
+		{
+			RollbackAllocator rba;
+			ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba,
+				request.cursorPosition, moduleCache);
+			scope(exit) pair.destroy();
+			// Everything from the construct start on belongs to the
+			// statement being typed (`if (1) wi|`), not to an expression
+			// before it. getExpression of the tokens before the construct
+			// is empty (they end at a boundary or the construct keyword),
+			// so setCompletions walks the cursor scope - the same
+			// behavior as a fresh statement after `;`.
+			response.setCompletions(pair.scope_,
+				getExpression(beforeTokens[0 .. constructStart]),
+				request.cursorPosition, CompletionType.identifiers, CalltipHint.none,
+				statementBodyPartial is null ? "" : statementBodyPartial);
+			if (!pair.ufcsSymbols.empty)
+			{
+				response.completions ~= pair.ufcsSymbols.map!(s =>
+					makeSymbolCompletionInfo(s, CompletionKind.ufcsName)).array;
+				response.completionType = CompletionType.identifiers;
+			}
+			// A declaration can start here (`if (1) pure int x;`), so the
+			// declaration attributes are offered alongside the scope
+			// symbols, like after `;`/`{`/`}`. A statement can start here
+			// too, so the statement keywords are offered on a partial,
+			// like at a fresh-statement partial (`; re|`).
+			setDeclarationAttributeCompletions(response,
+				statementBodyPartial is null ? null : statementBodyPartial);
+			if (statementBodyPartial.length)
+				setStatementKeywordCompletions(response, statementBodyPartial);
+			return response;
+		}
+	}
+
 	// allows to get completion on keyword, typically "is"
 	if (beforeTokens.length &&
 		(isKeyword(beforeTokens[$-1].type) || isBasicType(beforeTokens[$-1].type)))
@@ -352,13 +543,14 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == tok!".")
 		significantTokenType = beforeTokens[$ - 2].type;
 	else if (beforeTokens.empty || beforeTokens[$ - 1].type.among(
-		tok!"{", tok!"}", tok!";", tok!":", tok!"(", tok!"[", tok!","))
+		tok!"{", tok!"}", tok!";", tok!":", tok!"(", tok!"[", tok!",", tok!"="))
 	{
 		// Fresh statement position with nothing typed (including the very
 		// beginning of the file, e.g. the line before a declaration):
 		// offer every symbol visible at the cursor. setCompletions only
 		// walks the cursor scope when `partial` is non-null, so pass ""
-		// (no prefix filter).
+		// (no prefix filter). `=` is an initializer position (`auto m = |`):
+		// an expression starts there, so the same scope symbols apply.
 		RollbackAllocator rba;
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba,
 			cursorPosition, moduleCache);
@@ -553,6 +745,319 @@ IdType getSignificantTokenId(T)(T beforeTokens)
 		return beforeTokens[$ - 3].type;
 	}
 	return significantTokenId;
+}
+
+/**
+ * Whether `identifier` (of the given completion kind) names a type or a
+ * type constructor, i.e. can appear at a type position: aggregates
+ * (class/struct/union/interface), aliases, templates, enums, basic
+ * types, and `const`/`immutable`/`shared` (for `new const(Foo)` /
+ * `cast(const(Foo))`). Functions, variables, modules, packages and the
+ * __LINE__-style keywords are not types and are excluded.
+ *
+ * `allowVoidAndStrings` selects between the `new` and `cast` rules:
+ * after `new`, `void` ("cannot create a void") and the string aliases
+ * ("missing length argument for array") are invalid, while both are
+ * valid cast targets (`cast(void)f()`, `cast(string)"x"`).
+ */
+private bool isCastableType(string identifier, CompletionKind kind,
+	bool allowVoidAndStrings)
+{
+	switch (kind)
+	{
+	case CompletionKind.className:
+	case CompletionKind.structName:
+	case CompletionKind.unionName:
+	case CompletionKind.interfaceName:
+	case CompletionKind.templateName:
+	case CompletionKind.mixinTemplateName:
+	case CompletionKind.enumName:
+	case CompletionKind.typeTmpParam:
+		return true;
+	case CompletionKind.aliasName:
+		if (allowVoidAndStrings)
+			return true;
+		// `string`/`wstring`/`dstring` are aliases to arrays; the
+		// compiler rejects them after `new` ("missing length argument
+		// for array"). Other aliases (size_t, user aliases to types)
+		// are fine.
+		return identifier.among("string", "wstring", "dstring") == 0;
+	case CompletionKind.keyword:
+		// Basic types lex as keywords. The type constructors are valid
+		// at both positions.
+		return identifier.among("const", "immutable", "shared") != 0
+			|| (isBasicTypeTokenName(identifier)
+				&& (allowVoidAndStrings || identifier != "void"));
+	default:
+		return false;
+	}
+}
+
+/**
+ * Whether `name` is the spelling of a basic type token (`int`, `bool`,
+ * ...). The completion kinds do not distinguish basic types from other
+ * keywords, so the identifier text is matched against the token names.
+ */
+private bool isBasicTypeTokenName(string name)
+{
+	switch (name)
+	{
+	foreach (T; BasicTypes)
+	{
+	case str(T):
+		return true;
+	}
+	default:
+		return false;
+	}
+}
+
+/**
+ * Whether the cursor is at a position where an expression is expected
+ * but no completion path handles it: right after the opening paren of
+ * a statement keyword (`if (|`, `while (|`, `for (|`, `catch (|`,
+ * `switch (|`, `with (`), after a binary operator inside an unclosed
+ * paren (`if (foo == |`, `foo(a + |`), or right after the opening paren
+ * of a parenthesized expression (`(|`, `= (|`).
+ */
+private bool isExpressionPosition(T)(T beforeTokens)
+{
+	if (beforeTokens.empty)
+		return false;
+	// `if (|` - the opening paren of a statement keyword.
+	if (beforeTokens[$ - 1] == tok!"("
+		&& beforeTokens.length >= 2
+		&& beforeTokens[$ - 2].type.among(
+			tok!"if", tok!"while", tok!"for", tok!"foreach", tok!"foreach_reverse",
+			tok!"catch", tok!"switch", tok!"with", tok!"synchronized"))
+		return true;
+	// `(|` - the opening paren of a parenthesized expression: preceded
+	// by a statement boundary, `{`, `=`, `,`, or another `(` (a nested
+	// or argument position). An expression starts inside it.
+	if (beforeTokens[$ - 1] == tok!"("
+		&& beforeTokens.length >= 2
+		&& beforeTokens[$ - 2].type.among(
+			tok!"{", tok!"}", tok!";", tok!"=", tok!",", tok!"(", tok!"[", tok!"return"))
+		return true;
+	// `if (foo == |` - a binary operator inside an unclosed paren.
+	if (isBinaryOperator(beforeTokens[$ - 1].type))
+	{
+		// The operator must sit inside an unclosed paren (a call, a
+		// condition, ...), or follow a complete operand (an
+		// identifier, literal or closing paren) - the right-hand side
+		// is an expression position either way. Statement-level `= |`
+		// is handled by the fresh-statement path of dotCompletion.
+		if (innermostUnclosedOpener(beforeTokens, tok!"(", tok!")") != size_t.max)
+			return true;
+		return beforeTokens.length >= 2
+			&& (beforeTokens[$ - 2] == tok!")"
+				|| beforeTokens[$ - 2] == tok!"]"
+				|| beforeTokens[$ - 2] == tok!"identifier"
+				|| isBasicType(beforeTokens[$ - 2].type)
+				|| isNumberLiteral(beforeTokens[$ - 2].type));
+	}
+	return false;
+}
+
+/**
+ * Whether the cursor is at a statement-body position: right after the
+ * closing paren of a statement keyword's condition (`if (...) |`,
+ * `while (...) |`, `foreach (...) |`, `scope(exit) |`,
+ * `version(...) |`, ...), or right after a body-introducing keyword
+ * with no paren (`else |`, `try |`, `finally |`, `do |`). A statement
+ * or declaration starts there.
+ *
+ * Returns the partial identifier being typed, if any, via `partial`
+ * (null when nothing is typed), and the start of the statement
+ * construct via `constructStart`: the index of the `(` (paren case)
+ * or of the keyword (keyword case). Everything from there on belongs
+ * to the construct and must not be resolved as an expression.
+ */
+private bool isStatementBodyPosition(T)(T beforeTokens,
+	size_t cursorPosition, out string partial, out size_t constructStart)
+{
+	partial = null;
+	constructStart = beforeTokens.length;
+	if (beforeTokens.empty)
+		return false;
+
+	// The partial identifier being typed, if any. Only when the cursor
+	// is ON the identifier (mid-word or adjacent); a gap means the word
+	// is complete and the user is typing the next one.
+	size_t end = beforeTokens.length;
+	if (beforeTokens[end - 1] == tok!"identifier")
+	{
+		auto t = beforeTokens[end - 1];
+		if (cursorPosition <= t.index + t.text.length)
+		{
+			partial = t.text[0 .. cursorPosition - t.index];
+			end--;
+		}
+	}
+
+	// `if (1) |` - the closing paren of a statement keyword's
+	// condition. Match it back to its `(` and require the keyword.
+	if (end > 0 && beforeTokens[end - 1] == tok!")")
+	{
+		// A dangling `.` right before the `)` (`switch (r.parts[0].)`)
+		// means a member access is being typed inside the condition:
+		// the request belongs to the member-access path, not to the
+		// statement-body position.
+		if (end >= 2 && beforeTokens[end - 2] == tok!".")
+			return false;
+		immutable open = skipParenReverse(beforeTokens[0 .. end],
+			end - 1, tok!")", tok!"(");
+		if (open == 0)
+			return false;
+		if (!beforeTokens[open - 1].type.among(
+			tok!"if", tok!"while", tok!"for", tok!"foreach", tok!"foreach_reverse",
+			tok!"catch", tok!"switch", tok!"with", tok!"synchronized",
+			tok!"scope", tok!"version", tok!"debug", tok!"extern"))
+			return false;
+		constructStart = open;
+		return true;
+	}
+
+	// `else |`, `try |`, `finally |`, `do |` - a body-introducing
+	// keyword with no paren. Only with a cursor gap after the keyword:
+	// an adjacent cursor keeps the keyword behavior (the keyword
+	// faking below turns the keyword into an identifier and dot
+	// completion offers the keyword itself, e.g. `else|` → `else`).
+	if (end > 0 && beforeTokens[end - 1].type.among(
+		tok!"else", tok!"try", tok!"finally", tok!"do"))
+	{
+		auto t = beforeTokens[end - 1];
+		if (cursorPosition > t.index + str(t.type).length)
+		{
+			constructStart = end - 1;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/**
+ * Whether the cursor is at the operand position of a cast expression
+ * (`cast(bool) |`): the tokens end with a balanced `cast(...)` whose
+ * closing paren is the last token. The cast applies to a following
+ * expression, which getExpression strips - leaving an empty
+ * expression no dispatch case handles.
+ */
+private bool isCastOperandPosition(T)(T beforeTokens)
+{
+	if (beforeTokens.empty || beforeTokens[$ - 1] != tok!")")
+		return false;
+	// Match the trailing `)` back to its `(` and require `cast` before it.
+	size_t open = beforeTokens.skipParenReverse(
+		beforeTokens.length - 1, tok!")", tok!"(");
+	return open >= 2 && beforeTokens[open - 1] == tok!"cast";
+}
+
+/**
+ * Whether the token type is a binary operator after which an operand
+ * is expected (`==`, `+`, `<`, `&&`, ...). Assignment-like operators
+ * (`=`, `+=`) are excluded: `= |` is handled by the fresh-statement
+ * path of dotCompletion.
+ */
+private bool isBinaryOperator(IdType type)
+{
+	switch (type)
+	{
+	case tok!"==":
+	case tok!"!=":
+	case tok!"<":
+	case tok!">":
+	case tok!"<=":
+	case tok!">=":
+	case tok!"+":
+	case tok!"-":
+	case tok!"*":
+	case tok!"/":
+	case tok!"%":
+	case tok!"&":
+	case tok!"|":
+	case tok!"^":
+	case tok!"&&":
+	case tok!"||":
+	case tok!"<<":
+	case tok!">>":
+	case tok!">>>":
+	case tok!"~":
+	case tok!"is":
+		return true;
+	default:
+		return false;
+	}
+}
+
+/**
+ * Whether the cursor is at the type-comparison position of an is
+ * expression: right after the `==` inside `is(...)` (`is(T == |`),
+ * possibly with a partial comparison keyword typed (`is(T == str|`).
+ * Returns the partial ("" when nothing is typed) via `partial`.
+ */
+private bool isTypeComparisonPosition(T)(T beforeTokens,
+	size_t cursorPosition, out string partial)
+{
+	partial = "";
+	// Skip the partial comparison keyword directly before the cursor
+	// (`is(T == str|`): an identifier or keyword token.
+	size_t end = beforeTokens.length;
+	if (end > 0
+		&& (beforeTokens[end - 1] == tok!"identifier"
+			|| isKeyword(beforeTokens[end - 1].type)))
+	{
+		auto t = beforeTokens[end - 1];
+		// A partial only when the cursor is ON the token; a gap means
+		// the word is complete.
+		if (cursorPosition > t.index + t.text.length)
+			return false;
+		partial = t == tok!"identifier"
+			? t.text[0 .. cursorPosition - t.index]
+			: str(t.type)[0 .. min(cursorPosition - t.index, str(t.type).length)];
+		end--;
+	}
+	// The `==` of the comparison.
+	if (end == 0 || beforeTokens[end - 1] != tok!"==")
+		return false;
+	// Walk back over the compared type (identifiers, basic types,
+	// dots, template `!`, type-constructor keywords and their parens)
+	// to the `is` keyword.
+	size_t i = end - 1;
+	while (i > 0)
+	{
+		switch (beforeTokens[i - 1].type)
+		{
+		case tok!"identifier":
+		case tok!".":
+		case tok!"!":
+		case tok!"const":
+		case tok!"immutable":
+		case tok!"shared":
+		case tok!"inout":
+			i--;
+			break;
+		case tok!")":
+			// `const(T)` of a type constructor: skipParenReverse from
+			// the `)` at i-1 lands ON its matching `(`.
+			i = beforeTokens.skipParenReverse(i - 1, tok!")", tok!"(");
+			if (i == size_t.max)
+				return false;
+			break;
+		default:
+			if (isBasicType(beforeTokens[i - 1].type))
+				i--;
+			else
+				goto done;
+		}
+	}
+done:
+	// The walk stops at the `(` of `is(`; the `is` keyword sits right
+	// before it.
+	if (i > 0 && beforeTokens[i - 1] == tok!"(")
+		i--;
+	return i > 0 && beforeTokens[i - 1] == tok!"is";
 }
 
 /**

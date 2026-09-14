@@ -1,0 +1,27 @@
+identifiers
+aggregate	k
+arithmetic	k
+class	k
+const	k
+delegate	k
+enum	k
+floating	k
+function	k
+iftype	k
+immutable	k
+inout	k
+integral	k
+interface	k
+module	k
+nested	k
+package	k
+pod	k
+return	k
+scalar	k
+shared	k
+struct	k
+super	k
+this	k
+union	k
+vectors	k
+zero	k
