@@ -10,15 +10,17 @@ Cases:
   2. created + opened, wrong module decl   -> module decl fixed
   3. created + opened, correct decl        -> no edit
   4. opened only (no didCreateFiles)      -> no edit (file not new)
-  5. package.d                            -> no edit
-  6. shebang + dub.sdl preamble           -> inserted after the preamble
-  7. feature disabled via initializationOptions -> no edit
-  8. completion inside unfinished `module |` -> suggests the path-derived name
-  9. completion with partial name typed     -> still suggests the full name
+ 5. package.d                            -> module decl inserted (module pkg;)
+ 6. shebang + dub.sdl preamble           -> inserted after the preamble
+ 7. feature disabled via initializationOptions -> no edit
+ 8. completion inside unfinished `module |` -> suggests the path-derived name
+ 9. completion with partial name typed     -> still suggests the full name
  10. completion when fully declared        -> no module suggestion
  11. completion outside the module decl   -> normal completion path
  12. insertText includes the `;` when the declaration has none
  13. insertText omits the `;` when one already follows the cursor
+ 14. package.d completion inside `module |` -> suggests the package name
+ 15. package.d fully declared               -> no suggestion
 """
 import json, os, shutil, subprocess, sys
 
@@ -201,7 +203,7 @@ def main():
     check("open only -> no edit", edits is None, str(edits))
     lsp.shutdown()
 
-    # --- case 5: package.d -> no edit ---
+    # --- case 5: package.d -> module decl inserted (module name = package) ---
     lsp = Lsp()
     os.makedirs(os.path.join(WS, "source", "pkg"), exist_ok=True)
     f5 = os.path.join(WS, "source", "pkg", "package.d")
@@ -210,7 +212,12 @@ def main():
     lsp.notify_and_sync("textDocument/didOpen", {"textDocument": {
         "uri": uri(f5), "languageId": "d", "version": 1, "text": ""}})
     edits = apply_edit_for(lsp, uri(f5))
-    check("package.d -> no edit", edits is None, str(edits))
+    check("package.d -> insert", edits is not None, str(lsp.server_requests))
+    if edits:
+        e = edits[0]
+        ok = (e["range"]["start"] == {"line": 0, "character": 0}
+              and e["newText"] == "module pkg;\n\n")
+        check("package.d -> correct edit", ok, json.dumps(e))
     lsp.shutdown()
 
     # --- case 6: shebang + dub.sdl preamble -> insert after it ---
@@ -324,6 +331,35 @@ def main():
     items = r.get("result", {}).get("items", [])
     check("has ; -> insertText without ;",
           items and items[0].get("insertText") is None, json.dumps(items))
+    lsp.shutdown()
+
+    # --- case 14: completion inside `module |` of a package.d ---
+    lsp = Lsp()
+    os.makedirs(os.path.join(WS, "source", "cheese"), exist_ok=True)
+    f14 = os.path.join(WS, "source", "cheese", "package.d")
+    lsp.notify_and_sync("textDocument/didOpen", {"textDocument": {
+        "uri": uri(f14), "languageId": "d", "version": 1, "text": "module \n"}})
+    r = lsp.request("textDocument/completion", {"textDocument": {"uri": uri(f14)},
+                "position": {"line": 0, "character": 7}})
+    items = r.get("result", {}).get("items", [])
+    check("package.d module | -> suggests package name",
+          [i["label"] for i in items] == ["cheese"], json.dumps(items))
+    if items:
+        check("package.d -> insertText with ;",
+              items[0].get("insertText") == "cheese;", json.dumps(items[0]))
+    lsp.shutdown()
+
+    # --- case 15: package.d fully declared -> no suggestion ---
+    lsp = Lsp()
+    f15 = os.path.join(WS, "source", "cheese", "package.d")
+    lsp.notify_and_sync("textDocument/didOpen", {"textDocument": {
+        "uri": uri(f15), "languageId": "d", "version": 1,
+        "text": "module cheese;\n"}})
+    r = lsp.request("textDocument/completion", {"textDocument": {"uri": uri(f15)},
+                "position": {"line": 0, "character": 10}})
+    items = r.get("result", {}).get("items", [])
+    check("package.d fully declared -> no suggestion",
+          items == [], json.dumps(items))
     lsp.shutdown()
 
     print("RESULT:", "PASS" if not failures else "FAIL (%s)" % failures)

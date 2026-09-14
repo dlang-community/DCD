@@ -141,11 +141,13 @@ edit) and then opened within a few seconds, the server sends a
 `workspace/applyEdit` request that inserts the file's module declaration —
 derived from its path relative to the import paths (`source/util/helper.d` →
 `module util.helper;`). A file that already declares the right module is
-left alone; a wrong declaration is fixed; `package.d` files and files with a
-shebang/dub.sdl preamble are handled (the declaration goes after the
-preamble). The edit is a normal buffer edit: visible and undoable with one
-Ctrl+Z. Files that merely appear on disk (git checkout, generators) never
-trigger it — only editor-initiated creations do.
+left alone; a wrong declaration is fixed; `package.d` files get the package
+name (`source/pkg/package.d` → `module pkg;` — the compiler requires it
+there) and files with a shebang/dub.sdl preamble are handled (the
+declaration goes after the preamble). The edit is a normal buffer edit:
+visible and undoable with one Ctrl+Z. Files that merely appear on disk
+(git checkout, generators) never trigger it — only editor-initiated
+creations do.
 
 Disable it with `dcd.autoModuleDeclaration: false` (VS Code) or
 `initializationOptions.autoModuleDeclaration: false` (other clients).
