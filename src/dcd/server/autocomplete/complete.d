@@ -105,6 +105,14 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 		request.cursorPosition, moduleCache, response))
 		return response;
 
+	// `scope(e|`, `version(lin|`, `pragma(in|`, `__traits(is|` - a partial
+	// identifier inside a keyword's parenthesized argument list. Must run
+	// before the keyword faking below, which would misroute it to dot
+	// completion.
+	if (keywordParenPartialCompletion(beforeTokens, request.cursorPosition,
+		response))
+		return response;
+
 	// allows to get completion on keyword, typically "is"
 	if (beforeTokens.length &&
 		(isKeyword(beforeTokens[$-1].type) || isBasicType(beforeTokens[$-1].type)))
@@ -545,6 +553,68 @@ IdType getSignificantTokenId(T)(T beforeTokens)
 		return beforeTokens[$ - 3].type;
 	}
 	return significantTokenId;
+}
+
+/**
+ * Completion for a partial identifier inside a keyword's parenthesized
+ * argument list (`scope(e|`, `version(lin|`, `__traits(is|`): offers the
+ * same argument list the bare `keyword(` position offers, filtered by
+ * the partial. Returns false when the cursor is not in such a position.
+ */
+private bool keywordParenPartialCompletion(T)(T beforeTokens,
+	size_t cursorPosition, ref AutocompleteResponse response)
+{
+	// A partial identifier directly preceded by the keyword's `(`. The
+	// partial can itself be a keyword (`pragma(in|`, `__traits(is|`):
+	// `in` and `is` lex as keywords, not identifiers.
+	if (beforeTokens.length < 3
+		|| beforeTokens[$ - 2] != tok!"("
+		|| !(beforeTokens[$ - 1] == tok!"identifier" || isKeyword(beforeTokens[$ - 1].type)))
+		return false;
+	// The partial only when the cursor is ON the token (mid-word or
+	// adjacent); a gap means the word is complete.
+	auto t = beforeTokens[$ - 1];
+	immutable partial = t == tok!"identifier"
+		? t.text[0 .. cursorPosition - t.index]
+		: str(t.type)[0 .. min(cursorPosition - t.index, str(t.type).length)];
+	if (cursorPosition > t.index + (t == tok!"identifier" ? t.text.length : str(t.type).length))
+		return false;
+
+	// Which keyword's argument list the cursor is in.
+	immutable(ConstantCompletion)[] completions;
+	switch (beforeTokens[$ - 3].type)
+	{
+	case tok!"scope":
+		completions = scopes;
+		break;
+	case tok!"version":
+		completions = predefinedVersions;
+		break;
+	case tok!"extern":
+		completions = linkages;
+		break;
+	case tok!"pragma":
+		completions = pragmas;
+		break;
+	case tok!"__traits":
+		completions = traits;
+		break;
+	default:
+		return false;
+	}
+
+	response.completionType = CompletionType.identifiers;
+	foreach (completion; completions)
+	{
+		if (partial.empty || completion.identifier.startsWith(partial))
+			response.completions ~= AutocompleteResponse.Completion(
+				completion.identifier,
+				CompletionKind.keyword,
+				null, null, 0, // definition, symbol path+location
+				completion.ddoc
+			);
+	}
+	return true;
 }
 /**
  * Hinting what the user expects for calltip completion

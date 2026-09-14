@@ -1143,10 +1143,10 @@ private void trackDidOpenForCreation(ref ServerContext context, string uri)
  * `workspace/applyEdit` so the client applies it as a normal, undoable
  * buffer edit - the user sees it happen and one Ctrl+Z reverts it.
  *
- * Nothing is sent when the file already has the right declaration, when
- * no module name can be derived (outside every import path), or for
- * `package.d` files (their module name is the package, which the compiler
- * infers; serve-d skips them too).
+ * Nothing is sent when the file already has the right declaration or
+ * when no module name can be derived (outside every import path).
+ * `package.d` files are included: the compiler does not infer their
+ * module name - `cheese/package.d` must declare `module cheese;`.
  */
 private void maybeInsertModuleDeclaration(ref ServerContext context, string uri)
 {
@@ -1155,11 +1155,6 @@ private void maybeInsertModuleDeclaration(ref ServerContext context, string uri)
 	// Only D source files.
 	immutable ext = baseName(uri);
 	if (!ext.endsWith(".d") && !ext.endsWith(".di"))
-		return;
-
-	// package.d files: the module name equals the package name and is
-	// inferred by the compiler; inserting it is noise.
-	if (baseName(uri) == "package.d" || baseName(uri) == "package.di")
 		return;
 
 	string path = uriToPath(uri);
@@ -1741,22 +1736,16 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
  *
  * Returns null when the cursor is not inside a module declaration, the
  * file already declares its full correct name, or no module name can be
- * derived from the path (outside every import path).
+ * derived from the path (outside every import path). `package.d` files
+ * are included (see `maybeInsertModuleDeclaration`).
  */
 private CompletionItem[] moduleDeclarationCompletions(ref ServerContext context,
 	JSONValue params, in AutocompleteRequest request)
 {
 	import dparse.lexer : LexerConfig, StringCache, getTokensForParser, tok;
-	import std.path : baseName;
 
 	auto doc = context.documents.get(params["textDocument"]["uri"].str);
 	if (doc is null)
-		return null;
-
-	// package.d files: the module name is the package name and is
-	// inferred by the compiler; nothing to suggest.
-	immutable name = baseName(request.fileName);
-	if (name == "package.d" || name == "package.di")
 		return null;
 
 	// Lex the buffer and find the module declaration the cursor is in:
