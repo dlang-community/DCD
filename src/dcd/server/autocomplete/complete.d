@@ -171,9 +171,48 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 			// variables, modules, packages and the __LINE__-style
 			// keywords are not types and are dropped.
 			response.completions = response.completions.filter!(
-				a => isNewConstructible(a.identifier, cast(CompletionKind) a.kind)).array;
+				a => isCastableType(a.identifier, cast(CompletionKind) a.kind, false)).array;
 			// The type constructors are keywords, not scope symbols, so
 			// they are not in the list above - add them explicitly.
+			foreach (tc; ["const", "immutable", "shared"])
+				response.completions ~= AutocompleteResponse.Completion(
+					tc, CompletionKind.keyword, null, null, 0);
+			return response;
+		}
+	}
+
+	// `cast(|` and `cast(const(|` - the cursor is inside the type
+	// parens of a cast expression with no type name typed yet. Offer
+	// the symbols visible at the cursor (the type to cast to). Like
+	// the `new` case this must run before the keyword faking and the
+	// calltip dispatch, which would otherwise resolve `cast` (or the
+	// type constructor) as a callee and return nothing.
+	{
+		// The tokens after `cast` that still expect a type: the opening
+		// paren (`cast(`), or a type constructor's opening paren
+		// (`cast(const(`).
+		size_t castPrefix = 2;
+		if (beforeTokens.length >= 4
+			&& beforeTokens[$ - 1] == tok!"("
+			&& beforeTokens[$ - 2].type.among(tok!"const", tok!"immutable", tok!"shared")
+			&& beforeTokens[$ - 4] == tok!"cast")
+			castPrefix = 4;
+		if (beforeTokens.length >= castPrefix
+			&& beforeTokens[$ - castPrefix] == tok!"cast"
+			&& beforeTokens[$ - castPrefix + 1] == tok!"(")
+		{
+			RollbackAllocator rba;
+			ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba,
+				request.cursorPosition, moduleCache);
+			scope(exit) pair.destroy();
+			response.setCompletions(pair.scope_,
+				getExpression(beforeTokens[0 .. $ - castPrefix]),
+				request.cursorPosition, CompletionType.identifiers, CalltipHint.none, "");
+			// The same type-ish filter as `new`, except that `void` and
+			// the string aliases ARE valid cast targets (`cast(void)f()`,
+			// `cast(string)"x"`).
+			response.completions = response.completions.filter!(
+				a => isCastableType(a.identifier, cast(CompletionKind) a.kind, true)).array;
 			foreach (tc; ["const", "immutable", "shared"])
 				response.completions ~= AutocompleteResponse.Completion(
 					tc, CompletionKind.keyword, null, null, 0);
@@ -625,15 +664,20 @@ IdType getSignificantTokenId(T)(T beforeTokens)
 }
 
 /**
- * Whether `identifier` (of the given completion kind) can follow the
- * `new` keyword, i.e. whether it names a type or a type constructor:
- * aggregates (class/struct/union/interface), aliases, templates, enums,
- * basic types (except `void` and the string aliases, which the compiler
- * rejects there), and `const`/`immutable`/`shared` (for `new const(Foo)`).
- * Functions, variables, modules, packages and the __LINE__-style
- * keywords are not types and are excluded.
+ * Whether `identifier` (of the given completion kind) names a type or a
+ * type constructor, i.e. can appear at a type position: aggregates
+ * (class/struct/union/interface), aliases, templates, enums, basic
+ * types, and `const`/`immutable`/`shared` (for `new const(Foo)` /
+ * `cast(const(Foo))`). Functions, variables, modules, packages and the
+ * __LINE__-style keywords are not types and are excluded.
+ *
+ * `allowVoidAndStrings` selects between the `new` and `cast` rules:
+ * after `new`, `void` ("cannot create a void") and the string aliases
+ * ("missing length argument for array") are invalid, while both are
+ * valid cast targets (`cast(void)f()`, `cast(string)"x"`).
  */
-private bool isNewConstructible(string identifier, CompletionKind kind)
+private bool isCastableType(string identifier, CompletionKind kind,
+	bool allowVoidAndStrings)
 {
 	switch (kind)
 	{
@@ -647,17 +691,19 @@ private bool isNewConstructible(string identifier, CompletionKind kind)
 	case CompletionKind.typeTmpParam:
 		return true;
 	case CompletionKind.aliasName:
+		if (allowVoidAndStrings)
+			return true;
 		// `string`/`wstring`/`dstring` are aliases to arrays; the
 		// compiler rejects them after `new` ("missing length argument
 		// for array"). Other aliases (size_t, user aliases to types)
 		// are fine.
 		return identifier.among("string", "wstring", "dstring") == 0;
 	case CompletionKind.keyword:
-		// Basic types lex as keywords; `void` is invalid after `new`
-		// ("cannot create a void"). The type constructors are valid
-		// there.
+		// Basic types lex as keywords. The type constructors are valid
+		// at both positions.
 		return identifier.among("const", "immutable", "shared") != 0
-			|| (isBasicTypeTokenName(identifier) && identifier != "void");
+			|| (isBasicTypeTokenName(identifier)
+				&& (allowVoidAndStrings || identifier != "void"));
 	default:
 		return false;
 	}
