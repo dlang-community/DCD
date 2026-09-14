@@ -1145,13 +1145,8 @@ private void trackDidOpenForCreation(ref ServerContext context, string uri)
  *
  * Nothing is sent when the file already has the right declaration or
  * when no module name can be derived (outside every import path).
- *
- * `package.d` files are included: the compiler does NOT infer their
- * module name - `cheese/package.d` must declare `module cheese;`
- * (`module cheese.package;` is a syntax error, `package` is a keyword),
- * and Phobos declares its own (`module std.algorithm;` in
- * `std/algorithm/package.d`). `moduleNameForPath` already maps
- * `cheese/package.d` to `cheese`.
+ * `package.d` files are included: the compiler does not infer their
+ * module name - `cheese/package.d` must declare `module cheese;`.
  */
 private void maybeInsertModuleDeclaration(ref ServerContext context, string uri)
 {
@@ -1742,9 +1737,7 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
  * Returns null when the cursor is not inside a module declaration, the
  * file already declares its full correct name, or no module name can be
  * derived from the path (outside every import path). `package.d` files
- * are included: they must declare `module cheese;` (see
- * `maybeInsertModuleDeclaration`), and `moduleNameForPath` maps
- * `cheese/package.d` to `cheese`.
+ * are included (see `maybeInsertModuleDeclaration`).
  */
 private CompletionItem[] moduleDeclarationCompletions(ref ServerContext context,
 	JSONValue params, in AutocompleteRequest request)
