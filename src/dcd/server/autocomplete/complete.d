@@ -763,8 +763,9 @@ private bool isBasicTypeTokenName(string name)
  * Whether the cursor is at a position where an expression is expected
  * but no completion path handles it: right after the opening paren of
  * a statement keyword (`if (|`, `while (|`, `for (|`, `catch (|`,
- * `switch (|`, `with (`), or after a binary operator inside an
- * unclosed paren (`if (foo == |`, `foo(a + |`).
+ * `switch (|`, `with (`), after a binary operator inside an unclosed
+ * paren (`if (foo == |`, `foo(a + |`), or right after the opening paren
+ * of a parenthesized expression (`(|`, `= (|`).
  */
 private bool isExpressionPosition(T)(T beforeTokens)
 {
@@ -777,13 +778,30 @@ private bool isExpressionPosition(T)(T beforeTokens)
 			tok!"if", tok!"while", tok!"for", tok!"foreach", tok!"foreach_reverse",
 			tok!"catch", tok!"switch", tok!"with", tok!"synchronized"))
 		return true;
+	// `(|` - the opening paren of a parenthesized expression: preceded
+	// by a statement boundary, `{`, `=`, `,`, or another `(` (a nested
+	// or argument position). An expression starts inside it.
+	if (beforeTokens[$ - 1] == tok!"("
+		&& beforeTokens.length >= 2
+		&& beforeTokens[$ - 2].type.among(
+			tok!"{", tok!"}", tok!";", tok!"=", tok!",", tok!"(", tok!"[", tok!"return"))
+		return true;
 	// `if (foo == |` - a binary operator inside an unclosed paren.
 	if (isBinaryOperator(beforeTokens[$ - 1].type))
 	{
 		// The operator must sit inside an unclosed paren (a call, a
-		// condition, ...), not at statement level where `= |` already
-		// handles it.
-		return innermostUnclosedOpener(beforeTokens, tok!"(", tok!")") != size_t.max;
+		// condition, ...), or follow a complete operand (an
+		// identifier, literal or closing paren) - the right-hand side
+		// is an expression position either way. Statement-level `= |`
+		// is handled by the fresh-statement path of dotCompletion.
+		if (innermostUnclosedOpener(beforeTokens, tok!"(", tok!")") != size_t.max)
+			return true;
+		return beforeTokens.length >= 2
+			&& (beforeTokens[$ - 2] == tok!")"
+				|| beforeTokens[$ - 2] == tok!"]"
+				|| beforeTokens[$ - 2] == tok!"identifier"
+				|| isBasicType(beforeTokens[$ - 2].type)
+				|| isNumberLiteral(beforeTokens[$ - 2].type));
 	}
 	return false;
 }
