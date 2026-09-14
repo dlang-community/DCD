@@ -82,6 +82,34 @@ ConstantCompletion[] parsePragmas(string ddoc)
 				closing = identifierLine.length;
 			current.identifiers = [identifierLine["$(DT $(LNAME2".length .. closing].strip];
 		}
+		else if (strippedLine.startsWith("$(H3 $(LNAME2 "))
+		{
+			// The current ddoc format marks pragma entries with
+			// `$(H3 $(LNAME2 anchor, $(D pragma name)))`. The anchor is not
+			// always the pragma name (`crtctor` vs `crt_constructor`), so
+			// extract the name from the display text.
+			addCurrent();
+			seekingToFirst = false;
+			indent = line[0 .. $ - strippedLine.length];
+			string identifierLine = strippedLine.stripRight;
+			auto nameStart = identifierLine.indexOf("$(D pragma ");
+			if (nameStart == -1)
+			{
+				// No display text: fall back to the anchor.
+				auto comma = identifierLine.indexOf(',');
+				if (comma == -1)
+					comma = identifierLine.length;
+				current.identifiers = [identifierLine["$(H3 $(LNAME2".length .. comma].strip];
+			}
+			else
+			{
+				auto name = identifierLine[nameStart + "$(D pragma ".length .. $];
+				// Strip the trailing `)))` of the macro nesting.
+				while (name.endsWith(")"))
+					name = name[0 .. $ - 1];
+				current.identifiers = [name.strip];
+			}
+		}
 		else if (!seekingToFirst)
 		{
 			if (line.startsWith("---")) // code blocks aren't indented
