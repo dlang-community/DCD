@@ -127,12 +127,18 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 		scope(exit) pair.destroy();
 		response.setCompletions(pair.scope_, getExpression(beforeTokens[0 .. $ - 1]),
 			request.cursorPosition, CompletionType.identifiers, CalltipHint.none, "");
-		if (!pair.ufcsSymbols.empty)
-		{
-			response.completions ~= pair.ufcsSymbols.map!(s =>
-				makeSymbolCompletionInfo(s, CompletionKind.ufcsName)).array;
-			response.completionType = CompletionType.identifiers;
-		}
+		// Only type-ish symbols can follow `new`: aggregates, aliases,
+		// templates, enums, basic types and the type constructors
+		// const/immutable/shared (for `new const(Foo)`). Functions,
+		// variables, modules, packages and the __LINE__-style keywords
+		// are not types and are dropped.
+		response.completions = response.completions.filter!(
+			a => isNewConstructible(a.identifier, cast(CompletionKind) a.kind)).array;
+		// The type constructors are keywords, not scope symbols, so they
+		// are not in the list above - add them explicitly.
+		foreach (tc; ["const", "immutable", "shared"])
+			response.completions ~= AutocompleteResponse.Completion(
+				tc, CompletionKind.keyword, null, null, 0);
 		return response;
 	}
 
@@ -577,6 +583,64 @@ IdType getSignificantTokenId(T)(T beforeTokens)
 		return beforeTokens[$ - 3].type;
 	}
 	return significantTokenId;
+}
+
+/**
+ * Whether `identifier` (of the given completion kind) can follow the
+ * `new` keyword, i.e. whether it names a type or a type constructor:
+ * aggregates (class/struct/union/interface), aliases, templates, enums,
+ * basic types (except `void` and the string aliases, which the compiler
+ * rejects there), and `const`/`immutable`/`shared` (for `new const(Foo)`).
+ * Functions, variables, modules, packages and the __LINE__-style
+ * keywords are not types and are excluded.
+ */
+private bool isNewConstructible(string identifier, CompletionKind kind)
+{
+	switch (kind)
+	{
+	case CompletionKind.className:
+	case CompletionKind.structName:
+	case CompletionKind.unionName:
+	case CompletionKind.interfaceName:
+	case CompletionKind.templateName:
+	case CompletionKind.mixinTemplateName:
+	case CompletionKind.enumName:
+	case CompletionKind.typeTmpParam:
+		return true;
+	case CompletionKind.aliasName:
+		// `string`/`wstring`/`dstring` are aliases to arrays; the
+		// compiler rejects them after `new` ("missing length argument
+		// for array"). Other aliases (size_t, user aliases to types)
+		// are fine.
+		return identifier.among("string", "wstring", "dstring") == 0;
+	case CompletionKind.keyword:
+		// Basic types lex as keywords; `void` is invalid after `new`
+		// ("cannot create a void"). The type constructors are valid
+		// there.
+		return identifier.among("const", "immutable", "shared") != 0
+			|| (isBasicTypeTokenName(identifier) && identifier != "void");
+	default:
+		return false;
+	}
+}
+
+/**
+ * Whether `name` is the spelling of a basic type token (`int`, `bool`,
+ * ...). The completion kinds do not distinguish basic types from other
+ * keywords, so the identifier text is matched against the token names.
+ */
+private bool isBasicTypeTokenName(string name)
+{
+	switch (name)
+	{
+	foreach (T; BasicTypes)
+	{
+	case str(T):
+		return true;
+	}
+	default:
+		return false;
+	}
 }
 
 /**
