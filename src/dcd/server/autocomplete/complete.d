@@ -148,7 +148,12 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 	// Must run after the is(T == handler: `is(T == |` is also a binary
 	// operator inside an unclosed paren, but the is keywords are the
 	// better answer there.
-	if (isExpressionPosition(beforeTokens))
+	// `cast(bool) |` - the operand position of a cast expression: an
+	// expression starts there too, but getExpression strips the cast
+	// (it applies to a FOLLOWING expression), leaving an empty
+	// expression that no dispatch case handles.
+	if (isExpressionPosition(beforeTokens)
+		|| isCastOperandPosition(beforeTokens))
 	{
 		RollbackAllocator rba;
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba,
@@ -781,6 +786,23 @@ private bool isExpressionPosition(T)(T beforeTokens)
 		return innermostUnclosedOpener(beforeTokens, tok!"(", tok!")") != size_t.max;
 	}
 	return false;
+}
+
+/**
+ * Whether the cursor is at the operand position of a cast expression
+ * (`cast(bool) |`): the tokens end with a balanced `cast(...)` whose
+ * closing paren is the last token. The cast applies to a following
+ * expression, which getExpression strips - leaving an empty
+ * expression no dispatch case handles.
+ */
+private bool isCastOperandPosition(T)(T beforeTokens)
+{
+	if (beforeTokens.empty || beforeTokens[$ - 1] != tok!")")
+		return false;
+	// Match the trailing `)` back to its `(` and require `cast` before it.
+	size_t open = beforeTokens.skipParenReverse(
+		beforeTokens.length - 1, tok!")", tok!"(");
+	return open >= 2 && beforeTokens[open - 1] == tok!"cast";
 }
 
 /**

@@ -15,3 +15,5 @@ diff actual5.txt expected5.txt --strip-trailing-cr
 diff actual6.txt expected6.txt --strip-trailing-cr
 ../../bin/dcd-client $1 file7.d -c68 > actual7.txt
 diff actual7.txt expected7.txt --strip-trailing-cr
+../../bin/dcd-client $1 file8.d -c69 > actual8.txt
+diff actual8.txt expected8.txt --strip-trailing-cr
