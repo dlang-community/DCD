@@ -136,16 +136,14 @@ this is the `dcd.dfmtBraceStyle` dropdown (`otbs`, `allman`, `stroustrup`,
 
 ### Auto module declaration
 
-When a file is created **in the editor** (explorer "New File", a workspace
-edit) and then opened within a few seconds, the server sends a
-`workspace/applyEdit` request that inserts the file's module declaration —
-derived from its path relative to the import paths (`source/util/helper.d` →
-`module util.helper;`). A file that already declares the right module is
-left alone; a wrong declaration is fixed; `package.d` files and files with a
-shebang/dub.sdl preamble are handled (the declaration goes after the
-preamble). The edit is a normal buffer edit: visible and undoable with one
-Ctrl+Z. Files that merely appear on disk (git checkout, generators) never
-trigger it — only editor-initiated creations do.
+When a new D file is created in the editor, the server automatically
+inserts its `module` declaration, derived from the file's path relative
+to the import paths (`source/util/helper.d` → `module util.helper;`).
+A file that already declares the right module is left alone; a wrong
+declaration is fixed. The edit is a normal buffer edit: visible and
+undoable with one Ctrl+Z. Only files created in the editor trigger it —
+files that merely appear on disk (git checkout, generators) are never
+touched.
 
 Disable it with `dcd.autoModuleDeclaration: false` (VS Code) or
 `initializationOptions.autoModuleDeclaration: false` (other clients).
