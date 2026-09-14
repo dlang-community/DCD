@@ -113,33 +113,46 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 		response))
 		return response;
 
-	// `new |` - the cursor is right after the new keyword with no type
-	// name typed yet. Offer the symbols visible at the cursor (the type
-	// to construct). Must run before the keyword faking below, which
-	// would otherwise turn the trailing `new` keyword into an identifier
-	// and send the request to dot completion, where the partial "new"
-	// matches nothing.
-	if (beforeTokens.length && beforeTokens[$ - 1] == tok!"new")
+	// `new |` and `new const(|` - the cursor is right after the new
+	// keyword (possibly followed by a type constructor and its opening
+	// paren) with no type name typed yet. Offer the symbols visible at
+	// the cursor (the type to construct). Must run before the keyword
+	// faking below, which would otherwise turn the trailing `new`
+	// keyword into an identifier and send the request to dot completion,
+	// where the partial "new" matches nothing.
 	{
-		RollbackAllocator rba;
-		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba,
-			request.cursorPosition, moduleCache);
-		scope(exit) pair.destroy();
-		response.setCompletions(pair.scope_, getExpression(beforeTokens[0 .. $ - 1]),
-			request.cursorPosition, CompletionType.identifiers, CalltipHint.none, "");
-		// Only type-ish symbols can follow `new`: aggregates, aliases,
-		// templates, enums, basic types and the type constructors
-		// const/immutable/shared (for `new const(Foo)`). Functions,
-		// variables, modules, packages and the __LINE__-style keywords
-		// are not types and are dropped.
-		response.completions = response.completions.filter!(
-			a => isNewConstructible(a.identifier, cast(CompletionKind) a.kind)).array;
-		// The type constructors are keywords, not scope symbols, so they
-		// are not in the list above - add them explicitly.
-		foreach (tc; ["const", "immutable", "shared"])
-			response.completions ~= AutocompleteResponse.Completion(
-				tc, CompletionKind.keyword, null, null, 0);
-		return response;
+		// The tokens after `new` that still expect a type: nothing, or a
+		// type constructor's opening paren (`new const(`).
+		size_t newPrefix = 1;
+		if (beforeTokens.length >= 3
+			&& beforeTokens[$ - 1] == tok!"("
+			&& beforeTokens[$ - 2].type.among(tok!"const", tok!"immutable", tok!"shared")
+			&& beforeTokens[$ - 3] == tok!"new")
+			newPrefix = 3;
+		if (beforeTokens.length >= newPrefix
+			&& beforeTokens[$ - newPrefix] == tok!"new")
+		{
+			RollbackAllocator rba;
+			ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba,
+				request.cursorPosition, moduleCache);
+			scope(exit) pair.destroy();
+			response.setCompletions(pair.scope_,
+				getExpression(beforeTokens[0 .. $ - newPrefix]),
+				request.cursorPosition, CompletionType.identifiers, CalltipHint.none, "");
+			// Only type-ish symbols can follow: aggregates, aliases,
+			// templates, enums, basic types and the type constructors
+			// const/immutable/shared (for `new const(Foo)`). Functions,
+			// variables, modules, packages and the __LINE__-style
+			// keywords are not types and are dropped.
+			response.completions = response.completions.filter!(
+				a => isNewConstructible(a.identifier, cast(CompletionKind) a.kind)).array;
+			// The type constructors are keywords, not scope symbols, so
+			// they are not in the list above - add them explicitly.
+			foreach (tc; ["const", "immutable", "shared"])
+				response.completions ~= AutocompleteResponse.Completion(
+					tc, CompletionKind.keyword, null, null, 0);
+			return response;
+		}
 	}
 
 	// allows to get completion on keyword, typically "is"
