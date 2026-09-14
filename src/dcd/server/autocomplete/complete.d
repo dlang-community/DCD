@@ -113,6 +113,32 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 		response))
 		return response;
 
+	// `is(T == |` - the type-comparison position of an is expression:
+	// offer the `is(T == X)` keywords (struct, class, integral, ...).
+	// The `==` is an operator token no other path handles, so the
+	// request would otherwise return nothing.
+	{
+		string isPartial;
+		if (isTypeComparisonPosition(beforeTokens, request.cursorPosition,
+			isPartial))
+		{
+			response.completionType = CompletionType.identifiers;
+			foreach (completion; isTypeComparisons)
+			{
+				if (isPartial.length
+					&& !completion.identifier.startsWith(isPartial))
+					continue;
+				response.completions ~= AutocompleteResponse.Completion(
+					completion.identifier,
+					CompletionKind.keyword,
+					null, null, 0, // definition, symbol path+location
+					completion.ddoc
+				);
+			}
+			return response;
+		}
+	}
+
 	// `new |` and `new const(|` - the cursor is right after the new
 	// keyword (possibly followed by a type constructor and its opening
 	// paren) with no type name typed yet. Offer the symbols visible at
@@ -654,6 +680,75 @@ private bool isBasicTypeTokenName(string name)
 	default:
 		return false;
 	}
+}
+
+/**
+ * Whether the cursor is at the type-comparison position of an is
+ * expression: right after the `==` inside `is(...)` (`is(T == |`),
+ * possibly with a partial comparison keyword typed (`is(T == str|`).
+ * Returns the partial ("" when nothing is typed) via `partial`.
+ */
+private bool isTypeComparisonPosition(T)(T beforeTokens,
+	size_t cursorPosition, out string partial)
+{
+	partial = "";
+	// Skip the partial comparison keyword directly before the cursor
+	// (`is(T == str|`): an identifier or keyword token.
+	size_t end = beforeTokens.length;
+	if (end > 0
+		&& (beforeTokens[end - 1] == tok!"identifier"
+			|| isKeyword(beforeTokens[end - 1].type)))
+	{
+		auto t = beforeTokens[end - 1];
+		// A partial only when the cursor is ON the token; a gap means
+		// the word is complete.
+		if (cursorPosition > t.index + t.text.length)
+			return false;
+		partial = t == tok!"identifier"
+			? t.text[0 .. cursorPosition - t.index]
+			: str(t.type)[0 .. min(cursorPosition - t.index, str(t.type).length)];
+		end--;
+	}
+	// The `==` of the comparison.
+	if (end == 0 || beforeTokens[end - 1] != tok!"==")
+		return false;
+	// Walk back over the compared type (identifiers, basic types,
+	// dots, template `!`, type-constructor keywords and their parens)
+	// to the `is` keyword.
+	size_t i = end - 1;
+	while (i > 0)
+	{
+		switch (beforeTokens[i - 1].type)
+		{
+		case tok!"identifier":
+		case tok!".":
+		case tok!"!":
+		case tok!"const":
+		case tok!"immutable":
+		case tok!"shared":
+		case tok!"inout":
+			i--;
+			break;
+		case tok!")":
+			// `const(T)` of a type constructor: skipParenReverse from
+			// the `)` at i-1 lands ON its matching `(`.
+			i = beforeTokens.skipParenReverse(i - 1, tok!")", tok!"(");
+			if (i == size_t.max)
+				return false;
+			break;
+		default:
+			if (isBasicType(beforeTokens[i - 1].type))
+				i--;
+			else
+				goto done;
+		}
+	}
+done:
+	// The walk stops at the `(` of `is(`; the `is` keyword sits right
+	// before it.
+	if (i > 0 && beforeTokens[i - 1] == tok!"(")
+		i--;
+	return i > 0 && beforeTokens[i - 1] == tok!"is";
 }
 
 /**

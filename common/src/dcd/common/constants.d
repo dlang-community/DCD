@@ -57,6 +57,41 @@ immutable ConstantCompletion[] scopes = [
 	ConstantCompletion("failure", "Executes statements when the scope exits due to exception unwinding."),
 	ConstantCompletion("success", "Executes statements when the scope exits normally.")
 ];
+
+/**
+ * Type comparison keywords for the `is(T == X)` form of the is
+ * expression, offered after the `==` inside `is(...)`.
+ * https://dlang.org/spec/expression.html#IsExpression
+ */
+immutable ConstantCompletion[] isTypeComparisons = [
+	ConstantCompletion("aggregate", "True if T is a struct, union, class, or interface."),
+	ConstantCompletion("arithmetic", "True if T is an arithmetic type (integral or floating)."),
+	ConstantCompletion("class", "True if T is a class type."),
+	ConstantCompletion("const", "True if T is const."),
+	ConstantCompletion("delegate", "True if T is a delegate."),
+	ConstantCompletion("enum", "True if T is an enum."),
+	ConstantCompletion("floating", "True if T is a floating point type."),
+	ConstantCompletion("function", "True if T is a function."),
+	ConstantCompletion("iftype", "True if the is expression would succeed (deprecated alias)."),
+	ConstantCompletion("immutable", "True if T is immutable."),
+	ConstantCompletion("inout", "True if T is inout."),
+	ConstantCompletion("integral", "True if T is an integral type."),
+	ConstantCompletion("interface", "True if T is an interface."),
+	ConstantCompletion("module", "True if T is a module."),
+	ConstantCompletion("nested", "True if T is a nested struct/class/function."),
+	ConstantCompletion("package", "True if T is a package."),
+	ConstantCompletion("pod", "True if T is a POD (plain old data) type."),
+	ConstantCompletion("return", "True if T is a return scope parameter type."),
+	ConstantCompletion("scalar", "True if T is a scalar type."),
+	ConstantCompletion("shared", "True if T is shared."),
+	ConstantCompletion("struct", "True if T is a struct."),
+	ConstantCompletion("super", "True if T is a class or interface with a base."),
+	ConstantCompletion("this", "True if T is the type of this in a member function."),
+	ConstantCompletion("union", "True if T is a union."),
+	ConstantCompletion("vectors", "True if T is a SIMD vector type."),
+	ConstantCompletion("zero", "True if T can be initialized with all zeros."),
+];
+
 /**
  * Function attributes that can appear AFTER a function's parameter list,
  * e.g. `void foo() pure @safe { ... }`.
