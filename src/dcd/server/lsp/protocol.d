@@ -206,6 +206,9 @@ struct CompletionItem
 	/// inserted text differs from the label, e.g. the module declaration
 	/// suggestion inserts `cheese.dippers;` including the semicolon.
 	string insertText;
+	/// LSP snippet format flag (2 = snippet): set when insertText or
+	/// textEdit.newText contains LSP snippet syntax (tab stops).
+	bool isSnippet;
 	/// The primary edit for this item (LSP 3.17 `textEdit`): the range the
 	/// label replaces. Set by the server so every client replaces the same
 	/// span regardless of how it computes "the word under the cursor" -
@@ -248,6 +251,8 @@ struct CompletionItem
 			obj["filterText"] = JSONValue(filterText);
 		if (insertText.length)
 			obj["insertText"] = JSONValue(insertText);
+		if (isSnippet)
+			obj["insertTextFormat"] = JSONValue(2);
 		if (hasTextEdit)
 			obj["textEdit"] = textEdit.toJson();
 		if (additionalTextEdits.length)

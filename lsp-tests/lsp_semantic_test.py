@@ -456,11 +456,11 @@ send({"jsonrpc": "2.0", "id": 247, "method": "textDocument/completion", "params"
     "position": {"line": 2, "character": 9},
 }})
 resp = recv_response()
-assert "items" not in resp["result"], f"call expr returned items, not calltip: {str(resp['result'])[:120]}"
-assert "signatures" in resp["result"], f"call expr lost its calltip: {str(resp['result'])[:120]}"
-print("call expression `mama(` still returns calltip")
+labels = {i["label"] for i in resp["result"]["items"]}
+assert "a" in labels, f"call expr lost parameter names: {sorted(labels)}"
+print("call expression `mama(` offers parameter names")
 
-# a delegating constructor CALL keeps its calltip too
+# a delegating constructor CALL offers its parameter names too
 send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
     "textDocument": {"uri": "file:///tmp/semantic.d", "version": 248},
     "contentChanges": [{"text": "struct S {\n    this(int x) {}\n    this() {\n        this(\n    }\n}\n"}]}})
@@ -469,9 +469,9 @@ send({"jsonrpc": "2.0", "id": 249, "method": "textDocument/completion", "params"
     "position": {"line": 3, "character": 13},
 }})
 resp = recv_response()
-assert "items" not in resp["result"], f"delegating ctor call returned items: {str(resp['result'])[:120]}"
-assert "signatures" in resp["result"], f"delegating ctor call lost its calltip: {str(resp['result'])[:120]}"
-print("delegating constructor call still returns calltip")
+labels = {i["label"] for i in resp["result"]["items"]}
+assert "x" in labels, f"delegating ctor call lost parameter names: {sorted(labels)}"
+print("delegating constructor call offers parameter names")
 
 # a constructor DECLARATION gets the storage classes
 send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
@@ -848,6 +848,27 @@ items = resp["result"]["items"]
 labels = {i["label"] for i in items}
 assert labels == {"age"}, f"ctor named arg should offer 'age', got {labels}"
 print("ctor named arg: implicit constructor fields offered")
+
+# --- keyword snippets ---
+# `fo` at a statement start: the loop keywords carry LSP snippet text
+# (tab stops) flagged with insertTextFormat=2; plain keywords (break,
+# return) stay plain-text inserts.
+send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d", "version": 250},
+    "contentChanges": [{"text": "void main() {\n    fo\n}\n"}]}})
+send({"jsonrpc": "2.0", "id": 251, "method": "textDocument/completion", "params": {
+    "textDocument": {"uri": "file:///tmp/semantic.d"},
+    "position": {"line": 1, "character": 6},
+}})
+resp = recv_response()
+items = resp["result"]["items"]
+by_label = {i["label"]: i for i in items}
+for kw in ("for", "foreach", "foreach_reverse"):
+    item = by_label[kw]
+    assert item.get("insertTextFormat") == 2, f"{kw} not a snippet: {item}"
+    assert "$0" in item["textEdit"]["newText"], f"{kw} missing final tab stop"
+    assert kw in item["textEdit"]["newText"], f"{kw} snippet missing keyword"
+print(f"keyword snippets: for/foreach/foreach_reverse carry tab stops")
 
 send({"jsonrpc": "2.0", "id": 5, "method": "shutdown"})
 recv_response()
