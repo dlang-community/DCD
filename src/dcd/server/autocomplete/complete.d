@@ -113,6 +113,29 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 		response))
 		return response;
 
+	// `new |` - the cursor is right after the new keyword with no type
+	// name typed yet. Offer the symbols visible at the cursor (the type
+	// to construct). Must run before the keyword faking below, which
+	// would otherwise turn the trailing `new` keyword into an identifier
+	// and send the request to dot completion, where the partial "new"
+	// matches nothing.
+	if (beforeTokens.length && beforeTokens[$ - 1] == tok!"new")
+	{
+		RollbackAllocator rba;
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba,
+			request.cursorPosition, moduleCache);
+		scope(exit) pair.destroy();
+		response.setCompletions(pair.scope_, getExpression(beforeTokens[0 .. $ - 1]),
+			request.cursorPosition, CompletionType.identifiers, CalltipHint.none, "");
+		if (!pair.ufcsSymbols.empty)
+		{
+			response.completions ~= pair.ufcsSymbols.map!(s =>
+				makeSymbolCompletionInfo(s, CompletionKind.ufcsName)).array;
+			response.completionType = CompletionType.identifiers;
+		}
+		return response;
+	}
+
 	// allows to get completion on keyword, typically "is"
 	if (beforeTokens.length &&
 		(isKeyword(beforeTokens[$-1].type) || isBasicType(beforeTokens[$-1].type)))
@@ -352,13 +375,14 @@ AutocompleteResponse dotCompletion(T)(T beforeTokens, const(Token)[] tokenArray,
 	else if (beforeTokens.length >= 2 && beforeTokens[$ - 1] == tok!".")
 		significantTokenType = beforeTokens[$ - 2].type;
 	else if (beforeTokens.empty || beforeTokens[$ - 1].type.among(
-		tok!"{", tok!"}", tok!";", tok!":", tok!"(", tok!"[", tok!","))
+		tok!"{", tok!"}", tok!";", tok!":", tok!"(", tok!"[", tok!",", tok!"="))
 	{
 		// Fresh statement position with nothing typed (including the very
 		// beginning of the file, e.g. the line before a declaration):
 		// offer every symbol visible at the cursor. setCompletions only
 		// walks the cursor scope when `partial` is non-null, so pass ""
-		// (no prefix filter).
+		// (no prefix filter). `=` is an initializer position (`auto m = |`):
+		// an expression starts there, so the same scope symbols apply.
 		RollbackAllocator rba;
 		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba,
 			cursorPosition, moduleCache);
