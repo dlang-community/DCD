@@ -1,3 +1,5 @@
+module tests.tc_cast_completion.file;
+
 class Widget
 {
 	this(int i) {}

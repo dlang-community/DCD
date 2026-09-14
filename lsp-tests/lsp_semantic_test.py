@@ -925,7 +925,42 @@ assert "struct" in labels and "class" in labels and "integral" in labels, \
     f"is(T == should offer is keywords: {sorted(labels)[:5]}"
 assert "foo" not in labels, f"is(T == should not offer scope symbols"
 print("is(T == still offers is keywords")
+# --- statement-body positions ---
+# `if (1) |`, `else |`, `scope(exit) |` - a statement or declaration
+# starts right after the condition's closing paren (or the keyword),
+# so the same completions as a fresh statement are offered.
+src = "void main() {\n    int foo;\n    if (1) \n}\n"
+labels = paren_complete(src, *cursor_after(src, "if (1) "))
+assert "foo" in labels and "int" in labels, f"if (1) should offer scope symbols: {sorted(labels)[:5]}"
+assert "pure" in labels, f"if (1) should offer declaration attributes"
+print("if (1) offers scope symbols and attributes")
 
+# `else |` - after the keyword with a gap
+src = "void main() {\n    int foo;\n    if (1) foo = 1;\n    else \n}\n"
+labels = paren_complete(src, *cursor_after(src, "else "))
+assert "foo" in labels and "pure" in labels, f"else should offer scope symbols: {sorted(labels)[:5]}"
+print("else offers scope symbols and attributes")
+
+# `scope(exit) |` - after the scope guard's paren
+src = "void main() {\n    int foo;\n    scope(exit) \n}\n"
+labels = paren_complete(src, *cursor_after(src, "scope(exit) "))
+assert "foo" in labels and "pure" in labels, f"scope(exit) should offer scope symbols: {sorted(labels)[:5]}"
+print("scope(exit) offers scope symbols and attributes")
+
+# `if (1) re|` - a partial at the statement-body position offers the
+# statement keywords alongside the scope symbols
+src = "void main() {\n    int foo;\n    if (1) re\n}\n"
+labels = paren_complete(src, *cursor_after(src, "re"))
+assert "return" in labels and "real" in labels, f"if (1) re should offer keywords: {sorted(labels)[:5]}"
+print("if (1) re offers statement keywords")
+
+# `switch (r.parts[0].)` - a dangling dot inside the condition stays on
+# the member-access path (empty: the type is undefined), NOT the
+# statement-body path (regression guard for tc039)
+src = "void main() {\n    switch (r.parts[0].)\n}\n"
+labels = paren_complete(src, *cursor_after(src, "parts[0].)"))
+assert not labels, f"dangling dot in condition should offer nothing, got {sorted(labels)[:5]}"
+print("dangling dot in condition offers nothing")
 send({"jsonrpc": "2.0", "id": 5, "method": "shutdown"})
 recv_response()
 send({"jsonrpc": "2.0", "method": "exit"})

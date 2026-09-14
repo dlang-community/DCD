@@ -251,6 +251,59 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 		}
 	}
 
+	// `if (1) |`, `else |`, `scope(exit) |`, `version(none) |` - the
+	// cursor is at a statement-body position: right after the closing
+	// paren of a statement keyword's condition (`if (...)`, `while (...)`,
+	// `foreach (...)`, `scope(exit)`, `version(...)`, ...), or right
+	// after a body-introducing keyword with no paren (`else`, `try`,
+	// `finally`, `do`). A statement - or a declaration (`if (1) int x;`
+	// is valid D) - starts there, so offer the same completions as a
+	// fresh statement after `;`: the symbols visible at the cursor plus
+	// the declaration attributes. Without this the request falls
+	// through to dot completion, whose dispatch has no case for a
+	// trailing `)` or these keywords, and returns nothing.
+	// Must run before the keyword faking below, which would turn a
+	// trailing `else`/`try`/`do`/`finally` keyword into an identifier
+	// and send the request to dot completion, where it matches nothing.
+	{
+		string statementBodyPartial;
+		size_t constructStart;
+		if (isStatementBodyPosition(beforeTokens, request.cursorPosition,
+			statementBodyPartial, constructStart))
+		{
+			RollbackAllocator rba;
+			ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba,
+				request.cursorPosition, moduleCache);
+			scope(exit) pair.destroy();
+			// Everything from the construct start on belongs to the
+			// statement being typed (`if (1) wi|`), not to an expression
+			// before it. getExpression of the tokens before the construct
+			// is empty (they end at a boundary or the construct keyword),
+			// so setCompletions walks the cursor scope - the same
+			// behavior as a fresh statement after `;`.
+			response.setCompletions(pair.scope_,
+				getExpression(beforeTokens[0 .. constructStart]),
+				request.cursorPosition, CompletionType.identifiers, CalltipHint.none,
+				statementBodyPartial is null ? "" : statementBodyPartial);
+			if (!pair.ufcsSymbols.empty)
+			{
+				response.completions ~= pair.ufcsSymbols.map!(s =>
+					makeSymbolCompletionInfo(s, CompletionKind.ufcsName)).array;
+				response.completionType = CompletionType.identifiers;
+			}
+			// A declaration can start here (`if (1) pure int x;`), so the
+			// declaration attributes are offered alongside the scope
+			// symbols, like after `;`/`{`/`}`. A statement can start here
+			// too, so the statement keywords are offered on a partial,
+			// like at a fresh-statement partial (`; re|`).
+			setDeclarationAttributeCompletions(response,
+				statementBodyPartial is null ? null : statementBodyPartial);
+			if (statementBodyPartial.length)
+				setStatementKeywordCompletions(response, statementBodyPartial);
+			return response;
+		}
+	}
+
 	// allows to get completion on keyword, typically "is"
 	if (beforeTokens.length &&
 		(isKeyword(beforeTokens[$-1].type) || isBasicType(beforeTokens[$-1].type)))
@@ -803,6 +856,84 @@ private bool isExpressionPosition(T)(T beforeTokens)
 				|| isBasicType(beforeTokens[$ - 2].type)
 				|| isNumberLiteral(beforeTokens[$ - 2].type));
 	}
+	return false;
+}
+
+/**
+ * Whether the cursor is at a statement-body position: right after the
+ * closing paren of a statement keyword's condition (`if (...) |`,
+ * `while (...) |`, `foreach (...) |`, `scope(exit) |`,
+ * `version(...) |`, ...), or right after a body-introducing keyword
+ * with no paren (`else |`, `try |`, `finally |`, `do |`). A statement
+ * or declaration starts there.
+ *
+ * Returns the partial identifier being typed, if any, via `partial`
+ * (null when nothing is typed), and the start of the statement
+ * construct via `constructStart`: the index of the `(` (paren case)
+ * or of the keyword (keyword case). Everything from there on belongs
+ * to the construct and must not be resolved as an expression.
+ */
+private bool isStatementBodyPosition(T)(T beforeTokens,
+	size_t cursorPosition, out string partial, out size_t constructStart)
+{
+	partial = null;
+	constructStart = beforeTokens.length;
+	if (beforeTokens.empty)
+		return false;
+
+	// The partial identifier being typed, if any. Only when the cursor
+	// is ON the identifier (mid-word or adjacent); a gap means the word
+	// is complete and the user is typing the next one.
+	size_t end = beforeTokens.length;
+	if (beforeTokens[end - 1] == tok!"identifier")
+	{
+		auto t = beforeTokens[end - 1];
+		if (cursorPosition <= t.index + t.text.length)
+		{
+			partial = t.text[0 .. cursorPosition - t.index];
+			end--;
+		}
+	}
+
+	// `if (1) |` - the closing paren of a statement keyword's
+	// condition. Match it back to its `(` and require the keyword.
+	if (end > 0 && beforeTokens[end - 1] == tok!")")
+	{
+		// A dangling `.` right before the `)` (`switch (r.parts[0].)`)
+		// means a member access is being typed inside the condition:
+		// the request belongs to the member-access path, not to the
+		// statement-body position.
+		if (end >= 2 && beforeTokens[end - 2] == tok!".")
+			return false;
+		immutable open = skipParenReverse(beforeTokens[0 .. end],
+			end - 1, tok!")", tok!"(");
+		if (open == 0)
+			return false;
+		if (!beforeTokens[open - 1].type.among(
+			tok!"if", tok!"while", tok!"for", tok!"foreach", tok!"foreach_reverse",
+			tok!"catch", tok!"switch", tok!"with", tok!"synchronized",
+			tok!"scope", tok!"version", tok!"debug", tok!"extern"))
+			return false;
+		constructStart = open;
+		return true;
+	}
+
+	// `else |`, `try |`, `finally |`, `do |` - a body-introducing
+	// keyword with no paren. Only with a cursor gap after the keyword:
+	// an adjacent cursor keeps the keyword behavior (the keyword
+	// faking below turns the keyword into an identifier and dot
+	// completion offers the keyword itself, e.g. `else|` → `else`).
+	if (end > 0 && beforeTokens[end - 1].type.among(
+		tok!"else", tok!"try", tok!"finally", tok!"do"))
+	{
+		auto t = beforeTokens[end - 1];
+		if (cursorPosition > t.index + str(t.type).length)
+		{
+			constructStart = end - 1;
+			return true;
+		}
+	}
+
 	return false;
 }
 

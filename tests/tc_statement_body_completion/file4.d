@@ -1,9 +1,9 @@
 class Widget
 {
-	this(int i) {}
+	int id;
 }
 
 void main()
 {
-	(
+	if (1) re
 }
