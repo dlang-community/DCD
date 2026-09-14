@@ -502,9 +502,21 @@ T getExpression(T)(T beforeTokens)
 				case tok!"foreach":
 				case tok!"foreach_reverse":
 				case tok!"do":
-				case tok!"cast":
 				case tok!"catch":
 					i = bookmark + 1;
+					break expressionLoop;
+				case tok!"cast":
+					// A cast whose result is member-accessed
+					// (`cast(Mama).field`): keep the cast in the
+					// expression so the chain resolver can resolve the
+					// cast type. Otherwise the cast applies to a
+					// following expression (`cast(Mama) x`) and is
+					// stripped.
+					if (bookmark + 1 < beforeTokens.length
+						&& beforeTokens[bookmark + 1] == tok!".")
+						i--;
+					else
+						i = bookmark + 1;
 					break expressionLoop;
 				case tok!"!":
 					// only break if the bang is for a template instance

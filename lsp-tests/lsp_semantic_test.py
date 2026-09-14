@@ -870,6 +870,62 @@ for kw in ("for", "foreach", "foreach_reverse"):
     assert kw in item["textEdit"]["newText"], f"{kw} snippet missing keyword"
 print(f"keyword snippets: for/foreach/foreach_reverse carry tab stops")
 
+# --- statement parens and operator positions ---
+# `if (|`, `while (|`, ... and `if (x == |`: an expression starts at
+# these positions, so the scope symbols are offered (previously
+# nothing was).
+def paren_complete(src, line, char):
+    send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+        "textDocument": {"uri": "file:///tmp/semantic.d", "version": 260},
+        "contentChanges": [{"text": src}]}})
+    send({"jsonrpc": "2.0", "id": 261, "method": "textDocument/completion",
+          "params": {"textDocument": {"uri": "file:///tmp/semantic.d"},
+                     "position": {"line": line, "character": char}}})
+    resp = recv_response()
+    return {i["label"] for i in resp["result"]["items"]}
+
+def cursor_after(src, anchor):
+    """Line/character right after the last occurrence of anchor."""
+    lines = src.split("\n")
+    for i, line in enumerate(lines):
+        at = line.rfind(anchor)
+        if at >= 0:
+            return i, at + len(anchor)
+    raise AssertionError(f"anchor {anchor!r} not found")
+
+# `if (|` - right after the opening paren of a statement keyword
+src = "void main() {\n    int foo;\n    if (\n}\n"
+labels = paren_complete(src, *cursor_after(src, "if ("))
+assert "foo" in labels and "int" in labels, f"if ( should offer scope symbols: {sorted(labels)[:5]}"
+print("if ( offers scope symbols")
+
+# `while (|`, `for (|`, `switch (|` - same shape
+for kw in ("while", "for", "switch", "with"):
+    src = f"void main() {{\n    int foo;\n    {kw} (\n}}\n"
+    labels = paren_complete(src, *cursor_after(src, f"{kw} ("))
+    assert "foo" in labels, f"{kw} ( should offer scope symbols: {sorted(labels)[:5]}"
+print("while/for/switch/with ( offer scope symbols")
+
+# `if (foo == |` - after a binary operator inside an unclosed paren
+src = "void main() {\n    int foo;\n    if (foo == \n}\n"
+labels = paren_complete(src, *cursor_after(src, "== "))
+assert "foo" in labels and "int" in labels, f"if (foo == should offer scope symbols: {sorted(labels)[:5]}"
+print("if (foo == offers scope symbols")
+
+# `if (foo + |` - arithmetic operator, same rule
+src = "void main() {\n    int foo;\n    if (foo + \n}\n"
+labels = paren_complete(src, *cursor_after(src, "+ "))
+assert "foo" in labels, f"if (foo + should offer scope symbols: {sorted(labels)[:5]}"
+print("if (foo + offers scope symbols")
+
+# `is(T == |` still offers the is keywords (not stolen by the operator rule)
+src = "void main() {\n    enum r = is(int == \n}\n"
+labels = paren_complete(src, *cursor_after(src, "== "))
+assert "struct" in labels and "class" in labels and "integral" in labels, \
+    f"is(T == should offer is keywords: {sorted(labels)[:5]}"
+assert "foo" not in labels, f"is(T == should not offer scope symbols"
+print("is(T == still offers is keywords")
+
 send({"jsonrpc": "2.0", "id": 5, "method": "shutdown"})
 recv_response()
 send({"jsonrpc": "2.0", "method": "exit"})

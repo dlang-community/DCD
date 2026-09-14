@@ -139,6 +139,32 @@ public AutocompleteResponse complete(const AutocompleteRequest request,
 		}
 	}
 
+	// `if (|`, `while (|`, `for (|`, ... - the cursor is right after the
+	// opening paren of a statement keyword, or after a binary operator
+	// inside one (`if (foo == |`). An expression starts there, so offer
+	// the symbols visible at the cursor. Without this the request falls
+	// through to dot completion, whose dispatch has no case for a
+	// trailing `(` preceded by a statement keyword or a binary operator.
+	// Must run after the is(T == handler: `is(T == |` is also a binary
+	// operator inside an unclosed paren, but the is keywords are the
+	// better answer there.
+	if (isExpressionPosition(beforeTokens))
+	{
+		RollbackAllocator rba;
+		ScopeSymbolPair pair = generateAutocompleteTrees(tokenArray, &rba,
+			request.cursorPosition, moduleCache);
+		scope(exit) pair.destroy();
+		response.setCompletions(pair.scope_, getExpression(beforeTokens),
+			request.cursorPosition, CompletionType.identifiers, CalltipHint.none, "");
+		if (!pair.ufcsSymbols.empty)
+		{
+			response.completions ~= pair.ufcsSymbols.map!(s =>
+				makeSymbolCompletionInfo(s, CompletionKind.ufcsName)).array;
+			response.completionType = CompletionType.identifiers;
+		}
+		return response;
+	}
+
 	// `new |` and `new const(|` - the cursor is right after the new
 	// keyword (possibly followed by a type constructor and its opening
 	// paren) with no type name typed yet. Offer the symbols visible at
@@ -723,6 +749,72 @@ private bool isBasicTypeTokenName(string name)
 	case str(T):
 		return true;
 	}
+	default:
+		return false;
+	}
+}
+
+/**
+ * Whether the cursor is at a position where an expression is expected
+ * but no completion path handles it: right after the opening paren of
+ * a statement keyword (`if (|`, `while (|`, `for (|`, `catch (|`,
+ * `switch (|`, `with (`), or after a binary operator inside an
+ * unclosed paren (`if (foo == |`, `foo(a + |`).
+ */
+private bool isExpressionPosition(T)(T beforeTokens)
+{
+	if (beforeTokens.empty)
+		return false;
+	// `if (|` - the opening paren of a statement keyword.
+	if (beforeTokens[$ - 1] == tok!"("
+		&& beforeTokens.length >= 2
+		&& beforeTokens[$ - 2].type.among(
+			tok!"if", tok!"while", tok!"for", tok!"foreach", tok!"foreach_reverse",
+			tok!"catch", tok!"switch", tok!"with", tok!"synchronized"))
+		return true;
+	// `if (foo == |` - a binary operator inside an unclosed paren.
+	if (isBinaryOperator(beforeTokens[$ - 1].type))
+	{
+		// The operator must sit inside an unclosed paren (a call, a
+		// condition, ...), not at statement level where `= |` already
+		// handles it.
+		return innermostUnclosedOpener(beforeTokens, tok!"(", tok!")") != size_t.max;
+	}
+	return false;
+}
+
+/**
+ * Whether the token type is a binary operator after which an operand
+ * is expected (`==`, `+`, `<`, `&&`, ...). Assignment-like operators
+ * (`=`, `+=`) are excluded: `= |` is handled by the fresh-statement
+ * path of dotCompletion.
+ */
+private bool isBinaryOperator(IdType type)
+{
+	switch (type)
+	{
+	case tok!"==":
+	case tok!"!=":
+	case tok!"<":
+	case tok!">":
+	case tok!"<=":
+	case tok!">=":
+	case tok!"+":
+	case tok!"-":
+	case tok!"*":
+	case tok!"/":
+	case tok!"%":
+	case tok!"&":
+	case tok!"|":
+	case tok!"^":
+	case tok!"&&":
+	case tok!"||":
+	case tok!"<<":
+	case tok!">>":
+	case tok!">>>":
+	case tok!"~":
+	case tok!"is":
+		return true;
 	default:
 		return false;
 	}

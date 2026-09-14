@@ -246,6 +246,33 @@ DSymbol*[] getSymbolsByTokenChain(T)(Scope* completionScope,
 		if (tokens.length == 0) // workaround (#371)
 			return [];
 	}
+	// A cast expression (`cast(Mama).field`): the chain base is the
+	// type inside the parens, resolved with location semantics so the
+	// last chain element is kept as the symbol itself. The expression
+	// may carry a trailing `.field` chain (and the dot the user just
+	// typed), so the closing paren is found by matching from the front.
+	else if (tokens.length >= 4
+		&& tokens[0] == tok!"cast"
+		&& tokens[1] == tok!"(")
+	{
+		size_t close = 1;
+		tokens.skipParen(close, tok!"(", tok!")");
+		if (close >= tokens.length - 1)
+			return [];
+		// `cast(const(T))`: skip the type constructor too.
+		size_t typeStart = 2;
+		if (tokens[2].type.among(tok!"const", tok!"immutable", tok!"shared", tok!"inout")
+			&& tokens[3] == tok!"(")
+			typeStart = 3;
+		auto typeSymbols = getSymbolsByTokenChain(completionScope,
+			tokens[typeStart .. close], cursorPosition, CompletionType.location);
+		if (typeSymbols.length == 0)
+			return [];
+		symbols = typeSymbols;
+		tokens = tokens[close + 1 .. $];
+		if (tokens.length == 0)
+			return symbols;
+	}
 	else if (tokens[0] == tok!"." && tokens.length >= 1)
 	{
 		if (tokens.length == 1)
