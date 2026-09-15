@@ -742,6 +742,12 @@ private void warmupDocument(ref ServerContext context, string text)
 	scope (exit) pair.destroy();
 	infof("Warmup: indexed document and imports in %s ms",
 		sw.peek().total!"msecs");
+	// The warmup allocates heavily (tokens, symbol trees, interned
+	// strings); return the freed pool pages to the OS so the server's
+	// RSS reflects live data, not warmup churn.
+	import core.memory : GC;
+	GC.collect();
+	GC.minimize();
 }
 
 /**
