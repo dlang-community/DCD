@@ -5,7 +5,7 @@ _dcd_server()
 	COMPREPLY=()
 	cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="-I --help -h --version --logLevel --tcp --socketFile"
+    opts="-I --help -h --version --logLevel --tcp --socketFile --ignoreConfig --lsp"
 	logLevels="all trace info warning error critical fatal off"
 	if [[ ${cur} == -* ]]; then
 		COMPREPLY=($(compgen -W "${opts}" -- ${cur}))
