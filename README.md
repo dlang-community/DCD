@@ -15,6 +15,13 @@ used through a text editor script or plugin, though it can be used from the
 command line. The server (dcd-server) is responsible for caching imported files,
 calculating autocomplete information, and sending it back to the client.
 
+# Philosophy
+
+DCD is **editor-first**: built for what a person typing code needs right now,
+not what a compiler would compute given a finished file. Broken code is the
+normal case, fast beats perfect, and precision improves over time — never at
+the cost of speed.
+
 # Added LSP support
 
 DCD's LSP server is deliberately **lean**: it is a thin protocol layer over
