@@ -1037,7 +1037,7 @@ final class FirstPass : ASTVisitor
 		auto symbol = allocateSemanticSymbol(c.identifier.text, CompletionKind.variableName, symbolFile: symbolFile, c.identifier.index);
 		addTypeToLookups(symbol.typeLookups, c.type);
 		currentSymbol.addChild(symbol, true);
-		currentScope.addSymbol(symbol.acSymbol, owns: true);
+		currentScope.addSymbol(symbol.acSymbol, true);
 		c.accept(this);
 	}
 
