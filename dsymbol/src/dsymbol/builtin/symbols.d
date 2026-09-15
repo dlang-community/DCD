@@ -382,8 +382,11 @@ private HashSet!(DSymbol*) symbolsMadeHere;
 private DSymbol* makeSymbol(string s, CompletionKind kind, DSymbol* type = null,
 	string documentation = null)
 {
+	import dparse.lexer : tok;
+
 	auto sym = rba.make!DSymbol(istring(s), kind, type);
 	sym.ownType = false;
+	sym.protection = tok!"public";
 	if (documentation !is null)
 		sym.doc = DocString(istring(documentation));
 	symbolsMadeHere.insert(sym);
@@ -392,8 +395,11 @@ private DSymbol* makeSymbol(string s, CompletionKind kind, DSymbol* type = null,
 private DSymbol* makeSymbol(istring s, CompletionKind kind, DSymbol* type = null,
 	string documentation = null)
 {
+	import dparse.lexer : tok;
+
 	auto sym = rba.make!DSymbol(s, kind, type);
 	sym.ownType = false;
+	sym.protection = tok!"public";
 	if (documentation !is null)
 		sym.doc = DocString(istring(documentation));
 	symbolsMadeHere.insert(sym);
