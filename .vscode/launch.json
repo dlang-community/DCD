@@ -2,6 +2,22 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Debug dcd-server (socket, tests)",
+      "type": "lldb-dap",
+      "request": "launch",
+      "program": "${workspaceFolder}/bin/dcd-server",
+      "args": ["--ignoreConfig", "-I", "${workspaceFolder}/tests/imports"],
+      "cwd": "${workspaceFolder}/tests",
+      "preLaunchTask": "dub: build server (debug)"
+    },
+    {
+      "name": "Debug dcd-server (attach)",
+      "type": "lldb-dap",
+      "request": "attach",
+      "program": "${workspaceFolder}/bin/dcd-server",
+      "waitFor": true
+    },
+    {
       "name": "Run DCD LSP Extension",
       "type": "extensionHost",
       "request": "launch",
