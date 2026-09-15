@@ -157,6 +157,92 @@ def main():
     print("RESULT:", "PASS" if ok else "FAIL")
     lsp.request({"jsonrpc": "2.0", "id": 99, "method": "shutdown", "params": None})
     lsp.notify({"jsonrpc": "2.0", "method": "exit"})
+    if not ok:
+        return 1
+    return stale_buffer_test()
+
+
+def stale_buffer_test():
+    """Regression test: renaming from one file while ANOTHER file is open
+    with unsaved changes.
+
+    The incident: the user added a block of code to first.d in the editor
+    (unsaved) and renamed a symbol declared elsewhere. The server computed
+    edit positions against the STALE on-disk copy; the client applied them
+    to the open buffer -> every edit after the insertion point landed
+    mid-token and corrupted the file.
+
+    Here: helper.d is open with an extra comment line inserted before its
+    use of greet (buffer != disk). The rename from app.d must return edit
+    positions matching the BUFFER, not the disk content.
+    """
+    print("\n--- stale buffer test ---")
+    setup()
+    lsp = Lsp()
+    lsp.request({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                 "params": {"processId": None, "rootUri": uri(WS), "capabilities": {}}})
+    lsp.notify({"jsonrpc": "2.0", "method": "initialized", "params": {}})
+
+    app_path = os.path.join(WS, "source", "app.d")
+    helper_path = os.path.join(WS, "source", "helper.d")
+    with open(app_path) as f:
+        app_text = f.read()
+    with open(helper_path) as f:
+        helper_disk = f.read()
+
+    # The editor's helper.d: an extra line inserted BEFORE the use.
+    extra = "// unsaved edit\n"
+    helper_buffer = helper_disk.replace("    greet(msg);",
+                                         extra + "    greet(msg);", 1)
+    assert helper_buffer != helper_disk
+
+    lsp.notify({"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {
+        "textDocument": {"uri": uri(app_path), "languageId": "d",
+                         "version": 1, "text": app_text}}})
+    # helper.d open with UNSAVED content (buffer has the extra line)
+    lsp.notify({"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {
+        "textDocument": {"uri": uri(helper_path), "languageId": "d",
+                         "version": 1, "text": helper_buffer}}})
+
+    decl_off = app_text.index("greet")
+    line = app_text[:decl_off].count("\n")
+    char = decl_off - (app_text[:decl_off].rfind("\n") + 1)
+
+    ren = lsp.request({"jsonrpc": "2.0", "id": 2, "method": "textDocument/rename",
+                       "params": {"textDocument": {"uri": uri(app_path)},
+                                  "position": {"line": line, "character": char},
+                                  "newName": "salute"}})
+    result = ren.get("result") or {}
+    changes = result.get("documentChanges", [])
+
+    ok = True
+    helper_edits = None
+    for ch in changes:
+        if ch["textDocument"]["uri"] == uri(helper_path):
+            helper_edits = ch["edits"]
+    if helper_edits is None:
+        print("FAIL: no edits for helper.d")
+        ok = False
+    else:
+        # The use sits one line LATER in the buffer than on disk.
+        # Buffer: extra line at line 7 (0-based 6), use at 0-based 7.
+        # Disk:   use at 0-based 6.
+        use_line_buffer = helper_buffer[:helper_buffer.index("greet(msg)")].count("\n")
+        use_line_disk = helper_disk[:helper_disk.index("greet(msg)")].count("\n")
+        got_lines = sorted(e["range"]["start"]["line"] for e in helper_edits)
+        print("helper.d edits at lines %s (buffer use line %d, disk use line %d)"
+              % (got_lines, use_line_buffer, use_line_disk))
+        if got_lines != [use_line_buffer]:
+            print("FAIL: edit positions match DISK content, not the open buffer")
+            ok = False
+        for e in helper_edits:
+            if e["newText"] != "salute":
+                print("FAIL: wrong newText", e["newText"])
+                ok = False
+
+    print("STALE BUFFER TEST:", "PASS" if ok else "FAIL")
+    lsp.request({"jsonrpc": "2.0", "id": 99, "method": "shutdown", "params": None})
+    lsp.notify({"jsonrpc": "2.0", "method": "exit"})
     return 0 if ok else 1
 
 if __name__ == "__main__":

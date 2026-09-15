@@ -2601,12 +2601,25 @@ private void findWorkspaceUses(ref ServerContext context,
 		if (pathToUri(file) == requestUri)
 			continue;
 
+		// Prefer the in-memory buffer when the file is open: the user may
+		// have unsaved changes, and offsets computed against the stale
+		// on-disk copy would not match the buffer the client applies the
+		// edits to (see handleRename). The buffer is also what the user
+		// sees, so uses typed but not yet saved are found too.
 		string source;
-		try source = readText(file);
-		catch (Exception e)
 		{
-			warningf("Rename scan failed to read %s: %s", file, e.msg);
-			continue;
+			TextDocument* openDoc = context.documents.get(pathToUri(file));
+			if (openDoc !is null)
+				source = openDoc.text;
+		}
+		if (source.empty)
+		{
+			try source = readText(file);
+			catch (Exception e)
+			{
+				warningf("Rename scan failed to read %s: %s", file, e.msg);
+				continue;
+			}
 		}
 		if (!source.canFind(lookup.identifier))
 			continue;
@@ -2733,9 +2746,18 @@ JSONValue handleRename(ref ServerContext context, JSONValue params)
 	JSONValue[] documentChanges;
 	foreach (file; lookup.files)
 	{
-		// The requesting document's edits are computed against the
-		// in-memory document; other files against their on-disk content.
+		// Prefer the in-memory document whenever the file is open, not
+		// just for the requesting document: the client applies workspace
+		// edits to the OPEN BUFFER, so offsets computed against a stale
+		// on-disk copy (e.g. the user added code but did not save yet)
+		// would land mid-token and corrupt the file. Non-open files have
+		// no buffer, so the disk content is the only - and correct - text.
+		// `file` is a URI for the requesting document and a path for the
+		// scanned files, so look the document up by BOTH keys.
 		TextDocument* doc = context.documents.get(file);
+		if (doc is null)
+			doc = context.documents.get(pathToUri(file));
+		string editUri = file.startsWith("file://") ? file : pathToUri(file);
 		if (doc is null)
 		{
 			// file is a path here; convert offsets against the file text
@@ -2753,7 +2775,7 @@ JSONValue handleRename(ref ServerContext context, JSONValue params)
 				edit.newText = newName;
 				edits ~= edit.toJson();
 			}
-			documentChanges ~= textDocumentEdit(pathToUri(file), edits);
+			documentChanges ~= textDocumentEdit(editUri, edits);
 		}
 		else
 		{
@@ -2768,7 +2790,7 @@ JSONValue handleRename(ref ServerContext context, JSONValue params)
 				edit.newText = newName;
 				edits ~= edit.toJson();
 			}
-			documentChanges ~= textDocumentEdit(file, edits);
+			documentChanges ~= textDocumentEdit(editUri, edits);
 		}
 	}
 
