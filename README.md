@@ -10,10 +10,12 @@ The D Completion Daemon is an auto-complete program for the D programming langua
 DCD is not an IDE. DCD is designed to provide autocompletion for your favorite
 text editor. If you are looking for an IDE, try [one of these](http://wiki.dlang.org/IDEs).
 
-DCD consists of a client and a server. The client (dcd-client) is almost always
-used through a text editor script or plugin, though it can be used from the
-command line. The server (dcd-server) is responsible for caching imported files,
-calculating autocomplete information, and sending it back to the client.
+# Philosophy
+
+DCD is **editor-first**: built for what a person typing code needs right now,
+not what a compiler would compute given a finished file. Broken code is the
+normal case, fast beats perfect, and precision improves over time, never at
+the cost of speed.
 
 # Philosophy
 
