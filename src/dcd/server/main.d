@@ -435,5 +435,11 @@ options:
 
     --ignoreConfig
         Do not read the configuration file. Import paths must be specified
-        with the -I option or registered through dcd-client.`, programName);
+        with the -I option or registered through dcd-client.
+
+    --lsp
+        Run as a Language Server Protocol (LSP) server, communicating over
+        stdin/stdout instead of a socket. Provides completion, hover,
+        go-to-definition, and other language features to any LSP-capable
+        editor.`, programName);
 }
