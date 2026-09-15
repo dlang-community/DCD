@@ -3,23 +3,12 @@
 
 <!-- # DCD [![CI status](https://travis-ci.org/dlang-community/DCD.svg?branch=master)](https://travis-ci.org/dlang-community/DCD/) -->
 ----
-The D Completion Daemon is an auto-complete program for the D programming language.
-
-<!-- ![Teaser](teaser.png "This is what the future looks like - Jayce, League of Legends") -->
-
-DCD is not an IDE. DCD is designed to provide autocompletion for your favorite
-text editor. If you are looking for an IDE, try [one of these](http://wiki.dlang.org/IDEs).
-
-# Philosophy
-
-DCD is **editor-first**: built for what a person typing code needs right now,
-not what a compiler would compute given a finished file. Broken code is the
-normal case, fast beats perfect, and precision improves over time, never at
-the cost of speed.
+The D Completion Daemon is an **editor-first** auto-completion engine for the D programming language.
+The engine favors speed, whereas precision will be incrementally improved with time.
 
 # Added LSP support
 
-DCD's LSP server is deliberately **lean**: it is a thin protocol layer over
+DCD's LSP server is deliberately **lean** it is a thin protocol layer over
 the same semantic engine that powers the classic socket mode, with no separate
 client process, no socket hop, and no editor-specific plugins. The editor talks
 straight to the engine over stdio, which keeps startup fast, latency low, and
