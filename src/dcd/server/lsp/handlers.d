@@ -742,6 +742,12 @@ private void warmupDocument(ref ServerContext context, string text)
 	scope (exit) pair.destroy();
 	infof("Warmup: indexed document and imports in %s ms",
 		sw.peek().total!"msecs");
+	// The warmup allocates heavily (tokens, symbol trees, interned
+	// strings); return the freed pool pages to the OS so the server's
+	// RSS reflects live data, not warmup churn.
+	import core.memory : GC;
+	GC.collect();
+	GC.minimize();
 }
 
 /**
@@ -1718,12 +1724,38 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 	}
 
 	// clangd-style auto-import: when nothing in scope matches the typed
-	// identifier, search every cached module for public symbols with that
-	// name and offer them with an `additionalTextEdits` that inserts the
-	// `import` declaration. Committing the item silently adds the import.
-	if (!list.items.length)
+	// identifier, offer symbols from other modules with an edit that
+	// inserts the `import`. Only for bare identifiers, not after a `.`:
+	// member access means the partial names members of the receiver's
+	// type, and the full-cache scan behind this would spike member typing.
+	if (!list.items.length && !completionFollowsDot(request))
 		list.items ~= autoImportCompletions(context, params, request);
 	return list.toJson();
+}
+
+/**
+ * Whether the completion position is a member access: the token before
+ * the (partial) identifier at the cursor is a `.`.
+ */
+private bool completionFollowsDot(in AutocompleteRequest request)
+{
+	import dcd.server.autocomplete.util : getTokensBeforeCursor;
+	import dparse.lexer : LexerConfig, StringCache, getTokensForParser, Token, tok;
+
+	LexerConfig config;
+	auto stringCache = StringCache(clampedBucketCount(request.sourceCode.length));
+	const(Token)[] tokenArray;
+	auto beforeTokens = getTokensBeforeCursor(request.sourceCode,
+		request.cursorPosition, stringCache, tokenArray);
+	// Skip the partial identifier itself (the token containing the
+	// cursor); the one before it decides.
+	foreach_reverse (ref t; beforeTokens)
+	{
+		if (t.type == tok!"identifier")
+			continue;
+		return t.type == tok!".";
+	}
+	return false;
 }
 
 /**
