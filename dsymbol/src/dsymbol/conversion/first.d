@@ -1595,17 +1595,20 @@ struct ProtectionStack
 
 	IdType currentForImport() const
 	{
-		return stack.empty ? tok!"default" : current();
+		// Imports are private unless specified otherwise (D spec).
+		return stack.empty ? tok!"private" : current();
 	}
 
 	IdType current() const
 	{
 		import std.algorithm.iteration : filter;
-		import std.range : choose, only;
 
-		IdType retVal;
-		foreach (t; choose(stack.empty, only(tok!"public"), stack[]).filter!(
-				a => a != tok!"{" && a != tok!":"))
+		// A stack holding only scope markers (`{`, `:`) previously left
+		// retVal uninitialized (0), which is not a protection token. It
+		// only worked by accident: 0 != tok!"private" made such symbols
+		// visible. Default to public, which is the D default protection.
+		IdType retVal = tok!"public";
+		foreach (t; stack[].filter!(a => a != tok!"{" && a != tok!":"))
 			retVal = cast(IdType) t;
 		return retVal;
 	}
@@ -1666,6 +1669,35 @@ struct ProtectionStack
 private:
 
 	UnrolledList!IdType stack;
+}
+
+unittest
+{
+	// The default protection is public, and imports are private unless
+	// explicitly marked otherwise (D spec). Both accessors must return
+	// real protection tokens in every stack state - previously `current`
+	// returned an uninitialized 0 for a marker-only stack and
+	// `currentForImport` returned the non-protection token `default`.
+	ProtectionStack p;
+	assert(p.current() == tok!"public");
+	assert(p.currentForImport() == tok!"private");
+
+	// A scope marker alone must not change either default.
+	p.beginScope();
+	assert(p.current() == tok!"public");
+	assert(p.currentForImport() == tok!"public");
+	p.endScope();
+
+	// An explicit protection is reported by both accessors.
+	p.beginLocal(tok!"private");
+	assert(p.current() == tok!"private");
+	assert(p.currentForImport() == tok!"private");
+	p.endLocal();
+
+	// An attribute scope (`private:`) applies until ended.
+	p.addScope(tok!"protected");
+	assert(p.current() == tok!"protected");
+	assert(p.currentForImport() == tok!"protected");
 }
 
 void formatNode(A, T)(ref A appender, const T node)
