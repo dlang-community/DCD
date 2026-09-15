@@ -1026,6 +1026,22 @@ final class FirstPass : ASTVisitor
 		ifs.accept(this);
 	}
 
+	override void visit(const Catch c) {
+		if (c.declarationOrStatement is null) {
+			c.accept(this);
+			return;
+		}
+		pushScope(c.declarationOrStatement.startLocation, c.declarationOrStatement.endLocation);
+		scope(exit) popScope();
+
+		auto symbol = allocateSemanticSymbol(c.identifier.text, CompletionKind.variableName, symbolFile, c.identifier.index);
+		addTypeToLookups(symbol.typeLookups, c.type);
+		currentSymbol.addChild(symbol, true);
+		currentScope.addSymbol(symbol.acSymbol, true);
+		c.accept(this);
+	}
+
+
 	override void visit(const WithStatement withStatement)
 	{
 		if (withStatement.expression !is null
