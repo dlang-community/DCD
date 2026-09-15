@@ -1034,7 +1034,7 @@ final class FirstPass : ASTVisitor
 		pushScope(c.declarationOrStatement.startLocation, c.declarationOrStatement.endLocation);
 		scope(exit) popScope();
 
-		auto symbol = allocateSemanticSymbol(c.identifier.text, CompletionKind.variableName, symbolFile: symbolFile, c.identifier.index);
+		auto symbol = allocateSemanticSymbol(c.identifier.text, CompletionKind.variableName, symbolFile, c.identifier.index);
 		addTypeToLookups(symbol.typeLookups, c.type);
 		currentSymbol.addChild(symbol, true);
 		currentScope.addSymbol(symbol.acSymbol, true);
