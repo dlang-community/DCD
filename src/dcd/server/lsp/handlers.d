@@ -77,6 +77,9 @@ struct ServerContext
 
 	/// Monotonic counter for `$/progress` tokens.
 	long nextProgressToken;
+
+	AutocompleteResponse.Completion[] lastCompletions;
+	string lastCompletionsUri;
 }
 
 /**
@@ -137,6 +140,8 @@ HandlerResult handleRequest(ref ServerContext context, string method, JSONValue 
 		case "textDocument/didClose":
 			handleDidClose(context, params);
 			return HandlerResult();
+		case "completionItem/resolve":
+			return HandlerResult(handleCompletionResolve(context, params));
 		case "textDocument/completion":
 			return HandlerResult(handleCompletion(context, params));
 		case "textDocument/hover":
@@ -300,7 +305,7 @@ HandlerResult handleInitialize(ref ServerContext context, JSONValue params)
 	capabilities["positionEncoding"] = JSONValue(clientSupportsUtf8 ? "utf-8" : "utf-16");
 	capabilities["textDocumentSync"] = JSONValue(cast(int) TextDocumentSyncKind.full);
 	JSONValue completionProvider = parseJSON(`{}`);
-	completionProvider["resolveProvider"] = JSONValue(false);
+	completionProvider["resolveProvider"] = JSONValue(true);
 	// `.` triggers member completion, `@` triggers the @-spelled attribute
 	// completion (@nogc, @safe, ...).
 	completionProvider["triggerCharacters"] = JSONValue([".", "@"]);
@@ -1527,6 +1532,35 @@ string pathToUri(string path)
 	return "file://" ~ encoded;
 }
 
+// completionItem/resolve
+JSONValue handleCompletionResolve(ref ServerContext context, JSONValue params) {
+	if ("data" !in params || params["data"].type != JSONType.object) {
+		return params;
+	}
+
+	auto data = params["data"];
+	if ("uri" !in data || "index" !in data) {
+		return params;
+	}
+
+	if (data["uri"].str != context.lastCompletionsUri) {
+		return params;
+	}
+	immutable index = data["index"].integer.to!size_t;
+	if (index >= context.lastCompletions.length) {
+		return params;
+	}
+
+	immutable docs = context.lastCompletions[index].documentation;
+	if (docs.length){
+		JSONValue markup = parseJSON(`{}`);
+		markup["kind"] = JSONValue("markdown");
+		markup["value"] = JSONValue(ddocToMarkdown(docs));
+		params["documentation"] = markup;
+	}
+	return params;
+}
+
 /**
  * Handles `textDocument/completion`.
  */
@@ -1550,14 +1584,26 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 	request.lspCompletion = true;
 	auto response = complete(request, *context.cache);
 
-	if (response.completionType == CompletionType.calltips)
-	{
+	if (response.completionType == CompletionType.calltips) {
 		// A calltip response to a completion request means the client typed
 		// "(", send signature help instead
 		size_t activeParameter = countParametersBeforeCursor(
 			cast(char[]) request.sourceCode[0 .. request.cursorPosition]);
 		return signatureHelpFromResponse(response, 0, activeParameter).toJson();
 	}
+
+	// Stash for completionItem/resolve: the resolve request carries only
+	// the item (no textDocument), so `data` must self-identify the list.
+	context.lastCompletions = response.completions;
+	context.lastCompletionsUri = params["textDocument"]["uri"].str;
+
+	// serializing the docs
+	size_t docBytes;
+	foreach (completion; response.completions){
+		docBytes += completion.documentation.length;
+	}
+	enum lazyDocThreshold = 4_096; // if below just send the docs
+	const lazyDocs = docBytes > lazyDocThreshold; // else do it lazily instead
 
 	CompletionList list;
 	list.isIncomplete = false;
@@ -1572,12 +1618,17 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 	CompletionItem[] bundled;
 	string[] bundledNames;
 	size_t[] bundledCounts;
-	foreach (completion; response.completions)
+	foreach (i, completion; response.completions)
 	{
 		CompletionItem item;
 		item.label = completion.identifier;
 		item.kind = toCompletionItemKind(cast(CompletionKind) completion.kind);
-		item.documentation = ddocToMarkdown(completion.documentation);
+		if (lazyDocs){
+			item.data = CompletionData(context.lastCompletionsUri, i);
+		}
+		else {
+			item.documentation = ddocToMarkdown(completion.documentation);
+		}
 		fillLabelDetails(item, completion);
 		item.hasTextEdit = completionEdit.hasEdit;
 		item.textEdit = completionEdit.edit;
@@ -1599,11 +1650,11 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 			item.filterText = item.label ~ " " ~ item.label[1 .. $];
 
 		bool merged = false;
-		foreach (i, ref existing; bundled)
+		foreach (j, ref existing; bundled)
 		{
 			if (existing.label == item.label && existing.kind == item.kind)
 			{
-				bundledCounts[i]++;
+				bundledCounts[j]++;
 				merged = true;
 				break;
 			}

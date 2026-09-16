@@ -176,6 +176,13 @@ enum TextDocumentSyncKind : int
 	incremental = 2,
 }
 
+// For storing documentation data
+struct CompletionData
+{
+	string uri;
+	size_t index;
+}
+
 /**
  * A completion item to present in the editor.
  */
@@ -218,6 +225,9 @@ struct CompletionItem
 	/// detection (the previous behavior).
 	bool hasTextEdit;
 	TextEdit textEdit;
+	/// Set when documentation is resolved lazily: the client echoes this
+	/// back on `completionItem/resolve` instead of receiving docs inline.
+	CompletionData data;
 
 	JSONValue toJson() const
 	{
@@ -261,6 +271,13 @@ struct CompletionItem
 			foreach (ref edit; additionalTextEdits)
 				edits ~= edit.toJson();
 			obj["additionalTextEdits"] = JSONValue(edits);
+		}
+		if (data.uri.length)
+		{
+			JSONValue d = parseJSON(`{}`);
+			d["uri"] = JSONValue(data.uri);
+			d["index"] = JSONValue(cast(long) data.index);
+			obj["data"] = d;
 		}
 		return obj;
 	}
