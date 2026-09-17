@@ -28,10 +28,122 @@ import dsymbol.builtin.names : IMPORT_SYMBOL_NAME, CONSTRUCTOR_SYMBOL_NAME,
 import dsymbol.symbol : CompletionKind, DSymbol, isPublicCompletionKind;
 
 /**
+ * The idle-time full-cache scanner: pre-parses every import-path module
+ * in small slices between messages, so the first auto-import query does
+ * not pay the whole multi-second scanAll() up front.
+ *
+ * DCD is single-threaded on purpose (the TLS istring interning makes a
+ * background thread a landmine), so instead of a thread the main loop
+ * calls step() whenever stdin is idle: one file is cached per step, and
+ * any incoming message preempts the scan. cacheModule skips already-
+ * cached files by mtime, so interrupted scans resume for free and files
+ * warmed by didOpen/didChange are never redone.
+ */
+struct IdleCacheScanner
+{
+private:
+	/// The files left to cache, in scan order.
+	string[] pending;
+
+	/// Index of the next file in `pending` to cache.
+	size_t next;
+
+	/// True once the file list was collected (scan started).
+	bool started;
+
+	/// True when every pending file has been cached.
+	bool done_;
+
+public:
+	/**
+	 * Caches up to one pending module. Cheap when the scan is already
+	 * complete. Errors on individual files are swallowed: one unreadable
+	 * or broken module must not stop the rest of the scan.
+	 */
+	void step(ref ModuleCache cache)
+	{
+		if (done_)
+			return;
+		if (!started)
+		{
+			collectFiles(cache);
+			started = true;
+			if (pending.empty)
+			{
+				done_ = true;
+				return;
+			}
+		}
+		if (next >= pending.length)
+		{
+			done_ = true;
+			return;
+		}
+		try
+		{
+			cache.cacheModule(pending[next]);
+		}
+		catch (Exception e)
+		{
+			// Swallowed deliberately (see step docs).
+		}
+		next++;
+		if (next >= pending.length)
+		{
+			done_ = true;
+			infof("Idle scan complete: %s modules cached", pending.length);
+		}
+	}
+
+	/// True when there is no more idle work.
+	bool done() const @property
+	{
+		return done_;
+	}
+
+private:
+	void collectFiles(ref ModuleCache cache)
+	{
+		import std.file : dirEntries, isFile, SpanMode;
+		import std.path : baseName, extension;
+
+		foreach (importPath; cache.getImportPaths())
+		{
+			try
+			{
+				if (isFile(importPath))
+				{
+					pending ~= importPath;
+					continue;
+				}
+				foreach (entry; dirEntries(importPath, SpanMode.depth))
+				{
+					if (!entry.isFile)
+						continue;
+					immutable ext = entry.name.extension;
+					if (ext != ".d" && ext != ".di")
+						continue;
+					if (baseName(entry.name).startsWith(".#"))
+						continue; // editor lock files
+					pending ~= entry.name;
+				}
+			}
+			catch (Exception e)
+			{
+				warningf("Idle scan failed for %s: %s", importPath, e.msg);
+			}
+		}
+	}
+}
+
+/**
  * Shared server state passed to all handlers.
  */
 struct ServerContext
 {
+	/// The idle-time full-cache scanner (see IdleCacheScanner).
+	IdleCacheScanner idleScanner;
+
 	/// The module cache used for semantic analysis.
 	ModuleCache* cache;
 
@@ -1683,8 +1795,13 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 	// inserts the `import`. Only for bare identifiers, not after a `.`:
 	// member access means the partial names members of the receiver's
 	// type, and the full-cache scan behind this would spike member typing.
+	bool autoImportRan = false;
 	if (!list.items.length && !completionFollowsDot(request))
+	{
 		list.items ~= autoImportCompletions(context, params, request);
+		autoImportRan = true;
+	}
+	list.isIncomplete = !autoImportRan;
 	return list.toJson();
 }
 
@@ -1849,7 +1966,9 @@ private CompletionItem[] autoImportCompletions(ref ServerContext context,
 			break; // stop at the first non-identifier token before the cursor
 	}
 	// Single-character prefixes would trigger the expensive cache scan on
-	// nearly every keystroke; require at least two characters.
+	// nearly every keystroke; require at least two characters. ("GC" is
+	// two characters and always passed this gate; what hid it was the
+	// result cap, handled by the exact-match bypass in PrefixMatches.)
 	if (partial.length < 2 || !isValidDIdentifier(partial))
 		return [];
 
@@ -1865,9 +1984,18 @@ private CompletionItem[] autoImportCompletions(ref ServerContext context,
 
 		void put(DSymbol* sym)
 		{
-			if (symbols.length >= maxMatches)
-				return;
 			if (sym.name is null || !sym.name.length)
+				return;
+			// An exact name match always makes the list: longer prefix
+			// matches must not fill the cap first and crowd it out (typing
+			// `GC` for core.memory.GC lost every slot to the GCP_*/GCL_*
+			// constants of core.sys.windows).
+			if (sym.name.data == prefix)
+			{
+				symbols ~= sym;
+				return;
+			}
+			if (symbols.length >= maxMatches)
 				return;
 			if (sym.name.data.startsWith(prefix))
 				symbols ~= sym;
@@ -1925,8 +2053,10 @@ private CompletionItem[] autoImportCompletions(ref ServerContext context,
 		// just on the focused row like `detail`.
 		item.labelDescription = moduleName;
 		// Rank auto-import items below everything in scope (clangd uses a
-		// similar penalty prefix).
-		item.sortText = "z" ~ moduleName;
+		// similar penalty prefix); an exact name match ranks above the mere
+		// prefix matches (`GC` over the GCP_* constants).
+		item.sortText = sym.name.data == partial
+			? "z" : "z" ~ moduleName;
 
 		// The import edit: a SELECTIVE import of just this symbol
 		// (`import std.math : abs;`). When the module is already

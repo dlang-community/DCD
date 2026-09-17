@@ -61,6 +61,13 @@ int runLspServer(string[] importPaths, bool ignoreConfig)
 
 	while (true)
 	{
+		// Idle-time full-cache scan: while no message is pending, cache
+		// one import-path module at a time (see IdleCacheScanner). Any
+		// incoming message preempts the slice loop; readMessage then
+		// consumes the message without blocking.
+		while (!context.idleScanner.done && !messagePending())
+			context.idleScanner.step(*context.cache);
+
 		auto message = readMessage();
 		if (message.endOfStream)
 		{
@@ -133,7 +140,13 @@ int runLspServer(string[] importPaths, bool ignoreConfig)
 				state = LifecycleState.shutdownReceived;
 			}
 			else if (message.method == "initialized")
+			{
 				state = LifecycleState.running;
+				// Kick off the idle full-cache scan: the first step runs
+				// now (collecting the file list), the rest slices into
+				// idle time in the main loop above.
+				context.idleScanner.step(*context.cache);
+			}
 		}
 		continue;
 
