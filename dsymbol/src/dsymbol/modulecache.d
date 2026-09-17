@@ -61,6 +61,9 @@ bool existanceCheck(A)(A path)
 
 alias DeferredSymbolsAllocator = GCAllocator; // NOTE using `Mallocator` here fails when analysing Phobos as `free(): invalid pointer`
 
+/// supportGC=false: nodes are GC-allocated; per-node addRange was redundant
+/// bookkeeping (see DSymbol.Parts).
+
 /**
  * Caches pre-parsed module information.
  */
@@ -340,7 +343,10 @@ struct ModuleCache
 		return cache[];
 	}
 
-	alias DeferredSymbols = UnrolledList!(DeferredSymbol*, DeferredSymbolsAllocator);
+	alias DeferredSymbols = UnrolledList!(DeferredSymbol*, DeferredSymbolsAllocator, false);
+	static assert(is(DeferredSymbolsAllocator == GCAllocator),
+		"supportGC=false above is only safe with GCAllocator: malloc'd nodes "
+		~ "holding GC pointers need the per-node GC.addRange bookkeeping");
 	DeferredSymbols deferredSymbols;
 
 	/// Count of autocomplete symbols that have been allocated
@@ -416,8 +422,13 @@ private:
 	}
 
 	// Mapping of file paths to their cached symbols.
+	// supportGC=false: nodes are GC-allocated; per-node addRange was redundant
+	// bookkeeping (see DSymbol.Parts).
 	alias CacheAllocator = GCAllocator; // NOTE using `Mallocator` here fails when analysing Phobos as `Segmentation fault (core dumped)`
-	alias Cache = TTree!(CacheEntry*, CacheAllocator);
+	static assert(is(CacheAllocator == GCAllocator),
+		"supportGC=false below is only safe with GCAllocator: malloc'd nodes "
+		~ "holding GC pointers need the per-node GC.addRange bookkeeping");
+	alias Cache = TTree!(CacheEntry*, CacheAllocator, false, "a < b", false);
 	Cache cache;
 
 	HashSet!(immutable(char)*) recursionGuard;
