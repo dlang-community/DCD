@@ -2,6 +2,7 @@ module dcd.server.lsp.jsonrpc;
 
 import core.stdc.stdio : fgetc, EOF;
 import core.sync.mutex : Mutex;
+import core.time : Duration;
 import std.algorithm;
 import std.array;
 import std.conv;
@@ -186,6 +187,49 @@ JsonRpcMessage readMessage()
 		return JsonRpcMessage(true);
 
 	return parseMessage((cast(string) body).parseJSON());
+}
+
+/**
+ * Whether a message is waiting on stdin, without blocking.
+ *
+ * Used by the main loop to run idle work (the full-cache background scan)
+ * only while no request is pending: any incoming message preempts it.
+ * Always true on platforms without a poll primitive, which disables
+ * idle work there.
+ */
+bool messagePending() @trusted
+{
+	version (Posix)
+	{
+		import core.sys.posix.poll : poll, pollfd, POLLIN;
+		pollfd fds;
+		fds.fd = stdin.fileno;
+		fds.events = POLLIN;
+		return poll(&fds, 1, 0) == 1 && (fds.revents & POLLIN) != 0;
+	}
+	else
+		return true;
+}
+
+/**
+ * Waits up to `timeout` for a message to start arriving on stdin.
+ *
+ * Returns: true when data is available (readMessage will not block),
+ *     false when the timeout elapsed with no input.
+ */
+bool waitForMessage(Duration timeout) @trusted
+{
+	version (Posix)
+	{
+		import core.sys.posix.poll : poll, pollfd, POLLIN;
+		pollfd fds;
+		fds.fd = stdin.fileno;
+		fds.events = POLLIN;
+		immutable ms = cast(int) timeout.total!"msecs";
+		return poll(&fds, 1, ms) == 1 && (fds.revents & POLLIN) != 0;
+	}
+	else
+		return true;
 }
 
 /**
