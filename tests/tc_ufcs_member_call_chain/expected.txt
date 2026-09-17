@@ -1,0 +1,9 @@
+identifiers
+alignof	k
+init	k
+mangleof	k
+name	v
+sizeof	k
+stringof	k
+tupleof	k
+useItem	F

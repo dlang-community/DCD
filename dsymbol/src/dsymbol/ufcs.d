@@ -118,7 +118,6 @@ struct ExpressionInfo
     const(DSymbol)* type;
     const(Token)* significantToken;
     bool assumingLvalue; // We only assume else we need to do life time analysis.
-    bool isFromFunction;
     const(Token)[] arguments;
     string name;
     /// Template instantiation arguments of the receiver's declared type
@@ -462,7 +461,30 @@ private Nullable!ExpressionInfo deduceExpressionType(
     }
 
     info.significantToken = findUFCSBaseToken(exprTokens, info.arguments);
+    immutable size_t sigIdx = info.significantToken - exprTokens.ptr;
     bool isLiteralBase = isStringLiteral(info.significantToken.type);
+
+    const bool isCall = sigIdx + 1 < exprTokens.length            // bounds!
+    && exprTokens[sigIdx + 1].type is tok!"("
+    && exprTokens[$ - 1].type is tok!")";
+
+    
+    if (isCall) {
+        if (sigIdx >= 2 && exprTokens[sigIdx - 1].type is tok!".") {
+            const(Token)[] headBeforeDot = exprTokens[0 .. sigIdx - 1];
+                if (!headBeforeDot.empty) {
+                auto receiverType = resolveMemberChainType(completionScope, headBeforeDot, headBeforeDot.length - 1, cursorPosition);
+                if (receiverType !is null) {
+                    auto methods = receiverType.getPartsByName(istring(info.significantToken.text));
+                    if (!methods.empty){
+                        info.type = unwrapToValueSymbol(methods.front);
+                        return info.nullable;
+                    }
+                }
+            }
+        }
+    }
+
     if (isLiteralBase)
     {
         info.type = completionScope.getFirstSymbolByNameAndCursor(

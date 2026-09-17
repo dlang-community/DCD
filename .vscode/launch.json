@@ -8,6 +8,17 @@
       "program": "${workspaceFolder}/bin/dcd-server",
       "args": ["--ignoreConfig", "-I", "${workspaceFolder}/tests/imports"],
       "cwd": "${workspaceFolder}/tests",
+      "initCommands": ["command script import \"${workspaceFolder}/.vscode/lldb_dlang.py\""],
+      "preLaunchTask": "dub: build server (debug)"
+    },
+    {
+      "name": "Debug dcd-server (TCP, tests)",
+      "type": "lldb-dap",
+      "request": "launch",
+      "program": "${workspaceFolder}/bin/dcd-server",
+      "args": ["--tcp", "--ignoreConfig", "-I", "${workspaceFolder}/tests/imports"],
+      "cwd": "${workspaceFolder}/tests",
+      "initCommands": ["command script import \"${workspaceFolder}/.vscode/lldb_dlang.py\""],
       "preLaunchTask": "dub: build server (debug)"
     },
     {
@@ -15,6 +26,7 @@
       "type": "lldb-dap",
       "request": "attach",
       "program": "${workspaceFolder}/bin/dcd-server",
+      "initCommands": ["command script import \"${workspaceFolder}/.vscode/lldb_dlang.py\""],
       "waitFor": true
     },
     {
