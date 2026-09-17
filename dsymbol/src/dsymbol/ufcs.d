@@ -4,7 +4,7 @@ import dsymbol.symbol;
 import dsymbol.scope_;
 import dsymbol.builtin.names;
 import dsymbol.utils;
-import dparse.lexer : tok, Token, isStringLiteral, isNumberLiteral;
+import dparse.lexer : tok, Token, isStringLiteral;
 import dparse.strings;
 import std.functional : unaryFun;
 import std.algorithm;
@@ -117,7 +117,6 @@ struct ExpressionInfo
 {
     const(DSymbol)* type;
     const(Token)* significantToken;
-    bool assumingLvalue; // We only assume else we need to do life time analysis.
     const(Token)[] arguments;
     string name;
     /// Template instantiation arguments of the receiver's declared type
@@ -239,17 +238,6 @@ private const(Token)* findUFCSBaseToken(const(Token)[] tokens, out const(Token)[
 
     // If we never returned inside the loop, the first token is the base
     return &tokens[0];
-}
-
-private const(Token)* findExpressionBase(const(Token)[] tokens)
-{
-    foreach (i, t; tokens)
-    {
-        // literals are always a base
-        if (isStringLiteral(t.type) || isNumberLiteral(t.type) || t.type is tok!"identifier")
-            return &tokens[i];
-    }
-    return tokens.ptr; // fallback
 }
 
 /// Resolves a symbol in a UFCS chain during type deduction.
@@ -478,7 +466,7 @@ private Nullable!ExpressionInfo deduceExpressionType(
                     auto methods = receiverType.getPartsByName(istring(info.significantToken.text));
                     if (!methods.empty){
                         info.type = unwrapToValueSymbol(methods.front);
-                        return info.nullable;
+                        return info.nullable();
                     }
                 }
             }
@@ -535,17 +523,6 @@ private Nullable!ExpressionInfo deduceExpressionType(
         // A literal base keeps the type set above; only identifier bases
         // are looked up in scope.
         info.type = deduceSymbolTypeByToken(info, scopeLookupContext);
-    }
-
-    // A leading `*` is a pointer DEREFERENCE (`(*p).func`): the receiver
-    // is the pointer's target, not the pointer itself. Unwrap one pointer
-    // layer so a `void func(Foo)` matches a `(*p).func` call.
-    if (exprTokens.length >= 2
-        && exprTokens[0].type is tok!"*"
-        && info.type.qualifier == SymbolQualifier.pointer
-        && info.type.type !is null)
-    {
-        info.type = info.type.type;
     }
 
     // A leading `*` is a pointer DEREFERENCE (`(*p).func`): the receiver
