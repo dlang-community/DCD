@@ -798,7 +798,7 @@ private bool isCastableType(string identifier, CompletionKind kind,
  * ...). The completion kinds do not distinguish basic types from other
  * keywords, so the identifier text is matched against the token names.
  */
-private bool isBasicTypeTokenName(string name)
+bool isBasicTypeTokenName(string name)
 {
 	switch (name)
 	{

@@ -34,7 +34,12 @@ enum ResolutionFlags : ubyte
 }
 
 alias TypeLookupsAllocator = GCAllocator; // NOTE using `Mallocator` here fails when analysing Phobos as: `munmap_chunk(): invalid pointer`
-alias TypeLookups = UnrolledList!(TypeLookup*, TypeLookupsAllocator);
+static assert(is(TypeLookupsAllocator == GCAllocator),
+	"supportGC=false below is only safe with GCAllocator: malloc'd nodes "
+	~ "holding GC pointers need the per-node GC.addRange bookkeeping");
+/// supportGC=false: nodes are GC-allocated; per-node addRange was redundant
+/// bookkeeping (see DSymbol.Parts).
+alias TypeLookups = UnrolledList!(TypeLookup*, TypeLookupsAllocator, false);
 
 /**
  * Intermediate form between DSymbol and the AST classes. Stores enough
@@ -81,7 +86,13 @@ public:
 	TypeLookups typeLookups;
 
 	/// Child symbols
-	UnrolledList!(SemanticSymbol*, GCAllocator) children; // NOTE using `Mallocator` here fails when analysing Phobos
+	/// supportGC=false: nodes are GC-allocated; per-node addRange was redundant
+	/// bookkeeping (see DSymbol.Parts).
+	alias SemanticChildrenAllocator = GCAllocator;
+	static assert(is(SemanticChildrenAllocator == GCAllocator),
+		"supportGC=false below is only safe with GCAllocator: malloc'd nodes "
+		~ "holding GC pointers need the per-node GC.addRange bookkeeping");
+	UnrolledList!(SemanticSymbol*, SemanticChildrenAllocator, false) children; // NOTE using `Mallocator` here fails when analysing Phobos
 
 	/// Autocompletion symbol
 	DSymbol* acSymbol;

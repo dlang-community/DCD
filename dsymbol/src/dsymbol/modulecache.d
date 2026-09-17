@@ -61,6 +61,9 @@ bool existanceCheck(A)(A path)
 
 alias DeferredSymbolsAllocator = GCAllocator; // NOTE using `Mallocator` here fails when analysing Phobos as `free(): invalid pointer`
 
+/// supportGC=false: nodes are GC-allocated; per-node addRange was redundant
+/// bookkeeping (see DSymbol.Parts).
+
 /**
  * Caches pre-parsed module information.
  */
@@ -160,7 +163,16 @@ struct ModuleCache
 		if (!needsReparsing(cachedLocation))
 			return getEntryFor(cachedLocation).symbol;
 
+		// if process has been executed, we will bail out
+		if (cacheDepth > 0 && preemptionCheck !is null && preemptionCheck()) {
+			return null;
+		}
+
+		cacheDepth++;
+		scope (exit) cacheDepth--;
+
 		recursionGuard.insert(&cachedLocation.data[0]);
+		scope (exit) recursionGuard.remove(&cachedLocation.data[0]);
 
 		File f = File(cachedLocation);
 		immutable fileSize = cast(size_t) f.size;
@@ -340,12 +352,18 @@ struct ModuleCache
 		return cache[];
 	}
 
-	alias DeferredSymbols = UnrolledList!(DeferredSymbol*, DeferredSymbolsAllocator);
+	alias DeferredSymbols = UnrolledList!(DeferredSymbol*, DeferredSymbolsAllocator, false);
+	static assert(is(DeferredSymbolsAllocator == GCAllocator),
+		"supportGC=false above is only safe with GCAllocator: malloc'd nodes "
+		~ "holding GC pointers need the per-node GC.addRange bookkeeping");
 	DeferredSymbols deferredSymbols;
 
 	/// Count of autocomplete symbols that have been allocated
 	uint symbolsAllocated;
 
+	//using for preempting
+	bool function() preemptionCheck;
+	size_t cacheDepth;
 private:
 
 	CacheEntry* getEntryFor(istring cachedLocation)
@@ -416,8 +434,13 @@ private:
 	}
 
 	// Mapping of file paths to their cached symbols.
+	// supportGC=false: nodes are GC-allocated; per-node addRange was redundant
+	// bookkeeping (see DSymbol.Parts).
 	alias CacheAllocator = GCAllocator; // NOTE using `Mallocator` here fails when analysing Phobos as `Segmentation fault (core dumped)`
-	alias Cache = TTree!(CacheEntry*, CacheAllocator);
+	static assert(is(CacheAllocator == GCAllocator),
+		"supportGC=false below is only safe with GCAllocator: malloc'd nodes "
+		~ "holding GC pointers need the per-node GC.addRange bookkeeping");
+	alias Cache = TTree!(CacheEntry*, CacheAllocator, false, "a < b", false);
 	Cache cache;
 
 	HashSet!(immutable(char)*) recursionGuard;

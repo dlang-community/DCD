@@ -447,7 +447,8 @@ labels = {i["label"] for i in resp["result"]["items"]}
 assert "ref" in labels, f"ref not offered after comma: {sorted(labels)}"
 print("parameter storage classes after comma: ref offered")
 
-# a CALL expression keeps its calltip (signatureHelp shape, not items)
+# a CALL expression offers parameter names as items (the calltip itself is
+# served by textDocument/signatureHelp, not by completion)
 send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
     "textDocument": {"uri": "file:///tmp/semantic.d", "version": 246},
     "contentChanges": [{"text": "void mama(int a) {}\nvoid main() {\n    mama(\n}\n"}]}})

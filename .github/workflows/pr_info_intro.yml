@@ -11,6 +11,12 @@ jobs:
   intro_comment:
     name: Make intro comment
     runs-on: ubuntu-latest
+    # Explicit minimal grant: the sticky-comment action needs
+    # pull-requests: write to post; restricted default permissions
+    # (GitHub's default for newer repos) otherwise fail with
+    # "Resource not accessible by integration".
+    permissions:
+      pull-requests: write
     steps:
     - name: 'Prepare sticky comment'
       # commit of v2.5.0

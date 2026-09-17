@@ -10,6 +10,12 @@ jobs:
   comment:
     name: PR Info
     runs-on: ubuntu-latest
+    # Explicit minimal grants: reading the workflow-run artifact and
+    # updating the PR comment; restricted default permissions otherwise
+    # fail with "Resource not accessible by integration".
+    permissions:
+      actions: read
+      pull-requests: write
     if: >
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.conclusion == 'success'
