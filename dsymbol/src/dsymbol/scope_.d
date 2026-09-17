@@ -223,8 +223,13 @@ struct Scope
 	Scope* parent;
 
 	/// Child scopes
+	/// supportGC=false: nodes are GC-allocated; per-node addRange was redundant
+	/// bookkeeping (see DSymbol.Parts).
 	alias ChildrenAllocator = GCAllocator; // NOTE using `Mallocator` here fails when analysing Phobos
-	alias Children = UnrolledList!(Scope*, ChildrenAllocator);
+	static assert(is(ChildrenAllocator == GCAllocator),
+		"supportGC=false below is only safe with GCAllocator: malloc'd nodes "
+		~ "holding GC pointers need the per-node GC.addRange bookkeeping");
+	alias Children = UnrolledList!(Scope*, ChildrenAllocator, false);
 	Children children;
 
 	/// Start location of this scope in bytes
@@ -253,5 +258,11 @@ struct Scope
 
 private:
 	/// Symbols contained in this scope
-	TTree!(SymbolOwnership, GCAllocator, true, "a.opCmp(b) < 0") _symbols; // NOTE using `Mallocator` here fails when analysing Phobos
+	/// supportGC=false: nodes are GC-allocated; per-node addRange was redundant
+	/// bookkeeping (see DSymbol.Parts).
+	alias ScopeSymbolsAllocator = GCAllocator;
+	static assert(is(ScopeSymbolsAllocator == GCAllocator),
+		"supportGC=false below is only safe with GCAllocator: malloc'd nodes "
+		~ "holding GC pointers need the per-node GC.addRange bookkeeping");
+	TTree!(SymbolOwnership, ScopeSymbolsAllocator, true, "a.opCmp(b) < 0", false) _symbols; // NOTE using `Mallocator` here fails when analysing Phobos
 }

@@ -29,7 +29,12 @@ import std.experimental.allocator.gc_allocator : GCAllocator;
 import dsymbol.semantic : TypeLookups, TypeLookupsAllocator;
 
 alias ImportsAllocator = GCAllocator;
-alias Imports = UnrolledList!(DSymbol*, ImportsAllocator);
+static assert(is(ImportsAllocator == GCAllocator),
+	"supportGC=false below is only safe with GCAllocator: malloc'd nodes "
+	~ "holding GC pointers need the per-node GC.addRange bookkeeping");
+/// supportGC=false: nodes are GC-allocated; per-node addRange was redundant
+/// bookkeeping (see DSymbol.Parts).
+alias Imports = UnrolledList!(DSymbol*, ImportsAllocator, false);
 
 /**
  * Contains information for deferred type resolution

@@ -348,9 +348,17 @@ struct DSymbol
 	/**
 	 * Symbols that compose this symbol, such as enum members, class variables,
 	 * methods, parameters, etc.
+	 *
+	 * supportGC=false: nodes are GC-allocated, so the GC scans them via the
+	 * pool anyway; the per-node GC.addRange bookkeeping was redundant (it
+	 * exists for malloc'd nodes holding GC pointers) and cost a treap
+	 * insert/remove per node plus a re-scan of already-scanned memory.
 	 */
 	alias PartsAllocator = GCAllocator; // NOTE using `Mallocator` here fails when analysing Phobos
-	alias Parts = TTree!(SymbolOwnership, PartsAllocator, true, "a < b");
+	static assert(is(PartsAllocator == GCAllocator),
+		"supportGC=false below is only safe with GCAllocator: malloc'd nodes "
+		~ "holding GC pointers need the per-node GC.addRange bookkeeping");
+	alias Parts = TTree!(SymbolOwnership, PartsAllocator, true, "a < b", false);
 	private Parts parts;
 
 	/**
