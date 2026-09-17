@@ -163,7 +163,16 @@ struct ModuleCache
 		if (!needsReparsing(cachedLocation))
 			return getEntryFor(cachedLocation).symbol;
 
+		// if process has been executed, we will bail out
+		if (cacheDepth > 0 && preemptionCheck !is null && preemptionCheck()) {
+			return null;
+		}
+
+		cacheDepth++;
+		scope (exit) cacheDepth--;
+
 		recursionGuard.insert(&cachedLocation.data[0]);
+		scope (exit) recursionGuard.remove(&cachedLocation.data[0]);
 
 		File f = File(cachedLocation);
 		immutable fileSize = cast(size_t) f.size;
@@ -352,6 +361,9 @@ struct ModuleCache
 	/// Count of autocomplete symbols that have been allocated
 	uint symbolsAllocated;
 
+	//using for preempting
+	bool function() preemptionCheck;
+	size_t cacheDepth;
 private:
 
 	CacheEntry* getEntryFor(istring cachedLocation)

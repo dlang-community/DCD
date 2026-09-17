@@ -81,6 +81,8 @@ public:
 		}
 		try
 		{
+			cache.preemptionCheck = &messagePending;
+			scope (exit) cache.preemptionCheck = null;
 			cache.cacheModule(pending[next]);
 		}
 		catch (Exception e)

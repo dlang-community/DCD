@@ -534,6 +534,79 @@ unittest
 
 unittest
 {
+	writeln("Testing cacheModule preemption (idle-scan deferral)...");
+
+	// A imports B and C; the preemption hook fires on nested (cascade)
+	// calls only, so caching A with the hook armed must complete A while
+	// preempted by an incoming message.
+	const dir = buildPath(tempDir(), "dsymbol-preempt");
+	const fnameA = buildPath(dir, "a.d");
+	const fnameB = buildPath(dir, "b.d");
+	const fnameC = buildPath(dir, "c.d");
+	const srcA = q{ import b; import c; int x; };
+	const srcB = q{ int y; };
+	const srcC = q{ int z; };
+
+	mkdirRecurse(dir);
+	write(fnameA, srcA);
+	write(fnameB, srcB);
+	write(fnameC, srcC);
+	scope (exit)
+	{
+		remove(fnameA);
+		remove(fnameB);
+		remove(fnameC);
+		rmdir(dir);
+	}
+
+	ModuleCache cache;
+	cache.addImportPaths([dir]);
+
+	// The scripted hook: always "a message is pending".
+	static bool preemptNow()
+	{
+		return true;
+	}
+
+	// Top-level call must NOT be preempted (cacheDepth == 0): A itself is
+	// cached, its imports defer.
+	cache.preemptionCheck = &preemptNow;
+	const a = cache.cacheModule(fnameA);
+	assert(a !is null, "top-level cacheModule must not be preempted");
+	assert(a.getFirstPartNamed(istring("x")) !is null);
+	// The nested calls bailed: B and C were never cached, so A's imports
+	// were deferred (resolveImport's null path records a DeferredSymbol
+	// for the imported module's file).
+	size_t deferredB, deferredC;
+	foreach (deferred; cache.deferredSymbols[])
+	{
+		if (deferred.symbol.symbolFile.data == fnameB)
+			deferredB++;
+		if (deferred.symbol.symbolFile.data == fnameC)
+			deferredC++;
+	}
+	assert(deferredB == 1, "import of b must be deferred while preempted");
+	assert(deferredC == 1, "import of c must be deferred while preempted");
+
+	// Disarm: caching B directly must still work - this is the assertion
+	// that would fail if a preempted call left a trace in recursionGuard.
+	cache.preemptionCheck = null;
+	const b = cache.cacheModule(fnameB);
+	assert(b !is null, "preempted module must remain cacheable afterwards");
+	assert(b.getFirstPartNamed(istring("y")) !is null);
+
+	// With the hook disarmed, caching B resolves both deferrals: B's
+	// own import via the cache hit (the guard must not block the retry
+	// of the just-cached module - this is the assertion that catches a
+	// guard-entry leak), and C's via the cascade.
+	size_t unresolved;
+	foreach (deferred; cache.deferredSymbols[])
+		unresolved++;
+	assert(unresolved == 0, "deferred imports must resolve once the hook is disarmed");
+}
+
+unittest
+{
 	ModuleCache cache;
 
 	writeln("Testing protection scopes");
