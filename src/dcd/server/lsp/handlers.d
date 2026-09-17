@@ -422,7 +422,7 @@ HandlerResult handleInitialize(ref ServerContext context, JSONValue params)
 	completionProvider["resolveProvider"] = JSONValue(true);
 	// `.` triggers member completion, `@` triggers the @-spelled attribute
 	// completion (@nogc, @safe, ...).
-	completionProvider["triggerCharacters"] = JSONValue([".", "@"]);
+	completionProvider["triggerCharacters"] = JSONValue([".", "@", "!"]);
 	capabilities["completionProvider"] = completionProvider;
 	capabilities["hoverProvider"] = JSONValue(true);
 	capabilities["definitionProvider"] = JSONValue(true);
@@ -454,7 +454,7 @@ HandlerResult handleInitialize(ref ServerContext context, JSONValue params)
 		}
 	}`);
 	JSONValue signatureHelpProvider = parseJSON(`{}`);
-	signatureHelpProvider["triggerCharacters"] = JSONValue(["(", ","]);
+	signatureHelpProvider["triggerCharacters"] = JSONValue(["(", ",", "!"]);
 	capabilities["signatureHelpProvider"] = signatureHelpProvider;
 
 	JSONValue result = parseJSON(`{}`);
@@ -1480,6 +1480,77 @@ private void enforceDoc(TextDocument* doc, string uri)
 }
 
 /**
+ * Completions for a template-argument position eg. (`Wrapper!|`, `Foo!(|`)
+ */
+private CompletionItem[] templateArgumentCompletions(ref ServerContext context,
+	in AutocompleteRequest request)
+{
+	import dparse.lexer : LexerConfig, StringCache, getTokensForParser;
+	import dparse.rollback_allocator : RollbackAllocator;
+	import dsymbol.conversion : generateAutocompleteTrees;
+	import dcd.server.autocomplete.util : makeSymbolCompletionInfo;
+	import std.array : appender;
+
+	LexerConfig config;
+	config.fileName = "";
+	auto stringCache = StringCache(clampedBucketCount(request.sourceCode.length));
+	auto tokens = getTokensForParser(request.sourceCode, config, &stringCache);
+	RollbackAllocator rba;
+	auto pair = generateAutocompleteTrees(tokens, &rba,
+		request.cursorPosition, *context.cache);
+	scope (exit) pair.destroy();
+
+	auto app = appender!(CompletionItem[]);
+	foreach (sym; pair.scope_.getSymbolsInCursorScope(request.cursorPosition))
+	{
+		if (!isTemplateArgumentCandidate(sym))
+			continue;
+		// Deduplicate by name: the same type can be visible through both
+		// the current module and an import (split DSymbol instances).
+		if (app.data.canFind!(a => a.label == sym.name.data))
+			continue;
+		CompletionItem item;
+		item.label = sym.name.data;
+		item.kind = toCompletionItemKind(cast(CompletionKind) sym.kind);
+		item.documentation = ddocToMarkdown(sym.doc);
+		fillLabelDetails(item, makeSymbolCompletionInfo(sym, sym.kind));
+
+		item.labelDescription = sym.kind == CompletionKind.templateName
+			? "templateception"
+			: "template argument";
+		app.put(item);
+	}
+	return app.data;
+}
+
+/// Whether `sym` can appear as a template argument: a user-defined
+/// aggregate, enum, alias or template, or a basic-type keyword symbol.
+private bool isTemplateArgumentCandidate(const DSymbol* sym)
+{
+	import dcd.server.autocomplete.complete : isBasicTypeTokenName;
+
+	if (sym is null || sym.name is null || sym.name.empty)
+		return false;
+	switch (sym.kind)
+	{
+	case CompletionKind.className:
+	case CompletionKind.interfaceName:
+	case CompletionKind.structName:
+	case CompletionKind.unionName:
+	case CompletionKind.enumName:
+	case CompletionKind.aliasName:
+	case CompletionKind.templateName:
+		return true;
+	// Basic types (`int`, `string`, ...) are keyword symbols; other
+	// keywords (storage classes, statement keywords) are not types.
+	case CompletionKind.keyword:
+		return isBasicTypeTokenName(sym.name.data);
+	default:
+		return false;
+	}
+}
+
+/**
  * The primary `textEdit` shared by every completion item (clangd's
  * model): the range from the start of the identifier at the cursor to
  * the cursor, so clients replace exactly the typed prefix.
@@ -1699,11 +1770,14 @@ JSONValue handleCompletion(ref ServerContext context, JSONValue params)
 	auto response = complete(request, *context.cache);
 
 	if (response.completionType == CompletionType.calltips) {
-		// A calltip response to a completion request means the client typed
-		// "(", send signature help instead
-		size_t activeParameter = countParametersBeforeCursor(
-			cast(char[]) request.sourceCode[0 .. request.cursorPosition]);
-		return signatureHelpFromResponse(response, 0, activeParameter).toJson();
+		if (auto typeItems = templateArgumentCompletions(context, request))
+		{
+			CompletionList list;
+			list.isIncomplete = false;
+			list.items = typeItems;
+			return list.toJson();
+		}
+		return JSONValue(null);
 	}
 
 	// Stash for completionItem/resolve: the resolve request carries only
