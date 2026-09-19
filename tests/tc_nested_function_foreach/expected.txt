@@ -1,0 +1,7 @@
+identifiers
+final	k
+float	k
+foo	f
+for	k
+foreach	k
+foreach_reverse	k

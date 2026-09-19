@@ -916,6 +916,13 @@ private void getUFCSSymbols(T, Y)(scope ref T localAppender, scope ref Y globalA
                 sym.type.getParts(istring(null), localAppender, visited);
         }
 
+        // Nested functions live in the enclosing functions's scope, don't forget that one
+        foreach (sym; currentScope.symbols)
+        {
+            if (sym.kind == CompletionKind.functionName)
+                localAppender.put(sym);
+        }
+
         currentScope = currentScope.parent;
     }
 
