@@ -108,6 +108,8 @@ def detect_phobos():
     import glob
     candidates += glob.glob("/opt/homebrew/Cellar/ldc/*/include/dlang/ldc")
     candidates += glob.glob("/usr/local/Cellar/ldc/*/include/dlang/ldc")
+    # setup-dlang CI installs (github actions)
+    candidates += glob.glob(os.path.expanduser("~/dlang/ldc-*/include/dlang/ldc"))
     candidates += glob.glob(os.path.expanduser("~/dlang/dmd-*/src/phobos"))
     candidates += ["/usr/include/dmd/phobos"]
     for c in candidates:

@@ -51,8 +51,8 @@ echo "STAT:"
 # from the tests/ cwd; it needs the release server built above.
 echo "STAT:LSP benchmark (Phobos closure, medians of 3):"
 for i in 1 2 3; do
-	python3 ../benchmarks/lsp_bench.py --json /tmp/lsp_bench_$i.json >/dev/null 2>&1 \
-		|| echo "STAT:LSP BENCHMARK FAILED (run $i)"
+	python3 ../benchmarks/lsp_bench.py --json /tmp/lsp_bench_$i.json >/tmp/lsp_bench_$i.log 2>&1 \
+		|| { echo "STAT:LSP BENCHMARK FAILED (run $i):"; tail -5 /tmp/lsp_bench_$i.log | sed 's/^/STAT:  /'; }
 done
 if [ -f /tmp/lsp_bench_3.json ]; then
 	ldc2 -run ../ci/lsp_bench_stats.d /tmp/lsp_bench_1.json /tmp/lsp_bench_2.json /tmp/lsp_bench_3.json
