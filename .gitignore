@@ -40,3 +40,6 @@ tests/extra/tc_ufcs_all_kinds/generate_tests
 dub.selections.json
 !/dub.selections.json
 dcd*-test-*
+
+//macOs
+.DS_Store
