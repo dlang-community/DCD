@@ -183,7 +183,7 @@ final class FirstPass : ASTVisitor
 		if (block is null)
 			return;
 
-		pushSymbol(FUNCTION_LITERAL_SYMBOL_NAME, CompletionKind.dummy, symbolFile,
+		pushSymbol(FUNCTION_LITERAL_SYMBOL_NAME, CompletionKind.functionName, symbolFile,
 			block.startLocation, null);
 		scope(exit) popSymbol();
 
