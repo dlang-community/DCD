@@ -35,7 +35,7 @@ jobs:
     - name: Checkout old stuff, with new comment script
       run: |
         git checkout ${{ github.base_ref }}
-        git checkout ${{ github.sha }} -- ./ci/summary_comment.sh ./ci/summary_comment_diff.sh
+        git checkout ${{ github.sha }} -- ./ci/summary_comment.sh ./ci/summary_comment_diff.sh ./ci/lsp_bench_stats.d ./benchmarks/lsp_bench.py
 
     # first dump old info
 

@@ -43,6 +43,22 @@ echo "STAT:"
 grep -E 'Request processed in .*' stderr.txt | rdmd ../ci/request_time_stats.d
 echo "STAT:"
 
+# --- LSP latency benchmark (realistic workload: Phobos import closure).
+# Emits one STAT: line per metric so summary_comment_diff.sh picks them
+# up in the before/after PR comment. Medians of 3 runs for noise
+# control; CI runners are shared, so treat small deltas as noise.
+# lsp_bench.py resolves the repo root from its own path, so this works
+# from the tests/ cwd; it needs the release server built above.
+echo "STAT:LSP benchmark (Phobos closure, medians of 3):"
+for i in 1 2 3; do
+	python3 ../benchmarks/lsp_bench.py --json /tmp/lsp_bench_$i.json >/tmp/lsp_bench_$i.log 2>&1 \
+		|| { echo "STAT:LSP BENCHMARK FAILED (run $i):"; tail -5 /tmp/lsp_bench_$i.log | sed 's/^/STAT:  /'; }
+done
+if [ -f /tmp/lsp_bench_3.json ]; then
+	ldc2 -run ../ci/lsp_bench_stats.d /tmp/lsp_bench_1.json /tmp/lsp_bench_2.json /tmp/lsp_bench_3.json
+fi
+echo "STAT:"
+
 # now rebuild server with -profile=gc
 cd ..
 rm -rf .dub bin/dcd-server

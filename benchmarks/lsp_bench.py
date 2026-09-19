@@ -104,10 +104,30 @@ def detect_phobos():
     for env in ("LDC_INCLUDE", "DMD_INCLUDE"):
         if os.environ.get(env):
             candidates.append(os.environ[env])
-    # homebrew ldc
+    # Ask the compiler itself first — layout-agnostic and version-proof.
+    # A verbose compile of an empty file prints where `object.d` was
+    # found; its directory IS the stdlib import root. Works for both
+    # ldc2 (homebrew `include/dlang/ldc`, setup-dlang `import`) and
+    # dmd (`src/phobos`).
+    for cc in ("ldc2", "dmd"):
+        try:
+            with open("/tmp/dcd_bench_empty.d", "w") as f:
+                f.write("void main() {}\n")
+            r = subprocess.run([cc, "-v", "-c", "-o-", "/tmp/dcd_bench_empty.d"],
+                               capture_output=True, text=True, timeout=30)
+            # ldc2 writes -v output to stdout, dmd to stderr — check both
+            for line in (r.stdout + r.stderr).splitlines():
+                if "object.d)" in line and line.rstrip().endswith(")"):
+                    path = line.rstrip().rsplit("(", 1)[1][:-1]
+                    candidates.append(os.path.dirname(path))
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    # fallbacks for known layouts
     import glob
     candidates += glob.glob("/opt/homebrew/Cellar/ldc/*/include/dlang/ldc")
     candidates += glob.glob("/usr/local/Cellar/ldc/*/include/dlang/ldc")
+    # setup-dlang CI installs (github actions): official tarball layout
+    candidates += glob.glob(os.path.expanduser("~/dlang/ldc-*/import"))
     candidates += glob.glob(os.path.expanduser("~/dlang/dmd-*/src/phobos"))
     candidates += ["/usr/include/dmd/phobos"]
     for c in candidates:
