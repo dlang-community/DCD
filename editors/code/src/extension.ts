@@ -51,6 +51,13 @@ class DcdContext implements vscode.Disposable {
       path.isAbsolute(p) ? p : path.join(workspaceRoot, p)
     );
 
+    // Additional module blacklist prefixes: modules the server never
+    // reads or indexes. The core/internal default is always active on
+    const moduleBlacklist = config.get<string[]>('moduleBlacklist', []);
+    if (moduleBlacklist?.length) {
+      log(`moduleBlacklist sent to server: ${JSON.stringify(moduleBlacklist)}`);
+    }
+
     // Import path detection (workspace source dirs, Phobos) happens on the
     // SERVER during initialize, so any LSP client gets it — not just this
     // extension. Here we only forward user-configured paths.
@@ -121,6 +128,7 @@ class DcdContext implements vscode.Disposable {
       outputChannel,
       initializationOptions: {
         importPaths: resolvedImportPaths,
+        moduleBlacklist: moduleBlacklist ?? [],
         ...(dscannerPathSetting
           ? { dscanner: { executable: dscannerPath, ...(dscannerConfig ? { configFile: dscannerConfig } : {}) } }
           : {}),

@@ -81,7 +81,9 @@ private unittest
 }
 
 /**
- * Loads import directories from the configuration file
+ * Loads import directories from the configuration file. Lines starting
+ * with "!" are module blacklist prefixes instead (see
+ * ModuleCache.addModuleBlacklist).
  */
 string[] loadConfiguredImportDirs()
 {
@@ -101,5 +103,24 @@ string[] loadConfiguredImportDirs()
 		.map!(a => a.idup)
 		.map!(expandEnvVars)
 		.filter!(a => existanceCheck(a))
+		.array();
+}
+
+/**
+ * Loads module blacklist prefixes from the configuration file: the "!"
+ * lines, with the marker stripped.
+ */
+string[] loadConfiguredModuleBlacklist()
+{
+	import std.string : strip;
+
+	immutable string configLocation = getConfigurationLocation();
+	if (!configLocation.exists())
+		return [];
+	File f = File(configLocation, "rt");
+	return f.byLine(KeepTerminator.no)
+		.filter!(a => a.length > 1 && a[0] == '!')
+		.map!(a => a[1 .. $].strip().idup)
+		.filter!(a => a.length > 0)
 		.array();
 }

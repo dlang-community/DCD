@@ -163,6 +163,11 @@ struct ModuleCache
 		if (!needsReparsing(cachedLocation))
 			return getEntryFor(cachedLocation).symbol;
 
+		// Blacklisted modules are never read: their symbols would leak
+		// into user scope (see moduleBlacklist).
+		if (isModuleBlacklisted(location))
+			return null;
+
 		// if process has been executed, we will bail out
 		if (cacheDepth > 0 && preemptionCheck !is null && preemptionCheck()) {
 			return null;
@@ -432,7 +437,6 @@ private:
 			}
 		}
 	}
-
 	// Mapping of file paths to their cached symbols.
 	// supportGC=false: nodes are GC-allocated; per-node addRange was redundant
 	// bookkeeping (see DSymbol.Parts).
@@ -453,6 +457,73 @@ private:
 
 	// Listing of paths to check for imports
 	UnrolledList!ImportPath importPaths;
+
+	private string[] moduleBlacklist = [ "core/internal/" ];
+
+public:
+
+	void addModuleBlacklist(const string[] prefixes)
+	{
+		import std.algorithm : map;
+		import std.array : array;
+		import std.path : dirSeparator;
+
+		auto normalized = prefixes
+			.filter!(a => a.length > 0)
+			.map!(a => a[$ - 1] == dirSeparator[0] ? a : a ~ dirSeparator)
+			.filter!(a => !moduleBlacklist.canFind(a))
+			.array;
+		moduleBlacklist ~= normalized;
+	}
+
+	bool isModuleBlacklisted(string importPath) const
+	{
+		foreach (prefix; moduleBlacklist)
+		{
+			if (matchesPathPrefix(importPath, prefix))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+private:
+
+	/// Whether `path` contains the directory sequence `prefix` as
+	/// consecutive segments, so both module names and absolute file
+	/// paths match the same prefix.
+	private static bool matchesPathPrefix(string path, string prefix)
+	{
+		import std.array : array;
+		import std.path : pathSplitter;
+
+		auto pathSegs = array(path.pathSplitter);
+		auto prefixSegs = array(prefix.pathSplitter);
+		if (prefixSegs.length == 0 || pathSegs.length < prefixSegs.length)
+		{
+			return false;
+		}
+		// Try every starting position: absolute paths carry leading
+		// segments (/opt/homebrew/...) before the module's own.
+		foreach (start; 0 .. pathSegs.length - prefixSegs.length + 1)
+		{
+			bool matched = true;
+			foreach (i, seg; prefixSegs)
+			{
+				if (pathSegs[start + i] != seg)
+				{
+					matched = false;
+					break;
+				}
+			}
+			if (matched)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
 }
 
 /// Wrapper to check some attribute of a path, ignoring errors

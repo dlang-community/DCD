@@ -365,6 +365,18 @@ HandlerResult handleInitialize(ref ServerContext context, JSONValue params)
 				if (path.type == JSONType.string)
 					importPaths ~= path.str;
 		}
+		// Additional module blacklist prefixes (the core/internal default
+		// is always active; this only extends it).
+		if (options.type == JSONType.object
+			&& "moduleBlacklist" in options
+			&& options["moduleBlacklist"].type == JSONType.array)
+		{
+			string[] blacklist;
+			foreach (prefix; options["moduleBlacklist"].array)
+				if (prefix.type == JSONType.string)
+					blacklist ~= prefix.str;
+			context.cache.addModuleBlacklist(blacklist);
+		}
 	}
 	context.cache.addImportPaths(importPaths);
 

@@ -61,6 +61,12 @@
           "default": [],
           "description": "Import paths passed to the server (in addition to dcd.conf). Relative paths are resolved against the workspace root."
         },
+        "dcd.moduleBlacklist": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "markdownDescription": "Additional module prefixes the server never reads or indexes (e.g. `myproject/internal`). The druntime `core/internal` namespace is always blacklisted; this only extends the list."
+        },
         "dcd.ignoreConfig": {
           "type": "boolean",
           "default": false,
