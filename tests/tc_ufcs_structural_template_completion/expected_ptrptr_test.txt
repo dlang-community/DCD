@@ -1,0 +1,8 @@
+identifiers
+alignof	k
+init	k
+mangleof	k
+sizeof	k
+stringof	k
+takeAny	F
+takePtrPtr	F

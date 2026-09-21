@@ -163,6 +163,7 @@ enum string[string] INTEGER_PROMOTIONS = [
 ];
 
 enum MAX_NUMBER_OF_MATCHING_RUNS = 50;
+enum MAX_TYPE_CHAIN_DEPTH = 32;
 
 private const(Token)* findUFCSBaseToken(const(Token)[] tokens, out const(Token)[] arguments)
 {
@@ -1148,12 +1149,62 @@ bool isNonConstrainedTemplate(scope ref const(DSymbol) symbolType)
     return symbolType.kind is CompletionKind.typeTmpParam;
 }
 
+bool qualifierMatch(scope ref const(SymbolQualifier) a, scope ref const(SymbolQualifier) b) {
+    return a == b;
+}
+
+bool checkQualifiers(scope ref const(DSymbol) receiverType, scope ref const(DSymbol) incomingType) {
+    auto receiver = &receiverType;
+    auto incoming = &incomingType;
+    size_t guard = 0;
+
+    // Walk both chains in lockstep while both sides are wrappers (`*`,
+    // `[]`, ...). The walk stops at the leaves (qualifier == none),
+    // where the base types are compared.
+    while (receiver !is null && incoming !is null && guard++ < MAX_TYPE_CHAIN_DEPTH) {
+        if (!receiver.qualifier.qualifierMatch(incoming.qualifier)) {
+            // Mismatched shape: pointer vs array, or a leaf on one side
+            // against a wrapper on the other (`T*` must not match `int**`).
+            return false;
+        }
+        if (receiver.qualifier == SymbolQualifier.none) {
+            // Both sides are leaves: the same instance (shared builtin
+            // trees), a template parameter (T matches any base type),
+            // or the same kind+name (split instances of the same type).
+            return receiver is incoming
+                || incoming.kind == CompletionKind.typeTmpParam
+                || (receiver.kind == incoming.kind && receiver.name == incoming.name);
+        }
+        receiver = receiver.type;
+        incoming = incoming.type;
+    }
+    return false;
+}
+
+// Strip all wrappers (*, [], ...) from the parameter type
+// template parameter T sits at the leaf of chains like T* or T[]*.
+bool isStructuralConstrainedTemplate(scope ref const(DSymbol) receiverType, scope ref const(DSymbol) incomingSymbol) {
+    auto param = &incomingSymbol;
+    size_t guard = 0;
+    while (param !is null
+        && param.qualifier != SymbolQualifier.none
+        && guard++ < MAX_TYPE_CHAIN_DEPTH)
+    {
+        param = param.type;
+    }
+    if (param is null || param.kind != CompletionKind.typeTmpParam)
+        return false;
+    return checkQualifiers(receiverType, incomingSymbol);
+}
+
 private bool matchesWithTypeOfPointer(scope ref const(DSymbol) incomingSymbolType, scope ref const(
         DSymbol) significantSymbolType)
 {
     return incomingSymbolType.qualifier == SymbolQualifier.pointer
         && significantSymbolType.qualifier == SymbolQualifier.pointer
-        && incomingSymbolType.type is significantSymbolType.type;
+        && incomingSymbolType.type !is null
+        && significantSymbolType.type !is null
+        && checkQualifiers(*significantSymbolType.type, *incomingSymbolType.type);
 }
 
 private bool matchesWithTypeOfArray(scope ref const(DSymbol) incomingSymbolType, scope ref const(
@@ -1161,7 +1212,9 @@ private bool matchesWithTypeOfArray(scope ref const(DSymbol) incomingSymbolType,
 {
     return incomingSymbolType.qualifier == SymbolQualifier.array
         && cursorSymbolType.qualifier == SymbolQualifier.array
-        && incomingSymbolType.type is cursorSymbolType.type;
+        && incomingSymbolType.type !is null
+        && cursorSymbolType.type !is null
+        && checkQualifiers(*cursorSymbolType.type, *incomingSymbolType.type);
 
 }
 
@@ -1180,19 +1233,12 @@ private bool matchStringLikeTypes(scope ref const(DSymbol) incomingSymbolType, s
 
 private bool typeMatchesWith(scope ref const(DSymbol) incomingSymbolType, scope ref const(DSymbol) significantSymbolType)
 {
-    return incomingSymbolType is significantSymbolType
-        || isNonConstrainedTemplate(
-            incomingSymbolType)
+    auto result = incomingSymbolType is significantSymbolType
+        || isNonConstrainedTemplate(incomingSymbolType)
+        || isStructuralConstrainedTemplate(significantSymbolType, incomingSymbolType)
         || matchesWithTypeOfArray(incomingSymbolType, significantSymbolType)
         || matchesWithTypeOfPointer(incomingSymbolType, significantSymbolType)
         || matchStringLikeTypes(incomingSymbolType, significantSymbolType)
-        // The same type can be represented by two different DSymbol
-        // instances: one from the analyzed ("stdin") document's tree and
-        // one from the cached on-disk module an imported function's
-        // parameter resolves through. Pointer equality above fails for
-        // those, so fall back to comparing the type names (both must be
-        // user-defined aggregate types; builtins are covered by the
-        // pointer-equal builtin trees).
         || (isUserDefinedAggregate(incomingSymbolType)
             && isUserDefinedAggregate(significantSymbolType)
             && incomingSymbolType.name == significantSymbolType.name)
@@ -1200,6 +1246,7 @@ private bool typeMatchesWith(scope ref const(DSymbol) incomingSymbolType, scope 
         // already be unwrapped to the alias target.
         || aliasTargetsMatch(incomingSymbolType, significantSymbolType);
 
+    return result;
 }
 
 private bool aliasTargetsMatch(scope ref const(DSymbol) incomingSymbolType, scope ref const(DSymbol) significantSymbolType)
@@ -1220,7 +1267,7 @@ private bool aliasTargetsMatch(scope ref const(DSymbol) incomingSymbolType, scop
 private const(DSymbol)* resolveAliasTarget(const(DSymbol)* symbol)
 {
     size_t guard = 0;
-    while (symbol !is null && guard++ < 32)
+    while (symbol !is null && guard++ < MAX_TYPE_CHAIN_DEPTH)
     {
         if (symbol.kind == CompletionKind.aliasName
             || symbol.qualifier == SymbolQualifier.pointer)
@@ -1347,6 +1394,7 @@ bool isCallableWithArg(const(DSymbol)* incomingSymbol, ExpressionInfo beforeDotT
         {
             return false;
         }
+
         if (firstParam.type)
             return matchSymbolType(firstParam, beforeDotType.type);
         // Parameter types of cached modules can stay unresolved when the
