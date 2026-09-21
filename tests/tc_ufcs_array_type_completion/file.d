@@ -8,6 +8,4 @@ void arrayStuff7(const(int)[] x) { }
 void doArray(int[] x, int[] y)
 {
 	y.arraySt
-	// TODO: arrayStuff4 isn't included yet, since we don't really process
-	// templates, but should be!
 }

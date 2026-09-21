@@ -1,7 +1,5 @@
 identifiers
 Hello	l
-__monitor	v
-__vptr	v
 age	v
 alignof	k
 classinfo	v

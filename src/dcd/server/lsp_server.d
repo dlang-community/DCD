@@ -48,8 +48,10 @@ int runLspServer(string[] importPaths, bool ignoreConfig)
 	cache.addImportPaths(importPaths);
 	if (!ignoreConfig)
 	{
-		import dcd.server.server : loadConfiguredImportDirs;
+		import dcd.server.server : loadConfiguredImportDirs,
+			loadConfiguredModuleBlacklist;
 		cache.addImportPaths(loadConfiguredImportDirs());
+		cache.addModuleBlacklist(loadConfiguredModuleBlacklist());
 	}
 
 	ServerContext context;

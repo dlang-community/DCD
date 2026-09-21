@@ -1,6 +1,4 @@
 identifiers
-__monitor	v
-__vptr	v
 alignof	k
 classinfo	v
 foo	f

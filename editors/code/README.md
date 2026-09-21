@@ -58,6 +58,7 @@ setup for other editors (Neovim, Helix, Emacs, Kate).
 |---|---|---|
 | `dcd.serverPath` | `"dcd-server"` | Path to the server executable. A bare name is looked up on `PATH`; a relative path is resolved against the workspace root. |
 | `dcd.importPaths` | `[]` | Extra import paths, relative to the workspace root. |
+| `dcd.moduleBlacklist` | `[]` | Additional module prefixes the server never reads or indexes (e.g. `myproject/internal`). The druntime `core/internal` namespace is always blacklisted; this only extends the list. |
 | `dcd.ignoreConfig` | `false` | Skip loading `dcd.conf`. |
 | `dcd.logLevel` | `"info"` | Server log verbosity; logs go to the `DCD` output channel. |
 | `dcd.dscannerPath` | `"dscanner"` | Path to the D-Scanner executable for lint diagnostics. A bare name is looked up on `PATH`; an empty string disables linting. |

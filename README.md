@@ -443,6 +443,12 @@ ${VAR}. For example:
 
 	${HOME}/sysroot/usr/include/dmd/phobos
 
+Lines starting with "!" add a module blacklist prefix: modules under that
+prefix are never read or indexed. The druntime core/internal namespace is
+always blacklisted; these lines only extend the list:
+
+	!myproject/internal
+
 Keep in mind that DCD treats import paths the same way that the compiler does.
 For example, a configuration file like this will not work as expected:
 

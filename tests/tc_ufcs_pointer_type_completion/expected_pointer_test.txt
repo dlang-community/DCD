@@ -2,6 +2,7 @@ identifiers
 alignof	k
 doIncrement	F
 increment1	F
+increment4	F
 increment7	F
 init	k
 mangleof	k

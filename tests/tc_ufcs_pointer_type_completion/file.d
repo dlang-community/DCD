@@ -8,6 +8,4 @@ void increment7(const(int)* x) { }
 void doIncrement(int* x, int* y)
 {
 	y.
-	// TODO: increment4 isn't included yet, since we don't really process
-	// templates, but should be!
 }

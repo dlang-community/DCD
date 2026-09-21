@@ -77,6 +77,7 @@ int runServer(string[] args)
 	bool ignoreConfig;
 	bool lsp;
 	string[] importPaths;
+	string[] moduleBlacklist;
 	LogLevel level = LogLevel.info;
 	version(Windows)
 	{
@@ -155,7 +156,10 @@ int runServer(string[] args)
 	StopWatch sw = StopWatch(AutoStart.yes);
 
 	if (!ignoreConfig)
+	{
 		importPaths ~= loadConfiguredImportDirs();
+		moduleBlacklist ~= loadConfiguredModuleBlacklist();
+	}
 
 	Socket socket;
 	if (useTCP)
@@ -202,6 +206,7 @@ int runServer(string[] args)
 
 	ModuleCache cache;
 	cache.addImportPaths(importPaths);
+	cache.addModuleBlacklist(moduleBlacklist);
 	infof("Import directories:\n    %-(%s\n    %)", cache.getImportPaths());
 
 	ubyte[] buffer = cast(ubyte[]) Mallocator.instance.allocate(1024 * 1024 * 4); // 4 megabytes should be enough for anybody...
