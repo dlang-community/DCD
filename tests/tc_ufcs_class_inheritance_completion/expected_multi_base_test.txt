@@ -1,8 +1,6 @@
 identifiers
 B	l
 I	l
-__monitor	v
-__vptr	v
 alignof	k
 classinfo	v
 init	k

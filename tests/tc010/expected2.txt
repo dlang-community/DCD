@@ -1,7 +1,5 @@
 identifiers
 Base	l
-__monitor	v
-__vptr	v
 alignof	k
 classinfo	v
 init	k

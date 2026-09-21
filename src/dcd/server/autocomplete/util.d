@@ -104,6 +104,21 @@ istring stringToken()(auto ref const Token a)
 	return internString(a.text is null ? str(a.type) : a.text);
 }
 
+/**
+ * Hides implementation-reserved names from completion lists: identifiers
+ * starting with two underscores are reserved for the implementation (D
+ * spec, lex.html 2.8), so filtering them can never hide a user symbol.
+ * They leak in via druntime's object.d compiler hooks and DCD's own
+ * synthesized class properties. Keywords (__LINE__, __traits, ...) are
+ * exempt. Only offers are filtered; calltips and navigation still work.
+ */
+bool isImplementationReservedName(string identifier, char kind)
+{
+	return identifier.length >= 2
+		&& identifier[0] == '_' && identifier[1] == '_'
+		&& kind != CompletionKind.keyword;
+}
+
 //void dumpTokens(const Token[] tokens)
 //{
 	//foreach (t; tokens)

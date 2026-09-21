@@ -65,6 +65,20 @@ enum CalltipHint {
 public AutocompleteResponse complete(const AutocompleteRequest request,
 	ref ModuleCache moduleCache)
 {
+	AutocompleteResponse response = completeImpl(request, moduleCache);
+
+	// Hide implementation-reserved names (__-prefixed, D spec 2.8) from
+	// identifier lists only; calltips and keywords are exempt (see
+	// isImplementationReservedName).
+	if (response.completionType == CompletionType.identifiers)
+		response.completions = response.completions.filter!(
+			a => !isImplementationReservedName(a.identifier, a.kind)).array;
+	return response;
+}
+
+private AutocompleteResponse completeImpl(const AutocompleteRequest request,
+	ref ModuleCache moduleCache)
+{
 	const(Token)[] tokenArray;
 	// clampedBucketCount guards against the empty-document crash
 	// (optimalBucketCount(0) == 0 is rejected by StringCache)

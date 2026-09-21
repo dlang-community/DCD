@@ -11,7 +11,7 @@ import core.time : MonoTime, Duration, seconds;
 
 import dcd.common.messages;
 import dcd.server.autocomplete;
-import dcd.server.autocomplete.util : clampedBucketCount;
+import dcd.server.autocomplete.util : clampedBucketCount, isImplementationReservedName;
 import dcd.server.lsp.document;
 import dcd.server.lsp.protocol;
 import dcd.server.lsp.jsonrpc;
@@ -1505,6 +1505,10 @@ private CompletionItem[] templateArgumentCompletions(ref ServerContext context,
 	{
 		if (!isTemplateArgumentCandidate(sym))
 			continue;
+		// Implementation-reserved `__` names are never template
+		// arguments a user would write (see isImplementationReservedName).
+		if (isImplementationReservedName(sym.name.data, sym.kind))
+			continue;
 		// Deduplicate by name: the same type can be visible through both
 		// the current module and an import (split DSymbol instances).
 		if (app.data.canFind!(a => a.label == sym.name.data))
@@ -2101,6 +2105,10 @@ private CompletionItem[] autoImportCompletions(ref ServerContext context,
 		// Skip internal placeholder names (dsymbol models arrays/pointers
 		// with names like "*arr*") and non-importable kinds.
 		if (!sym.name.length || sym.name.data.canFind('*'))
+			continue;
+		// Implementation-reserved `__` names (spec §2.8): compiler hooks
+		// from druntime internals, never a symbol a user would import.
+		if (isImplementationReservedName(sym.name.data, sym.kind))
 			continue;
 		if (!isPublicCompletionKind(sym.kind))
 			continue;
