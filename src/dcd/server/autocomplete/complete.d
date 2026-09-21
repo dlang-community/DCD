@@ -2551,6 +2551,9 @@ void setCompletions(T)(ref AutocompleteResponse response,
 	CompletionType completionType, CalltipHint callTipHint = CalltipHint.none,
 	string partial = null)
 {
+	// Set up front so early returns don't leave it unset.
+	response.completionType = completionType;
+
 	static void addSymToResponse(const(DSymbol)* s, ref AutocompleteResponse r, string p,
 		Scope* completionScope, size_t[] circularGuard = [])
 	{
